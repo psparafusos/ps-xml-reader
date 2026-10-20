@@ -1,0 +1,129 @@
+/* Impressão (webContents.printToPDF usa a mídia print). Toda cor e tamanho
+   vem de tokens.css. */
+
+@media print {
+  html,
+  body {
+    font-size: var(--fs-print-md);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .barra,
+  .mensagem,
+  .vazio {
+    display: none !important;
+  }
+
+  .nota {
+    max-width: none;
+    padding: 0;
+    gap: var(--esp-print-4);
+  }
+
+  .cabecalho {
+    gap: var(--esp-print-3);
+  }
+
+  .cabecalho__titulo {
+    font-size: var(--fs-print-xl);
+    padding-left: var(--esp-print-3);
+  }
+
+  .cabecalho__partes {
+    gap: var(--esp-print-3);
+  }
+
+  .secao {
+    padding: var(--esp-print-3);
+    break-inside: avoid;
+  }
+
+  .secao__titulo {
+    margin: calc(-1 * var(--esp-print-3)) calc(-1 * var(--esp-print-3))
+      var(--esp-print-3);
+    padding: var(--esp-print-2) var(--esp-print-3);
+    font-size: var(--fs-print-sm);
+    break-after: avoid;
+  }
+
+  /* As tabelas longas podem quebrar entre páginas; só as linhas não. */
+  .secao--itens,
+  .secao--adicionais,
+  .secao--duplicatas {
+    break-inside: auto;
+  }
+
+  .campos {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--esp-print-2) var(--esp-print-3);
+  }
+
+  .campo__rotulo {
+    font-size: var(--fs-print-xs);
+  }
+
+  .tabela-rolagem {
+    overflow: visible;
+  }
+
+  .tabela {
+    font-size: var(--fs-print-sm);
+  }
+
+  .tabela--itens {
+    min-width: 0;
+  }
+
+  .tabela th {
+    padding: var(--esp-print-2);
+  }
+
+  .tabela td {
+    padding: var(--esp-print-1) var(--esp-print-2);
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  tbody.item {
+    break-inside: avoid;
+  }
+
+  .item__adicional {
+    font-size: var(--fs-print-xs);
+  }
+
+  .totais {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--esp-print-2) var(--esp-print-3);
+  }
+
+  .campo--total {
+    padding: var(--esp-print-2) var(--esp-print-3);
+  }
+
+  .campo--total .campo__valor {
+    font-size: var(--fs-print-lg);
+  }
+
+  .lista-adicional {
+    padding-left: var(--esp-print-4);
+  }
+
+  .rodape-pdf {
+    display: block;
+    margin-top: var(--esp-print-4);
+    padding-top: var(--esp-print-2);
+    border-top: var(--borda) solid var(--cor-borda);
+    font-size: var(--fs-print-xs);
+    break-inside: avoid;
+  }
+}

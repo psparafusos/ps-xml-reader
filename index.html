@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Leitor NF-e PS</title>
+  </head>
+  <body>
+    <header id="barra" class="barra" hidden>
+      <div class="barra__titulo">
+        <strong id="barra-fornecedor" class="barra__fornecedor"></strong>
+        <span id="barra-nota" class="barra__nota"></span>
+      </div>
+      <div class="barra__acoes">
+        <button id="btn-abrir-outro" type="button" class="botao botao--claro">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            />
+          </svg>
+          <span>Abrir outro XML</span>
+        </button>
+        <button id="btn-salvar" type="button" class="botao">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 4v11" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M5 20h14" />
+          </svg>
+          <span>Salvar PDF</span>
+        </button>
+      </div>
+    </header>
+
+    <div id="mensagem" class="mensagem" role="status" aria-live="polite" hidden>
+      <span id="mensagem-texto"></span>
+      <button
+        id="mensagem-fechar"
+        type="button"
+        class="botao botao--claro botao--pequeno"
+      >
+        <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12" />
+          <path d="M18 6L6 18" />
+        </svg>
+        <span>Fechar</span>
+      </button>
+    </div>
+
+    <section id="vazio" class="vazio">
+      <div id="area-soltar" class="vazio__caixa">
+        <h1 class="vazio__titulo">PS Parafusos</h1>
+        <p class="vazio__texto">
+          Leitor de XML de NF-e para conferência interna
+        </p>
+        <button id="btn-abrir" type="button" class="botao botao--grande">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            />
+          </svg>
+          <span>Abrir XML</span>
+        </button>
+        <p class="vazio__dica">ou arraste e solte um arquivo .xml aqui</p>
+      </div>
+    </section>
+
+    <main id="nota" class="nota" hidden></main>
+
+    <footer id="rodape-pdf" class="rodape-pdf">
+      <p>
+        Gerado a partir do XML da NF-e. Documento de conferência interna, não
+        substitui o DANFE.
+      </p>
+      <p id="rodape-gerado"></p>
+    </footer>
+
+    <script type="module" src="/src/renderer.ts"></script>
+  </body>
+</html>

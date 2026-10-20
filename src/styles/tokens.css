@@ -1,0 +1,85 @@
+/* Tokens de cor, tipografia e medidas. app.css e print.css usam só estas
+   variáveis. Regra de cor: amarelo é fundo e destaque, nunca texto. Texto
+   sobre amarelo é preto. Corpo de texto é cinza escuro sobre branco. Cinza
+   médio só em borda e ícone. */
+
+:root {
+  /* Paleta PS */
+  --ps-amarelo: #ffc400;
+  --ps-preto: #1a1a1a;
+  --ps-cinza-escuro: #555555;
+  --ps-cinza-medio: #8a8a8a;
+  --ps-branco: #ffffff;
+
+  /* Papéis de cor */
+  --cor-fundo: var(--ps-branco);
+  --cor-texto: var(--ps-cinza-escuro);
+  --cor-texto-forte: var(--ps-preto);
+  --cor-destaque: var(--ps-amarelo);
+  --cor-texto-sobre-destaque: var(--ps-preto);
+  --cor-borda: var(--ps-cinza-medio);
+  --cor-icone: var(--ps-cinza-medio);
+  --cor-zebra: color-mix(in srgb, var(--ps-cinza-medio) 10%, var(--ps-branco));
+  --cor-borda-suave: color-mix(
+    in srgb,
+    var(--ps-cinza-medio) 35%,
+    var(--ps-branco)
+  );
+  --cor-destaque-suave: color-mix(
+    in srgb,
+    var(--ps-amarelo) 18%,
+    var(--ps-branco)
+  );
+
+  /* Tipografia */
+  --fonte:
+    'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-xxl: 40px;
+  --peso-normal: 400;
+  --peso-medio: 600;
+  --peso-forte: 700;
+  --altura-linha: 1.4;
+  --altura-linha-titulo: 1.1;
+  --espaco-letras-rotulo: 0.04em;
+
+  /* Espaçamento */
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 24px;
+  --esp-6: 32px;
+  --esp-7: 48px;
+
+  /* Medidas */
+  --borda: 1px;
+  --borda-forte: 2px;
+  --borda-destaque: 4px;
+  --raio: 6px;
+  --icone: 18px;
+  --icone-traco: 2;
+  --largura-conteudo: 1200px;
+  --largura-vazio: 520px;
+  --altura-vazio: 320px;
+  --largura-rotulo-total: 180px;
+  --largura-minima-campo: 200px;
+  --largura-minima-tabela: 1000px;
+  --sombra-barra: 0 var(--borda-forte) 0 var(--ps-preto);
+  --transicao: 120ms;
+
+  /* Impressão (A4, printToPDF) */
+  --fs-print-xs: 6.5pt;
+  --fs-print-sm: 7.5pt;
+  --fs-print-md: 8.5pt;
+  --fs-print-lg: 10pt;
+  --fs-print-xl: 13pt;
+  --esp-print-1: 1.5pt;
+  --esp-print-2: 3pt;
+  --esp-print-3: 6pt;
+  --esp-print-4: 9pt;
+}
