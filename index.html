@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/src/styles/tokens.css" />
     <link rel="stylesheet" href="/src/styles/app.css" />
     <link rel="stylesheet" href="/src/styles/print.css" />
+    <link rel="stylesheet" href="/src/danfe/danfe.css" />
     <script type="module" src="/src/renderer.ts"></script>
   </head>
   <body>
@@ -40,6 +41,15 @@
             <span>Pasta de destino</span>
             <span class="botao__caminho"></span>
           </span>
+        </button>
+        <button id="btn-alternar" type="button" class="botao botao--claro">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 8h13" />
+            <path d="M14 5l3 3-3 3" />
+            <path d="M20 16H7" />
+            <path d="M10 13l-3 3 3 3" />
+          </svg>
+          <span id="btn-alternar-texto">DANFE</span>
         </button>
         <button id="btn-abrir-outro" type="button" class="botao botao--claro">
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -131,15 +141,17 @@
             <span class="modo__nome">Conferência</span>
             <span class="modo__descricao">Itens, totais e anotações</span>
           </button>
-          <button type="button" class="botao modo__opcao" disabled>
+          <button id="btn-danfe" type="button" class="botao modo__opcao">
             <span class="modo__nome">DANFE</span>
-            <span class="modo__descricao">Em breve</span>
+            <span class="modo__descricao">Documento auxiliar, A4 retrato</span>
           </button>
         </div>
       </div>
     </section>
 
     <main id="nota" class="nota" hidden></main>
+
+    <main id="danfe" class="danfe" hidden></main>
 
     <footer id="rodape-pdf" class="rodape-pdf">
       <p>

@@ -14,7 +14,10 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('escolher-pasta'),
   salvar: (textoCopia: string): Promise<ResultadoSalvar> =>
     ipcRenderer.invoke('salvar', textoCopia),
-  imprimir: (): Promise<ResultadoImprimir> => ipcRenderer.invoke('imprimir'),
+  salvarDanfe: (): Promise<ResultadoSalvarDanfe> =>
+    ipcRenderer.invoke('salvar-danfe'),
+  imprimir: (modo: ModoImpressao): Promise<ResultadoImprimir> =>
+    ipcRenderer.invoke('imprimir', modo),
   informarPendentes: (pendentes: boolean): void =>
     ipcRenderer.send('anotacoes-pendentes', pendentes),
   perguntarAlteracoes: (): Promise<RespostaAlteracoes> =>

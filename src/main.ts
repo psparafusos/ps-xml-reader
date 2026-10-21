@@ -266,138 +266,186 @@ async function desfazerTrocas(
   return falhas;
 }
 
-ipcMain.handle(
-  'salvar',
-  async (event, textoCopia: unknown): Promise<ResultadoSalvar> => {
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    if (!janela) return { status: 'erro', mensagem: 'Janela não encontrada.' };
-    if (!arquivoAberto) {
-      return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
-    }
-    if (typeof textoCopia !== 'string' || textoCopia === '') {
-      return { status: 'erro', mensagem: 'Cópia editada vazia.' };
-    }
+/** Um arquivo a gravar: texto pronto ou o PDF da tela atual (gerado depois). */
+type Saida =
+  | { destino: string; texto: string }
+  | { destino: string; pdf: Electron.PrintToPDFOptions };
 
-    const pasta = await lerPastaDestino();
-    if (!pasta) {
-      return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
+/**
+ * Grava as saídas na pasta de destino, com as mesmas regras para o modo
+ * Conferência e o DANFE: recusa gravar sobre a NF-e original aberta, pergunta
+ * antes de substituir e grava primeiro em temporários (gravação segura).
+ * `nomes(base)` monta os caminhos a partir do nome base do arquivo aberto.
+ */
+async function gravarSaidas(
+  event: Electron.IpcMainInvokeEvent,
+  nomes: (pasta: string, base: string) => Saida[],
+): Promise<
+  | { status: 'salvo'; destinos: string[] }
+  | { status: 'cancelado' }
+  | { status: 'erro'; mensagem: string }
+> {
+  const janela = BrowserWindow.fromWebContents(event.sender);
+  if (!janela) return { status: 'erro', mensagem: 'Janela não encontrada.' };
+  if (!arquivoAberto) {
+    return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
+  }
+
+  const pasta = await lerPastaDestino();
+  if (!pasta) {
+    return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
+  }
+  try {
+    if (!(await stat(pasta)).isDirectory()) throw new Error();
+  } catch {
+    return {
+      status: 'erro',
+      mensagem: `A pasta de destino não existe mais: ${pasta}. Escolha outra.`,
+    };
+  }
+
+  const saidas = nomes(pasta, nomeBase(arquivoAberto));
+  const destinos = saidas.map((s) => s.destino);
+
+  for (const destino of destinos) {
+    if (!abertoEhCopia && (await mesmoArquivo(destino, arquivoAberto))) {
+      const mensagem =
+        `Gravação recusada: ${destino} é o próprio arquivo aberto. ` +
+        'Escolha outra pasta de destino.';
+      await dialog.showMessageBox(janela, {
+        type: 'error',
+        title: 'Gravação recusada',
+        message: mensagem,
+        buttons: ['OK'],
+      });
+      return { status: 'erro', mensagem };
+    }
+  }
+
+  const existentes: string[] = [];
+  for (const destino of destinos) {
+    if (await existe(destino)) existentes.push(path.basename(destino));
+  }
+  if (existentes.length > 0) {
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'question',
+      title: 'Substituir arquivos',
+      message:
+        existentes.length === 1
+          ? `O arquivo ${existentes[0]} já existe na pasta de destino. Deseja substituir?`
+          : `Os arquivos ${existentes.join(' e ')} já existem na pasta de destino. Deseja substituir?`,
+      buttons: ['Substituir', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (response !== 0) return { status: 'cancelado' };
+  }
+
+  const dados: (string | Buffer)[] = [];
+  for (const s of saidas) {
+    if ('texto' in s) {
+      dados.push(s.texto);
+      continue;
     }
     try {
-      if (!(await stat(pasta)).isDirectory()) throw new Error();
-    } catch {
-      return {
-        status: 'erro',
-        mensagem: `A pasta de destino não existe mais: ${pasta}. Escolha outra.`,
-      };
-    }
-
-    const base = nomeBase(arquivoAberto);
-    const destinoPdf = path.join(pasta, `${base}-ps.pdf`);
-    const destinoCopia = path.join(pasta, `${base}-ps.psxml`);
-
-    for (const destino of [destinoPdf, destinoCopia]) {
-      if (!abertoEhCopia && (await mesmoArquivo(destino, arquivoAberto))) {
-        const mensagem =
-          `Gravação recusada: ${destino} é o próprio arquivo aberto. ` +
-          'Escolha outra pasta de destino.';
-        await dialog.showMessageBox(janela, {
-          type: 'error',
-          title: 'Gravação recusada',
-          message: mensagem,
-          buttons: ['OK'],
-        });
-        return { status: 'erro', mensagem };
-      }
-    }
-
-    const existentes: string[] = [];
-    for (const destino of [destinoPdf, destinoCopia]) {
-      if (await existe(destino)) existentes.push(path.basename(destino));
-    }
-    if (existentes.length > 0) {
-      const { response } = await dialog.showMessageBox(janela, {
-        type: 'question',
-        title: 'Substituir arquivos',
-        message:
-          existentes.length === 1
-            ? `O arquivo ${existentes[0]} já existe na pasta de destino. Deseja substituir?`
-            : `Os arquivos ${existentes.join(' e ')} já existem na pasta de destino. Deseja substituir?`,
-        buttons: ['Substituir', 'Cancelar'],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true,
-      });
-      if (response !== 0) return { status: 'cancelado' };
-    }
-
-    let pdf: Buffer;
-    try {
-      pdf = await event.sender.printToPDF({
-        pageSize: 'A4',
-        landscape: false,
-        printBackground: true,
-        margins: {
-          top: MARGEM_PDF,
-          bottom: MARGEM_PDF,
-          left: MARGEM_PDF,
-          right: MARGEM_PDF,
-        },
-      });
+      dados.push(await event.sender.printToPDF(s.pdf));
     } catch (erro) {
       return {
         status: 'erro',
         mensagem: `Não foi possível gerar o PDF: ${mensagemDe(erro)}`,
       };
     }
+  }
 
-    // Grava os dois em temporários na pasta de destino e só depois substitui
-    // os finais. Antes de cada troca guarda uma reserva do arquivo antigo: se a
-    // segunda troca falhar, a primeira é desfeita e os dois ficam como
-    // estavam. No fim, temporários e reservas que sobraram são apagados.
-    const temporarios: string[] = [];
-    const trocados: { destino: string; reserva: string | null }[] = [];
-    try {
-      const pares = [
-        {
-          destino: destinoCopia,
-          tmp: await gravarTemporario(destinoCopia, textoCopia),
-        },
-      ];
-      temporarios.push(pares[0].tmp);
-      pares.push({
-        destino: destinoPdf,
-        tmp: await gravarTemporario(destinoPdf, pdf),
-      });
-      temporarios.push(pares[1].tmp);
-
-      for (const { destino, tmp } of pares) {
-        let reserva: string | null = null;
-        if (await existe(destino)) {
-          reserva = nomeTemporario(destino);
-          await copyFile(destino, reserva, constants.COPYFILE_EXCL);
-          temporarios.push(reserva);
-        }
-        // rename substitui o arquivo final existente na mesma pasta.
-        await rename(tmp, destino);
-        temporarios.splice(temporarios.indexOf(tmp), 1);
-        trocados.push({ destino, reserva });
-      }
-      return { status: 'salvo', pdf: destinoPdf, copia: destinoCopia };
-    } catch (erro) {
-      const naoDesfeitos = await desfazerTrocas(trocados, temporarios);
-      const aviso =
-        naoDesfeitos.length > 0
-          ? ` Não foi possível restaurar: ${naoDesfeitos.join(', ')}.`
-          : '';
-      return {
-        status: 'erro',
-        mensagem: `Não foi possível gravar o arquivo: ${mensagemDe(erro)}${aviso}`,
-      };
-    } finally {
-      await Promise.all(temporarios.map((t) => rm(t, { force: true })));
+  // Grava todos em temporários na pasta de destino e só depois substitui
+  // os finais. Antes de cada troca guarda uma reserva do arquivo antigo: se
+  // uma troca falhar, as anteriores são desfeitas e todos ficam como
+  // estavam. No fim, temporários e reservas que sobraram são apagados.
+  const temporarios: string[] = [];
+  const trocados: { destino: string; reserva: string | null }[] = [];
+  try {
+    const pares: { destino: string; tmp: string }[] = [];
+    for (const [i, destino] of destinos.entries()) {
+      const tmp = await gravarTemporario(destino, dados[i]);
+      temporarios.push(tmp);
+      pares.push({ destino, tmp });
     }
+
+    for (const { destino, tmp } of pares) {
+      let reserva: string | null = null;
+      if (await existe(destino)) {
+        reserva = nomeTemporario(destino);
+        await copyFile(destino, reserva, constants.COPYFILE_EXCL);
+        temporarios.push(reserva);
+      }
+      // rename substitui o arquivo final existente na mesma pasta.
+      await rename(tmp, destino);
+      temporarios.splice(temporarios.indexOf(tmp), 1);
+      trocados.push({ destino, reserva });
+    }
+    return { status: 'salvo', destinos };
+  } catch (erro) {
+    const naoDesfeitos = await desfazerTrocas(trocados, temporarios);
+    const aviso =
+      naoDesfeitos.length > 0
+        ? ` Não foi possível restaurar: ${naoDesfeitos.join(', ')}.`
+        : '';
+    return {
+      status: 'erro',
+      mensagem: `Não foi possível gravar o arquivo: ${mensagemDe(erro)}${aviso}`,
+    };
+  } finally {
+    await Promise.all(temporarios.map((t) => rm(t, { force: true })));
+  }
+}
+
+ipcMain.handle(
+  'salvar',
+  async (event, textoCopia: unknown): Promise<ResultadoSalvar> => {
+    if (typeof textoCopia !== 'string' || textoCopia === '') {
+      return { status: 'erro', mensagem: 'Cópia editada vazia.' };
+    }
+    // A cópia é gravada antes do PDF, como antes.
+    const r = await gravarSaidas(event, (pasta, base) => [
+      { destino: path.join(pasta, `${base}-ps.psxml`), texto: textoCopia },
+      {
+        destino: path.join(pasta, `${base}-ps.pdf`),
+        pdf: {
+          pageSize: 'A4',
+          landscape: false,
+          printBackground: true,
+          margins: {
+            top: MARGEM_PDF,
+            bottom: MARGEM_PDF,
+            left: MARGEM_PDF,
+            right: MARGEM_PDF,
+          },
+        },
+      },
+    ]);
+    if (r.status !== 'salvo') return r;
+    return { status: 'salvo', pdf: r.destinos[1], copia: r.destinos[0] };
   },
 );
+
+// DANFE: só o PDF. As margens são do próprio layout (cada folha é um bloco de
+// 210 x 297 mm), então o Electron imprime sem margem.
+ipcMain.handle('salvar-danfe', async (event): Promise<ResultadoSalvarDanfe> => {
+  const r = await gravarSaidas(event, (pasta, base) => [
+    {
+      destino: path.join(pasta, `${base}-danfe.pdf`),
+      pdf: {
+        pageSize: 'A4',
+        landscape: false,
+        printBackground: true,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      },
+    },
+  ]);
+  if (r.status !== 'salvo') return r;
+  return { status: 'salvo', pdf: r.destinos[0] };
+});
 
 // ---------- anotações não salvas ----------
 
@@ -434,22 +482,36 @@ ipcMain.handle('fechar-janela', (event) => {
 
 // ---------- imprimir ----------
 
+// No DANFE as margens são do layout: imprime em A4 sem margem do Electron.
+const OPCOES_IMPRESSAO: Record<
+  ModoImpressao,
+  Electron.WebContentsPrintOptions
+> = {
+  conferencia: {
+    silent: false,
+    printBackground: true,
+    margins: {
+      marginType: 'custom',
+      top: MARGEM_IMPRESSAO,
+      bottom: MARGEM_IMPRESSAO,
+      left: MARGEM_IMPRESSAO,
+      right: MARGEM_IMPRESSAO,
+    },
+  },
+  danfe: {
+    silent: false,
+    printBackground: true,
+    pageSize: 'A4',
+    margins: { marginType: 'none' },
+  },
+};
+
 ipcMain.handle(
   'imprimir',
-  (event): Promise<ResultadoImprimir> =>
+  (event, modo: unknown): Promise<ResultadoImprimir> =>
     new Promise((resolve) => {
       event.sender.print(
-        {
-          silent: false,
-          printBackground: true,
-          margins: {
-            marginType: 'custom',
-            top: MARGEM_IMPRESSAO,
-            bottom: MARGEM_IMPRESSAO,
-            left: MARGEM_IMPRESSAO,
-            right: MARGEM_IMPRESSAO,
-          },
-        },
+        OPCOES_IMPRESSAO[modo === 'danfe' ? 'danfe' : 'conferencia'],
         (sucesso, motivo) => {
           if (sucesso) resolve({ status: 'impresso' });
           else if (motivo === 'Print job canceled')

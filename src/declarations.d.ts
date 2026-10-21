@@ -12,6 +12,13 @@ type ResultadoSalvar =
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
+type ResultadoSalvarDanfe =
+  | { status: 'salvo'; pdf: string }
+  | { status: 'cancelado' }
+  | { status: 'erro'; mensagem: string };
+
+type ModoImpressao = 'conferencia' | 'danfe';
+
 type ResultadoImprimir =
   | { status: 'impresso' }
   | { status: 'cancelado' }
@@ -30,8 +37,10 @@ interface PsApi {
   escolherPasta(): Promise<string | null>;
   /** Grava <base>-ps.pdf (da tela atual) e <base>-ps.psxml na pasta de destino. */
   salvar(textoCopia: string): Promise<ResultadoSalvar>;
+  /** Grava só <base>-danfe.pdf (da tela atual, A4 sem margem) na pasta de destino. */
+  salvarDanfe(): Promise<ResultadoSalvarDanfe>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
-  imprimir(): Promise<ResultadoImprimir>;
+  imprimir(modo: ModoImpressao): Promise<ResultadoImprimir>;
   /** Avisa o processo principal se há anotações alteradas e não salvas. */
   informarPendentes(pendentes: boolean): void;
   /** Pergunta Salvar, Descartar ou Cancelar sobre as anotações não salvas. */

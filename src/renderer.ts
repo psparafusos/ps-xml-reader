@@ -5,7 +5,15 @@
 
 import { COLUNAS_ITENS, ID_ANOTACAO, type ColunaItem } from './nfe/colunas';
 import { montarCopia } from './nfe/copia';
-import { lerArquivo, NaoEhNfeError, type ArquivoLido } from './nfe/parser';
+import {
+  lerArquivo,
+  lerDocumento,
+  localizarOriginal,
+  NaoEhNfeError,
+  type ArquivoLido,
+} from './nfe/parser';
+import { lerDanfe, motivoNaoSuportado } from './danfe/dados';
+import { montarDanfe } from './danfe/danfe';
 import type { Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
 
@@ -396,6 +404,7 @@ const barraFornecedor = $('barra-fornecedor');
 const barraNota = $('barra-nota');
 const barraCopia = $('barra-copia');
 const notaEl = $('nota');
+const danfeEl = $('danfe');
 const mensagem = $('mensagem');
 const mensagemTexto = $('mensagem-texto');
 const rodapeGerado = $('rodape-gerado');
@@ -403,6 +412,9 @@ const rodapeCopia = $('rodape-copia');
 const btnAbrir = $('btn-abrir') as HTMLButtonElement;
 const btnAbrirOutro = $('btn-abrir-outro') as HTMLButtonElement;
 const btnConferencia = $('btn-conferencia') as HTMLButtonElement;
+const btnDanfe = $('btn-danfe') as HTMLButtonElement;
+const btnAlternar = $('btn-alternar') as HTMLButtonElement;
+const btnAlternarTexto = $('btn-alternar-texto');
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const botoesPasta = [
@@ -432,13 +444,88 @@ function textoNumeroSerie(n: Nota): string {
   return partes.join(' ');
 }
 
-/** Mostra só uma das telas: inicial, escolha de modo ou nota. */
-function mostrarTela(tela: 'vazio' | 'modo' | 'nota'): void {
+/** Modo da tela da nota. Salvar e imprimir seguem o modo. */
+let modoAtual: ModoImpressao = 'conferencia';
+/** A conferência já foi montada para o arquivo aberto. */
+let conferenciaMontada = false;
+/** O DANFE já foi montado para o arquivo aberto. */
+let danfeMontado = false;
+
+/** Mostra só uma das telas: inicial, escolha de modo, conferência ou DANFE. */
+function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   vazio.hidden = tela !== 'vazio';
   modo.hidden = tela !== 'modo';
-  barra.hidden = tela !== 'nota';
+  barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
+  danfeEl.hidden = tela !== 'danfe';
+  if (tela === 'nota' || tela === 'danfe') {
+    modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
+    document.body.dataset.modo = modoAtual;
+    btnAlternarTexto.textContent =
+      modoAtual === 'danfe' ? 'Conferência' : 'DANFE';
+  }
   window.scrollTo(0, 0);
+}
+
+/** Mostra a conferência; monta a tela só na primeira vez (guarda o digitado). */
+function mostrarConferencia(): void {
+  if (!conferenciaMontada) exibirNota();
+  else mostrarTela('nota');
+}
+
+/** Preenche a barra com os dados da nota (iguais nos dois modos). */
+function preencherBarra(n: Nota): void {
+  barraFornecedor.textContent = n.emitente.xNome;
+  barraNota.textContent = textoNumeroSerie(n);
+  // O aviso de cópia editada fica só na barra, nunca no corpo do DANFE.
+  barraCopia.hidden = !aberto?.lido.copiaEditada;
+  document.title = juntar([textoNumeroSerie(n), n.emitente.xNome], ' | ');
+}
+
+/**
+ * Mostra o DANFE. Usa sempre a nota de dentro de original (num .psxml, as
+ * anotações ficam de fora). Contingência ou modelo diferente de 55: não gera,
+ * mostra o motivo e fica onde estava.
+ */
+function mostrarDanfe(): void {
+  if (!aberto) return;
+  if (danfeMontado) {
+    mostrarTela('danfe');
+    return;
+  }
+  let dados: ReturnType<typeof lerDanfe>;
+  try {
+    const { original } = localizarOriginal(lerDocumento(aberto.texto));
+    dados = lerDanfe(original);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível montar o DANFE.', 'erro');
+    console.error(erro);
+    return;
+  }
+  const motivo = motivoNaoSuportado(dados);
+  if (motivo) {
+    mostrarMensagem(motivo, 'erro');
+    return;
+  }
+  esconderMensagem();
+  preencherBarra(aberto.lido.nota);
+  // A montagem mede a altura dos itens já renderizados: a área precisa estar
+  // visível antes.
+  mostrarTela('danfe');
+  try {
+    montarDanfe(danfeEl, dados);
+    danfeMontado = true;
+  } catch (erro) {
+    danfeEl.replaceChildren();
+    mostrarMensagem('Não foi possível montar o DANFE.', 'erro');
+    console.error(erro);
+    mostrarConferencia();
+  }
+}
+
+function alternarModo(): void {
+  if (modoAtual === 'danfe') mostrarConferencia();
+  else mostrarDanfe();
 }
 
 function exibirNota(): void {
@@ -469,6 +556,7 @@ function exibirNota(): void {
     ].filter((s): s is HTMLElement => s !== null),
   );
 
+  conferenciaMontada = true;
   mostrarTela('nota');
 }
 
@@ -478,6 +566,9 @@ function carregar(arquivo: ArquivoAberto): void {
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
+    conferenciaMontada = false;
+    danfeMontado = false;
+    danfeEl.replaceChildren();
     anotacoes.clear();
     for (const [nItem, texto] of lido.anotacoes) anotacoes.set(nItem, texto);
     marcarGravadas();
@@ -488,6 +579,9 @@ function carregar(arquivo: ArquivoAberto): void {
     // O processo principal já trocou o arquivo aberto: a nota anterior não
     // pode mais ser salva, então volta para a tela inicial.
     aberto = null;
+    conferenciaMontada = false;
+    danfeMontado = false;
+    danfeEl.replaceChildren();
     anotacoes.clear();
     marcarGravadas();
     notaEl.replaceChildren();
@@ -562,10 +656,40 @@ function marcarGeradoEm(): void {
 function bloquearAcoes(bloquear: boolean): void {
   btnSalvar.disabled = bloquear;
   btnImprimir.disabled = bloquear;
+  // Trocar de modo durante a gravação mudaria a tela que vira PDF.
+  btnAlternar.disabled = bloquear;
+}
+
+/** Salva conforme o modo: conferência (PDF e cópia) ou DANFE (só o PDF). */
+function salvar(): Promise<boolean> {
+  return modoAtual === 'danfe' ? salvarDanfe() : salvarConferencia();
+}
+
+/** Salva só o PDF do DANFE (<base>-danfe.pdf). true se gravou. */
+async function salvarDanfe(): Promise<boolean> {
+  if (!aberto) return false;
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return false;
+  bloquearAcoes(true);
+  try {
+    const r = await window.psApi.salvarDanfe();
+    if (r.status === 'salvo') {
+      mostrarMensagem(`Salvo em ${r.pdf}`, 'info');
+      return true;
+    }
+    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+    return false;
+  } catch (erro) {
+    mostrarMensagem('Não foi possível salvar.', 'erro');
+    console.error(erro);
+    return false;
+  } finally {
+    bloquearAcoes(false);
+  }
 }
 
 /** Salva PDF e cópia editada. true se gravou. */
-async function salvar(): Promise<boolean> {
+async function salvarConferencia(): Promise<boolean> {
   if (!aberto) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
@@ -620,7 +744,12 @@ async function podeSair(): Promise<boolean> {
     return false;
   }
   if (resposta === 'descartar') return true;
-  if (resposta === 'salvar') return salvar();
+  if (resposta === 'salvar') {
+    // As anotações vão para a cópia editada e o PDF da conferência, que sai
+    // da tela: no DANFE, volta para a conferência antes de salvar.
+    if (modoAtual === 'danfe') mostrarConferencia();
+    return salvarConferencia();
+  }
   return false;
 }
 
@@ -630,7 +759,7 @@ async function imprimir(): Promise<void> {
   marcarGeradoEm();
   bloquearAcoes(true);
   try {
-    const r = await window.psApi.imprimir();
+    const r = await window.psApi.imprimir(modoAtual);
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
   } catch (erro) {
     mostrarMensagem('Não foi possível imprimir.', 'erro');
@@ -644,7 +773,9 @@ async function imprimir(): Promise<void> {
 
 btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
-btnConferencia.addEventListener('click', exibirNota);
+btnConferencia.addEventListener('click', mostrarConferencia);
+btnDanfe.addEventListener('click', mostrarDanfe);
+btnAlternar.addEventListener('click', alternarModo);
 btnImprimir.addEventListener('click', () => void imprimir());
 btnSalvar.addEventListener('click', () => void salvar());
 window.psApi.aoPedirFechar(() => {

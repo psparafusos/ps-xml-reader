@@ -30,7 +30,7 @@ export class NaoEhNfeError extends Error {
 }
 
 /** Primeiro filho direto de `el` com o nome local `tag`, ou null. */
-function filho(el: Element | null, tag: string): Element | null {
+export function filho(el: Element | null, tag: string): Element | null {
   if (!el) return null;
   for (const c of Array.from(el.children)) {
     if (c.localName === tag) return c;
@@ -39,18 +39,18 @@ function filho(el: Element | null, tag: string): Element | null {
 }
 
 /** Todos os filhos diretos de `el` com o nome local `tag`. */
-function filhos(el: Element | null, tag: string): Element[] {
+export function filhos(el: Element | null, tag: string): Element[] {
   if (!el) return [];
   return Array.from(el.children).filter((c) => c.localName === tag);
 }
 
 /** Texto do filho direto `tag` de `el`. String vazia se não existir. */
-function texto(el: Element | null, tag: string): string {
+export function texto(el: Element | null, tag: string): string {
   return filho(el, tag)?.textContent?.trim() ?? '';
 }
 
 /** Primeiro descendente (qualquer profundidade) com o nome local `tag`. */
-function descendente(el: Element | null, tag: string): Element | null {
+export function descendente(el: Element | null, tag: string): Element | null {
   if (!el) return null;
   const porNs = el.getElementsByTagNameNS(NS_NFE, tag);
   if (porNs.length > 0) return porNs[0];
