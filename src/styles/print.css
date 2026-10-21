@@ -16,7 +16,8 @@
 
   .barra,
   .mensagem,
-  .vazio {
+  .vazio,
+  .modo {
     display: none !important;
   }
 
@@ -99,6 +100,29 @@
 
   .item__adicional {
     font-size: var(--fs-print-xs);
+  }
+
+  /* Anotação: sai o texto; sem texto, sai a caixa vazia com a borda. */
+  .anotacao__campo {
+    display: none;
+  }
+
+  /* A descrição ocupa 100% da largura; sem min-width a anotação encolhe. */
+  .tabela--itens .col-anotacao {
+    width: var(--largura-anotacao-print);
+    min-width: var(--largura-anotacao-print);
+  }
+
+  .anotacao__impressao {
+    display: block;
+    min-height: var(--altura-anotacao-print);
+    padding: 0 var(--esp-print-2);
+    border: var(--borda) solid var(--cor-borda);
+    border-radius: var(--esp-print-1);
+    background: var(--ps-branco);
+    color: var(--cor-texto-forte);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .totais {

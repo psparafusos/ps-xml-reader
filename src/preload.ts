@@ -1,8 +1,18 @@
-// Ponte entre o renderer e o processo principal. Expõe só duas funções.
-import { contextBridge, ipcRenderer } from 'electron';
+// Ponte entre o renderer e o processo principal. Expõe só as funções de PsApi.
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 contextBridge.exposeInMainWorld('psApi', {
-  abrirXml: (): Promise<string | null> => ipcRenderer.invoke('abrir-xml'),
-  salvarPdf: (nomeSugerido: string) =>
-    ipcRenderer.invoke('salvar-pdf', nomeSugerido),
-});
+  abrirArquivo: (): Promise<ArquivoAberto | null> =>
+    ipcRenderer.invoke('abrir-arquivo'),
+  // O caminho do arquivo solto só existe aqui (webUtils); o processo
+  // principal lê o arquivo e guarda o caminho.
+  abrirSolto: (arquivo: File): Promise<ArquivoAberto> =>
+    ipcRenderer.invoke('abrir-caminho', webUtils.getPathForFile(arquivo)),
+  pastaDestino: (): Promise<string | null> =>
+    ipcRenderer.invoke('pasta-destino'),
+  escolherPasta: (): Promise<string | null> =>
+    ipcRenderer.invoke('escolher-pasta'),
+  salvar: (textoCopia: string): Promise<ResultadoSalvar> =>
+    ipcRenderer.invoke('salvar', textoCopia),
+  imprimir: (): Promise<ResultadoImprimir> => ipcRenderer.invoke('imprimir'),
+} satisfies PsApi);

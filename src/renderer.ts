@@ -5,7 +5,9 @@ import './styles/tokens.css';
 import './styles/app.css';
 import './styles/print.css';
 
-import { lerNota, NaoEhNfeError } from './nfe/parser';
+import { COLUNAS_ITENS, ID_ANOTACAO, type ColunaItem } from './nfe/colunas';
+import { montarCopia } from './nfe/copia';
+import { lerArquivo, NaoEhNfeError, type ArquivoLido } from './nfe/parser';
 import type { Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
 
@@ -160,35 +162,40 @@ function blocoDadosNota(n: Nota): HTMLElement | null {
   return secao('Dados da NF-e', 'secao--dados', conteudo);
 }
 
-interface Coluna {
-  titulo: string;
-  /** num: alinhado à direita. sem-quebra: texto curto em uma linha. */
-  classe: 'num' | 'sem-quebra' | 'col-descricao';
-  valor: (i: Item) => string;
-}
+/** Anotações digitadas na tela, por nItem. Texto vazio não fica guardado. */
+const anotacoes = new Map<string, string>();
 
-const COLUNAS_ITENS: Coluna[] = [
-  { titulo: 'Nº', classe: 'num', valor: (i) => i.nItem },
-  { titulo: 'Código', classe: 'sem-quebra', valor: (i) => i.cProd },
-  { titulo: 'EAN', classe: 'sem-quebra', valor: (i) => i.cEAN },
-  { titulo: 'Descrição', classe: 'col-descricao', valor: (i) => i.xProd },
-  { titulo: 'NCM', classe: 'sem-quebra', valor: (i) => i.NCM },
-  { titulo: 'CFOP', classe: 'sem-quebra', valor: (i) => i.CFOP },
-  { titulo: 'Un', classe: 'sem-quebra', valor: (i) => i.uCom },
-  { titulo: 'Qtd', classe: 'num', valor: (i) => f.quantidade(i.qCom) },
-  { titulo: 'V. Unit', classe: 'num', valor: (i) => f.valorUnitario(i.vUnCom) },
-  { titulo: 'V. Total', classe: 'num', valor: (i) => f.valor(i.vProd) },
-  { titulo: 'IPI', classe: 'num', valor: (i) => f.valor(i.vIPI) },
-  { titulo: 'ICMS', classe: 'num', valor: (i) => f.valor(i.vICMS) },
-];
+/**
+ * Célula de anotação: na tela é um campo de texto; na impressão o campo some
+ * e sai o espelho em texto (campos de formulário nem sempre são impressos).
+ */
+function celulaAnotacao(i: Item, classe: string): HTMLElement {
+  const campoTexto = el('input', 'anotacao__campo');
+  campoTexto.type = 'text';
+  campoTexto.value = anotacoes.get(i.nItem) ?? '';
+  campoTexto.setAttribute('aria-label', `Anotação do item ${i.nItem}`);
+  const espelho = el('div', 'anotacao__impressao', campoTexto.value);
+
+  campoTexto.addEventListener('input', () => {
+    if (campoTexto.value.trim()) anotacoes.set(i.nItem, campoTexto.value);
+    else anotacoes.delete(i.nItem);
+    espelho.textContent = campoTexto.value;
+  });
+
+  return el('td', classe, campoTexto, espelho);
+}
 
 function tabelaItens(n: Nota): HTMLElement | null {
   if (n.itens.length === 0) return null;
 
+  const colunas = COLUNAS_ITENS.filter((c) => c.visivel);
+  const classe = (c: ColunaItem) =>
+    `col-${c.id}${c.alinhamento === 'direita' ? ' num' : ''}`;
+
   const thead = el(
     'thead',
     '',
-    el('tr', '', ...COLUNAS_ITENS.map((c) => el('th', c.classe, c.titulo))),
+    el('tr', '', ...colunas.map((c) => el('th', classe(c), c.rotulo))),
   );
 
   // Cada item em seu próprio tbody: a linha de infAdProd fica junto do item
@@ -200,12 +207,16 @@ function tabelaItens(n: Nota): HTMLElement | null {
       el(
         'tr',
         'item__linha',
-        ...COLUNAS_ITENS.map((c) => el('td', c.classe, c.valor(i))),
+        ...colunas.map((c) =>
+          c.id === ID_ANOTACAO
+            ? celulaAnotacao(i, classe(c))
+            : el('td', classe(c), c.valor(i)),
+        ),
       ),
     );
     if (i.infAdProd) {
       const td = el('td', 'item__adicional', i.infAdProd);
-      td.colSpan = COLUNAS_ITENS.length;
+      td.colSpan = colunas.length;
       tbody.append(el('tr', 'item__linha-adicional', td));
     }
     return tbody;
@@ -352,18 +363,30 @@ function blocoDadosAdicionais(n: Nota): HTMLElement | null {
 
 const vazio = $('vazio');
 const areaSoltar = $('area-soltar');
+const modo = $('modo');
+const modoArquivo = $('modo-arquivo');
 const barra = $('barra');
 const barraFornecedor = $('barra-fornecedor');
 const barraNota = $('barra-nota');
+const barraCopia = $('barra-copia');
 const notaEl = $('nota');
 const mensagem = $('mensagem');
 const mensagemTexto = $('mensagem-texto');
 const rodapeGerado = $('rodape-gerado');
+const rodapeCopia = $('rodape-copia');
 const btnAbrir = $('btn-abrir') as HTMLButtonElement;
 const btnAbrirOutro = $('btn-abrir-outro') as HTMLButtonElement;
+const btnConferencia = $('btn-conferencia') as HTMLButtonElement;
+const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
+const botoesPasta = [
+  $('btn-pasta') as HTMLButtonElement,
+  $('btn-pasta-barra') as HTMLButtonElement,
+];
 
-let notaAtual: Nota | null = null;
+/** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
+let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
+let pastaDestino: string | null = null;
 
 function mostrarMensagem(texto: string, tipo: 'info' | 'erro'): void {
   mensagemTexto.textContent = texto;
@@ -383,10 +406,22 @@ function textoNumeroSerie(n: Nota): string {
   return partes.join(' ');
 }
 
-function exibirNota(n: Nota): void {
-  notaAtual = n;
+/** Mostra só uma das telas: inicial, escolha de modo ou nota. */
+function mostrarTela(tela: 'vazio' | 'modo' | 'nota'): void {
+  vazio.hidden = tela !== 'vazio';
+  modo.hidden = tela !== 'modo';
+  barra.hidden = tela !== 'nota';
+  notaEl.hidden = tela !== 'nota';
+  window.scrollTo(0, 0);
+}
+
+function exibirNota(): void {
+  if (!aberto) return;
+  const n = aberto.lido.nota;
   barraFornecedor.textContent = n.emitente.xNome;
   barraNota.textContent = textoNumeroSerie(n);
+  barraCopia.hidden = !aberto.lido.copiaEditada;
+  rodapeCopia.hidden = !aberto.lido.copiaEditada;
   document.title = juntar([textoNumeroSerie(n), n.emitente.xNome], ' | ');
 
   const cabecalho = el(
@@ -408,18 +443,28 @@ function exibirNota(n: Nota): void {
     ].filter((s): s is HTMLElement => s !== null),
   );
 
-  vazio.hidden = true;
-  barra.hidden = false;
-  notaEl.hidden = false;
-  window.scrollTo(0, 0);
+  mostrarTela('nota');
 }
 
-function carregarTexto(xml: string): void {
+/** Lê o arquivo e vai para a escolha de modo. */
+function carregar(arquivo: ArquivoAberto): void {
   try {
-    const nota = lerNota(xml);
+    const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
-    exibirNota(nota);
+    aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
+    anotacoes.clear();
+    for (const [nItem, texto] of lido.anotacoes) anotacoes.set(nItem, texto);
+    modoArquivo.textContent = arquivo.nome;
+    document.title = 'Leitor NF-e PS';
+    mostrarTela('modo');
   } catch (erro) {
+    // O processo principal já trocou o arquivo aberto: a nota anterior não
+    // pode mais ser salva, então volta para a tela inicial.
+    aberto = null;
+    anotacoes.clear();
+    notaEl.replaceChildren();
+    document.title = 'Leitor NF-e PS';
+    mostrarTela('vazio');
     if (erro instanceof NaoEhNfeError) {
       mostrarMensagem(erro.message, 'erro');
     } else {
@@ -431,38 +476,107 @@ function carregarTexto(xml: string): void {
 
 async function abrir(): Promise<void> {
   try {
-    const texto = await window.psApi.abrirXml();
-    if (texto !== null) carregarTexto(texto);
+    const arquivo = await window.psApi.abrirArquivo();
+    if (arquivo !== null) carregar(arquivo);
   } catch (erro) {
     mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
     console.error(erro);
   }
 }
 
-function nomeSugerido(n: Nota): string {
-  const partes = [
-    'NFe',
-    f.nomeArquivoSeguro(n.ide.nNF),
-    f.nomeArquivoSeguro(n.emitente.xNome),
-  ];
-  return `${juntar(partes, '-')}.pdf`;
+// ---------- pasta de destino ----------
+
+const LIMITE_CAMINHO = 40;
+
+/** "C:\Users\fulano\Documents\Notas\2026" -> "C:\…\Notas\2026" */
+function abreviarCaminho(caminho: string): string {
+  if (caminho.length <= LIMITE_CAMINHO) return caminho;
+  const partes = caminho.split('\\').filter((p) => p !== '');
+  if (partes.length > 3) {
+    const curto = `${partes[0]}\\…\\${partes.slice(-2).join('\\')}`;
+    if (curto.length <= LIMITE_CAMINHO) return curto;
+  }
+  return `…${caminho.slice(-(LIMITE_CAMINHO - 1))}`;
+}
+
+function atualizarPasta(caminho: string | null): void {
+  pastaDestino = caminho;
+  for (const b of botoesPasta) {
+    const rotulo = b.querySelector('.botao__caminho');
+    if (rotulo) {
+      rotulo.textContent = caminho
+        ? abreviarCaminho(caminho)
+        : 'Nenhuma pasta escolhida';
+    }
+    b.title = caminho ?? '';
+  }
+}
+
+async function escolherPasta(): Promise<string | null> {
+  try {
+    const pasta = await window.psApi.escolherPasta();
+    if (pasta !== null) atualizarPasta(pasta);
+    return pasta;
+  } catch (erro) {
+    mostrarMensagem('Não foi possível salvar a pasta de destino.', 'erro');
+    console.error(erro);
+    return null;
+  }
+}
+
+// ---------- salvar e imprimir ----------
+
+function marcarGeradoEm(): void {
+  rodapeGerado.textContent = `Gerado em ${f.agora()}`;
+}
+
+function bloquearAcoes(bloquear: boolean): void {
+  btnSalvar.disabled = bloquear;
+  btnImprimir.disabled = bloquear;
 }
 
 async function salvar(): Promise<void> {
-  if (!notaAtual) return;
+  if (!aberto) return;
   esconderMensagem();
-  rodapeGerado.textContent = `Gerado em ${f.agora()}`;
-  btnSalvar.disabled = true;
+  if (!pastaDestino && !(await escolherPasta())) return;
+
+  let copia: string;
   try {
-    const r = await window.psApi.salvarPdf(nomeSugerido(notaAtual));
+    copia = montarCopia(aberto.texto, anotacoes);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível montar a cópia editada.', 'erro');
+    console.error(erro);
+    return;
+  }
+
+  marcarGeradoEm();
+  bloquearAcoes(true);
+  try {
+    const r = await window.psApi.salvar(copia);
     if (r.status === 'salvo')
-      mostrarMensagem(`PDF salvo em ${r.caminho}`, 'info');
+      mostrarMensagem(`Salvo em ${r.pdf} e ${r.copia}`, 'info');
     else if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
   } catch (erro) {
-    mostrarMensagem('Não foi possível salvar o PDF.', 'erro');
+    mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
   } finally {
-    btnSalvar.disabled = false;
+    bloquearAcoes(false);
+  }
+}
+
+async function imprimir(): Promise<void> {
+  if (!aberto) return;
+  esconderMensagem();
+  marcarGeradoEm();
+  bloquearAcoes(true);
+  try {
+    const r = await window.psApi.imprimir();
+    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+  } catch (erro) {
+    mostrarMensagem('Não foi possível imprimir.', 'erro');
+    console.error(erro);
+  } finally {
+    bloquearAcoes(false);
   }
 }
 
@@ -470,8 +584,21 @@ async function salvar(): Promise<void> {
 
 btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
+btnConferencia.addEventListener('click', exibirNota);
+btnImprimir.addEventListener('click', () => void imprimir());
 btnSalvar.addEventListener('click', () => void salvar());
+for (const b of botoesPasta) {
+  b.addEventListener('click', () => void escolherPasta());
+}
 $('mensagem-fechar').addEventListener('click', esconderMensagem);
+
+window.psApi
+  .pastaDestino()
+  .then(atualizarPasta)
+  .catch((erro: unknown) => {
+    atualizarPasta(null);
+    console.error(erro);
+  });
 
 // Arrastar e soltar: aceito na janela toda. Sem preventDefault o Electron
 // tentaria abrir o arquivo como página.
@@ -499,13 +626,14 @@ window.addEventListener('drop', (e) => {
   areaSoltar.classList.remove('vazio__caixa--ativa');
   const arquivo = e.dataTransfer?.files[0];
   if (!arquivo) return;
-  if (!arquivo.name.toLowerCase().endsWith('.xml')) {
-    mostrarMensagem('Selecione um arquivo .xml.', 'erro');
+  const nome = arquivo.name.toLowerCase();
+  if (!nome.endsWith('.xml') && !nome.endsWith('.psxml')) {
+    mostrarMensagem('Selecione um arquivo .xml ou .psxml.', 'erro');
     return;
   }
-  arquivo
-    .text()
-    .then(carregarTexto)
+  window.psApi
+    .abrirSolto(arquivo)
+    .then(carregar)
     .catch((erro: unknown) => {
       mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
       console.error(erro);

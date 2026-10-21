@@ -99,6 +99,25 @@ ul {
   color: var(--ps-branco);
 }
 
+.botao--pasta {
+  max-width: var(--largura-caminho);
+  text-align: left;
+}
+
+.botao__textos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.botao__caminho {
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .botao--pequeno {
   padding: var(--esp-1) var(--esp-2);
   font-size: var(--fs-sm);
@@ -152,6 +171,76 @@ ul {
   font-size: var(--fs-sm);
 }
 
+/* ---------- escolha de modo ---------- */
+
+.modo {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--esp-6);
+}
+
+.modo__caixa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-4);
+  text-align: center;
+}
+
+.modo__arquivo {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.modo__titulo {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-xl);
+  font-weight: var(--peso-forte);
+}
+
+.modo__opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--esp-4);
+}
+
+.modo__opcao {
+  width: var(--largura-modo-opcao);
+  min-height: var(--altura-modo-opcao);
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--esp-2);
+  background: var(--cor-destaque);
+  border-color: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+}
+
+.modo__opcao:hover {
+  background: var(--ps-preto);
+  border-color: var(--ps-preto);
+  color: var(--ps-branco);
+}
+
+.modo__opcao:disabled,
+.modo__opcao:disabled:hover {
+  cursor: not-allowed;
+  background: var(--ps-branco);
+  border: var(--borda-forte) dashed var(--cor-borda);
+  color: var(--cor-texto);
+}
+
+.modo__nome {
+  font-size: var(--fs-xl);
+  font-weight: var(--peso-forte);
+}
+
+.modo__descricao {
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-normal);
+}
+
 /* ---------- barra superior ---------- */
 
 .barra {
@@ -185,6 +274,16 @@ ul {
 .barra__nota {
   font-size: var(--fs-sm);
   font-weight: var(--peso-medio);
+}
+
+.barra__copia {
+  align-self: flex-start;
+  margin-top: var(--esp-1);
+  padding: 0 var(--esp-2);
+  border: var(--borda) solid var(--ps-preto);
+  border-radius: var(--raio);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
 }
 
 .barra__acoes {
@@ -350,13 +449,45 @@ ul {
   background: var(--cor-zebra);
 }
 
-.tabela--itens .sem-quebra {
+.tabela--itens .item__linha > td:not(.col-descricao, .col-anotacao) {
   white-space: nowrap;
 }
 
 .tabela--itens .col-descricao {
   width: 100%;
   color: var(--cor-texto-forte);
+}
+
+/* ---------- anotação ---------- */
+
+.tabela--itens .col-anotacao {
+  min-width: var(--largura-anotacao);
+}
+
+.anotacao__campo {
+  width: 100%;
+  padding: var(--esp-1) var(--esp-2);
+  border: var(--borda-forte) solid var(--cor-destaque);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  cursor: text;
+}
+
+.anotacao__campo:hover {
+  border-color: var(--ps-preto);
+}
+
+.anotacao__campo:focus {
+  outline: none;
+  border-color: var(--ps-preto);
+  background: var(--cor-destaque-suave);
+}
+
+/* Espelho do campo, só para impressão. */
+.anotacao__impressao {
+  display: none;
 }
 
 .item__linha-adicional td {

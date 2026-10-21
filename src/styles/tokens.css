@@ -69,6 +69,10 @@
   --largura-rotulo-total: 180px;
   --largura-minima-campo: 200px;
   --largura-minima-tabela: 1000px;
+  --largura-anotacao: 200px;
+  --largura-modo-opcao: 220px;
+  --altura-modo-opcao: 140px;
+  --largura-caminho: 320px;
   --sombra-barra: 0 var(--borda-forte) 0 var(--ps-preto);
   --transicao: 120ms;
 
@@ -82,4 +86,6 @@
   --esp-print-2: 3pt;
   --esp-print-3: 6pt;
   --esp-print-4: 9pt;
+  --largura-anotacao-print: 30mm;
+  --altura-anotacao-print: 11pt;
 }

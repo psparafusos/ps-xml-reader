@@ -13,8 +13,28 @@
       <div class="barra__titulo">
         <strong id="barra-fornecedor" class="barra__fornecedor"></strong>
         <span id="barra-nota" class="barra__nota"></span>
+        <span id="barra-copia" class="barra__copia" hidden
+          >Cópia editada, sem validade fiscal</span
+        >
       </div>
       <div class="barra__acoes">
+        <button
+          id="btn-pasta-barra"
+          type="button"
+          class="botao botao--claro botao--pasta"
+        >
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            />
+            <path d="M12 11v5" />
+            <path d="M9.5 13.5h5" />
+          </svg>
+          <span class="botao__textos">
+            <span>Pasta de destino</span>
+            <span class="botao__caminho"></span>
+          </span>
+        </button>
         <button id="btn-abrir-outro" type="button" class="botao botao--claro">
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -23,13 +43,23 @@
           </svg>
           <span>Abrir outro XML</span>
         </button>
+        <button id="btn-imprimir" type="button" class="botao botao--claro">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 9V4h10v5" />
+            <path
+              d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"
+            />
+            <path d="M7 14h10v6H7z" />
+          </svg>
+          <span>Imprimir</span>
+        </button>
         <button id="btn-salvar" type="button" class="botao">
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 4v11" />
             <path d="M7 10l5 5 5-5" />
             <path d="M5 20h14" />
           </svg>
-          <span>Salvar PDF</span>
+          <span>Salvar</span>
         </button>
       </div>
     </header>
@@ -63,7 +93,43 @@
           </svg>
           <span>Abrir XML</span>
         </button>
-        <p class="vazio__dica">ou arraste e solte um arquivo .xml aqui</p>
+        <p class="vazio__dica">
+          ou arraste e solte um arquivo .xml ou .psxml aqui
+        </p>
+        <button
+          id="btn-pasta"
+          type="button"
+          class="botao botao--claro botao--pasta"
+        >
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            />
+            <path d="M12 11v5" />
+            <path d="M9.5 13.5h5" />
+          </svg>
+          <span class="botao__textos">
+            <span>Pasta de destino</span>
+            <span class="botao__caminho"></span>
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <section id="modo" class="modo" hidden>
+      <div class="modo__caixa">
+        <p id="modo-arquivo" class="modo__arquivo"></p>
+        <h1 class="modo__titulo">Como deseja abrir a nota?</h1>
+        <div class="modo__opcoes">
+          <button id="btn-conferencia" type="button" class="botao modo__opcao">
+            <span class="modo__nome">Conferência</span>
+            <span class="modo__descricao">Itens, totais e anotações</span>
+          </button>
+          <button type="button" class="botao modo__opcao" disabled>
+            <span class="modo__nome">DANFE</span>
+            <span class="modo__descricao">Em breve</span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -74,6 +140,7 @@
         Gerado a partir do XML da NF-e. Documento de conferência interna, não
         substitui o DANFE.
       </p>
+      <p id="rodape-copia" hidden>Cópia editada, sem validade fiscal.</p>
       <p id="rodape-gerado"></p>
     </footer>
 

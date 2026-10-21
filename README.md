@@ -18,9 +18,42 @@ npm install
 npm start
 ```
 
-Na tela inicial, clique em **Abrir XML** ou arraste um arquivo `.xml` para a
-janela. Com a nota aberta, **Salvar PDF** gera o PDF (A4 retrato) e abre o
-diálogo para escolher onde gravar.
+Na tela inicial, clique em **Abrir XML** ou arraste um arquivo `.xml` ou
+`.psxml` para a janela e escolha o modo **Conferência** (o modo DANFE ainda não
+existe). Na tabela de itens, a coluna **Anotação** recebe um texto livre por
+item.
+
+- **Pasta de destino**: escolhe a pasta onde os arquivos são gravados. O caminho
+  fica em `config.json`, dentro da pasta de dados do app
+  (`%APPDATA%\Leitor NF-e PS`).
+- **Imprimir**: abre o diálogo de impressão do Windows com a tela atual.
+- **Salvar**: grava na pasta de destino `<nome>-ps.pdf` (A4 retrato) e
+  `<nome>-ps.psxml` (cópia editada). Se algum dos dois já existir, pergunta
+  antes de substituir.
+
+O app nunca grava no arquivo que foi aberto: qualquer gravação cujo destino seja
+o próprio arquivo aberto é recusada.
+
+## Cópia editada (.psxml)
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<psCopiaEditada xmlns="urn:psparafusos:ps-xml-reader" versao="1">
+  <aviso>Cópia de uso interno. Não é NF-e e não tem validade fiscal.</aviso>
+  <original>
+    <!-- elemento raiz do XML original (nfeProc ou NFe), sem alteração -->
+  </original>
+  <anotacoes>
+    <anotacao nItem="5">texto</anotacao>
+  </anotacoes>
+</psCopiaEditada>
+```
+
+A raiz não é `nfeProc` nem `NFe`, então a cópia não é aceita como NF-e por
+nenhum sistema fiscal. Ao abrir uma cópia, o app lê a nota de dentro de
+`original`, devolve as anotações aos itens e mostra "Cópia editada, sem validade
+fiscal" na barra e no rodapé do PDF. Salvar uma cópia reaproveita o mesmo
+`original`, sem embrulhar de novo.
 
 ## Como gerar o instalador
 
@@ -44,10 +77,12 @@ o Windows pode mostrar o aviso do SmartScreen na primeira instalação.
 ```
 src/
   main.ts            processo principal: janela, diálogos, printToPDF
-  preload.ts         contextBridge com abrirXml() e salvarPdf()
+  preload.ts         contextBridge com a API psApi (abrir, pasta, salvar, imprimir)
   renderer.ts        monta a tela a partir do objeto Nota
   declarations.d.ts  tipos globais (window.psApi)
-  nfe/parser.ts      texto XML -> Nota (sem Electron, usa DOMParser)
+  nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
+  nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer
+  nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível)
   nfe/tipos.ts       interfaces Nota, Emitente, Destinatario, Item, Totais, Transporte
   nfe/formato.ts     formatação pt-BR: moeda, quantidade, data, CNPJ, chave de acesso
   styles/tokens.css  variáveis de cor, tipografia e medidas

@@ -2,7 +2,8 @@
 // Não depende de Electron: usa apenas DOMParser.
 //
 // Regra: campo ausente vira string vazia. O parser só lança erro quando o
-// arquivo não tem infNFe, ou seja, quando não é uma NF-e.
+// arquivo não é uma NF-e: raiz diferente de nfeProc, NFe ou psCopiaEditada,
+// ou sem infNFe.
 
 import type {
   Destinatario,
@@ -186,11 +187,13 @@ function lerProtocolo(infProt: Element | null): Protocolo {
   };
 }
 
-/**
- * Lê uma NF-e com raiz nfeProc (com protNFe) ou raiz NFe direta.
- * Lança NaoEhNfeError se não houver infNFe.
- */
-export function lerNota(xml: string): Nota {
+export const NS_PS = 'urn:psparafusos:ps-xml-reader';
+
+/** Raízes aceitas como NF-e. */
+const RAIZES_NFE = ['nfeProc', 'NFe'];
+
+/** Converte o texto em Document. Lança NaoEhNfeError se não for XML válido. */
+export function lerDocumento(xml: string): Document {
   const doc = new DOMParser().parseFromString(
     xml.replace(/^﻿/, ''),
     'application/xml',
@@ -203,7 +206,67 @@ export function lerNota(xml: string): Nota {
   ) {
     throw new NaoEhNfeError();
   }
+  return doc;
+}
 
+/**
+ * Localiza o elemento raiz da NF-e. Em um XML de NF-e é a própria raiz; em uma
+ * cópia editada é o elemento de dentro de <original>. Qualquer outra raiz
+ * lança NaoEhNfeError.
+ */
+export function localizarOriginal(doc: Document): {
+  original: Element;
+  copia: Element | null;
+} {
+  const raiz = doc.documentElement;
+  if (raiz.localName === 'psCopiaEditada' && raiz.namespaceURI === NS_PS) {
+    const original = Array.from(filho(raiz, 'original')?.children ?? []);
+    if (original.length !== 1 || !RAIZES_NFE.includes(original[0].localName)) {
+      throw new NaoEhNfeError();
+    }
+    return { original: original[0], copia: raiz };
+  }
+  if (RAIZES_NFE.includes(raiz.localName))
+    return { original: raiz, copia: null };
+  throw new NaoEhNfeError();
+}
+
+/** Anotações de uma cópia editada, por nItem. Texto vazio não entra. */
+function lerAnotacoes(copia: Element | null): Map<string, string> {
+  const anotacoes = new Map<string, string>();
+  for (const a of filhos(filho(copia, 'anotacoes'), 'anotacao')) {
+    const nItem = a.getAttribute('nItem')?.trim() ?? '';
+    const texto = a.textContent ?? '';
+    if (nItem && texto.trim()) anotacoes.set(nItem, texto);
+  }
+  return anotacoes;
+}
+
+export interface ArquivoLido {
+  nota: Nota;
+  /** true quando o arquivo é uma cópia editada (raiz psCopiaEditada). */
+  copiaEditada: boolean;
+  anotacoes: Map<string, string>;
+}
+
+/**
+ * Lê um XML de NF-e (raiz nfeProc ou NFe) ou uma cópia editada
+ * (raiz psCopiaEditada). Lança NaoEhNfeError para qualquer outra raiz.
+ */
+export function lerArquivo(xml: string): ArquivoLido {
+  const { original, copia } = localizarOriginal(lerDocumento(xml));
+  return {
+    nota: lerNotaDe(original),
+    copiaEditada: copia !== null,
+    anotacoes: lerAnotacoes(copia),
+  };
+}
+
+/**
+ * Lê uma NF-e a partir do elemento raiz nfeProc (com protNFe) ou NFe.
+ * Lança NaoEhNfeError se não houver infNFe.
+ */
+function lerNotaDe(raiz: Element): Nota {
   const infNFe = descendente(raiz, 'infNFe');
   if (!infNFe) throw new NaoEhNfeError();
 
