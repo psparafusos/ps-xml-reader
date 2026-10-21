@@ -461,7 +461,14 @@ ul {
 /* ---------- anotação ---------- */
 
 .tabela--itens .col-anotacao {
-  min-width: var(--largura-anotacao);
+  min-width: calc(var(--largura-anotacao) + 2 * var(--esp-lado-anotacao));
+  padding-left: var(--esp-lado-anotacao);
+  padding-right: var(--esp-lado-anotacao);
+}
+
+/* Título centralizado sobre a caixa. */
+.tabela--itens th.col-anotacao {
+  text-align: center;
 }
 
 .anotacao__campo {

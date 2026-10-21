@@ -36,5 +36,8 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1"
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.4": true
   }
 }

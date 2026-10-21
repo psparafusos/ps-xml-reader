@@ -109,8 +109,14 @@
 
   /* A descrição ocupa 100% da largura; sem min-width a anotação encolhe. */
   .tabela--itens .col-anotacao {
-    width: var(--largura-anotacao-print);
-    min-width: var(--largura-anotacao-print);
+    width: calc(
+      var(--largura-anotacao-print) + 2 * var(--esp-lado-anotacao-print)
+    );
+    min-width: calc(
+      var(--largura-anotacao-print) + 2 * var(--esp-lado-anotacao-print)
+    );
+    padding-left: var(--esp-lado-anotacao-print);
+    padding-right: var(--esp-lado-anotacao-print);
   }
 
   .anotacao__impressao {

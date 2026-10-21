@@ -70,6 +70,7 @@
   --largura-minima-campo: 200px;
   --largura-minima-tabela: 1000px;
   --largura-anotacao: 200px;
+  --esp-lado-anotacao: var(--esp-3);
   --largura-modo-opcao: 220px;
   --altura-modo-opcao: 140px;
   --largura-caminho: 320px;
@@ -87,5 +88,6 @@
   --esp-print-3: 6pt;
   --esp-print-4: 9pt;
   --largura-anotacao-print: 30mm;
+  --esp-lado-anotacao-print: var(--esp-print-3);
   --altura-anotacao-print: 11pt;
 }

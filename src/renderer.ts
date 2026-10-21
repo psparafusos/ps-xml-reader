@@ -1,9 +1,7 @@
 // Monta a tela a partir do objeto Nota. Todo texto vindo do XML entra no DOM
 // por textContent, nunca por innerHTML.
 
-import './styles/tokens.css';
-import './styles/app.css';
-import './styles/print.css';
+// Os estilos são carregados por <link> em index.html, não por import aqui.
 
 import { COLUNAS_ITENS, ID_ANOTACAO, type ColunaItem } from './nfe/colunas';
 import { montarCopia } from './nfe/copia';

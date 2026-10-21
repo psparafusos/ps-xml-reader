@@ -34,12 +34,19 @@ const createWindow = () => {
     minWidth: 900,
     minHeight: 600,
     title: 'Leitor NF-e PS',
+    // A janela só aparece em ready-to-show (primeiro desenho já com o CSS).
+    // Até lá o fundo é o do app: --cor-fundo de src/styles/tokens.css, que
+    // vem de --ps-branco (#ffffff). O main não lê CSS; se o token mudar, mude aqui.
+    show: false,
+    backgroundColor: '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  mainWindow.once('ready-to-show', () => mainWindow.show());
 
   // O app é offline: não abre janelas novas nem navega para fora da página.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

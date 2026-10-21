@@ -7,6 +7,12 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <title>Leitor NF-e PS</title>
+    <!-- CSS por <link> no head (e não importado pelo TypeScript): o navegador
+         só faz o primeiro desenho depois que estes arquivos chegam. -->
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/app.css" />
+    <link rel="stylesheet" href="/src/styles/print.css" />
+    <script type="module" src="/src/renderer.ts"></script>
   </head>
   <body>
     <header id="barra" class="barra" hidden>
@@ -143,7 +149,5 @@
       <p id="rodape-copia" hidden>Cópia editada, sem validade fiscal.</p>
       <p id="rodape-gerado"></p>
     </footer>
-
-    <script type="module" src="/src/renderer.ts"></script>
   </body>
 </html>
