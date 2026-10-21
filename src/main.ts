@@ -1,12 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import {
   access,
+  constants,
+  copyFile,
   mkdir,
   readFile,
   realpath,
+  rename,
+  rm,
   stat,
   writeFile,
 } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
@@ -40,6 +45,15 @@ const createWindow = () => {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
 
+  // Anotações não salvas: o fechamento espera o renderer perguntar ao usuário.
+  // Se ele seguir (salvou ou descartou), chama fechar-janela, que libera.
+  mainWindow.on('close', (event) => {
+    if (!anotacoesPendentes || fechamentoLiberado) return;
+    if (mainWindow.webContents.isCrashed()) return;
+    event.preventDefault();
+    mainWindow.webContents.send('pedido-fechar');
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -49,15 +63,35 @@ const createWindow = () => {
   }
 };
 
-// Caminho do arquivo que está aberto na tela. O app nunca grava nele: salvar
-// recusa qualquer destino que resolva para este mesmo arquivo.
+// Caminho do arquivo que está aberto na tela. Se for uma NF-e original, o app
+// nunca grava nele: salvar recusa qualquer destino que resolva para ele. Uma
+// cópia editada pode ser substituída (sempre com a pergunta de substituir).
 let arquivoAberto: string | null = null;
+let abertoEhCopia = false;
+
+/** true enquanto o renderer tem anotações alteradas e não salvas. */
+let anotacoesPendentes = false;
+/** Liberado pelo renderer depois de perguntar; o próximo close não é barrado. */
+let fechamentoLiberado = false;
 
 const EXTENSOES_ABERTURA = ['.xml', '.psxml'];
+
+/**
+ * Nome local do elemento raiz, sem prefixo. Pula BOM, declaração XML,
+ * comentários, instruções de processamento e DOCTYPE. String vazia se não achar.
+ */
+function nomeRaiz(xml: string): string {
+  const corpo = xml
+    .replace(/^﻿/, '')
+    .replace(/^(?:\s|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)*/, '');
+  const m = /^<(?:[A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)/.exec(corpo);
+  return m ? m[1] : '';
+}
 
 async function lerArquivoAberto(caminho: string): Promise<ArquivoAberto> {
   const texto = await readFile(caminho, 'utf8');
   arquivoAberto = caminho;
+  abertoEhCopia = nomeRaiz(texto) === 'psCopiaEditada';
   return { nome: path.basename(caminho), texto };
 }
 
@@ -177,6 +211,54 @@ async function existe(caminho: string): Promise<boolean> {
   }
 }
 
+/** Nome de arquivo temporário novo, na mesma pasta de `destino`. */
+function nomeTemporario(destino: string): string {
+  return path.join(
+    path.dirname(destino),
+    `.${path.basename(destino)}.${randomUUID()}.tmp`,
+  );
+}
+
+/** Grava `dados` em um arquivo temporário novo, na mesma pasta de `destino`. */
+async function gravarTemporario(
+  destino: string,
+  dados: string | Buffer,
+): Promise<string> {
+  const temporario = nomeTemporario(destino);
+  try {
+    await writeFile(temporario, dados, { flag: 'wx' });
+  } catch (erro) {
+    await rm(temporario, { force: true });
+    throw erro;
+  }
+  return temporario;
+}
+
+/**
+ * Desfaz as trocas já feitas, da última para a primeira: devolve a reserva ao
+ * lugar do arquivo final ou, se o arquivo não existia antes, apaga o novo.
+ * Devolve os caminhos que não puderam ser restaurados.
+ */
+async function desfazerTrocas(
+  trocados: { destino: string; reserva: string | null }[],
+  temporarios: string[],
+): Promise<string[]> {
+  const falhas: string[] = [];
+  for (const { destino, reserva } of [...trocados].reverse()) {
+    try {
+      if (reserva) {
+        await rename(reserva, destino);
+        temporarios.splice(temporarios.indexOf(reserva), 1);
+      } else {
+        await rm(destino, { force: true });
+      }
+    } catch {
+      falhas.push(destino);
+    }
+  }
+  return falhas;
+}
+
 ipcMain.handle(
   'salvar',
   async (event, textoCopia: unknown): Promise<ResultadoSalvar> => {
@@ -207,7 +289,7 @@ ipcMain.handle(
     const destinoCopia = path.join(pasta, `${base}-ps.psxml`);
 
     for (const destino of [destinoPdf, destinoCopia]) {
-      if (await mesmoArquivo(destino, arquivoAberto)) {
+      if (!abertoEhCopia && (await mesmoArquivo(destino, arquivoAberto))) {
         const mensagem =
           `Gravação recusada: ${destino} é o próprio arquivo aberto. ` +
           'Escolha outra pasta de destino.';
@@ -261,18 +343,87 @@ ipcMain.handle(
       };
     }
 
+    // Grava os dois em temporários na pasta de destino e só depois substitui
+    // os finais. Antes de cada troca guarda uma reserva do arquivo antigo: se a
+    // segunda troca falhar, a primeira é desfeita e os dois ficam como
+    // estavam. No fim, temporários e reservas que sobraram são apagados.
+    const temporarios: string[] = [];
+    const trocados: { destino: string; reserva: string | null }[] = [];
     try {
-      await writeFile(destinoPdf, pdf);
-      await writeFile(destinoCopia, textoCopia, 'utf8');
+      const pares = [
+        {
+          destino: destinoCopia,
+          tmp: await gravarTemporario(destinoCopia, textoCopia),
+        },
+      ];
+      temporarios.push(pares[0].tmp);
+      pares.push({
+        destino: destinoPdf,
+        tmp: await gravarTemporario(destinoPdf, pdf),
+      });
+      temporarios.push(pares[1].tmp);
+
+      for (const { destino, tmp } of pares) {
+        let reserva: string | null = null;
+        if (await existe(destino)) {
+          reserva = nomeTemporario(destino);
+          await copyFile(destino, reserva, constants.COPYFILE_EXCL);
+          temporarios.push(reserva);
+        }
+        // rename substitui o arquivo final existente na mesma pasta.
+        await rename(tmp, destino);
+        temporarios.splice(temporarios.indexOf(tmp), 1);
+        trocados.push({ destino, reserva });
+      }
       return { status: 'salvo', pdf: destinoPdf, copia: destinoCopia };
     } catch (erro) {
+      const naoDesfeitos = await desfazerTrocas(trocados, temporarios);
+      const aviso =
+        naoDesfeitos.length > 0
+          ? ` Não foi possível restaurar: ${naoDesfeitos.join(', ')}.`
+          : '';
       return {
         status: 'erro',
-        mensagem: `Não foi possível gravar o arquivo: ${mensagemDe(erro)}`,
+        mensagem: `Não foi possível gravar o arquivo: ${mensagemDe(erro)}${aviso}`,
       };
+    } finally {
+      await Promise.all(temporarios.map((t) => rm(t, { force: true })));
     }
   },
 );
+
+// ---------- anotações não salvas ----------
+
+ipcMain.on('anotacoes-pendentes', (_event, pendentes: unknown) => {
+  anotacoesPendentes = pendentes === true;
+});
+
+ipcMain.handle(
+  'perguntar-alteracoes',
+  async (event): Promise<RespostaAlteracoes> => {
+    const janela = BrowserWindow.fromWebContents(event.sender);
+    const opcoes: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: 'Anotações não salvas',
+      message: 'Há anotações não salvas. Deseja salvar antes de continuar?',
+      buttons: ['Salvar', 'Descartar', 'Cancelar'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    };
+    const { response } = janela
+      ? await dialog.showMessageBox(janela, opcoes)
+      : await dialog.showMessageBox(opcoes);
+    return (
+      (['salvar', 'descartar', 'cancelar'] as const)[response] ?? 'cancelar'
+    );
+  },
+);
+
+ipcMain.handle('fechar-janela', (event) => {
+  fechamentoLiberado = true;
+  BrowserWindow.fromWebContents(event.sender)?.close();
+});
 
 // ---------- imprimir ----------
 

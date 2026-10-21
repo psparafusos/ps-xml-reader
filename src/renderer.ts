@@ -164,6 +164,33 @@ function blocoDadosNota(n: Nota): HTMLElement | null {
 
 /** Anotações digitadas na tela, por nItem. Texto vazio não fica guardado. */
 const anotacoes = new Map<string, string>();
+/** Anotações como estavam no último abrir ou salvar. */
+const anotacoesGravadas = new Map<string, string>();
+let pendentesInformado = false;
+
+/** true se alguma anotação mudou desde o último abrir ou salvar. */
+function haAlteracoes(): boolean {
+  if (anotacoes.size !== anotacoesGravadas.size) return true;
+  for (const [nItem, texto] of anotacoes) {
+    if (anotacoesGravadas.get(nItem) !== texto) return true;
+  }
+  return false;
+}
+
+/** Repassa ao processo principal (que barra o fechamento) só quando muda. */
+function atualizarPendentes(): void {
+  const pendentes = haAlteracoes();
+  if (pendentes === pendentesInformado) return;
+  pendentesInformado = pendentes;
+  window.psApi.informarPendentes(pendentes);
+}
+
+/** O estado atual passa a ser o gravado (depois de abrir ou salvar). */
+function marcarGravadas(): void {
+  anotacoesGravadas.clear();
+  for (const [nItem, texto] of anotacoes) anotacoesGravadas.set(nItem, texto);
+  atualizarPendentes();
+}
 
 /**
  * Célula de anotação: na tela é um campo de texto; na impressão o campo some
@@ -180,6 +207,7 @@ function celulaAnotacao(i: Item, classe: string): HTMLElement {
     if (campoTexto.value.trim()) anotacoes.set(i.nItem, campoTexto.value);
     else anotacoes.delete(i.nItem);
     espelho.textContent = campoTexto.value;
+    atualizarPendentes();
   });
 
   return el('td', classe, campoTexto, espelho);
@@ -454,6 +482,7 @@ function carregar(arquivo: ArquivoAberto): void {
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
     anotacoes.clear();
     for (const [nItem, texto] of lido.anotacoes) anotacoes.set(nItem, texto);
+    marcarGravadas();
     modoArquivo.textContent = arquivo.nome;
     document.title = 'Leitor NF-e PS';
     mostrarTela('modo');
@@ -462,6 +491,7 @@ function carregar(arquivo: ArquivoAberto): void {
     // pode mais ser salva, então volta para a tela inicial.
     aberto = null;
     anotacoes.clear();
+    marcarGravadas();
     notaEl.replaceChildren();
     document.title = 'Leitor NF-e PS';
     mostrarTela('vazio');
@@ -475,6 +505,7 @@ function carregar(arquivo: ArquivoAberto): void {
 }
 
 async function abrir(): Promise<void> {
+  if (!(await podeSair())) return;
   try {
     const arquivo = await window.psApi.abrirArquivo();
     if (arquivo !== null) carregar(arquivo);
@@ -535,10 +566,11 @@ function bloquearAcoes(bloquear: boolean): void {
   btnImprimir.disabled = bloquear;
 }
 
-async function salvar(): Promise<void> {
-  if (!aberto) return;
+/** Salva PDF e cópia editada. true se gravou. */
+async function salvar(): Promise<boolean> {
+  if (!aberto) return false;
   esconderMensagem();
-  if (!pastaDestino && !(await escolherPasta())) return;
+  if (!pastaDestino && !(await escolherPasta())) return false;
 
   let copia: string;
   try {
@@ -546,22 +578,52 @@ async function salvar(): Promise<void> {
   } catch (erro) {
     mostrarMensagem('Não foi possível montar a cópia editada.', 'erro');
     console.error(erro);
-    return;
+    return false;
   }
+  const gravadas = new Map(anotacoes);
 
   marcarGeradoEm();
   bloquearAcoes(true);
   try {
     const r = await window.psApi.salvar(copia);
-    if (r.status === 'salvo')
+    if (r.status === 'salvo') {
+      // Grava como salvo o que foi para o arquivo, não o que foi digitado
+      // enquanto o salvamento acontecia.
+      anotacoesGravadas.clear();
+      for (const [nItem, texto] of gravadas)
+        anotacoesGravadas.set(nItem, texto);
+      atualizarPendentes();
       mostrarMensagem(`Salvo em ${r.pdf} e ${r.copia}`, 'info');
-    else if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+      return true;
+    }
+    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+    return false;
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
+    return false;
   } finally {
     bloquearAcoes(false);
   }
+}
+
+/**
+ * Antes de sair da nota (abrir outro arquivo ou fechar a janela): com
+ * anotações alteradas, pergunta Salvar, Descartar ou Cancelar. true = pode
+ * seguir; false = fica onde está, com as anotações intactas.
+ */
+async function podeSair(): Promise<boolean> {
+  if (!haAlteracoes()) return true;
+  let resposta: RespostaAlteracoes;
+  try {
+    resposta = await window.psApi.perguntarAlteracoes();
+  } catch (erro) {
+    console.error(erro);
+    return false;
+  }
+  if (resposta === 'descartar') return true;
+  if (resposta === 'salvar') return salvar();
+  return false;
 }
 
 async function imprimir(): Promise<void> {
@@ -587,6 +649,13 @@ btnAbrirOutro.addEventListener('click', () => void abrir());
 btnConferencia.addEventListener('click', exibirNota);
 btnImprimir.addEventListener('click', () => void imprimir());
 btnSalvar.addEventListener('click', () => void salvar());
+window.psApi.aoPedirFechar(() => {
+  void podeSair().then((pode) => {
+    if (pode) return window.psApi.fecharJanela();
+  });
+});
+// Uma página recarregada começa sem pendências.
+window.psApi.informarPendentes(false);
 for (const b of botoesPasta) {
   b.addEventListener('click', () => void escolherPasta());
 }
@@ -631,9 +700,11 @@ window.addEventListener('drop', (e) => {
     mostrarMensagem('Selecione um arquivo .xml ou .psxml.', 'erro');
     return;
   }
-  window.psApi
-    .abrirSolto(arquivo)
-    .then(carregar)
+  podeSair()
+    .then((pode) => (pode ? window.psApi.abrirSolto(arquivo) : null))
+    .then((solto) => {
+      if (solto) carregar(solto);
+    })
     .catch((erro: unknown) => {
       mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
       console.error(erro);

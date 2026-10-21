@@ -17,6 +17,8 @@ type ResultadoImprimir =
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
+type RespostaAlteracoes = 'salvar' | 'descartar' | 'cancelar';
+
 interface PsApi {
   /** Abre o diálogo de arquivo (.xml ou .psxml), ou null se cancelado. */
   abrirArquivo(): Promise<ArquivoAberto | null>;
@@ -30,6 +32,14 @@ interface PsApi {
   salvar(textoCopia: string): Promise<ResultadoSalvar>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
   imprimir(): Promise<ResultadoImprimir>;
+  /** Avisa o processo principal se há anotações alteradas e não salvas. */
+  informarPendentes(pendentes: boolean): void;
+  /** Pergunta Salvar, Descartar ou Cancelar sobre as anotações não salvas. */
+  perguntarAlteracoes(): Promise<RespostaAlteracoes>;
+  /** Chamado quando o usuário tenta fechar a janela com anotações pendentes. */
+  aoPedirFechar(callback: () => void): void;
+  /** Fecha a janela sem nova pergunta (depois de salvar ou descartar). */
+  fecharJanela(): Promise<void>;
 }
 
 interface Window {

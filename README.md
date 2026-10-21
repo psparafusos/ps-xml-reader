@@ -31,8 +31,16 @@ item.
   `<nome>-ps.psxml` (cópia editada). Se algum dos dois já existir, pergunta
   antes de substituir.
 
-O app nunca grava no arquivo que foi aberto: qualquer gravação cujo destino seja
-o próprio arquivo aberto é recusada.
+O app nunca grava em uma NF-e original (raiz `nfeProc` ou `NFe`): qualquer
+gravação cujo destino seja o próprio XML aberto é recusada. Uma cópia editada
+aberta pode ser substituída, sempre com a pergunta de substituir.
+
+A gravação é segura: os dois arquivos vão primeiro para temporários na pasta de
+destino e só então substituem os finais. Se algo falhar, os arquivos antigos
+ficam como estavam e os temporários são apagados.
+
+Se houver anotações alteradas e não salvas, abrir outro arquivo ou fechar a
+janela pergunta **Salvar**, **Descartar** ou **Cancelar**.
 
 ## Cópia editada (.psxml)
 

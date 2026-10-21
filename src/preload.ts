@@ -15,4 +15,12 @@ contextBridge.exposeInMainWorld('psApi', {
   salvar: (textoCopia: string): Promise<ResultadoSalvar> =>
     ipcRenderer.invoke('salvar', textoCopia),
   imprimir: (): Promise<ResultadoImprimir> => ipcRenderer.invoke('imprimir'),
+  informarPendentes: (pendentes: boolean): void =>
+    ipcRenderer.send('anotacoes-pendentes', pendentes),
+  perguntarAlteracoes: (): Promise<RespostaAlteracoes> =>
+    ipcRenderer.invoke('perguntar-alteracoes'),
+  aoPedirFechar: (callback: () => void): void => {
+    ipcRenderer.on('pedido-fechar', () => callback());
+  },
+  fecharJanela: (): Promise<void> => ipcRenderer.invoke('fechar-janela'),
 } satisfies PsApi);
