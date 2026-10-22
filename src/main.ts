@@ -1,5 +1,15 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  Menu,
+  screen,
+  shell,
+} from 'electron';
 import { execFile } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   access,
   constants,
@@ -15,6 +25,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { ehImpressoraCupom } from './impressoras';
 
 app.setAppUserModelId('com.squirrel.PSXmlReader.PSXmlReader');
 
@@ -28,12 +39,101 @@ const MARGEM_PDF = 10 / 25.4;
 // 10 mm em pixels (96 por polegada). print recebe margens em pixels.
 const MARGEM_IMPRESSAO = Math.round(MARGEM_PDF * 96);
 
+// Tamanho mínimo da janela (bordas e barra de título incluídas, em pixels
+// lógicos). Menor tela atendida: 1366 x 768 com escala de 125% no Windows, ou
+// seja 1366 / 1,25 = 1092,8 por 768 / 1,25 = 614,4. A barra de tarefas do
+// Windows 11 tem 48 de altura, então a área de trabalho é 1092,8 x 566,4. A
+// janela maximizada ocupa a área de trabalho, então o mínimo precisa caber
+// nela: 1024 x 560, com folga.
+const LARGURA_MINIMA = 1024;
+const ALTURA_MINIMA = 560;
+const LARGURA_PADRAO = 1280;
+const ALTURA_PADRAO = 860;
+
+// ---------- tamanho e posição da janela (config.json, chave "janela") ----------
+
+interface EstadoJanela {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maximizada: boolean;
+}
+
+/**
+ * Faixa do alto da janela (barra de título) que precisa estar dentro da área
+ * de trabalho de algum monitor para a posição salva valer: com ela a pessoa
+ * consegue pegar e arrastar a janela.
+ */
+const FAIXA_VISIVEL = { largura: 120, altura: 30 };
+
+function estadoValido(e: unknown): e is EstadoJanela {
+  if (typeof e !== 'object' || e === null) return false;
+  const o = e as Record<string, unknown>;
+  return (
+    ['x', 'y', 'width', 'height'].every(
+      (k) => typeof o[k] === 'number' && Number.isFinite(o[k]),
+    ) &&
+    typeof o.maximizada === 'boolean' &&
+    (o.width as number) >= LARGURA_MINIMA &&
+    (o.height as number) >= ALTURA_MINIMA
+  );
+}
+
+/** true se a barra de título cai na área de trabalho de algum monitor conectado. */
+function posicaoVisivel(j: EstadoJanela): boolean {
+  return screen.getAllDisplays().some(({ workArea: a }) => {
+    const largura = Math.min(j.x + j.width, a.x + a.width) - Math.max(j.x, a.x);
+    const altura =
+      Math.min(j.y + FAIXA_VISIVEL.altura, a.y + a.height) - Math.max(j.y, a.y);
+    return largura >= FAIXA_VISIVEL.largura && altura >= FAIXA_VISIVEL.altura;
+  });
+}
+
+/**
+ * Tamanho e posição de abertura: os salvos ao fechar, se ainda caem num
+ * monitor conectado; senão, o tamanho padrão centralizado no monitor principal.
+ * Lido de forma síncrona: a janela é criada logo em seguida.
+ */
+function posicaoInicial(): EstadoJanela {
+  const salvo = lerConfigSync().janela;
+  if (estadoValido(salvo) && posicaoVisivel(salvo)) return salvo;
+  const a = screen.getPrimaryDisplay().workArea;
+  const width = Math.min(LARGURA_PADRAO, a.width);
+  const height = Math.min(ALTURA_PADRAO, a.height);
+  return {
+    x: Math.round(a.x + (a.width - width) / 2),
+    y: Math.round(a.y + (a.height - height) / 2),
+    width,
+    height,
+    maximizada: false,
+  };
+}
+
+/**
+ * Guarda tamanho e posição no fechamento. getNormalBounds dá o tamanho de
+ * antes de maximizar, para a janela voltar a ele ao sair do maximizado.
+ * Gravação síncrona: o processo termina logo depois de fechar a janela.
+ */
+function guardarJanela(janela: BrowserWindow): void {
+  try {
+    gravarConfigSync({
+      janela: { ...janela.getNormalBounds(), maximizada: janela.isMaximized() },
+    });
+  } catch {
+    // Sem gravar, a próxima abertura usa o tamanho padrão. Não impede fechar.
+  }
+}
+
 const createWindow = () => {
+  const inicial = posicaoInicial();
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 900,
-    minHeight: 600,
+    x: inicial.x,
+    y: inicial.y,
+    width: inicial.width,
+    height: inicial.height,
+    minWidth: LARGURA_MINIMA,
+    minHeight: ALTURA_MINIMA,
     title: 'Leitor NF-e PS',
     // A janela só aparece em ready-to-show (primeiro desenho já com o CSS).
     // Até lá o fundo é o do app: --cor-fundo de src/styles/tokens.css, que
@@ -47,7 +147,11 @@ const createWindow = () => {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    // maximize também mostra a janela.
+    if (inicial.maximizada) mainWindow.maximize();
+    mainWindow.show();
+  });
 
   // O app é offline: não abre janelas novas nem navega para fora da página.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -55,11 +159,18 @@ const createWindow = () => {
 
   // Anotações não salvas: o fechamento espera o renderer perguntar ao usuário.
   // Se ele seguir (salvou ou descartou), chama fechar-janela, que libera.
+  // Fechamento que segue: guarda tamanho e posição.
   mainWindow.on('close', (event) => {
-    if (!anotacoesPendentes || fechamentoLiberado) return;
-    if (mainWindow.webContents.isCrashed()) return;
-    event.preventDefault();
-    mainWindow.webContents.send('pedido-fechar');
+    if (
+      anotacoesPendentes &&
+      !fechamentoLiberado &&
+      !mainWindow.webContents.isCrashed()
+    ) {
+      event.preventDefault();
+      mainWindow.webContents.send('pedido-fechar');
+      return;
+    }
+    guardarJanela(mainWindow);
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -173,26 +284,54 @@ ipcMain.handle(
   },
 );
 
-// ---------- config.json em userData (pasta de destino, última pasta) ----------
+// ---------- config.json em userData (pasta de destino, última pasta, janela) ----------
 
 interface Config {
   pastaDestino?: unknown;
   ultimaPastaAbertura?: unknown;
+  janela?: unknown;
 }
 
 function caminhoConfig(): string {
   return path.join(app.getPath('userData'), 'config.json');
 }
 
+function interpretarConfig(texto: string): Config {
+  const config: unknown = JSON.parse(texto);
+  return typeof config === 'object' && config !== null
+    ? (config as Config)
+    : {};
+}
+
+/** Versão síncrona de lerConfig, para abrir e fechar a janela. */
+function lerConfigSync(): Config {
+  try {
+    return interpretarConfig(readFileSync(caminhoConfig(), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function gravarConfigSync(parcial: Config): void {
+  const config = { ...lerConfigSync(), ...parcial };
+  mkdirSync(app.getPath('userData'), { recursive: true });
+  writeFileSync(
+    caminhoConfig(),
+    `${JSON.stringify(config, null, 2)}\n`,
+    'utf8',
+  );
+}
+
 async function lerConfig(): Promise<Config> {
   try {
-    const config: unknown = JSON.parse(await readFile(caminhoConfig(), 'utf8'));
-    if (typeof config === 'object' && config !== null) return config as Config;
+    return interpretarConfig(await readFile(caminhoConfig(), 'utf8'));
   } catch {
     // Sem config (primeira execução) ou arquivo ilegível: config vazia.
+    return {};
   }
-  return {};
 }
+
+ipcMain.handle('versao', (): string => app.getVersion());
 
 /** Grava as chaves de `parcial` mantendo as demais. */
 async function gravarConfig(parcial: Config): Promise<void> {
@@ -212,9 +351,37 @@ async function lerPastaDestino(): Promise<string | null> {
     : null;
 }
 
+async function ehPasta(caminho: string): Promise<boolean> {
+  try {
+    return (await stat(caminho)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+const pastaSumiu = (pasta: string) =>
+  `A pasta de destino não existe mais: ${pasta}. Escolha outra.`;
+
 ipcMain.handle(
   'pasta-destino',
   (): Promise<string | null> => lerPastaDestino(),
+);
+
+// Abre a pasta de destino no Explorer. shell.openPath devolve "" quando abre e
+// a mensagem de erro quando não abre.
+ipcMain.handle(
+  'abrir-pasta-destino',
+  async (): Promise<ResultadoAbrirPasta> => {
+    const pasta = await lerPastaDestino();
+    if (!pasta)
+      return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
+    if (!(await ehPasta(pasta)))
+      return { status: 'erro', mensagem: pastaSumiu(pasta) };
+    const erro = await shell.openPath(pasta);
+    return erro
+      ? { status: 'erro', mensagem: `Não foi possível abrir a pasta: ${erro}` }
+      : { status: 'aberta' };
+  },
 );
 
 ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
@@ -238,9 +405,29 @@ ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
 
 // ---------- salvar (PDF + cópia editada) ----------
 
-/** Nome do arquivo aberto sem extensão e sem sufixo -ps já existente. */
-function nomeBase(caminho: string): string {
-  return path.basename(caminho, path.extname(caminho)).replace(/(-ps)+$/i, '');
+/**
+ * Nome base vindo do renderer, montado com os dados da nota
+ * (src/nfe/nome.ts): FORNECEDOR_NF<número>, com -S<série> se a série não for 1.
+ * Só letras maiúsculas, dígitos, hífen e o "_NF": nada que vire caminho.
+ */
+const NOME_BASE_VALIDO = /^[A-Z0-9]+(?:-[A-Z0-9]+)*_NF\d+(?:-S\d+)?$/;
+
+/**
+ * Nome base dos arquivos salvos: o dos dados da nota; se a nota não tem os
+ * dados (sem emitente ou sem número), o do arquivo aberto, sem extensão e sem
+ * sufixo de um salvamento anterior (-ps, _Conferencia).
+ */
+function nomeBase(doRenderer: unknown, caminho: string): string {
+  if (
+    typeof doRenderer === 'string' &&
+    doRenderer.length <= 60 &&
+    NOME_BASE_VALIDO.test(doRenderer)
+  ) {
+    return doRenderer;
+  }
+  return path
+    .basename(caminho, path.extname(caminho))
+    .replace(/(-ps|_Conferencia)+$/i, '');
 }
 
 /** true se os dois caminhos apontam para o mesmo arquivo. */
@@ -322,10 +509,11 @@ type Saida =
  * Grava as saídas na pasta de destino, com as mesmas regras para o modo
  * Conferência e o DANFE: recusa gravar sobre a NF-e original aberta, pergunta
  * antes de substituir e grava primeiro em temporários (gravação segura).
- * `nomes(base)` monta os caminhos a partir do nome base do arquivo aberto.
+ * `nomes(base)` monta os caminhos a partir do nome base (ver nomeBase).
  */
 async function gravarSaidas(
   event: Electron.IpcMainInvokeEvent,
+  baseDoRenderer: unknown,
   nomes: (pasta: string, base: string) => Saida[],
 ): Promise<
   | { status: 'salvo'; destinos: string[] }
@@ -342,16 +530,11 @@ async function gravarSaidas(
   if (!pasta) {
     return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
   }
-  try {
-    if (!(await stat(pasta)).isDirectory()) throw new Error();
-  } catch {
-    return {
-      status: 'erro',
-      mensagem: `A pasta de destino não existe mais: ${pasta}. Escolha outra.`,
-    };
+  if (!(await ehPasta(pasta))) {
+    return { status: 'erro', mensagem: pastaSumiu(pasta) };
   }
 
-  const saidas = nomes(pasta, nomeBase(arquivoAberto));
+  const saidas = nomes(pasta, nomeBase(baseDoRenderer, arquivoAberto));
   const destinos = saidas.map((s) => s.destino);
 
   for (const destino of destinos) {
@@ -449,15 +632,22 @@ async function gravarSaidas(
 
 ipcMain.handle(
   'salvar',
-  async (event, textoCopia: unknown): Promise<ResultadoSalvar> => {
+  async (
+    event,
+    textoCopia: unknown,
+    base: unknown,
+  ): Promise<ResultadoSalvar> => {
     if (typeof textoCopia !== 'string' || textoCopia === '') {
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
     }
     // A cópia é gravada antes do PDF, como antes.
-    const r = await gravarSaidas(event, (pasta, base) => [
-      { destino: path.join(pasta, `${base}-ps.psxml`), texto: textoCopia },
+    const r = await gravarSaidas(event, base, (pasta, b) => [
       {
-        destino: path.join(pasta, `${base}-ps.pdf`),
+        destino: path.join(pasta, `${b}_Conferencia.psxml`),
+        texto: textoCopia,
+      },
+      {
+        destino: path.join(pasta, `${b}_Conferencia.pdf`),
         pdf: {
           pageSize: 'A4',
           landscape: false,
@@ -478,21 +668,24 @@ ipcMain.handle(
 
 // DANFE: só o PDF. As margens são do próprio layout (cada folha é um bloco de
 // 210 x 297 mm), então o Electron imprime sem margem.
-ipcMain.handle('salvar-danfe', async (event): Promise<ResultadoSalvarDanfe> => {
-  const r = await gravarSaidas(event, (pasta, base) => [
-    {
-      destino: path.join(pasta, `${base}-danfe.pdf`),
-      pdf: {
-        pageSize: 'A4',
-        landscape: false,
-        printBackground: true,
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+ipcMain.handle(
+  'salvar-danfe',
+  async (event, base: unknown): Promise<ResultadoSalvarDanfe> => {
+    const r = await gravarSaidas(event, base, (pasta, b) => [
+      {
+        destino: path.join(pasta, `${b}_DANFE.pdf`),
+        pdf: {
+          pageSize: 'A4',
+          landscape: false,
+          printBackground: true,
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        },
       },
-    },
-  ]);
-  if (r.status !== 'salvo') return r;
-  return { status: 'salvo', pdf: r.destinos[0] };
-});
+    ]);
+    if (r.status !== 'salvo') return r;
+    return { status: 'salvo', pdf: r.destinos[0] };
+  },
+);
 
 // ---------- anotações não salvas ----------
 
@@ -529,21 +722,7 @@ ipcMain.handle('fechar-janela', (event) => {
 
 // ---------- imprimir ----------
 
-// Impressora de cupom (térmica): o nome da impressora padrão contém uma destas
-// palavras, sem diferenciar maiúsculas nem acentos ("térmica" e "termica").
-// É a única lista; para incluir outra marca ou modelo, acrescente aqui.
-const PALAVRAS_IMPRESSORA_CUPOM = ['elgin', 'pos', 'térmica', '80mm', '58mm'];
-
-const semAcento = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
-
-function ehImpressoraCupom(nome: string): boolean {
-  const n = semAcento(nome);
-  return PALAVRAS_IMPRESSORA_CUPOM.some((p) => n.includes(semAcento(p)));
-}
+// Impressora de cupom (térmica): a lista de nomes fica em src/impressoras.ts.
 
 /**
  * Nome da impressora padrão do Windows, ou null. O Electron lista as

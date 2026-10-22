@@ -145,6 +145,7 @@ ul {
 /* ---------- estado vazio ---------- */
 
 .vazio {
+  position: relative;
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -186,8 +187,60 @@ ul {
   font-size: var(--fs-lg);
 }
 
+/* Versão do app, discreta no canto da tela inicial. */
+.vazio__versao {
+  position: absolute;
+  right: var(--esp-5);
+  bottom: var(--esp-4);
+  font-size: var(--fs-xs);
+}
+
+/* Zoom fora de 100%: botão fixo no canto, que volta ao tamanho normal. */
+.zoom {
+  position: fixed;
+  right: var(--esp-5);
+  bottom: var(--esp-5);
+  z-index: 25;
+  box-shadow: var(--sombra-aviso);
+}
+
+.zoom__valor {
+  font-weight: var(--peso-forte);
+  font-variant-numeric: tabular-nums;
+}
+
+.vazio__formatos {
+  margin-top: calc(-1 * var(--esp-2));
+  font-size: var(--fs-sm);
+}
+
 .vazio__dica {
   font-size: var(--fs-sm);
+}
+
+/* Pasta de destino e Abrir pasta, colados. */
+.par-pasta {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+}
+
+.par-pasta > .botao:first-child {
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.par-pasta > .botao + .botao {
+  flex: none;
+  margin-left: calc(-1 * var(--borda-forte));
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.par-pasta > .botao:focus-visible {
+  position: relative;
+  z-index: 1;
 }
 
 /* ---------- escolha de modo ---------- */
@@ -196,7 +249,7 @@ ul {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: var(--esp-6);
+  padding: var(--esp-5);
 }
 
 .modo__caixa {
@@ -204,17 +257,73 @@ ul {
   flex-direction: column;
   align-items: center;
   gap: var(--esp-4);
+  max-width: 100%;
   text-align: center;
 }
 
+/* Dados da nota, em destaque no topo. */
+.modo__nota {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-2);
+  max-width: 100%;
+}
+
+.modo__cabecalho {
+  display: flex;
+  flex-direction: column;
+  line-height: var(--altura-linha-titulo);
+}
+
+.modo__fornecedor {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-destaque);
+  font-weight: var(--peso-forte);
+  overflow-wrap: anywhere;
+}
+
+.modo__numero {
+  margin-top: var(--esp-1);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-lg);
+  font-weight: var(--peso-medio);
+}
+
+.modo__resumo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--esp-2) var(--esp-5);
+}
+
+.modo__dado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.modo__rotulo {
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-medio);
+  letter-spacing: var(--espaco-letras-rotulo);
+  text-transform: uppercase;
+}
+
+.modo__valor {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-lg);
+  font-variant-numeric: tabular-nums;
+}
+
 .modo__arquivo {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   overflow-wrap: anywhere;
 }
 
 .modo__titulo {
   color: var(--cor-texto-forte);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: var(--peso-forte);
 }
 
@@ -225,12 +334,21 @@ ul {
   gap: var(--esp-4);
 }
 
+/* As duas opções com a mesma largura: a da miniatura mais o respiro (o texto
+   do motivo, quando o DANFE não é suportado, quebra em linhas). */
 .modo__opcao {
-  width: var(--largura-modo-opcao);
-  min-height: var(--altura-modo-opcao);
+  width: max(
+    var(--largura-modo-opcao),
+    calc(
+      var(--altura-miniatura) * 210 / 297 + 2 * var(--esp-3) + 2 *
+        var(--borda-forte)
+    )
+  );
+  max-width: 100%;
   flex-direction: column;
   justify-content: center;
   gap: var(--esp-2);
+  padding: var(--esp-3);
   background: var(--cor-destaque);
   border-color: var(--cor-destaque);
   color: var(--cor-texto-sobre-destaque);
@@ -241,6 +359,54 @@ ul {
   background: var(--ps-preto);
   border-color: var(--ps-preto);
   color: var(--ps-branco);
+}
+
+/* DANFE indisponível: fundo de botão secundário e texto legível, para o
+   motivo poder ser lido (a opacidade de desabilitado o apagaria). */
+.modo__opcao:disabled {
+  opacity: 1;
+  background: var(--botao-sec-fundo);
+  border-color: var(--cor-borda);
+  color: var(--cor-texto);
+}
+
+/* Miniatura A4 da primeira página. O conteúdo é montado em tamanho real e
+   reduzido por --escala (renderer.ts). */
+.modo__miniatura {
+  display: block;
+  height: var(--altura-miniatura);
+  aspect-ratio: 210 / 297;
+  overflow: hidden;
+  border: var(--borda) solid var(--ps-preto);
+  background: var(--ps-branco);
+}
+
+/* Mesmo texto do corpo da página: dentro do botão o conteúdo herdaria negrito,
+   cor e alinhamento, e o DANFE mediria e dividiria o texto de outro jeito. */
+.miniatura__escala {
+  overflow: hidden;
+  transform-origin: 0 0;
+  transform: scale(var(--escala, 0));
+  color: var(--cor-texto);
+  font-family: var(--fonte);
+  font-size: var(--fs-md);
+  font-weight: var(--peso-normal);
+  line-height: var(--altura-linha);
+  text-align: left;
+}
+
+.miniatura__escala--medindo {
+  transform: none;
+}
+
+.danfe.danfe--miniatura {
+  display: block;
+  padding: 0;
+  background: none;
+}
+
+.danfe--miniatura .folha {
+  box-shadow: none;
 }
 
 .modo__nome {
@@ -255,14 +421,17 @@ ul {
 
 /* ---------- barra superior ---------- */
 
+/* Uma linha quando cabe. Quando falta espaço, a saída (pasta, imprimir,
+   salvar) desce para a segunda linha; o título nunca fica mais estreito que
+   --largura-minima-titulo. */
 .barra {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--esp-4);
+  gap: var(--esp-3) var(--esp-4);
   padding: var(--esp-3) var(--esp-5);
   background: var(--cor-destaque);
   color: var(--cor-texto-sobre-destaque);
@@ -272,7 +441,8 @@ ul {
 .barra__titulo {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  flex: 1 1 var(--largura-minima-titulo);
+  min-width: var(--largura-minima-titulo);
 }
 
 .barra__fornecedor {
@@ -298,18 +468,51 @@ ul {
   font-weight: var(--peso-forte);
 }
 
-/* Ações em três grupos, nesta ordem: navegação, modo, saída. */
+/* Ações em três grupos, nesta ordem: navegação, modo, saída. O nav continua
+   como marco para o leitor de tela, mas não gera caixa: cada grupo é um item
+   da barra e pode descer de linha sozinho. */
 .barra__acoes {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-4);
-  flex: none;
+  display: contents;
 }
 
 .barra__grupo {
   display: flex;
   align-items: center;
   gap: var(--esp-2);
+}
+
+.barra__saida {
+  margin-left: auto;
+}
+
+.barra__modo {
+  position: relative;
+}
+
+/* Texto de ajuda da opção indisponível (cópia editada: sem DANFE). */
+.dica {
+  display: none;
+  position: absolute;
+  top: calc(100% + var(--esp-2));
+  right: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: var(--largura-dica);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--raio);
+  background: var(--ps-preto);
+  color: var(--ps-branco);
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-normal);
+  box-shadow: var(--sombra-aviso);
+  pointer-events: none;
+}
+
+.barra__modo:has(
+    #btn-modo-danfe[aria-disabled='true']:is(:hover, :focus-visible)
+  )
+  .dica {
+  display: block;
 }
 
 /* Seletor de duas posições (Conferência | DANFE): a opção ativa fica
@@ -335,11 +538,19 @@ ul {
   border-left: var(--borda-forte) solid var(--botao-sec-borda);
 }
 
-.seletor__opcao:hover:not(:disabled, [aria-pressed='true']) {
+.seletor__opcao:hover:not(
+    :disabled,
+    [aria-pressed='true'],
+    [aria-disabled='true']
+  ) {
   background: var(--botao-sec-fundo-hover);
 }
 
-.seletor__opcao:active:not(:disabled, [aria-pressed='true']) {
+.seletor__opcao:active:not(
+    :disabled,
+    [aria-pressed='true'],
+    [aria-disabled='true']
+  ) {
   background: var(--botao-sec-fundo-pressionado);
 }
 
@@ -354,7 +565,8 @@ ul {
   outline-offset: calc(-1 * var(--botao-foco-espessura));
 }
 
-.seletor__opcao:disabled {
+.seletor__opcao:disabled,
+.seletor__opcao[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: var(--botao-desabilitado-opacidade);
 }
@@ -392,10 +604,13 @@ ul {
   pointer-events: none;
 }
 
+/* Uma linha ("Copiado") ou duas: nome do arquivo em cima, "Salvo" embaixo. */
 .aviso {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--esp-2);
+  gap: var(--esp-1);
+  max-width: min(90vw, var(--largura-aviso));
   padding: var(--esp-3) var(--esp-5);
   border-radius: var(--raio);
   background: var(--aviso-sucesso-fundo);
@@ -408,6 +623,34 @@ ul {
 
 .aviso__icone {
   stroke-width: 3;
+}
+
+.aviso__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+
+.aviso__arquivo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+}
+
+/* O nome já chega encurtado no meio (renderer.ts); nunca quebra a linha. */
+.aviso__nome {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  font-weight: var(--peso-medio);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.aviso__tipos {
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-normal);
 }
 
 @keyframes aviso-some {
@@ -574,8 +817,10 @@ ul {
 
 /* ---------- ordenar ---------- */
 
-/* Título de coluna: clicar alterna crescente, decrescente e ordem da nota. A
-   seta mostra o estado (também sai na impressão). */
+/* Título de coluna: clicar alterna crescente, decrescente e ordem da nota.
+   Coluna que pode ordenar leva a seta dupla preta sobre o amarelo do
+   cabeçalho; a coluna ordenada, a seta da direção branca numa caixa preta.
+   Contraste medido nos testes. */
 .tabela--itens th[data-ordenavel] {
   cursor: pointer;
   user-select: none;
@@ -590,25 +835,104 @@ ul {
   outline-offset: calc(-1 * var(--botao-foco-espessura));
 }
 
+.tabela--itens th[data-ordenavel]::after {
+  content: '⇅';
+  display: inline-block;
+  min-width: var(--largura-seta);
+  margin-left: var(--esp-1);
+  border-radius: var(--esp-1);
+  color: var(--ps-preto);
+  font-weight: var(--peso-forte);
+  text-align: center;
+  text-decoration: none;
+}
+
+.tabela--itens th[aria-sort='ascending']::after,
+.tabela--itens th[aria-sort='descending']::after {
+  background: var(--ps-preto);
+  color: var(--ps-branco);
+}
+
 .tabela--itens th[aria-sort='ascending']::after {
-  content: ' ▲';
+  content: '▲';
 }
 
 .tabela--itens th[aria-sort='descending']::after {
-  content: ' ▼';
+  content: '▼';
 }
 
+/* Barra de ordenação, à esquerda, logo acima da tabela. */
 .ordenar {
   position: relative;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: var(--esp-2);
   margin-bottom: var(--esp-3);
+}
+
+.ordenar__botao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-2);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--raio);
+  background: var(--botao-sec-fundo);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.ordenar__botao:hover {
+  background: var(--botao-sec-fundo-hover);
+}
+
+.ordenar__botao:focus-visible,
+.ordenar__limpar:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.ordenar__rotulo {
+  font-weight: var(--peso-medio);
+}
+
+.ordenar__atual {
+  padding: 0 var(--esp-2);
+  border-radius: var(--raio);
+  font-weight: var(--peso-forte);
+}
+
+/* Fora da ordem da nota: a escolha em destaque, amarelo com texto escuro. */
+.ordenar__atual--destaque {
+  background: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+}
+
+.ordenar__limpar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tamanho-limpar);
+  height: var(--tamanho-limpar);
+  padding: 0;
+  border: var(--borda) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--cor-destaque);
+  color: var(--ps-preto);
+  cursor: pointer;
+}
+
+.ordenar__limpar:hover {
+  background: var(--ps-preto);
+  color: var(--ps-branco);
 }
 
 .ordenar__menu {
   position: absolute;
   top: calc(100% + var(--esp-1));
-  right: 0;
+  left: 0;
   z-index: 20;
   width: var(--largura-menu);
   max-height: var(--altura-menu);

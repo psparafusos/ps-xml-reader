@@ -41,7 +41,9 @@
 
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* safe: com zoom, folha mais larga que a janela começa na borda esquerda
+     (centralizada, a parte da esquerda ficaria fora do alcance da rolagem). */
+  align-items: safe center;
   gap: var(--esp-5);
   padding: var(--esp-5);
   background: var(--cor-borda-suave);

@@ -17,11 +17,37 @@
   .barra,
   .mensagem,
   .aviso-regiao,
+  .zoom,
   .ordenar,
   .copiar-chave,
   .vazio,
   .modo {
     display: none !important;
+  }
+
+  /* O zoom da tela (renderer.ts, style.zoom) não vale no papel nem no PDF. */
+  #nota,
+  #danfe {
+    zoom: 1 !important;
+  }
+
+  /* No papel só a seta da coluna ordenada, sem a caixa preta. */
+  .tabela--itens th[data-ordenavel]::after {
+    content: none;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .tabela--itens th[aria-sort='ascending']::after {
+    content: ' ▲';
+    background: none;
+    color: inherit;
+  }
+
+  .tabela--itens th[aria-sort='descending']::after {
+    content: ' ▼';
+    background: none;
+    color: inherit;
   }
 
   .nota {

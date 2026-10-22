@@ -5,6 +5,7 @@
 
 import { COLUNAS_ITENS, ID_ANOTACAO, type ColunaItem } from './nfe/colunas';
 import { montarCopia } from './nfe/copia';
+import { nomeBaseArquivo } from './nfe/nome';
 import {
   lerArquivo,
   lerDocumento,
@@ -20,7 +21,7 @@ import {
   ordenarItens,
   type Ordem,
 } from './nfe/ordem';
-import { lerDanfe, motivoNaoSuportado } from './danfe/dados';
+import { lerDanfe, motivoNaoSuportado, type DadosDanfe } from './danfe/dados';
 import { montarDanfe } from './danfe/danfe';
 import type { Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
@@ -155,20 +156,23 @@ function blocoDestinatario(n: Nota): HTMLElement | null {
   return secao('Destinatário', 'secao--parte', conteudo);
 }
 
-/** Ícone de copiar (dois retângulos), no mesmo traço dos ícones da barra. */
-function iconeCopiar(): SVGSVGElement {
+/** Ícone de linhas (caminhos SVG), no mesmo traço dos ícones da barra. */
+function icone(...caminhos: string[]): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('class', 'icone');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('aria-hidden', 'true');
-  for (const d of ['M9 9h11v11H9z', 'M5 15H4V4h11v1']) {
+  for (const d of caminhos) {
     const p = document.createElementNS(ns, 'path');
     p.setAttribute('d', d);
     svg.append(p);
   }
   return svg;
 }
+
+/** Ícone de copiar (dois retângulos). */
+const iconeCopiar = () => icone('M9 9h11v11H9z', 'M5 15H4V4h11v1');
 
 /** Chave de acesso só com os 44 dígitos, sem espaço. */
 function chaveSemEspaco(): string {
@@ -288,6 +292,8 @@ const corposItens = new Map<string, HTMLTableSectionElement>();
 let tabelaItensEl: HTMLTableElement | null = null;
 let botaoOrdenar: HTMLButtonElement | null = null;
 let menuOrdenar: HTMLElement | null = null;
+/** Botão × da barra de ordenação: volta à ordem da nota. */
+let limparOrdem: HTMLButtonElement | null = null;
 
 /** Critério do clique no título: a coluna Código ordena como texto. */
 function criterioDaColuna(id: string): string {
@@ -351,10 +357,7 @@ function aplicarOrdem(): void {
         : 'none',
     );
   }
-  if (botaoOrdenar) {
-    const texto = botaoOrdenar.querySelector('.ordenar__atual');
-    if (texto) texto.textContent = descreverOrdem(ordemAtual);
-  }
+  if (botaoOrdenar) mostrarOrdemAtual(botaoOrdenar, limparOrdem);
   for (const op of menuOrdenar?.querySelectorAll<HTMLElement>(
     '[role="menuitemradio"]',
   ) ?? []) {
@@ -391,15 +394,56 @@ function abrirMenuOrdenar(): void {
   menuOrdenar.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
 }
 
-/** Botão "Ordenar" com o menu de opções, acima da tabela. */
-function controleOrdenar(): HTMLElement {
-  botaoOrdenar = el(
+/**
+ * Escolha atual no botão da barra. Fora da ordem da nota ela fica em destaque
+ * (fundo amarelo) e aparece o ×, que volta à ordem da nota.
+ */
+function mostrarOrdemAtual(
+  botao: HTMLElement,
+  limpar: HTMLButtonElement | null,
+): void {
+  const foraDaNota = ordemAtual.criterio !== 'nota';
+  const atual = botao.querySelector('.ordenar__atual');
+  if (atual) {
+    atual.textContent = descreverOrdem(ordemAtual);
+    atual.classList.toggle('ordenar__atual--destaque', foraDaNota);
+  }
+  if (limpar) limpar.hidden = !foraDaNota;
+}
+
+/**
+ * Barra de ordenação acima da tabela, alinhada à esquerda: ícone, "Ordenar
+ * por" e a escolha atual, que abre o menu de opções; fora da ordem da nota,
+ * o × ao lado. Na miniatura sai só o desenho, sem menu e sem ações.
+ */
+function controleOrdenar(miniatura = false): HTMLElement {
+  const botao = el(
     'button',
-    'botao botao--claro botao--pequeno',
-    el('span', '', 'Ordenar:'),
-    el('span', 'ordenar__atual', descreverOrdem(ordemAtual)),
+    'ordenar__botao',
+    icone('M7 4v16', 'M4 7l3-3 3 3', 'M17 20V4', 'M14 17l3 3 3-3'),
+    el('span', 'ordenar__rotulo', 'Ordenar por'),
+    el('span', 'ordenar__atual'),
+    icone('M6 9l6 6 6-6'),
   );
-  botaoOrdenar.type = 'button';
+  botao.type = 'button';
+  const limpar = el(
+    'button',
+    'ordenar__limpar',
+    icone('M6 6l12 12', 'M18 6L6 18'),
+  );
+  limpar.type = 'button';
+  limpar.setAttribute('aria-label', 'Voltar à ordem da nota');
+  limpar.title = 'Voltar à ordem da nota';
+  mostrarOrdemAtual(botao, limpar);
+  if (miniatura) return el('div', 'ordenar', botao, limpar);
+  limparOrdem = limpar;
+  limpar.addEventListener('click', () => {
+    ordemAtual = ORDEM_NOTA;
+    aplicarOrdem();
+    // O × some: o foco vai para a escolha, que continua ali.
+    botaoOrdenar?.focus();
+  });
+  botaoOrdenar = botao;
   botaoOrdenar.id = 'btn-ordenar';
   botaoOrdenar.setAttribute('aria-haspopup', 'menu');
   botaoOrdenar.setAttribute('aria-expanded', 'false');
@@ -442,10 +486,17 @@ function controleOrdenar(): HTMLElement {
     else return;
     e.preventDefault();
   });
-  return el('div', 'ordenar', botaoOrdenar, menuOrdenar);
+  return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar);
 }
 
-function tabelaItens(n: Nota): HTMLElement | null {
+/** Itens montados na miniatura: bastam os que enchem a primeira página. */
+const ITENS_MINIATURA = 40;
+
+/**
+ * Tabela de itens. `miniatura`: só os primeiros itens, sem guardar a tabela no
+ * estado da tela (a miniatura é uma cópia inerte).
+ */
+function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
   if (n.itens.length === 0) return null;
 
   const colunas = COLUNAS_ITENS.filter((c) => c.visivel);
@@ -481,8 +532,9 @@ function tabelaItens(n: Nota): HTMLElement | null {
 
   // Cada item em seu próprio tbody: a linha de infAdProd fica junto do item
   // (zebra e quebra de página tratam os dois como um bloco).
-  corposItens.clear();
-  const corpos = n.itens.map((i) => {
+  if (!miniatura) corposItens.clear();
+  const itens = miniatura ? n.itens.slice(0, ITENS_MINIATURA) : n.itens;
+  const corpos = itens.map((i) => {
     const tbody = el(
       'tbody',
       'item',
@@ -503,17 +555,17 @@ function tabelaItens(n: Nota): HTMLElement | null {
     }
     // A anotação está dentro do tbody: ao reordenar ela vai junto (nItem).
     tbody.dataset.nItem = i.nItem;
-    corposItens.set(i.nItem, tbody);
+    if (!miniatura) corposItens.set(i.nItem, tbody);
     return tbody;
   });
 
   const tabela = el('table', 'tabela tabela--itens', thead, ...corpos);
-  tabelaItensEl = tabela;
+  if (!miniatura) tabelaItensEl = tabela;
   const titulo = `Itens (${n.itens.length})`;
   return secao(
     titulo,
     'secao--itens',
-    controleOrdenar(),
+    controleOrdenar(miniatura),
     el('div', 'tabela-rolagem', tabela),
   );
 }
@@ -656,6 +708,12 @@ const vazio = $('vazio');
 const areaSoltar = $('area-soltar');
 const modo = $('modo');
 const modoArquivo = $('modo-arquivo');
+const modoFornecedor = $('modo-fornecedor');
+const modoNumero = $('modo-numero');
+const modoResumo = $('modo-resumo');
+const miniConferencia = $('mini-conferencia');
+const miniDanfe = $('mini-danfe');
+const danfeDescricao = $('danfe-descricao');
 const barra = $('barra');
 const barraFornecedor = $('barra-fornecedor');
 const barraNota = $('barra-nota');
@@ -678,9 +736,18 @@ const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
 const aviso = $('aviso');
 const avisoTexto = $('aviso-texto');
+const avisoArquivo = $('aviso-arquivo');
+const avisoNome = $('aviso-nome');
+const avisoTipos = $('aviso-tipos');
+const btnZoom = $('btn-zoom') as HTMLButtonElement;
+const btnZoomValor = $('btn-zoom-valor');
 const botoesPasta = [
   $('btn-pasta') as HTMLButtonElement,
   $('btn-pasta-barra') as HTMLButtonElement,
+];
+const botoesAbrirPasta = [
+  $('btn-abrir-pasta') as HTMLButtonElement,
+  $('btn-abrir-pasta-barra') as HTMLButtonElement,
 ];
 
 /** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
@@ -696,22 +763,51 @@ function mostrarMensagem(texto: string, tipo: 'erro'): void {
 
 let temporizadorAviso: number | undefined;
 
+/** Duração dos avisos de sucesso: cópia, e salvo (que tem o nome para ler). */
+const DURACAO_AVISO_MS = 1500;
+const DURACAO_AVISO_SALVO_MS = 2500;
+
 /**
  * Sucesso: aviso pequeno no centro da janela ("Salvo", "Copiado"...), que some
- * sozinho em cerca de 1,5 s. Fica numa região aria-live, então o leitor de
- * tela anuncia o texto. Não pega cliques (pointer-events: none no CSS).
+ * sozinho. Fica numa região aria-live, então o leitor de tela anuncia o texto.
+ * Não pega cliques (pointer-events: none no CSS). `arquivo`: nome do arquivo
+ * salvo, numa linha acima, e os tipos gravados em letra menor.
  */
-function mostrarSucesso(texto: string): void {
+function mostrarSucesso(
+  texto: string,
+  arquivo?: { nome: string; tipos?: string },
+): void {
   window.clearTimeout(temporizadorAviso);
   aviso.hidden = true;
   avisoTexto.textContent = texto;
+  avisoArquivo.hidden = !arquivo;
+  avisoNome.textContent = arquivo ? encurtarNoMeio(arquivo.nome) : '';
+  avisoNome.title = arquivo?.nome ?? '';
+  avisoTipos.textContent = arquivo?.tipos ?? '';
+  avisoTipos.hidden = !arquivo?.tipos;
+  const duracao = arquivo ? DURACAO_AVISO_SALVO_MS : DURACAO_AVISO_MS;
+  aviso.style.setProperty('--aviso-duracao', `${duracao}ms`);
   // Reinicia a animação mesmo com dois avisos seguidos.
   void aviso.offsetWidth;
   aviso.hidden = false;
   temporizadorAviso = window.setTimeout(() => {
     aviso.hidden = true;
-  }, 1500);
+  }, duracao);
 }
+
+/** Nome maior que isto é encurtado no meio, com reticências. */
+const LIMITE_NOME_AVISO = 40;
+
+/** "CISER_NF2330596_Conferencia.pdf" fica inteiro; nome longo vira "início…fim". */
+function encurtarNoMeio(nome: string): string {
+  if (nome.length <= LIMITE_NOME_AVISO) return nome;
+  const fim = Math.floor((LIMITE_NOME_AVISO - 1) / 2);
+  const inicio = LIMITE_NOME_AVISO - 1 - fim;
+  return `${nome.slice(0, inicio)}…${nome.slice(-fim)}`;
+}
+
+/** Último trecho de um caminho do Windows. */
+const nomeDoCaminho = (caminho: string) => caminho.split(/[\\/]/).pop() ?? '';
 
 function esconderMensagem(): void {
   mensagem.hidden = true;
@@ -750,7 +846,75 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
     btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
   }
   window.scrollTo(0, 0);
+  aplicarZoom();
 }
+
+// ---------- zoom da área de visualização ----------
+
+/**
+ * Zoom só da área do documento (Conferência e DANFE), por CSS zoom: a barra,
+ * a tela inicial e a de escolha não mudam. Os níveis são os do navegador.
+ * Cada modo guarda o seu zoom enquanto o app está aberto. Na impressão e no
+ * PDF o zoom não vale (print.css), e o DANFE é sempre paginado em 100%.
+ */
+const NIVEIS_ZOOM = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+const zoomPorModo: Record<ModoImpressao, number> = {
+  conferencia: 1,
+  danfe: 1,
+};
+
+/** A área de visualização na tela, ou null (tela inicial ou de escolha). */
+function areaZoom(): HTMLElement | null {
+  if (!notaEl.hidden) return notaEl;
+  if (!danfeEl.hidden) return danfeEl;
+  return null;
+}
+
+/** Aplica o zoom de cada modo e mostra o botão de restaurar fora de 100%. */
+function aplicarZoom(): void {
+  notaEl.style.zoom = String(zoomPorModo.conferencia);
+  danfeEl.style.zoom = String(zoomPorModo.danfe);
+  const z = zoomPorModo[modoAtual];
+  btnZoom.hidden = areaZoom() === null || z === 1;
+  const pct = `${Math.round(z * 100)}%`;
+  btnZoomValor.textContent = pct;
+  btnZoom.setAttribute('aria-label', `Zoom em ${pct}. Restaurar 100%`);
+  btnZoom.title = 'Restaurar o tamanho normal (Ctrl+0)';
+}
+
+/** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
+function mudarZoom(passo: -1 | 0 | 1): void {
+  if (!areaZoom()) return;
+  const atual = zoomPorModo[modoAtual];
+  let novo = 1;
+  if (passo === 1) novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9) ?? atual;
+  else if (passo === -1)
+    novo = [...NIVEIS_ZOOM].reverse().find((n) => n < atual - 1e-9) ?? atual;
+  if (novo === atual) return;
+  // Mantém mais ou menos o mesmo trecho do documento no alto da tela.
+  const y = window.scrollY;
+  zoomPorModo[modoAtual] = novo;
+  aplicarZoom();
+  window.scrollTo(window.scrollX, (y * novo) / atual);
+}
+
+/** Roda do mouse (e pinça do touchpad) com Ctrl: um nível a cada "dente". */
+const DELTA_POR_NIVEL = 50;
+let deltaAcumulado = 0;
+
+window.addEventListener(
+  'wheel',
+  (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    if (!areaZoom()) return;
+    deltaAcumulado += e.deltaY;
+    if (Math.abs(deltaAcumulado) < DELTA_POR_NIVEL) return;
+    mudarZoom(deltaAcumulado < 0 ? 1 : -1);
+    deltaAcumulado = 0;
+  },
+  { passive: false },
+);
 
 /** Mostra a conferência; monta a tela só na primeira vez (guarda o digitado). */
 function mostrarConferencia(): void {
@@ -765,30 +929,38 @@ function preencherBarra(n: Nota): void {
   // O aviso de cópia editada fica só na barra, nunca no corpo do DANFE.
   barraCopia.hidden = !aberto?.lido.copiaEditada;
   document.title = juntar([textoNumeroSerie(n), n.emitente.xNome], ' | ');
+  atualizarSeletorDanfe();
 }
 
 /**
- * Mostra o DANFE. Usa sempre a nota de dentro de original (num .psxml, as
- * anotações ficam de fora). Contingência ou modelo diferente de 55: não gera,
- * mostra o motivo e fica onde estava.
+ * Cópia editada: o DANFE só sai do XML original. A opção continua visível e
+ * focável (aria-disabled, não disabled), com a explicação no texto de ajuda
+ * (#dica-danfe), que aparece ao passar o mouse ou com o foco e é a descrição
+ * para o leitor de tela.
+ */
+function atualizarSeletorDanfe(): void {
+  if (aberto?.lido.copiaEditada) {
+    btnModoDanfe.setAttribute('aria-disabled', 'true');
+    btnModoDanfe.setAttribute('aria-describedby', 'dica-danfe');
+  } else {
+    btnModoDanfe.removeAttribute('aria-disabled');
+    btnModoDanfe.removeAttribute('aria-describedby');
+  }
+}
+
+/**
+ * Mostra o DANFE. Usa a nota do XML original. Cópia editada não gera DANFE.
+ * Contingência ou modelo diferente de 55: não gera, mostra o motivo e fica
+ * onde estava.
  */
 function mostrarDanfe(): void {
-  if (!aberto) return;
+  if (!aberto || aberto.lido.copiaEditada) return;
   if (danfeMontado) {
     mostrarTela('danfe');
     return;
   }
-  let dados: ReturnType<typeof lerDanfe>;
-  try {
-    const { original } = localizarOriginal(lerDocumento(aberto.texto));
-    dados = lerDanfe(original);
-  } catch (erro) {
-    mostrarMensagem('Não foi possível montar o DANFE.', 'erro');
-    console.error(erro);
-    return;
-  }
-  const motivo = motivoNaoSuportado(dados);
-  if (motivo) {
+  const { dados, motivo } = lerDadosDanfe(aberto.texto);
+  if (!dados) {
     mostrarMensagem(motivo, 'erro');
     return;
   }
@@ -798,7 +970,10 @@ function mostrarDanfe(): void {
   // visível antes.
   mostrarTela('danfe');
   try {
+    // Paginado sempre em 100%: as medidas não dependem do zoom da tela.
+    danfeEl.style.zoom = '1';
     montarDanfe(danfeEl, dados);
+    aplicarZoom();
     danfeMontado = true;
   } catch (erro) {
     danfeEl.replaceChildren();
@@ -808,15 +983,26 @@ function mostrarDanfe(): void {
   }
 }
 
-function exibirNota(): void {
-  if (!aberto) return;
-  const n = aberto.lido.nota;
-  barraFornecedor.textContent = n.emitente.xNome;
-  barraNota.textContent = textoNumeroSerie(n);
-  barraCopia.hidden = !aberto.lido.copiaEditada;
-  rodapeCopia.hidden = !aberto.lido.copiaEditada;
-  document.title = juntar([textoNumeroSerie(n), n.emitente.xNome], ' | ');
+/** Dados do DANFE do arquivo aberto, ou o motivo de não gerar. */
+function lerDadosDanfe(
+  texto: string,
+): { dados: DadosDanfe; motivo: null } | { dados: null; motivo: string } {
+  try {
+    const { original } = localizarOriginal(lerDocumento(texto));
+    const dados = lerDanfe(original);
+    const motivo = motivoNaoSuportado(dados);
+    return motivo ? { dados: null, motivo } : { dados, motivo: null };
+  } catch (erro) {
+    console.error(erro);
+    return { dados: null, motivo: 'Não foi possível montar o DANFE.' };
+  }
+}
 
+/**
+ * Conteúdo da conferência: cabeçalho e seções. `miniatura`: só os primeiros
+ * itens, sem mexer no estado da tela.
+ */
+function conteudoNota(n: Nota, miniatura = false): HTMLElement[] {
   const cabecalho = el(
     'div',
     'cabecalho',
@@ -824,24 +1010,168 @@ function exibirNota(): void {
     el('div', 'cabecalho__partes', blocoEmitente(n), blocoDestinatario(n)),
     blocoDadosNota(n),
   );
-
-  notaEl.replaceChildren(
+  return [
     cabecalho,
     ...[
-      tabelaItens(n),
+      tabelaItens(n, miniatura),
       blocoTotais(n),
       blocoTransporte(n),
       blocoDuplicatas(n),
       blocoDadosAdicionais(n),
     ].filter((s): s is HTMLElement => s !== null),
-  );
+  ];
+}
+
+function exibirNota(): void {
+  if (!aberto) return;
+  const n = aberto.lido.nota;
+  preencherBarra(n);
+  rodapeCopia.hidden = !aberto.lido.copiaEditada;
+
+  notaEl.replaceChildren(...conteudoNota(n));
 
   conferenciaMontada = true;
   aplicarOrdem();
   mostrarTela('nota');
 }
 
-/** Lê o arquivo e vai para a escolha de modo. */
+// ---------- tela de escolha de modo ----------
+
+/** Largura da página da miniatura da conferência: a da tela (--largura-conteudo). */
+const LARGURA_PAGINA_CONFERENCIA = 1200;
+/** Folha do DANFE: 210 mm a 96 pixels por polegada. */
+const LARGURA_FOLHA_DANFE = (210 / 25.4) * 96;
+/** Proporção do A4 (altura sobre largura). */
+const PROPORCAO_A4 = 297 / 210;
+
+/**
+ * Coloca `pagina` (com largura real `largura`, em pixels) na moldura da
+ * miniatura, reduzida para caber na largura dela. A escala acompanha o tamanho
+ * da moldura (que muda com a altura da janela).
+ */
+function encaixarMiniatura(
+  moldura: HTMLElement,
+  escala: HTMLElement,
+  largura: number,
+): void {
+  moldura.dataset.largura = String(largura);
+  ajustarEscala(moldura);
+  escala.classList.remove('miniatura__escala--medindo');
+}
+
+function ajustarEscala(moldura: HTMLElement): void {
+  const largura = Number(moldura.dataset.largura);
+  if (largura > 0)
+    moldura.style.setProperty(
+      '--escala',
+      String(moldura.clientWidth / largura),
+    );
+}
+
+const observadorMiniaturas = new ResizeObserver((entradas) => {
+  for (const e of entradas) ajustarEscala(e.target as HTMLElement);
+});
+observadorMiniaturas.observe(miniConferencia);
+observadorMiniaturas.observe(miniDanfe);
+
+/**
+ * Nova moldura vazia: o conteúdo é montado em tamanho real (sem escala, para
+ * as medições do DANFE valerem) e só depois é reduzido, na mesma tarefa, então
+ * nunca aparece grande na tela.
+ */
+function novaEscala(moldura: HTMLElement, ...classes: string[]): HTMLElement {
+  const escala = el(
+    'div',
+    ['miniatura__escala', 'miniatura__escala--medindo', ...classes].join(' '),
+  );
+  // Cópia só para ver: sem foco, sem clique, fora do leitor de tela.
+  escala.inert = true;
+  moldura.replaceChildren(escala);
+  return escala;
+}
+
+function miniaturaConferencia(n: Nota): void {
+  const pagina = novaEscala(miniConferencia, 'nota');
+  pagina.style.width = `${LARGURA_PAGINA_CONFERENCIA}px`;
+  pagina.style.height = `${LARGURA_PAGINA_CONFERENCIA * PROPORCAO_A4}px`;
+  pagina.append(...conteudoNota(n, true));
+  encaixarMiniatura(miniConferencia, pagina, LARGURA_PAGINA_CONFERENCIA);
+}
+
+function miniaturaDanfe(dados: DadosDanfe): void {
+  const pagina = novaEscala(miniDanfe, 'danfe', 'danfe--miniatura');
+  pagina.style.width = `${LARGURA_FOLHA_DANFE}px`;
+  pagina.style.height = `${LARGURA_FOLHA_DANFE * PROPORCAO_A4}px`;
+  try {
+    montarDanfe(pagina, dados, { soPrimeiraFolha: true });
+  } catch (erro) {
+    miniDanfe.replaceChildren();
+    console.error(erro);
+    return;
+  }
+  encaixarMiniatura(miniDanfe, pagina, LARGURA_FOLHA_DANFE);
+}
+
+/** Cada abertura invalida as miniaturas ainda não geradas da anterior. */
+let geracaoMiniaturas = 0;
+
+/**
+ * Preenche a tela de escolha com os dados da nota e a mostra. As miniaturas
+ * vêm depois do primeiro desenho, uma por tarefa, para a tela aparecer logo.
+ */
+function mostrarEscolha(arquivo: ArquivoAberto, lido: ArquivoLido): void {
+  const n = lido.nota;
+  modoFornecedor.textContent = n.emitente.xFant || n.emitente.xNome;
+  modoNumero.textContent = textoNumeroSerie(n);
+  const qtd = n.itens.length;
+  const resumo: [string, string][] = [
+    ['Emissão', f.data(n.ide.dhEmi)],
+    ['Valor total', f.moeda(n.totais.vNF)],
+    ['Itens', `${qtd} ${qtd === 1 ? 'item' : 'itens'}`],
+  ];
+  modoResumo.replaceChildren(
+    ...resumo
+      .filter(([, valor]) => valor !== '')
+      .map(([rotulo, valor]) =>
+        el(
+          'span',
+          'modo__dado',
+          el('span', 'modo__rotulo', rotulo),
+          el('strong', 'modo__valor', valor),
+        ),
+      ),
+  );
+  modoArquivo.textContent = arquivo.nome;
+
+  miniConferencia.replaceChildren();
+  miniDanfe.replaceChildren();
+  delete miniConferencia.dataset.largura;
+  delete miniDanfe.dataset.largura;
+  const { dados, motivo } = lerDadosDanfe(arquivo.texto);
+  btnDanfe.disabled = dados === null;
+  miniDanfe.hidden = dados === null;
+  danfeDescricao.textContent = motivo ?? 'Documento auxiliar, A4 retrato';
+
+  mostrarTela('modo');
+
+  const vez = ++geracaoMiniaturas;
+  const valendo = () => vez === geracaoMiniaturas && !modo.hidden;
+  requestAnimationFrame(() =>
+    setTimeout(() => {
+      if (!valendo()) return;
+      miniaturaConferencia(n);
+      if (!dados) return;
+      setTimeout(() => {
+        if (valendo()) miniaturaDanfe(dados);
+      }, 0);
+    }, 0),
+  );
+}
+
+/**
+ * Lê o arquivo. XML da NF-e: vai para a escolha de modo. Cópia editada
+ * (.psxml): vai direto para a conferência (o DANFE só sai do XML original).
+ */
 function carregar(arquivo: ArquivoAberto): void {
   try {
     const lido = lerArquivo(arquivo.texto);
@@ -859,9 +1189,9 @@ function carregar(arquivo: ArquivoAberto): void {
       lido.ordem && criterioValido(lido.ordem.criterio)
         ? lido.ordem
         : ORDEM_NOTA;
-    modoArquivo.textContent = arquivo.nome;
     document.title = 'Leitor NF-e PS';
-    mostrarTela('modo');
+    if (lido.copiaEditada) mostrarConferencia();
+    else mostrarEscolha(arquivo, lido);
   } catch (erro) {
     // O processo principal já trocou o arquivo aberto: a nota anterior não
     // pode mais ser salva, então volta para a tela inicial.
@@ -920,6 +1250,24 @@ function atualizarPasta(caminho: string | null): void {
     }
     b.title = caminho ?? '';
   }
+  for (const b of botoesAbrirPasta) {
+    b.disabled = !caminho;
+    b.title = caminho
+      ? 'Abrir a pasta de destino no Explorer'
+      : 'Escolha a pasta de destino primeiro';
+  }
+}
+
+/** Abre a pasta de destino no Explorer; pasta que sumiu mostra o erro. */
+async function abrirPastaDestino(): Promise<void> {
+  esconderMensagem();
+  try {
+    const r = await window.psApi.abrirPastaDestino();
+    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+  } catch (erro) {
+    mostrarMensagem('Não foi possível abrir a pasta.', 'erro');
+    console.error(erro);
+  }
 }
 
 async function escolherPasta(): Promise<string | null> {
@@ -965,16 +1313,16 @@ function salvar(): Promise<boolean> {
   return modoAtual === 'danfe' ? salvarDanfe() : salvarConferencia();
 }
 
-/** Salva só o PDF do DANFE (<base>-danfe.pdf). true se gravou. */
+/** Salva só o PDF do DANFE (<base>_DANFE.pdf). true se gravou. */
 async function salvarDanfe(): Promise<boolean> {
   if (!aberto) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
   bloquearAcoes(true, true);
   try {
-    const r = await window.psApi.salvarDanfe();
+    const r = await window.psApi.salvarDanfe(nomeBaseArquivo(aberto.lido.nota));
     if (r.status === 'salvo') {
-      mostrarSucesso('Salvo');
+      mostrarSucesso('Salvo', { nome: nomeDoCaminho(r.pdf) });
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -1007,7 +1355,10 @@ async function salvarConferencia(): Promise<boolean> {
   marcarGeradoEm();
   bloquearAcoes(true, true);
   try {
-    const r = await window.psApi.salvar(copia);
+    const r = await window.psApi.salvar(
+      copia,
+      nomeBaseArquivo(aberto.lido.nota),
+    );
     if (r.status === 'salvo') {
       // Grava como salvo o que foi para o arquivo, não o que foi digitado
       // enquanto o salvamento acontecia.
@@ -1015,7 +1366,11 @@ async function salvarConferencia(): Promise<boolean> {
       for (const [nItem, texto] of gravadas)
         anotacoesGravadas.set(nItem, texto);
       atualizarPendentes();
-      mostrarSucesso('Salvo');
+      // PDF e cópia têm o mesmo nome base: mostra o nome uma vez só.
+      mostrarSucesso('Salvo', {
+        nome: nomeDoCaminho(r.pdf).replace(/\.pdf$/i, ''),
+        tipos: 'PDF e PSXML',
+      });
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -1082,6 +1437,8 @@ async function irParaInicio(): Promise<void> {
   danfeMontado = false;
   danfeEl.replaceChildren();
   notaEl.replaceChildren();
+  miniConferencia.replaceChildren();
+  miniDanfe.replaceChildren();
   tabelaItensEl = null;
   corposItens.clear();
   ordemAtual = ORDEM_NOTA;
@@ -1176,6 +1533,47 @@ async function menuContexto(e: MouseEvent): Promise<void> {
   }
 }
 
+// ---------- atalhos de teclado ----------
+
+/** Botão na tela (sem ancestral escondido) e habilitado. */
+const disponivel = (b: HTMLButtonElement) =>
+  !b.disabled && b.offsetParent !== null;
+
+/**
+ * Ctrl+O abre arquivo, Ctrl+S salva e Ctrl+P imprime: o mesmo que clicar no
+ * botão (com as mesmas perguntas e o aviso de impressora de cupom). Botão fora
+ * da tela ou desabilitado: o atalho não faz nada. Ctrl+C, Ctrl+V e Ctrl+X
+ * não passam por aqui e seguem normais na anotação.
+ */
+const ATALHOS: Record<string, () => HTMLButtonElement[]> = {
+  o: () => [btnAbrir, btnAbrirOutro],
+  s: () => [btnSalvar],
+  p: () => [btnImprimir],
+};
+
+/** Zoom: Ctrl com +, = ou - (também do teclado numérico) e Ctrl+0. */
+function passoZoom(e: KeyboardEvent): -1 | 0 | 1 | null {
+  if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') return 1;
+  if (e.key === '-' || e.code === 'NumpadSubtract') return -1;
+  if (e.key === '0' || e.code === 'Numpad0') return 0;
+  return null;
+}
+
+window.addEventListener('keydown', (e) => {
+  if (!e.ctrlKey || e.altKey || e.metaKey) return;
+  const passo = passoZoom(e);
+  if (passo !== null) {
+    e.preventDefault();
+    mudarZoom(passo);
+    return;
+  }
+  const botoes = !e.shiftKey ? ATALHOS[e.key.toLowerCase()] : undefined;
+  if (!botoes) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  botoes().find(disponivel)?.click();
+});
+
 // ---------- eventos ----------
 
 btnAbrir.addEventListener('click', () => void abrir());
@@ -1186,6 +1584,7 @@ btnModoConferencia.addEventListener('click', () => {
   if (modoAtual !== 'conferencia') mostrarConferencia();
 });
 btnModoDanfe.addEventListener('click', () => {
+  if (btnModoDanfe.getAttribute('aria-disabled') === 'true') return;
   if (modoAtual !== 'danfe') mostrarDanfe();
 });
 btnInicio.addEventListener('click', () => void irParaInicio());
@@ -1212,7 +1611,18 @@ window.psApi.informarPendentes(false);
 for (const b of botoesPasta) {
   b.addEventListener('click', () => void escolherPasta());
 }
+for (const b of botoesAbrirPasta) {
+  b.addEventListener('click', () => void abrirPastaDestino());
+}
 $('mensagem-fechar').addEventListener('click', esconderMensagem);
+btnZoom.addEventListener('click', () => mudarZoom(0));
+
+window.psApi
+  .versao()
+  .then((v) => {
+    $('versao').textContent = `versão ${v}`;
+  })
+  .catch((erro: unknown) => console.error(erro));
 
 window.psApi
   .pastaDestino()

@@ -17,6 +17,10 @@ type ResultadoSalvarDanfe =
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
+type ResultadoAbrirPasta =
+  | { status: 'aberta' }
+  | { status: 'erro'; mensagem: string };
+
 type ModoImpressao = 'conferencia' | 'danfe';
 
 type ResultadoImprimir =
@@ -62,10 +66,18 @@ interface PsApi {
   pastaDestino(): Promise<string | null>;
   /** Abre o diálogo de pasta e salva a escolha. null se cancelado. */
   escolherPasta(): Promise<string | null>;
-  /** Grava <base>-ps.pdf (da tela atual) e <base>-ps.psxml na pasta de destino. */
-  salvar(textoCopia: string): Promise<ResultadoSalvar>;
-  /** Grava só <base>-danfe.pdf (da tela atual, A4 sem margem) na pasta de destino. */
-  salvarDanfe(): Promise<ResultadoSalvarDanfe>;
+  /** Abre a pasta de destino no Explorer (erro se ela não existe mais). */
+  abrirPastaDestino(): Promise<ResultadoAbrirPasta>;
+  /**
+   * Grava <base>_Conferencia.pdf (da tela atual) e <base>_Conferencia.psxml
+   * na pasta de destino. `base` vem dos dados da nota (nfe/nome.ts); null usa
+   * o nome do arquivo aberto.
+   */
+  salvar(textoCopia: string, base: string | null): Promise<ResultadoSalvar>;
+  /** Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de destino. */
+  salvarDanfe(base: string | null): Promise<ResultadoSalvarDanfe>;
+  /** Versão do app (package.json). */
+  versao(): Promise<string>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
   imprimir(modo: ModoImpressao): Promise<ResultadoImprimir>;
   /** Avisa o processo principal se há anotações alteradas e não salvas. */

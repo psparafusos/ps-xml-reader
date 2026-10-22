@@ -12,10 +12,13 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('pasta-destino'),
   escolherPasta: (): Promise<string | null> =>
     ipcRenderer.invoke('escolher-pasta'),
-  salvar: (textoCopia: string): Promise<ResultadoSalvar> =>
-    ipcRenderer.invoke('salvar', textoCopia),
-  salvarDanfe: (): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-danfe'),
+  abrirPastaDestino: (): Promise<ResultadoAbrirPasta> =>
+    ipcRenderer.invoke('abrir-pasta-destino'),
+  salvar: (textoCopia: string, base: string | null): Promise<ResultadoSalvar> =>
+    ipcRenderer.invoke('salvar', textoCopia, base),
+  salvarDanfe: (base: string | null): Promise<ResultadoSalvarDanfe> =>
+    ipcRenderer.invoke('salvar-danfe', base),
+  versao: (): Promise<string> => ipcRenderer.invoke('versao'),
   imprimir: (modo: ModoImpressao): Promise<ResultadoImprimir> =>
     ipcRenderer.invoke('imprimir', modo),
   informarPendentes: (pendentes: boolean): void =>

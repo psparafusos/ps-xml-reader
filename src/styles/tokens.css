@@ -40,6 +40,7 @@
   --fs-lg: 16px;
   --fs-xl: 20px;
   --fs-xxl: 40px;
+  --fs-destaque: 28px;
   --peso-normal: 400;
   --peso-medio: 600;
   --peso-forte: 700;
@@ -72,8 +73,17 @@
   --largura-anotacao: 200px;
   --esp-lado-anotacao: var(--esp-3);
   --largura-modo-opcao: 220px;
-  --altura-modo-opcao: 140px;
+  /* Miniatura A4 na escolha de modo: acompanha a altura da janela para a
+     tela caber sem rolagem também em 1366 x 768 a 125%. */
+  --altura-miniatura: clamp(120px, 32vh, 300px);
   --largura-caminho: 320px;
+  /* O título da nota na barra nunca fica mais estreito que isto: antes disso
+     os botões descem para a segunda linha. */
+  --largura-minima-titulo: 240px;
+  --largura-dica: 280px;
+  --largura-aviso: 480px;
+  --largura-seta: 1.4em;
+  --tamanho-limpar: 26px;
   --sombra-barra: 0 var(--borda-forte) 0 var(--ps-preto);
   --transicao: 120ms;
 

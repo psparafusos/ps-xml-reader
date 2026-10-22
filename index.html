@@ -25,7 +25,8 @@
         >
       </div>
       <!-- Grupos por função: navegação, modo, saída. Salvar é o único botão
-           principal; os demais são secundários. -->
+           principal; os demais são secundários. Com pouco espaço, a saída
+           desce para uma segunda linha (app.css). -->
       <nav class="barra__acoes" aria-label="Ações da nota">
         <div class="barra__grupo" role="group" aria-label="Navegação">
           <button id="btn-inicio" type="button" class="botao botao--claro">
@@ -35,7 +36,13 @@
             </svg>
             <span>Início</span>
           </button>
-          <button id="btn-abrir-outro" type="button" class="botao botao--claro">
+          <button
+            id="btn-abrir-outro"
+            type="button"
+            class="botao botao--claro"
+            title="Abrir outro arquivo (Ctrl+O)"
+            aria-keyshortcuts="Control+O"
+          >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
@@ -44,43 +51,72 @@
             <span>Abrir outro XML</span>
           </button>
         </div>
-        <div class="barra__grupo seletor" role="group" aria-label="Modo">
-          <button
-            id="btn-modo-conferencia"
-            type="button"
-            class="seletor__opcao"
-            aria-pressed="true"
+        <div class="barra__grupo barra__modo">
+          <div class="seletor" role="group" aria-label="Modo">
+            <button
+              id="btn-modo-conferencia"
+              type="button"
+              class="seletor__opcao"
+              aria-pressed="true"
+            >
+              Conferência
+            </button>
+            <button
+              id="btn-modo-danfe"
+              type="button"
+              class="seletor__opcao"
+              aria-pressed="false"
+            >
+              DANFE
+            </button>
+          </div>
+          <!-- Só aparece com o DANFE indisponível (cópia editada aberta). -->
+          <span id="dica-danfe" class="dica" role="tooltip"
+            >O DANFE só é gerado a partir do XML original.</span
           >
-            Conferência
-          </button>
-          <button
-            id="btn-modo-danfe"
-            type="button"
-            class="seletor__opcao"
-            aria-pressed="false"
-          >
-            DANFE
-          </button>
         </div>
-        <div class="barra__grupo" role="group" aria-label="Saída">
+        <div class="barra__grupo barra__saida" role="group" aria-label="Saída">
+          <div class="par-pasta">
+            <button
+              id="btn-pasta-barra"
+              type="button"
+              class="botao botao--claro botao--pasta"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                />
+                <path d="M12 11v5" />
+                <path d="M9.5 13.5h5" />
+              </svg>
+              <span class="botao__textos">
+                <span>Pasta de destino</span>
+                <span class="botao__caminho"></span>
+              </span>
+            </button>
+            <button
+              id="btn-abrir-pasta-barra"
+              type="button"
+              class="botao botao--claro"
+              disabled
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                />
+                <path d="M10 15l5-5" />
+                <path d="M11 10h4v4" />
+              </svg>
+              <span>Abrir pasta</span>
+            </button>
+          </div>
           <button
-            id="btn-pasta-barra"
+            id="btn-imprimir"
             type="button"
-            class="botao botao--claro botao--pasta"
+            class="botao botao--claro"
+            title="Imprimir (Ctrl+P)"
+            aria-keyshortcuts="Control+P"
           >
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-              />
-              <path d="M12 11v5" />
-              <path d="M9.5 13.5h5" />
-            </svg>
-            <span class="botao__textos">
-              <span>Pasta de destino</span>
-              <span class="botao__caminho"></span>
-            </span>
-          </button>
-          <button id="btn-imprimir" type="button" class="botao botao--claro">
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 9V4h10v5" />
               <path
@@ -90,7 +126,13 @@
             </svg>
             <span>Imprimir</span>
           </button>
-          <button id="btn-salvar" type="button" class="botao botao--principal">
+          <button
+            id="btn-salvar"
+            type="button"
+            class="botao botao--principal"
+            title="Salvar (Ctrl+S)"
+            aria-keyshortcuts="Control+S"
+          >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 4v11" />
               <path d="M7 10l5 5 5-5" />
@@ -119,15 +161,43 @@
     </div>
 
     <!-- Sucesso: aviso pequeno no centro, some sozinho e não bloqueia cliques.
-         A região existe sempre, para o leitor de tela anunciar a mudança. -->
+         A região existe sempre, para o leitor de tela anunciar a mudança.
+         Ao salvar, o nome do arquivo vem numa linha acima de "Salvo". -->
     <div class="aviso-regiao" role="status" aria-live="polite">
       <div id="aviso" class="aviso" hidden>
-        <svg class="icone aviso__icone" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 12.5l4.5 4.5L19 7.5" />
-        </svg>
-        <span id="aviso-texto"></span>
+        <span id="aviso-arquivo" class="aviso__arquivo" hidden>
+          <span id="aviso-nome" class="aviso__nome"></span>
+          <span id="aviso-tipos" class="aviso__tipos" hidden></span>
+        </span>
+        <span class="aviso__linha">
+          <svg
+            class="icone aviso__icone"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+          <span id="aviso-texto"></span>
+        </span>
       </div>
     </div>
+
+    <!-- Zoom da área de visualização (Conferência e DANFE): aparece só fora
+         de 100% e volta ao tamanho normal. -->
+    <button
+      id="btn-zoom"
+      type="button"
+      class="botao botao--claro zoom"
+      aria-keyshortcuts="Control+0"
+      hidden
+    >
+      <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="M15.5 15.5L20 20" />
+      </svg>
+      <span id="btn-zoom-valor" class="zoom__valor"></span>
+      <span>Restaurar 100%</span>
+    </button>
 
     <section id="vazio" class="vazio">
       <div id="area-soltar" class="vazio__caixa">
@@ -135,49 +205,97 @@
         <p class="vazio__texto">
           Leitor de XML de NF-e para conferência interna
         </p>
-        <button id="btn-abrir" type="button" class="botao botao--grande">
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-            />
-          </svg>
-          <span>Abrir XML</span>
-        </button>
-        <p class="vazio__dica">
-          ou arraste e solte um arquivo .xml ou .psxml aqui
-        </p>
         <button
-          id="btn-pasta"
+          id="btn-abrir"
           type="button"
-          class="botao botao--claro botao--pasta"
+          class="botao botao--grande"
+          aria-describedby="vazio-formatos"
+          title="Abrir arquivo (Ctrl+O)"
+          aria-keyshortcuts="Control+O"
         >
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
             />
-            <path d="M12 11v5" />
-            <path d="M9.5 13.5h5" />
           </svg>
-          <span class="botao__textos">
-            <span>Pasta de destino</span>
-            <span class="botao__caminho"></span>
-          </span>
+          <span>Abrir arquivo</span>
         </button>
+        <p id="vazio-formatos" class="vazio__formatos">
+          XML da NF-e ou cópia editada (.psxml)
+        </p>
+        <p class="vazio__dica">
+          ou arraste e solte um arquivo .xml ou .psxml aqui
+        </p>
+        <div class="par-pasta">
+          <button
+            id="btn-pasta"
+            type="button"
+            class="botao botao--claro botao--pasta"
+          >
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+              />
+              <path d="M12 11v5" />
+              <path d="M9.5 13.5h5" />
+            </svg>
+            <span class="botao__textos">
+              <span>Pasta de destino</span>
+              <span class="botao__caminho"></span>
+            </span>
+          </button>
+          <button
+            id="btn-abrir-pasta"
+            type="button"
+            class="botao botao--claro"
+            disabled
+          >
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+              />
+              <path d="M10 15l5-5" />
+              <path d="M11 10h4v4" />
+            </svg>
+            <span>Abrir pasta</span>
+          </button>
+        </div>
       </div>
+      <p id="versao" class="vazio__versao"></p>
     </section>
 
     <section id="modo" class="modo" hidden>
       <div class="modo__caixa">
-        <p id="modo-arquivo" class="modo__arquivo"></p>
-        <h1 class="modo__titulo">Como deseja abrir a nota?</h1>
+        <!-- Dados da nota aberta; campo ausente no XML some. -->
+        <header class="modo__nota">
+          <h1 class="modo__cabecalho">
+            <span id="modo-fornecedor" class="modo__fornecedor"></span>
+            <span id="modo-numero" class="modo__numero"></span>
+          </h1>
+          <p id="modo-resumo" class="modo__resumo"></p>
+          <p id="modo-arquivo" class="modo__arquivo"></p>
+        </header>
+        <h2 class="modo__titulo">Como deseja abrir a nota?</h2>
         <div class="modo__opcoes">
           <button id="btn-conferencia" type="button" class="botao modo__opcao">
+            <span
+              id="mini-conferencia"
+              class="modo__miniatura"
+              aria-hidden="true"
+            ></span>
             <span class="modo__nome">Conferência</span>
             <span class="modo__descricao">Itens, totais e anotações</span>
           </button>
           <button id="btn-danfe" type="button" class="botao modo__opcao">
+            <span
+              id="mini-danfe"
+              class="modo__miniatura"
+              aria-hidden="true"
+            ></span>
             <span class="modo__nome">DANFE</span>
-            <span class="modo__descricao">Documento auxiliar, A4 retrato</span>
+            <span id="danfe-descricao" class="modo__descricao"
+              >Documento auxiliar, A4 retrato</span
+            >
           </button>
         </div>
       </div>
