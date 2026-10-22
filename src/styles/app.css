@@ -42,47 +42,66 @@ ul {
   stroke-linejoin: round;
 }
 
+/* Estados (tokens.css, --botao-*): normal, mouse em cima, pressionado, foco
+   por teclado e desabilitado, iguais para todos os botões. Sem transição: um
+   estado que muda com a janela sem redesenhar (atrás de um diálogo) não fica
+   congelado no meio do caminho. Desabilitado só fica opaco, com o fundo do
+   estado normal. */
 .botao {
   display: inline-flex;
   align-items: center;
   gap: var(--esp-2);
   padding: var(--esp-2) var(--esp-4);
-  border: var(--borda-forte) solid var(--ps-preto);
+  border: var(--borda-forte) solid var(--botao-pri-fundo);
   border-radius: var(--raio);
-  background: var(--ps-preto);
-  color: var(--ps-branco);
+  background: var(--botao-pri-fundo);
+  color: var(--botao-pri-texto);
   font: inherit;
   font-weight: var(--peso-medio);
   cursor: pointer;
-  transition:
-    background var(--transicao),
-    color var(--transicao);
 }
 
-.botao:hover {
-  background: var(--cor-texto);
-  border-color: var(--cor-texto);
+.botao:hover:not(:disabled) {
+  background: var(--botao-pri-fundo-hover);
+  border-color: var(--botao-pri-fundo-hover);
+}
+
+.botao:active:not(:disabled) {
+  background: var(--botao-pri-fundo-pressionado);
+  border-color: var(--botao-pri-fundo-pressionado);
 }
 
 .botao:focus-visible {
-  outline: var(--borda-forte) solid var(--ps-preto);
-  outline-offset: var(--borda-forte);
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
 }
 
 .botao:disabled {
-  cursor: progress;
-  background: var(--cor-texto);
-  border-color: var(--cor-texto);
+  cursor: not-allowed;
+  opacity: var(--botao-desabilitado-opacidade);
 }
 
+/* Secundário: todos os botões da barra menos Salvar. */
 .botao--claro {
-  background: var(--ps-branco);
-  color: var(--ps-preto);
+  border-color: var(--botao-sec-borda);
+  background: var(--botao-sec-fundo);
+  color: var(--botao-sec-texto);
 }
 
-.botao--claro:hover {
-  background: var(--cor-destaque-suave);
-  border-color: var(--ps-preto);
+.botao--claro:hover:not(:disabled) {
+  border-color: var(--botao-sec-borda);
+  background: var(--botao-sec-fundo-hover);
+}
+
+.botao--claro:active:not(:disabled) {
+  border-color: var(--botao-sec-borda);
+  background: var(--botao-sec-fundo-pressionado);
+}
+
+/* Principal: Salvar, o único preenchido na barra (os estados são os da base). */
+.botao--principal {
+  min-width: 8.5em;
+  justify-content: center;
 }
 
 .botao--grande {
@@ -93,7 +112,7 @@ ul {
   color: var(--cor-texto-sobre-destaque);
 }
 
-.botao--grande:hover {
+.botao--grande:hover:not(:disabled) {
   background: var(--ps-preto);
   border-color: var(--ps-preto);
   color: var(--ps-branco);
@@ -217,18 +236,11 @@ ul {
   color: var(--cor-texto-sobre-destaque);
 }
 
-.modo__opcao:hover {
+.modo__opcao:hover:not(:disabled),
+.modo__opcao:active:not(:disabled) {
   background: var(--ps-preto);
   border-color: var(--ps-preto);
   color: var(--ps-branco);
-}
-
-.modo__opcao:disabled,
-.modo__opcao:disabled:hover {
-  cursor: not-allowed;
-  background: var(--ps-branco);
-  border: var(--borda-forte) dashed var(--cor-borda);
-  color: var(--cor-texto);
 }
 
 .modo__nome {
@@ -286,37 +298,139 @@ ul {
   font-weight: var(--peso-forte);
 }
 
+/* Ações em três grupos, nesta ordem: navegação, modo, saída. */
 .barra__acoes {
   display: flex;
-  gap: var(--esp-2);
+  align-items: center;
+  gap: var(--esp-4);
   flex: none;
 }
 
-/* ---------- mensagens ---------- */
-
-.mensagem {
-  position: sticky;
-  top: 0;
-  z-index: 9;
+.barra__grupo {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--esp-4);
-  padding: var(--esp-2) var(--esp-5);
-  border-bottom: var(--borda) solid var(--cor-borda);
-  background: var(--ps-branco);
-  color: var(--cor-texto-forte);
+  gap: var(--esp-2);
+}
+
+/* Seletor de duas posições (Conferência | DANFE): a opção ativa fica
+   preenchida; a outra tem o estilo de botão secundário. */
+.seletor {
+  gap: 0;
+  border: var(--borda-forte) solid var(--botao-sec-borda);
+  border-radius: var(--raio);
+  overflow: hidden;
+}
+
+.seletor__opcao {
+  padding: var(--esp-2) var(--esp-3);
+  border: none;
+  background: var(--botao-sec-fundo);
+  color: var(--botao-sec-texto);
+  font: inherit;
   font-weight: var(--peso-medio);
+  cursor: pointer;
 }
 
-.mensagem[data-tipo='erro'] {
-  background: var(--cor-destaque);
-  color: var(--cor-texto-sobre-destaque);
-  border-bottom-color: var(--ps-preto);
+.seletor__opcao + .seletor__opcao {
+  border-left: var(--borda-forte) solid var(--botao-sec-borda);
 }
 
-.barra:not([hidden]) + .mensagem {
-  top: auto;
+.seletor__opcao:hover:not(:disabled, [aria-pressed='true']) {
+  background: var(--botao-sec-fundo-hover);
+}
+
+.seletor__opcao:active:not(:disabled, [aria-pressed='true']) {
+  background: var(--botao-sec-fundo-pressionado);
+}
+
+.seletor__opcao[aria-pressed='true'] {
+  background: var(--seletor-ativo-fundo);
+  color: var(--seletor-ativo-texto);
+  cursor: default;
+}
+
+.seletor__opcao:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: calc(-1 * var(--botao-foco-espessura));
+}
+
+.seletor__opcao:disabled {
+  cursor: not-allowed;
+  opacity: var(--botao-desabilitado-opacidade);
+}
+
+/* ---------- avisos ---------- */
+
+/* Erro: fixo no rodapé da janela, visível em qualquer rolagem, até fechar. */
+.mensagem {
+  position: fixed;
+  left: 50%;
+  bottom: var(--esp-5);
+  z-index: 30;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--esp-4);
+  width: max-content;
+  max-width: min(90vw, 900px);
+  padding: var(--esp-3) var(--esp-3) var(--esp-3) var(--esp-5);
+  border-radius: var(--raio);
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
+  font-weight: var(--peso-medio);
+  box-shadow: var(--sombra-aviso);
+  overflow-wrap: anywhere;
+}
+
+/* Sucesso: pequeno, no centro da janela, some sozinho e não pega cliques. */
+.aviso-regiao {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-3) var(--esp-5);
+  border-radius: var(--raio);
+  background: var(--aviso-sucesso-fundo);
+  color: var(--aviso-sucesso-texto);
+  font-size: var(--fs-lg);
+  font-weight: var(--peso-forte);
+  box-shadow: var(--sombra-aviso);
+  animation: aviso-some var(--aviso-duracao) ease-out forwards;
+}
+
+.aviso__icone {
+  stroke-width: 3;
+}
+
+@keyframes aviso-some {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso {
+    animation: none;
+  }
 }
 
 /* ---------- nota ---------- */
@@ -456,6 +570,102 @@ ul {
 .tabela--itens .col-descricao {
   width: 100%;
   color: var(--cor-texto-forte);
+}
+
+/* ---------- ordenar ---------- */
+
+/* Título de coluna: clicar alterna crescente, decrescente e ordem da nota. A
+   seta mostra o estado (também sai na impressão). */
+.tabela--itens th[data-ordenavel] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.tabela--itens th[data-ordenavel]:hover {
+  text-decoration: underline;
+}
+
+.tabela--itens th[data-ordenavel]:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: calc(-1 * var(--botao-foco-espessura));
+}
+
+.tabela--itens th[aria-sort='ascending']::after {
+  content: ' ▲';
+}
+
+.tabela--itens th[aria-sort='descending']::after {
+  content: ' ▼';
+}
+
+.ordenar {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--esp-3);
+}
+
+.ordenar__menu {
+  position: absolute;
+  top: calc(100% + var(--esp-1));
+  right: 0;
+  z-index: 20;
+  width: var(--largura-menu);
+  max-height: var(--altura-menu);
+  overflow-y: auto;
+  padding: var(--esp-1) 0;
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  box-shadow: var(--sombra-aviso);
+}
+
+.ordenar__opcao {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: var(--esp-2) var(--esp-4);
+  border: none;
+  background: none;
+  color: var(--cor-texto-forte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ordenar__opcao:hover,
+.ordenar__opcao:focus-visible {
+  outline: none;
+  background: var(--botao-sec-fundo-hover);
+}
+
+.ordenar__opcao[aria-checked='true'] {
+  font-weight: var(--peso-forte);
+}
+
+.ordenar__opcao[aria-checked='true']::before {
+  content: '✓';
+}
+
+.ordenar__opcao[aria-checked='false']::before {
+  content: '';
+  width: 1ch;
+}
+
+.ordenar__separador {
+  margin: var(--esp-1) 0;
+  border: none;
+  border-top: var(--borda) solid var(--cor-borda-suave);
+}
+
+/* ---------- copiar chave ---------- */
+
+.campo--chave .campo__valor {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  flex-wrap: wrap;
 }
 
 /* ---------- anotação ---------- */

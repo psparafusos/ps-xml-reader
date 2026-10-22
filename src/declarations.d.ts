@@ -26,6 +26,33 @@ type ResultadoImprimir =
 
 type RespostaAlteracoes = 'salvar' | 'descartar' | 'cancelar';
 
+/** Texto do aviso de sucesso de uma cópia. */
+type AvisoCopia = 'Copiado' | 'Chave copiada' | 'Recortado';
+
+/** Item extra do menu do botão direito: copia `texto` e mostra `aviso`. */
+interface ItemMenuCopia {
+  rotulo: string;
+  texto: string;
+  aviso: AvisoCopia;
+}
+
+/**
+ * Pedido à área de transferência (escrita feita pelo processo principal):
+ * copiar um texto direto, ou mostrar o menu do botão direito.
+ */
+type PedidoAreaTransferencia =
+  | { tipo: 'copiar'; texto: string; aviso: AvisoCopia }
+  | {
+      tipo: 'menu';
+      editavel: boolean;
+      selecao: string;
+      itens: ItemMenuCopia[];
+    };
+
+type ResultadoAreaTransferencia =
+  | { status: 'copiado'; aviso: AvisoCopia }
+  | { status: 'nada' };
+
 interface PsApi {
   /** Abre o diálogo de arquivo (.xml ou .psxml), ou null se cancelado. */
   abrirArquivo(): Promise<ArquivoAberto | null>;
@@ -49,6 +76,10 @@ interface PsApi {
   aoPedirFechar(callback: () => void): void;
   /** Fecha a janela sem nova pergunta (depois de salvar ou descartar). */
   fecharJanela(): Promise<void>;
+  /** Copia um texto ou mostra o menu do botão direito (Recortar, Copiar...). */
+  areaTransferencia(
+    pedido: PedidoAreaTransferencia,
+  ): Promise<ResultadoAreaTransferencia>;
 }
 
 interface Window {

@@ -22,17 +22,50 @@ npm start
 ```
 
 Na tela inicial, clique em **Abrir XML** ou arraste um arquivo `.xml` ou
-`.psxml` para a janela e escolha o modo **Conferência** ou **DANFE**. Na tela da
-nota, o botão da barra alterna entre os dois sem reabrir o arquivo. Na tabela de
-itens da conferência, a coluna **Anotação** recebe um texto livre por item.
+`.psxml` para a janela e escolha o modo **Conferência** ou **DANFE**. O diálogo
+de abrir começa na pasta do último arquivo aberto (guardada em `config.json`); se
+ela não existir mais, abre no padrão do Windows. Na tabela de itens da
+conferência, a coluna **Anotação** recebe um texto livre por item.
 
-- **Pasta de destino**: escolhe a pasta onde os arquivos são gravados. O caminho
-  fica em `config.json`, dentro da pasta de dados do app
-  (`%APPDATA%\Leitor NF-e PS`).
-- **Imprimir**: abre o diálogo de impressão do Windows com a tela atual.
-- **Salvar**, na conferência: grava na pasta de destino `<nome>-ps.pdf` (A4
-  retrato) e `<nome>-ps.psxml` (cópia editada). No DANFE: grava só
-  `<nome>-danfe.pdf`. Se algum arquivo já existir, pergunta antes de substituir.
+A barra da nota tem três grupos:
+
+- Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
+  pergunta de sempre) e **Abrir outro XML**.
+- Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
+- Saída:
+  - **Pasta de destino**: escolhe a pasta onde os arquivos são gravados. O
+    caminho fica em `config.json`, dentro da pasta de dados do app
+    (`%APPDATA%\Leitor NF-e PS`).
+  - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual. Se a
+    impressora padrão for de cupom (o nome contém ELGIN, POS, térmica, 80mm ou
+    58mm; lista em `PALAVRAS_IMPRESSORA_CUPOM`, em `src/main.ts`), avisa antes;
+    Cancelar não abre o diálogo.
+  - **Salvar**, o único botão principal: na conferência, grava na pasta de
+    destino `<nome>-ps.pdf` (A4 retrato) e `<nome>-ps.psxml` (cópia editada);
+    no DANFE, só `<nome>-danfe.pdf`. Se algum arquivo já existir, pergunta antes
+    de substituir. Enquanto grava, mostra "Salvando...".
+
+Sucesso aparece como um aviso pequeno no centro da janela ("Salvo", "Copiado",
+"Chave copiada"), que some sozinho. Erro aparece em vermelho, fixo na janela,
+até ser fechado.
+
+### Ordenar (modo Conferência)
+
+Clicar no título de uma coluna alterna crescente, decrescente e ordem da nota; a
+seta mostra o estado. O botão **Ordenar** tem ainda **Agrupar por CST** (orig +
+CST ou orig + CSOSN do ICMS, grupos em ordem crescente e, dentro deles, a ordem
+da nota) e, para o código, **como texto** ou **como número**. Texto ordena por
+`localeCompare` pt-BR e números como número; empate mantém a ordem da nota. A
+ordem vale para a tela, a impressão e o PDF, e vai para o `.psxml`. O DANFE sai
+sempre na ordem do XML.
+
+### Copiar
+
+- Botão **Copiar** ao lado da chave de acesso (44 dígitos, sem espaço).
+- Botão direito: na anotação, Recortar, Copiar, Colar e Selecionar tudo; com
+  texto selecionado, Copiar; numa célula da tabela de itens, "Copiar <coluna>"
+  e "Copiar linha" (campos separados por tabulação, para colar no Excel); na
+  chave de acesso (conferência e DANFE), "Copiar chave".
 
 ### Modo DANFE
 
@@ -71,8 +104,14 @@ janela pergunta **Salvar**, **Descartar** ou **Cancelar**.
   <anotacoes>
     <anotacao nItem="5">texto</anotacao>
   </anotacoes>
+  <ordem criterio="vTotal" direcao="desc"/>
 </psCopiaEditada>
 ```
+
+`<ordem>` guarda a ordem dos itens na conferência: `criterio` é `nota`, `cst`,
+`codigo-texto`, `codigo-numero` ou o id de uma coluna (`src/nfe/colunas.ts`), e
+`direcao` é `asc` ou `desc`. Cópia antiga, sem esse elemento, abre na ordem da
+nota.
 
 A raiz não é `nfeProc` nem `NFe`, então a cópia não é aceita como NF-e por
 nenhum sistema fiscal. Ao abrir uma cópia, o app lê a nota de dentro de
@@ -102,12 +141,13 @@ o Windows pode mostrar o aviso do SmartScreen na primeira instalação.
 ```
 src/
   main.ts            processo principal: janela, diálogos, printToPDF
-  preload.ts         contextBridge com a API psApi (abrir, pasta, salvar, imprimir)
+  preload.ts         contextBridge com a API psApi (abrir, pasta, salvar, imprimir, copiar)
   renderer.ts        monta a tela a partir do objeto Nota
   declarations.d.ts  tipos globais (window.psApi)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer
-  nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível)
+  nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível, ordenação)
+  nfe/ordem.ts       ordenação dos itens na conferência (critérios, comparação estável)
   nfe/tipos.ts       interfaces Nota, Emitente, Destinatario, Item, Totais, Transporte
   nfe/formato.ts     formatação pt-BR: moeda, quantidade, data, CNPJ, chave de acesso
   styles/tokens.css  variáveis de cor, tipografia e medidas

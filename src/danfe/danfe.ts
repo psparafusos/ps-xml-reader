@@ -46,11 +46,79 @@ function campo(rotulo: string, valor: string, classe = ''): HTMLElement {
   );
 }
 
-/** Linha de campos com larguras em mm (somam a largura do corpo). */
-function linha(larguras: number[], ...campos: HTMLElement[]): HTMLElement {
-  const l = el('div', 'dl', ...campos);
-  l.style.gridTemplateColumns = larguras.map((w) => `${w}fr`).join(' ');
-  return l;
+// ---------- grade ----------
+//
+// Cada faixa do DANFE é uma grade única: a grade desenha a borda de cima e a
+// da esquerda, e cada célula só a da direita e a de baixo, com a espessura do
+// token --danfe-traco. Assim cada linha é desenhada uma vez só, quadros
+// vizinhos compartilham a borda e células da mesma linha da grade fecham na
+// mesma altura.
+
+/** Largura do corpo do DANFE em mm (A4 menos as margens). */
+const LARGURA = 200;
+
+/** Célula de uma faixa: colunas de x0 a x1 (mm) e linhas da grade r0 a r1. */
+interface Celula {
+  x0: number;
+  x1: number;
+  r0: number;
+  r1: number;
+  el: HTMLElement;
+}
+
+const mm = (x: number) => Math.round(x * 1000) / 1000;
+
+/**
+ * Uma linha da grade (`r`) com larguras proporcionais (somam LARGURA depois
+ * de normalizadas). `altura` > 1 faz as células ocuparem mais linhas.
+ */
+function linha(
+  r: number,
+  larguras: number[],
+  campos: HTMLElement[],
+  altura = 1,
+): Celula[] {
+  const total = larguras.reduce((a, b) => a + b, 0);
+  let x = 0;
+  return campos.map((c, i) => {
+    const x0 = mm(x);
+    x += (larguras[i] / total) * LARGURA;
+    return { x0, x1: mm(x), r0: r, r1: r + altura, el: c };
+  });
+}
+
+/**
+ * Monta a faixa: as colunas da grade são todas as bordas verticais usadas por
+ * alguma célula, então bordas que coincidem são a mesma linha.
+ */
+function faixa(
+  classe: string,
+  celulas: Celula[],
+  linhas?: string,
+): HTMLElement {
+  const xs = [...new Set(celulas.flatMap((c) => [c.x0, c.x1]))].sort(
+    (a, b) => a - b,
+  );
+  const g = el(
+    'div',
+    `df ${classe}`.trim(),
+    ...celulas.map((c) => {
+      c.el.style.gridColumn = `${xs.indexOf(c.x0) + 1} / ${xs.indexOf(c.x1) + 1}`;
+      c.el.style.gridRow = `${c.r0} / ${c.r1}`;
+      return c.el;
+    }),
+  );
+  g.style.gridTemplateColumns = xs
+    .slice(1)
+    .map((x, i) => `${mm(x - xs[i])}fr`)
+    .join(' ');
+  if (linhas) g.style.gridTemplateRows = linhas;
+  return g;
+}
+
+/** Célula vazia, para cobrir a grade onde não há campo. */
+function vazia(): HTMLElement {
+  return el('div', 'dc dc--vazia');
 }
 
 function quadro(titulo: string, classe: string, ...conteudo: Filho[]) {
@@ -110,26 +178,36 @@ function modalidadeFrete(codigo: string): string {
 
 function canhoto(d: DadosDanfe): HTMLElement {
   const recebemos = `RECEBEMOS DE ${d.emit.xNome} OS PRODUTOS CONSTANTES DA NOTA FISCAL AO LADO`;
+  const nota = el(
+    'div',
+    'dc canhoto__nota',
+    el('div', 'canhoto__nfe', 'NF-e'),
+    el('div', 'canhoto__numero', `Nº ${numeroNota(d.ide.nNF)}`),
+    el('div', 'canhoto__numero', `SÉRIE ${d.ide.serie}`),
+  );
   return el(
     'section',
     'canhoto',
-    el(
-      'div',
-      'canhoto__recebimento',
-      el('div', 'dc canhoto__texto', el('div', 'dc__rotulo', recebemos)),
-      linha(
-        [40, 120],
-        campo('DATA DE RECEBIMENTO', ''),
-        campo('IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR', ''),
-      ),
-    ),
-    el(
-      'div',
-      'canhoto__nota',
-      el('div', 'canhoto__nfe', 'NF-e'),
-      el('div', 'canhoto__numero', `Nº ${numeroNota(d.ide.nNF)}`),
-      el('div', 'canhoto__numero', `SÉRIE ${d.ide.serie}`),
-    ),
+    faixa('', [
+      {
+        x0: 0,
+        x1: 160,
+        r0: 1,
+        r1: 2,
+        el: el('div', 'dc canhoto__texto', el('div', 'dc__rotulo', recebemos)),
+      },
+      { x0: 0, x1: 40, r0: 2, r1: 3, el: campo('DATA DE RECEBIMENTO', '') },
+      {
+        x0: 40,
+        x1: 160,
+        r0: 2,
+        r1: 3,
+        el: campo('IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR', ''),
+      },
+      { x0: 160, x1: 200, r0: 1, r1: 3, el: nota },
+    ]),
+    // Linha de corte: tracejada, na largura toda do corpo.
+    el('div', 'canhoto__corte'),
   );
 }
 
@@ -175,15 +253,20 @@ function codigoBarras(chave: string): SVGSVGElement | null {
  */
 function cabecalho(d: DadosDanfe, folha: HTMLElement): HTMLElement {
   const e = d.emit.endereco;
+  // Sem logo e sem área para logo: os dados ficam centralizados no quadro.
   const emitente = el(
     'div',
     'dc cab__emitente',
     el('div', 'dc__rotulo', 'IDENTIFICAÇÃO DO EMITENTE'),
-    el('div', 'cab__razao', d.emit.xNome),
-    el('div', 'cab__endereco', logradouro(e)),
-    el('div', 'cab__endereco', juntar([e.xBairro, f.cep(e.CEP)], ' - ')),
-    el('div', 'cab__endereco', juntar([e.xMun, e.UF], ' - ')),
-    el('div', 'cab__endereco', e.fone ? `FONE: ${f.fone(e.fone)}` : ''),
+    el(
+      'div',
+      'cab__emitente-dados',
+      el('div', 'cab__razao', d.emit.xNome),
+      el('div', 'cab__endereco', logradouro(e)),
+      el('div', 'cab__endereco', juntar([e.xBairro, f.cep(e.CEP)], ' - ')),
+      el('div', 'cab__endereco', juntar([e.xMun, e.UF], ' - ')),
+      el('div', 'cab__endereco', e.fone ? `FONE: ${f.fone(e.fone)}` : ''),
+    ),
   );
 
   const blocoDanfe = el(
@@ -207,37 +290,69 @@ function cabecalho(d: DadosDanfe, folha: HTMLElement): HTMLElement {
     el('div', 'cab__numero', folha),
   );
 
-  const chave = el(
-    'div',
-    'cab__chave',
-    el('div', 'dc cab__barras', codigoBarras(d.chave)),
-    campo('CHAVE DE ACESSO', f.chaveAcesso(d.chave), 'cab__chave-valor'),
-    el(
-      'div',
-      'dc cab__consulta',
-      'Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizada',
-    ),
-  );
-
   const p = d.protocolo;
   const protocolo = p.nProt
     ? juntar([p.nProt, dataHoraSegundos(p.dhRecbto)], ' - ')
     : '';
 
+  // Grade: emitente e bloco DANFE ocupam as linhas 1 a 3; à direita, barras,
+  // chave e consulta. Linhas 4 e 5: natureza/protocolo e inscrições.
   return el(
     'header',
     'dq cab',
-    el('div', 'cab__topo', emitente, blocoDanfe, chave),
-    linha(
-      [114, 86],
-      campo('NATUREZA DA OPERAÇÃO', d.ide.natOp),
-      campo('PROTOCOLO DE AUTORIZAÇÃO DE USO', protocolo),
-    ),
-    linha(
-      [1, 1, 1],
-      campo('INSCRIÇÃO ESTADUAL', d.emit.IE),
-      campo('INSCRIÇÃO ESTADUAL DO SUBST. TRIB.', d.emit.IEST),
-      campo('CNPJ / CPF', documento(d.emit.CNPJ, d.emit.CPF)),
+    faixa(
+      'cab__grade',
+      [
+        { x0: 0, x1: 80, r0: 1, r1: 4, el: emitente },
+        { x0: 80, x1: 114, r0: 1, r1: 4, el: blocoDanfe },
+        {
+          x0: 114,
+          x1: 200,
+          r0: 1,
+          r1: 2,
+          el: el('div', 'dc cab__barras', codigoBarras(d.chave)),
+        },
+        {
+          x0: 114,
+          x1: 200,
+          r0: 2,
+          r1: 3,
+          el: campo(
+            'CHAVE DE ACESSO',
+            f.chaveAcesso(d.chave),
+            'cab__chave-valor',
+          ),
+        },
+        {
+          x0: 114,
+          x1: 200,
+          r0: 3,
+          r1: 4,
+          el: el(
+            'div',
+            'dc cab__consulta',
+            'Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizada',
+          ),
+        },
+        ...linha(
+          4,
+          [114, 86],
+          [
+            campo('NATUREZA DA OPERAÇÃO', d.ide.natOp),
+            campo('PROTOCOLO DE AUTORIZAÇÃO DE USO', protocolo),
+          ],
+        ),
+        ...linha(
+          5,
+          [1, 1, 1],
+          [
+            campo('INSCRIÇÃO ESTADUAL', d.emit.IE),
+            campo('INSCRIÇÃO ESTADUAL DO SUBST. TRIB.', d.emit.IEST),
+            campo('CNPJ / CPF', documento(d.emit.CNPJ, d.emit.CPF)),
+          ],
+        ),
+      ],
+      'var(--danfe-cab-barras) var(--danfe-cab-chave) var(--danfe-cab-consulta) auto auto',
     ),
   );
 }
@@ -248,30 +363,41 @@ function destinatario(d: DadosDanfe): HTMLElement {
   return quadro(
     'DESTINATÁRIO / REMETENTE',
     'dq--destinatario',
-    linha(
-      [118, 50, 32],
-      campo('NOME / RAZÃO SOCIAL', t.xNome),
-      campo(
-        'CNPJ / CPF',
-        t.CNPJ || t.CPF ? documento(t.CNPJ, t.CPF) : t.idEstrangeiro,
+    faixa('', [
+      ...linha(
+        1,
+        [118, 50, 32],
+        [
+          campo('NOME / RAZÃO SOCIAL', t.xNome),
+          campo(
+            'CNPJ / CPF',
+            t.CNPJ || t.CPF ? documento(t.CNPJ, t.CPF) : t.idEstrangeiro,
+          ),
+          campo('DATA DA EMISSÃO', f.data(d.ide.dhEmi)),
+        ],
       ),
-      campo('DATA DA EMISSÃO', f.data(d.ide.dhEmi)),
-    ),
-    linha(
-      [90, 50, 28, 32],
-      campo('ENDEREÇO', logradouro(e)),
-      campo('BAIRRO / DISTRITO', e.xBairro),
-      campo('CEP', f.cep(e.CEP)),
-      campo('DATA DA SAÍDA/ENTRADA', f.data(d.ide.dhSaiEnt)),
-    ),
-    linha(
-      [70, 40, 12, 46, 32],
-      campo('MUNICÍPIO', e.xMun),
-      campo('FONE / FAX', f.fone(e.fone)),
-      campo('UF', e.UF),
-      campo('INSCRIÇÃO ESTADUAL', t.IE),
-      campo('HORA DA SAÍDA/ENTRADA', hora(d.ide.dhSaiEnt)),
-    ),
+      ...linha(
+        2,
+        [90, 50, 28, 32],
+        [
+          campo('ENDEREÇO', logradouro(e)),
+          campo('BAIRRO / DISTRITO', e.xBairro),
+          campo('CEP', f.cep(e.CEP)),
+          campo('DATA DA SAÍDA/ENTRADA', f.data(d.ide.dhSaiEnt)),
+        ],
+      ),
+      ...linha(
+        3,
+        [70, 40, 12, 46, 32],
+        [
+          campo('MUNICÍPIO', e.xMun),
+          campo('FONE / FAX', f.fone(e.fone)),
+          campo('UF', e.UF),
+          campo('INSCRIÇÃO ESTADUAL', t.IE),
+          campo('HORA DA SAÍDA/ENTRADA', hora(d.ide.dhSaiEnt)),
+        ],
+      ),
+    ]),
   );
 }
 
@@ -279,36 +405,48 @@ function destinatario(d: DadosDanfe): HTMLElement {
 function fatura(d: DadosDanfe): HTMLElement | null {
   const c = d.cobranca;
   if (!c) return null;
-  const temFat = [c.nFat, c.vOrig, c.vDesc, c.vLiq].some((v) => v !== '');
-  const fat = temFat
-    ? linha(
+  const celulas: Celula[] = [];
+  let r = 1;
+  if ([c.nFat, c.vOrig, c.vDesc, c.vLiq].some((v) => v !== '')) {
+    celulas.push(
+      ...linha(
+        r++,
         [1, 1, 1, 1],
-        campo('NÚMERO DA FATURA', c.nFat),
-        campo('VALOR ORIGINAL', f.valor(c.vOrig), 'dc--num'),
-        campo('VALOR DO DESCONTO', f.valor(c.vDesc), 'dc--num'),
-        campo('VALOR LÍQUIDO', f.valor(c.vLiq), 'dc--num'),
-      )
-    : null;
-  const dups =
-    c.duplicatas.length > 0
-      ? el(
-          'div',
-          'fat__dups',
-          ...c.duplicatas.map((dup) =>
-            el(
-              'div',
-              'fat__dup',
-              el('span', 'dc__rotulo', 'NÚMERO'),
-              el('span', 'fat__valor', dup.nDup),
-              el('span', 'dc__rotulo', 'VENC.'),
-              el('span', 'fat__valor', f.data(dup.dVenc)),
-              el('span', 'dc__rotulo', 'VALOR'),
-              el('span', 'fat__valor', f.valor(dup.vDup)),
-            ),
-          ),
-        )
-      : null;
-  return quadro('FATURA / DUPLICATAS', 'dq--fatura', fat, dups);
+        [
+          campo('NÚMERO DA FATURA', c.nFat),
+          campo('VALOR ORIGINAL', f.valor(c.vOrig), 'dc--num'),
+          campo('VALOR DO DESCONTO', f.valor(c.vDesc), 'dc--num'),
+          campo('VALOR LÍQUIDO', f.valor(c.vLiq), 'dc--num'),
+        ],
+      ),
+    );
+  }
+  // Duplicatas em linhas de seis; o resto da última linha é uma célula vazia
+  // só, para a grade não ter buraco nem divisórias soltas no vazio.
+  const POR_LINHA = 6;
+  const dups: HTMLElement[] = c.duplicatas.map((dup) =>
+    el(
+      'div',
+      'dc fat__dup',
+      el('span', 'dc__rotulo', 'NÚMERO'),
+      el('span', 'fat__valor', dup.nDup),
+      el('span', 'dc__rotulo', 'VENC.'),
+      el('span', 'fat__valor', f.data(dup.dVenc)),
+      el('span', 'dc__rotulo', 'VALOR'),
+      el('span', 'fat__valor', f.valor(dup.vDup)),
+    ),
+  );
+  for (let i = 0; i < dups.length; i += POR_LINHA) {
+    const grupo = dups.slice(i, i + POR_LINHA);
+    const larguras: number[] = grupo.map(() => 1);
+    if (grupo.length < POR_LINHA) {
+      larguras.push(POR_LINHA - grupo.length);
+      grupo.push(vazia());
+    }
+    celulas.push(...linha(r++, larguras, grupo));
+  }
+  if (celulas.length === 0) return null;
+  return quadro('FATURA / DUPLICATAS', 'dq--fatura', faixa('', celulas));
 }
 
 function calculoImposto(d: DadosDanfe): HTMLElement {
@@ -318,23 +456,31 @@ function calculoImposto(d: DadosDanfe): HTMLElement {
   return quadro(
     'CÁLCULO DO IMPOSTO',
     'dq--imposto',
-    linha(
-      [1, 1, 1, 1, 1],
-      v('BASE DE CÁLCULO DO ICMS', t.vBC),
-      v('VALOR DO ICMS', t.vICMS),
-      v('BASE DE CÁLCULO DO ICMS ST', t.vBCST),
-      v('VALOR DO ICMS ST', t.vST),
-      v('VALOR TOTAL DOS PRODUTOS', t.vProd),
-    ),
-    linha(
-      [1, 1, 1, 1, 1, 1],
-      v('VALOR DO FRETE', t.vFrete),
-      v('VALOR DO SEGURO', t.vSeg),
-      v('DESCONTO', t.vDesc),
-      v('OUTRAS DESPESAS ACESSÓRIAS', t.vOutro),
-      v('VALOR TOTAL DO IPI', t.vIPI),
-      v('VALOR TOTAL DA NOTA', t.vNF),
-    ),
+    faixa('', [
+      ...linha(
+        1,
+        [1, 1, 1, 1, 1],
+        [
+          v('BASE DE CÁLCULO DO ICMS', t.vBC),
+          v('VALOR DO ICMS', t.vICMS),
+          v('BASE DE CÁLCULO DO ICMS ST', t.vBCST),
+          v('VALOR DO ICMS ST', t.vST),
+          v('VALOR TOTAL DOS PRODUTOS', t.vProd),
+        ],
+      ),
+      ...linha(
+        2,
+        [1, 1, 1, 1, 1, 1],
+        [
+          v('VALOR DO FRETE', t.vFrete),
+          v('VALOR DO SEGURO', t.vSeg),
+          v('DESCONTO', t.vDesc),
+          v('OUTRAS DESPESAS ACESSÓRIAS', t.vOutro),
+          v('VALOR TOTAL DO IPI', t.vIPI),
+          v('VALOR TOTAL DA NOTA', t.vNF),
+        ],
+      ),
+    ]),
   );
 }
 
@@ -348,33 +494,44 @@ function transportador(d: DadosDanfe): HTMLElement {
   return quadro(
     'TRANSPORTADOR / VOLUMES TRANSPORTADOS',
     'dq--transporte',
-    linha(
-      [62, 30, 22, 22, 10, 54],
-      campo('NOME / RAZÃO SOCIAL', t.xNome),
-      campo('FRETE POR CONTA', modalidadeFrete(t.modFrete)),
-      campo('CÓDIGO ANTT', t.RNTC),
-      campo('PLACA DO VEÍCULO', t.placa),
-      campo('UF', t.ufVeiculo),
-      campo('CNPJ / CPF', documento(t.CNPJ, t.CPF)),
-    ),
-    linha(
-      [92, 54, 10, 44],
-      campo('ENDEREÇO', t.xEnder),
-      campo('MUNICÍPIO', t.xMun),
-      campo('UF', t.UF),
-      campo('INSCRIÇÃO ESTADUAL', t.IE),
-    ),
-    ...volumes.map((v) =>
-      linha(
-        [24, 36, 36, 36, 34, 34],
-        campo('QUANTIDADE', v.qVol, 'dc--num'),
-        campo('ESPÉCIE', v.esp),
-        campo('MARCA', v.marca),
-        campo('NUMERAÇÃO', v.nVol),
-        campo('PESO BRUTO', f.quantidade(v.pesoB), 'dc--num'),
-        campo('PESO LÍQUIDO', f.quantidade(v.pesoL), 'dc--num'),
+    faixa('', [
+      ...linha(
+        1,
+        [62, 30, 22, 22, 10, 54],
+        [
+          campo('NOME / RAZÃO SOCIAL', t.xNome),
+          campo('FRETE POR CONTA', modalidadeFrete(t.modFrete)),
+          campo('CÓDIGO ANTT', t.RNTC),
+          campo('PLACA DO VEÍCULO', t.placa),
+          campo('UF', t.ufVeiculo),
+          campo('CNPJ / CPF', documento(t.CNPJ, t.CPF)),
+        ],
       ),
-    ),
+      ...linha(
+        2,
+        [92, 54, 10, 44],
+        [
+          campo('ENDEREÇO', t.xEnder),
+          campo('MUNICÍPIO', t.xMun),
+          campo('UF', t.UF),
+          campo('INSCRIÇÃO ESTADUAL', t.IE),
+        ],
+      ),
+      ...volumes.flatMap((v, i) =>
+        linha(
+          3 + i,
+          [24, 36, 36, 36, 34, 34],
+          [
+            campo('QUANTIDADE', v.qVol, 'dc--num'),
+            campo('ESPÉCIE', v.esp),
+            campo('MARCA', v.marca),
+            campo('NUMERAÇÃO', v.nVol),
+            campo('PESO BRUTO', f.quantidade(v.pesoB), 'dc--num'),
+            campo('PESO LÍQUIDO', f.quantidade(v.pesoL), 'dc--num'),
+          ],
+        ),
+      ),
+    ]),
   );
 }
 
@@ -385,12 +542,18 @@ function calculoIssqn(d: DadosDanfe): HTMLElement | null {
   return quadro(
     'CÁLCULO DO ISSQN',
     'dq--issqn',
-    linha(
-      [1, 1, 1, 1],
-      campo('INSCRIÇÃO MUNICIPAL', d.emit.IM),
-      campo('VALOR TOTAL DOS SERVIÇOS', f.valor(i.vServ), 'dc--num'),
-      campo('BASE DE CÁLCULO DO ISSQN', f.valor(i.vBC), 'dc--num'),
-      campo('VALOR DO ISSQN', f.valor(i.vISS), 'dc--num'),
+    faixa(
+      '',
+      linha(
+        1,
+        [1, 1, 1, 1],
+        [
+          campo('INSCRIÇÃO MUNICIPAL', d.emit.IM),
+          campo('VALOR TOTAL DOS SERVIÇOS', f.valor(i.vServ), 'dc--num'),
+          campo('BASE DE CÁLCULO DO ISSQN', f.valor(i.vBC), 'dc--num'),
+          campo('VALOR DO ISSQN', f.valor(i.vISS), 'dc--num'),
+        ],
+      ),
     ),
   );
 }
@@ -498,7 +661,29 @@ function tabelaProdutos(cols: Coluna[]): HTMLTableElement {
   return el('table', 'prod', colgroup, thead);
 }
 
-/** Um item: a linha dos campos e, logo abaixo, infAdProd. */
+/**
+ * Linha vazia no fim da tabela com a altura que sobra no quadro: as linhas das
+ * colunas descem até a borda de baixo, sem parar no último item. Fica um
+ * pouco maior que o espaço (o quadro corta o excesso), para a linha nunca
+ * parar antes da borda por arredondamento na impressão.
+ */
+function preencherColunas(
+  p: NonNullable<Folha['produtos']>,
+  cols: Coluna[],
+): void {
+  const sobra =
+    p.area.getBoundingClientRect().bottom -
+    p.tabela.getBoundingClientRect().bottom;
+  if (sobra <= 0) return;
+  const tr = el('tr', '', ...cols.map(() => el('td')));
+  tr.style.height = `${sobra + 4}px`;
+  p.tabela.append(el('tbody', 'prod__preenchimento', tr));
+}
+
+/**
+ * Um item: a linha dos campos; infAdProd logo abaixo da descrição, na mesma
+ * célula (as linhas das colunas seguem sem interrupção e não cortam o texto).
+ */
 function corpoItem(i: ItemDanfe, cols: Coluna[]): HTMLTableSectionElement {
   const tbody = el(
     'tbody',
@@ -513,17 +698,13 @@ function corpoItem(i: ItemDanfe, cols: Coluna[]): HTMLTableSectionElement {
           'prod__desc',
           el('div', '', i.xProd),
           i.nFCI ? el('div', 'prod__extra', `FCI: ${i.nFCI}`) : null,
+          i.infAdProd ? el('div', 'prod__infad', i.infAdProd) : null,
         );
       }),
     ),
   );
   tbody.dataset.nItem = i.nItem;
   tbody.dataset.vProd = i.vProd;
-  if (i.infAdProd) {
-    const td = el('td', 'prod__infad', i.infAdProd);
-    td.colSpan = cols.length - 1;
-    tbody.append(el('tr', 'prod__linha-infad', el('td'), td));
-  }
   return tbody;
 }
 
@@ -662,11 +843,20 @@ function adicionaisPrimeira(): { quadro: HTMLElement; area: HTMLElement } {
   const q = quadro(
     'DADOS ADICIONAIS',
     'dq--adicionais',
-    el(
-      'div',
+    faixa(
       'ad__linha',
-      area,
-      el('div', 'dc ad__fisco', el('div', 'dc__rotulo', 'RESERVADO AO FISCO')),
+      linha(
+        1,
+        [130, 70],
+        [
+          area,
+          el(
+            'div',
+            'dc ad__fisco',
+            el('div', 'dc__rotulo', 'RESERVADO AO FISCO'),
+          ),
+        ],
+      ),
     ),
   );
   return { quadro: q, area };
@@ -675,7 +865,11 @@ function adicionaisPrimeira(): { quadro: HTMLElement; area: HTMLElement } {
 /** Continuação das informações complementares em uma folha adicional. */
 function adicionaisContinuacao(): { quadro: HTMLElement; area: HTMLElement } {
   const area = areaComplementares();
-  const q = quadro('DADOS ADICIONAIS', 'dq--adicionais dq--continuacao', area);
+  const q = quadro(
+    'DADOS ADICIONAIS',
+    'dq--adicionais dq--continuacao',
+    faixa('ad__continuacao', linha(1, [1], [area])),
+  );
   return { quadro: q, area };
 }
 
@@ -759,6 +953,17 @@ export function montarDanfe(container: HTMLElement, d: DadosDanfe): number {
     const n = preencher(cont.area, restantes);
     if (n === 0) break; // palavra maior que uma folha inteira: não há como seguir
     restantes = restantes.slice(n);
+  }
+
+  // Com a divisão pronta, as linhas das colunas descem até o fim de cada quadro
+  // de produtos (na folha ajustada o quadro já tem a altura dos itens).
+  for (const fl of folhas) {
+    if (
+      fl.produtos &&
+      !fl.produtos.quadro.classList.contains('dq--produtos-ajustado')
+    ) {
+      preencherColunas(fl.produtos, cols);
+    }
   }
 
   const total = folhas.length;

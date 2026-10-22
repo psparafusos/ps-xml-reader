@@ -16,6 +16,9 @@
 
   .barra,
   .mensagem,
+  .aviso-regiao,
+  .ordenar,
+  .copiar-chave,
   .vazio,
   .modo {
     display: none !important;

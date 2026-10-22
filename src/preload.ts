@@ -26,4 +26,8 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.on('pedido-fechar', () => callback());
   },
   fecharJanela: (): Promise<void> => ipcRenderer.invoke('fechar-janela'),
+  areaTransferencia: (
+    pedido: PedidoAreaTransferencia,
+  ): Promise<ResultadoAreaTransferencia> =>
+    ipcRenderer.invoke('area-transferencia', pedido),
 } satisfies PsApi);

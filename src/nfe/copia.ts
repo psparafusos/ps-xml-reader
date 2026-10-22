@@ -14,11 +14,13 @@ const INVALIDOS_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
 /**
  * Gera o texto do .psxml. `textoArquivo` é o arquivo aberto (XML de NF-e ou
  * cópia editada); de uma cópia, reaproveita o original de dentro dela.
- * Só itens com anotação não vazia entram em <anotacoes>.
+ * Só itens com anotação não vazia entram em <anotacoes>. A ordem dos itens
+ * na tela vai em <ordem criterio="..." direcao="..."/>.
  */
 export function montarCopia(
   textoArquivo: string,
   anotacoes: Map<string, string>,
+  ordem: { criterio: string; direcao: 'asc' | 'desc' },
 ): string {
   const { original } = localizarOriginal(lerDocumento(textoArquivo));
 
@@ -55,6 +57,10 @@ export function montarCopia(
   }
   if (elAnotacoes.childNodes.length > 0) elAnotacoes.append(quebra('  '));
 
+  const elOrdem = elemento('ordem');
+  elOrdem.setAttribute('criterio', ordem.criterio);
+  elOrdem.setAttribute('direcao', ordem.direcao);
+
   raiz.append(
     quebra('  '),
     aviso,
@@ -62,6 +68,8 @@ export function montarCopia(
     elOriginal,
     quebra('  '),
     elAnotacoes,
+    quebra('  '),
+    elOrdem,
     quebra(''),
   );
 

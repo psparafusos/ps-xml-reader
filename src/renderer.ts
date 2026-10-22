@@ -12,6 +12,14 @@ import {
   NaoEhNfeError,
   type ArquivoLido,
 } from './nfe/parser';
+import {
+  colunasOrdenaveis,
+  criterioValido,
+  descreverOrdem,
+  ORDEM_NOTA,
+  ordenarItens,
+  type Ordem,
+} from './nfe/ordem';
 import { lerDanfe, motivoNaoSuportado } from './danfe/dados';
 import { montarDanfe } from './danfe/danfe';
 import type { Endereco, Item, Nota } from './nfe/tipos';
@@ -147,20 +155,72 @@ function blocoDestinatario(n: Nota): HTMLElement | null {
   return secao('Destinatário', 'secao--parte', conteudo);
 }
 
+/** Ícone de copiar (dois retângulos), no mesmo traço dos ícones da barra. */
+function iconeCopiar(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'icone');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of ['M9 9h11v11H9z', 'M5 15H4V4h11v1']) {
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+  }
+  return svg;
+}
+
+/** Chave de acesso só com os 44 dígitos, sem espaço. */
+function chaveSemEspaco(): string {
+  return (aberto?.lido.nota.chave ?? '').replace(/\D/g, '');
+}
+
+async function copiar(texto: string, avisoSucesso: AvisoCopia): Promise<void> {
+  try {
+    const r = await window.psApi.areaTransferencia({
+      tipo: 'copiar',
+      texto,
+      aviso: avisoSucesso,
+    });
+    if (r.status === 'copiado') mostrarSucesso(r.aviso);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível copiar.', 'erro');
+    console.error(erro);
+  }
+}
+
 function blocoDadosNota(n: Nota): HTMLElement | null {
   const p = n.protocolo;
   const situacao = juntar([p.cStat, p.xMotivo], ' ');
+  const chave = campo(
+    'Chave de acesso',
+    f.chaveAcesso(n.chave),
+    'campo--largo campo--chave',
+  );
+  // Botão Copiar ao lado da chave: copia os 44 dígitos; a chave continua na
+  // tela em blocos de quatro. Some na impressão.
+  if (chave) {
+    const botao = el(
+      'button',
+      'botao botao--claro botao--pequeno copiar-chave',
+      iconeCopiar(),
+      el('span', '', 'Copiar'),
+    );
+    botao.type = 'button';
+    botao.setAttribute('aria-label', 'Copiar chave de acesso');
+    botao.addEventListener(
+      'click',
+      () => void copiar(chaveSemEspaco(), 'Chave copiada'),
+    );
+    chave.querySelector('.campo__valor')?.append(botao);
+  }
   const conteudo = campos(
     campo('Número', n.ide.nNF),
     campo('Série', n.ide.serie),
     campo('Data de emissão', f.dataHora(n.ide.dhEmi)),
     campo('Tipo', codigoDescrito(n.ide.tpNF, TP_NF)),
     campo('Natureza da operação', n.ide.natOp, 'campo--largo'),
-    campo(
-      'Chave de acesso',
-      f.chaveAcesso(n.chave),
-      'campo--largo campo--chave',
-    ),
+    chave,
     campo('Protocolo de autorização', p.nProt),
     campo('Data de autorização', f.dataHora(p.dhRecbto)),
     campo('Situação', situacao, 'campo--largo'),
@@ -219,6 +279,172 @@ function celulaAnotacao(i: Item, classe: string): HTMLElement {
   return el('td', classe, campoTexto, espelho);
 }
 
+// ---------- ordem dos itens (modo Conferência) ----------
+
+/** Ordem atual da tabela; vale para a tela, a impressão e o PDF. */
+let ordemAtual: Ordem = ORDEM_NOTA;
+/** Corpo (tbody) de cada item, por nItem: reordenar só move os nós. */
+const corposItens = new Map<string, HTMLTableSectionElement>();
+let tabelaItensEl: HTMLTableElement | null = null;
+let botaoOrdenar: HTMLButtonElement | null = null;
+let menuOrdenar: HTMLElement | null = null;
+
+/** Critério do clique no título: a coluna Código ordena como texto. */
+function criterioDaColuna(id: string): string {
+  return id === 'codigo' ? 'codigo-texto' : id;
+}
+
+/** Opções do botão Ordenar, na ordem do menu. */
+function opcoesOrdenar(): { rotulo: string; ordem: Ordem }[] {
+  const opcoes = [
+    { rotulo: 'Ordem da nota', ordem: ORDEM_NOTA },
+    {
+      rotulo: 'Agrupar por CST',
+      ordem: { criterio: 'cst', direcao: 'asc' } as Ordem,
+    },
+  ];
+  for (const c of colunasOrdenaveis()) {
+    const variantes =
+      c.id === 'codigo'
+        ? [
+            { criterio: 'codigo-texto', nome: 'Código (como texto)' },
+            { criterio: 'codigo-numero', nome: 'Código (como número)' },
+          ]
+        : [{ criterio: c.id, nome: c.rotulo }];
+    for (const v of variantes) {
+      opcoes.push({
+        rotulo: `${v.nome} crescente`,
+        ordem: { criterio: v.criterio, direcao: 'asc' },
+      });
+      opcoes.push({
+        rotulo: `${v.nome} decrescente`,
+        ordem: { criterio: v.criterio, direcao: 'desc' },
+      });
+    }
+  }
+  return opcoes;
+}
+
+const mesmaOrdem = (a: Ordem, b: Ordem) =>
+  a.criterio === b.criterio &&
+  (a.criterio === 'nota' || a.criterio === 'cst' || a.direcao === b.direcao);
+
+/** Aplica `ordemAtual`: move os tbody, atualiza setas, botão e menu. */
+function aplicarOrdem(): void {
+  if (!aberto || !tabelaItensEl) return;
+  const ordenados = ordenarItens(aberto.lido.nota.itens, ordemAtual, anotacoes);
+  for (const i of ordenados) {
+    const corpo = corposItens.get(i.nItem);
+    if (corpo) tabelaItensEl.append(corpo);
+  }
+  for (const th of tabelaItensEl.querySelectorAll<HTMLElement>(
+    'th[data-ordenavel]',
+  )) {
+    const ativo =
+      criterioDaColuna(th.dataset.coluna ?? '') === ordemAtual.criterio;
+    th.setAttribute(
+      'aria-sort',
+      ativo
+        ? ordemAtual.direcao === 'asc'
+          ? 'ascending'
+          : 'descending'
+        : 'none',
+    );
+  }
+  if (botaoOrdenar) {
+    const texto = botaoOrdenar.querySelector('.ordenar__atual');
+    if (texto) texto.textContent = descreverOrdem(ordemAtual);
+  }
+  for (const op of menuOrdenar?.querySelectorAll<HTMLElement>(
+    '[role="menuitemradio"]',
+  ) ?? []) {
+    const o: Ordem = {
+      criterio: op.dataset.criterio ?? '',
+      direcao: op.dataset.direcao === 'desc' ? 'desc' : 'asc',
+    };
+    op.setAttribute('aria-checked', String(mesmaOrdem(o, ordemAtual)));
+  }
+}
+
+/** Clique no título: crescente, decrescente, ordem da nota. */
+function ordenarPelaColuna(id: string): void {
+  const criterio = criterioDaColuna(id);
+  if (ordemAtual.criterio !== criterio)
+    ordemAtual = { criterio, direcao: 'asc' };
+  else if (ordemAtual.direcao === 'asc')
+    ordemAtual = { criterio, direcao: 'desc' };
+  else ordemAtual = ORDEM_NOTA;
+  aplicarOrdem();
+}
+
+function fecharMenuOrdenar(focarBotao = false): void {
+  if (!menuOrdenar || menuOrdenar.hidden) return;
+  menuOrdenar.hidden = true;
+  botaoOrdenar?.setAttribute('aria-expanded', 'false');
+  if (focarBotao) botaoOrdenar?.focus();
+}
+
+function abrirMenuOrdenar(): void {
+  if (!menuOrdenar) return;
+  menuOrdenar.hidden = false;
+  botaoOrdenar?.setAttribute('aria-expanded', 'true');
+  menuOrdenar.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
+}
+
+/** Botão "Ordenar" com o menu de opções, acima da tabela. */
+function controleOrdenar(): HTMLElement {
+  botaoOrdenar = el(
+    'button',
+    'botao botao--claro botao--pequeno',
+    el('span', '', 'Ordenar:'),
+    el('span', 'ordenar__atual', descreverOrdem(ordemAtual)),
+  );
+  botaoOrdenar.type = 'button';
+  botaoOrdenar.id = 'btn-ordenar';
+  botaoOrdenar.setAttribute('aria-haspopup', 'menu');
+  botaoOrdenar.setAttribute('aria-expanded', 'false');
+  botaoOrdenar.addEventListener('click', () => {
+    if (menuOrdenar?.hidden) abrirMenuOrdenar();
+    else fecharMenuOrdenar();
+  });
+
+  const itens: HTMLElement[] = [];
+  opcoesOrdenar().forEach((op, idx) => {
+    if (idx === 2) itens.push(el('hr', 'ordenar__separador'));
+    const b = el('button', 'ordenar__opcao', op.rotulo);
+    b.type = 'button';
+    b.setAttribute('role', 'menuitemradio');
+    b.dataset.criterio = op.ordem.criterio;
+    b.dataset.direcao = op.ordem.direcao;
+    b.addEventListener('click', () => {
+      ordemAtual = op.ordem;
+      aplicarOrdem();
+      fecharMenuOrdenar(true);
+    });
+    itens.push(b);
+  });
+  menuOrdenar = el('div', 'ordenar__menu', ...itens);
+  menuOrdenar.id = 'menu-ordenar';
+  menuOrdenar.setAttribute('role', 'menu');
+  menuOrdenar.setAttribute('aria-label', 'Ordenar itens');
+  menuOrdenar.hidden = true;
+  menuOrdenar.addEventListener('keydown', (e) => {
+    const ops = [
+      ...(menuOrdenar?.querySelectorAll<HTMLElement>(
+        '[role="menuitemradio"]',
+      ) ?? []),
+    ];
+    const i = ops.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'Escape') fecharMenuOrdenar(true);
+    else if (e.key === 'ArrowDown') ops[(i + 1) % ops.length]?.focus();
+    else if (e.key === 'ArrowUp')
+      ops[(i - 1 + ops.length) % ops.length]?.focus();
+    else return;
+    e.preventDefault();
+  });
+  return el('div', 'ordenar', botaoOrdenar, menuOrdenar);
+}
+
 function tabelaItens(n: Nota): HTMLElement | null {
   if (n.itens.length === 0) return null;
 
@@ -226,14 +452,36 @@ function tabelaItens(n: Nota): HTMLElement | null {
   const classe = (c: ColunaItem) =>
     `col-${c.id}${c.alinhamento === 'direita' ? ' num' : ''}`;
 
+  // Título clicável (e por teclado): alterna crescente, decrescente e ordem
+  // da nota. aria-sort mostra o estado, e o CSS desenha a seta.
   const thead = el(
     'thead',
     '',
-    el('tr', '', ...colunas.map((c) => el('th', classe(c), c.rotulo))),
+    el(
+      'tr',
+      '',
+      ...colunas.map((c) => {
+        const th = el('th', classe(c), c.rotulo);
+        th.dataset.ordenavel = '';
+        th.dataset.coluna = c.id;
+        th.tabIndex = 0;
+        th.setAttribute('aria-sort', 'none');
+        th.title = 'Ordenar por esta coluna';
+        th.addEventListener('click', () => ordenarPelaColuna(c.id));
+        th.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            ordenarPelaColuna(c.id);
+          }
+        });
+        return th;
+      }),
+    ),
   );
 
   // Cada item em seu próprio tbody: a linha de infAdProd fica junto do item
   // (zebra e quebra de página tratam os dois como um bloco).
+  corposItens.clear();
   const corpos = n.itens.map((i) => {
     const tbody = el(
       'tbody',
@@ -253,12 +501,21 @@ function tabelaItens(n: Nota): HTMLElement | null {
       td.colSpan = colunas.length;
       tbody.append(el('tr', 'item__linha-adicional', td));
     }
+    // A anotação está dentro do tbody: ao reordenar ela vai junto (nItem).
+    tbody.dataset.nItem = i.nItem;
+    corposItens.set(i.nItem, tbody);
     return tbody;
   });
 
   const tabela = el('table', 'tabela tabela--itens', thead, ...corpos);
+  tabelaItensEl = tabela;
   const titulo = `Itens (${n.itens.length})`;
-  return secao(titulo, 'secao--itens', el('div', 'tabela-rolagem', tabela));
+  return secao(
+    titulo,
+    'secao--itens',
+    controleOrdenar(),
+    el('div', 'tabela-rolagem', tabela),
+  );
 }
 
 const TOTAIS: { rotulo: string; chave: keyof Nota['totais'] }[] = [
@@ -413,10 +670,14 @@ const btnAbrir = $('btn-abrir') as HTMLButtonElement;
 const btnAbrirOutro = $('btn-abrir-outro') as HTMLButtonElement;
 const btnConferencia = $('btn-conferencia') as HTMLButtonElement;
 const btnDanfe = $('btn-danfe') as HTMLButtonElement;
-const btnAlternar = $('btn-alternar') as HTMLButtonElement;
-const btnAlternarTexto = $('btn-alternar-texto');
+const btnInicio = $('btn-inicio') as HTMLButtonElement;
+const btnModoConferencia = $('btn-modo-conferencia') as HTMLButtonElement;
+const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
+const btnSalvarTexto = $('btn-salvar-texto');
+const aviso = $('aviso');
+const avisoTexto = $('aviso-texto');
 const botoesPasta = [
   $('btn-pasta') as HTMLButtonElement,
   $('btn-pasta-barra') as HTMLButtonElement,
@@ -426,10 +687,30 @@ const botoesPasta = [
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
 let pastaDestino: string | null = null;
 
-function mostrarMensagem(texto: string, tipo: 'info' | 'erro'): void {
+/** Erro: aviso vermelho fixo na janela, que fica até a pessoa fechar. */
+function mostrarMensagem(texto: string, tipo: 'erro'): void {
   mensagemTexto.textContent = texto;
   mensagem.dataset.tipo = tipo;
   mensagem.hidden = false;
+}
+
+let temporizadorAviso: number | undefined;
+
+/**
+ * Sucesso: aviso pequeno no centro da janela ("Salvo", "Copiado"...), que some
+ * sozinho em cerca de 1,5 s. Fica numa região aria-live, então o leitor de
+ * tela anuncia o texto. Não pega cliques (pointer-events: none no CSS).
+ */
+function mostrarSucesso(texto: string): void {
+  window.clearTimeout(temporizadorAviso);
+  aviso.hidden = true;
+  avisoTexto.textContent = texto;
+  // Reinicia a animação mesmo com dois avisos seguidos.
+  void aviso.offsetWidth;
+  aviso.hidden = false;
+  temporizadorAviso = window.setTimeout(() => {
+    aviso.hidden = true;
+  }, 1500);
 }
 
 function esconderMensagem(): void {
@@ -461,8 +742,12 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
     document.body.dataset.modo = modoAtual;
-    btnAlternarTexto.textContent =
-      modoAtual === 'danfe' ? 'Conferência' : 'DANFE';
+    // Seletor de duas posições: aria-pressed marca a opção ativa.
+    btnModoConferencia.setAttribute(
+      'aria-pressed',
+      String(modoAtual === 'conferencia'),
+    );
+    btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
   }
   window.scrollTo(0, 0);
 }
@@ -523,11 +808,6 @@ function mostrarDanfe(): void {
   }
 }
 
-function alternarModo(): void {
-  if (modoAtual === 'danfe') mostrarConferencia();
-  else mostrarDanfe();
-}
-
 function exibirNota(): void {
   if (!aberto) return;
   const n = aberto.lido.nota;
@@ -557,6 +837,7 @@ function exibirNota(): void {
   );
 
   conferenciaMontada = true;
+  aplicarOrdem();
   mostrarTela('nota');
 }
 
@@ -572,6 +853,12 @@ function carregar(arquivo: ArquivoAberto): void {
     anotacoes.clear();
     for (const [nItem, texto] of lido.anotacoes) anotacoes.set(nItem, texto);
     marcarGravadas();
+    // Ordem gravada na cópia editada; cópia antiga (sem <ordem>) ou critério
+    // desconhecido: ordem da nota.
+    ordemAtual =
+      lido.ordem && criterioValido(lido.ordem.criterio)
+        ? lido.ordem
+        : ORDEM_NOTA;
     modoArquivo.textContent = arquivo.nome;
     document.title = 'Leitor NF-e PS';
     mostrarTela('modo');
@@ -653,11 +940,24 @@ function marcarGeradoEm(): void {
   rodapeGerado.textContent = `Gerado em ${f.agora()}`;
 }
 
-function bloquearAcoes(bloquear: boolean): void {
-  btnSalvar.disabled = bloquear;
-  btnImprimir.disabled = bloquear;
-  // Trocar de modo durante a gravação mudaria a tela que vira PDF.
-  btnAlternar.disabled = bloquear;
+/**
+ * Durante salvar ou imprimir, ficam indisponíveis as ações que mudariam a tela
+ * que vira PDF ou o arquivo aberto: salvar, imprimir, trocar de modo, Início e
+ * abrir outro XML. Ao terminar (sucesso, erro ou cancelamento), tudo volta.
+ * O Salvar mostra "Salvando..." enquanto grava.
+ */
+function bloquearAcoes(bloquear: boolean, salvando = false): void {
+  for (const b of [
+    btnSalvar,
+    btnImprimir,
+    btnModoConferencia,
+    btnModoDanfe,
+    btnInicio,
+    btnAbrirOutro,
+  ]) {
+    b.disabled = bloquear;
+  }
+  btnSalvarTexto.textContent = bloquear && salvando ? 'Salvando...' : 'Salvar';
 }
 
 /** Salva conforme o modo: conferência (PDF e cópia) ou DANFE (só o PDF). */
@@ -670,11 +970,11 @@ async function salvarDanfe(): Promise<boolean> {
   if (!aberto) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
-  bloquearAcoes(true);
+  bloquearAcoes(true, true);
   try {
     const r = await window.psApi.salvarDanfe();
     if (r.status === 'salvo') {
-      mostrarMensagem(`Salvo em ${r.pdf}`, 'info');
+      mostrarSucesso('Salvo');
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -696,7 +996,7 @@ async function salvarConferencia(): Promise<boolean> {
 
   let copia: string;
   try {
-    copia = montarCopia(aberto.texto, anotacoes);
+    copia = montarCopia(aberto.texto, anotacoes, ordemAtual);
   } catch (erro) {
     mostrarMensagem('Não foi possível montar a cópia editada.', 'erro');
     console.error(erro);
@@ -705,7 +1005,7 @@ async function salvarConferencia(): Promise<boolean> {
   const gravadas = new Map(anotacoes);
 
   marcarGeradoEm();
-  bloquearAcoes(true);
+  bloquearAcoes(true, true);
   try {
     const r = await window.psApi.salvar(copia);
     if (r.status === 'salvo') {
@@ -715,7 +1015,7 @@ async function salvarConferencia(): Promise<boolean> {
       for (const [nItem, texto] of gravadas)
         anotacoesGravadas.set(nItem, texto);
       atualizarPendentes();
-      mostrarMensagem(`Salvo em ${r.pdf} e ${r.copia}`, 'info');
+      mostrarSucesso('Salvo');
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -769,13 +1069,137 @@ async function imprimir(): Promise<void> {
   }
 }
 
+// ---------- início ----------
+
+/**
+ * Volta para a tela inicial. Com anotação não salva, faz a mesma pergunta
+ * Salvar / Descartar / Cancelar de abrir outro arquivo.
+ */
+async function irParaInicio(): Promise<void> {
+  if (!(await podeSair())) return;
+  aberto = null;
+  conferenciaMontada = false;
+  danfeMontado = false;
+  danfeEl.replaceChildren();
+  notaEl.replaceChildren();
+  tabelaItensEl = null;
+  corposItens.clear();
+  ordemAtual = ORDEM_NOTA;
+  anotacoes.clear();
+  marcarGravadas();
+  esconderMensagem();
+  document.title = 'Leitor NF-e PS';
+  mostrarTela('vazio');
+}
+
+// ---------- menu do botão direito ----------
+
+/**
+ * Monta o pedido de menu conforme o lugar do clique e pede ao processo
+ * principal para mostrar (ele escreve na área de transferência):
+ * - caixa de texto: Recortar, Copiar, Colar, Selecionar tudo;
+ * - texto selecionado: Copiar;
+ * - célula da tabela de itens: "Copiar <coluna>" e "Copiar linha";
+ * - chave de acesso (conferência e DANFE): "Copiar chave".
+ */
+async function menuContexto(e: MouseEvent): Promise<void> {
+  e.preventDefault();
+  const alvo = e.target instanceof Element ? e.target : null;
+  if (!alvo) return;
+
+  const campoTexto = alvo.closest('input, textarea') as
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | null;
+  const editavel =
+    campoTexto !== null && !campoTexto.readOnly && !campoTexto.disabled;
+  const selecao = campoTexto
+    ? campoTexto.value.slice(
+        campoTexto.selectionStart ?? 0,
+        campoTexto.selectionEnd ?? 0,
+      )
+    : (window.getSelection()?.toString() ?? '');
+
+  const itens: ItemMenuCopia[] = [];
+  if (aberto && alvo.closest('.campo--chave, .cab__chave-valor')) {
+    itens.push({
+      rotulo: 'Copiar chave',
+      texto: chaveSemEspaco(),
+      aviso: 'Chave copiada',
+    });
+  }
+  const linha = alvo.closest('#nota .tabela--itens tr.item__linha');
+  const celula = alvo.closest(
+    '#nota .tabela--itens tr.item__linha > td',
+  ) as HTMLTableCellElement | null;
+  if (linha && celula && tabelaItensEl) {
+    const titulos = [...tabelaItensEl.querySelectorAll('thead th')];
+    // O valor como aparece na tela; na anotação, o texto digitado.
+    const valor = (td: Element) =>
+      td.querySelector<HTMLInputElement>('input.anotacao__campo')?.value ??
+      td.textContent?.trim() ??
+      '';
+    const rotulo = (titulos[celula.cellIndex] as HTMLElement | undefined)
+      ?.dataset.coluna
+      ? (COLUNAS_ITENS.find(
+          (c) =>
+            c.id === (titulos[celula.cellIndex] as HTMLElement).dataset.coluna,
+        )?.rotulo ?? '')
+      : '';
+    itens.push({
+      rotulo: `Copiar ${rotulo}`,
+      texto: valor(celula),
+      aviso: 'Copiado',
+    });
+    itens.push({
+      rotulo: 'Copiar linha',
+      // Separado por tabulação: no Excel, cada campo vai para uma coluna.
+      texto: [...linha.children]
+        .map((td) => valor(td).replace(/[\t\r\n]+/g, ' '))
+        .join('\t'),
+      aviso: 'Copiado',
+    });
+  }
+  if (!editavel && !selecao && itens.length === 0) return;
+
+  try {
+    const r = await window.psApi.areaTransferencia({
+      tipo: 'menu',
+      editavel,
+      selecao,
+      itens,
+    });
+    if (r.status === 'copiado') mostrarSucesso(r.aviso);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível copiar.', 'erro');
+    console.error(erro);
+  }
+}
+
 // ---------- eventos ----------
 
 btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
 btnConferencia.addEventListener('click', mostrarConferencia);
 btnDanfe.addEventListener('click', mostrarDanfe);
-btnAlternar.addEventListener('click', alternarModo);
+btnModoConferencia.addEventListener('click', () => {
+  if (modoAtual !== 'conferencia') mostrarConferencia();
+});
+btnModoDanfe.addEventListener('click', () => {
+  if (modoAtual !== 'danfe') mostrarDanfe();
+});
+btnInicio.addEventListener('click', () => void irParaInicio());
+// Menu Ordenar: fecha ao clicar fora dele.
+document.addEventListener('mousedown', (e) => {
+  const alvo = e.target as Node;
+  if (
+    menuOrdenar &&
+    !menuOrdenar.contains(alvo) &&
+    !botaoOrdenar?.contains(alvo)
+  )
+    fecharMenuOrdenar();
+});
+window.addEventListener('contextmenu', (e) => void menuContexto(e));
 btnImprimir.addEventListener('click', () => void imprimir());
 btnSalvar.addEventListener('click', () => void salvar());
 window.psApi.aoPedirFechar(() => {

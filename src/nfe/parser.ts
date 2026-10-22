@@ -109,6 +109,9 @@ function lerItem(det: Element): Item {
     descendente(filho(imposto, 'IPI'), 'vIPI')?.textContent?.trim() ?? '';
   const vICMS =
     descendente(filho(imposto, 'ICMS'), 'vICMS')?.textContent?.trim() ?? '';
+  // O grupo do ICMS (ICMS00, ICMSSN101...) é o único filho de <ICMS>.
+  const grupoIcms = filho(imposto, 'ICMS')?.firstElementChild ?? null;
+  const cst = texto(grupoIcms, 'CST') || texto(grupoIcms, 'CSOSN');
   return {
     nItem: det.getAttribute('nItem')?.trim() ?? '',
     cProd: texto(prod, 'cProd'),
@@ -125,6 +128,7 @@ function lerItem(det: Element): Item {
     infAdProd: texto(det, 'infAdProd'),
     vIPI,
     vICMS,
+    cstIcms: cst ? `${texto(grupoIcms, 'orig')}${cst}` : '',
   };
 }
 
@@ -242,11 +246,29 @@ function lerAnotacoes(copia: Element | null): Map<string, string> {
   return anotacoes;
 }
 
+/**
+ * Ordem gravada numa cópia editada (<ordem criterio="..." direcao="..."/>).
+ * null quando não há o elemento (cópia antiga) ou ele está incompleto; quem lê
+ * valida o critério e cai na ordem da nota.
+ */
+function lerOrdem(
+  copia: Element | null,
+): { criterio: string; direcao: 'asc' | 'desc' } | null {
+  const o = filho(copia, 'ordem');
+  if (!o) return null;
+  const criterio = o.getAttribute('criterio')?.trim() ?? '';
+  const direcao = o.getAttribute('direcao')?.trim() ?? '';
+  if (!criterio || (direcao !== 'asc' && direcao !== 'desc')) return null;
+  return { criterio, direcao };
+}
+
 export interface ArquivoLido {
   nota: Nota;
   /** true quando o arquivo é uma cópia editada (raiz psCopiaEditada). */
   copiaEditada: boolean;
   anotacoes: Map<string, string>;
+  /** Ordem dos itens gravada na cópia editada, ou null. */
+  ordem: { criterio: string; direcao: 'asc' | 'desc' } | null;
 }
 
 /**
@@ -259,6 +281,7 @@ export function lerArquivo(xml: string): ArquivoLido {
     nota: lerNotaDe(original),
     copiaEditada: copia !== null,
     anotacoes: lerAnotacoes(copia),
+    ordem: lerOrdem(copia),
   };
 }
 

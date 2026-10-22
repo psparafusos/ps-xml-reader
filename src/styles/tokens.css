@@ -77,6 +77,44 @@
   --sombra-barra: 0 var(--borda-forte) 0 var(--ps-preto);
   --transicao: 120ms;
 
+  /* Botões: estados iguais para todos. Secundário (claro) e principal
+     (Salvar, preenchido). Desabilitado não muda o fundo: fica opaco, com
+     cursor de bloqueio, para nunca parecer selecionado. */
+  --botao-sec-fundo: var(--ps-branco);
+  --botao-sec-texto: var(--ps-preto);
+  --botao-sec-borda: var(--ps-preto);
+  --botao-sec-fundo-hover: var(--cor-destaque-suave);
+  --botao-sec-fundo-pressionado: color-mix(
+    in srgb,
+    var(--ps-amarelo) 45%,
+    var(--ps-branco)
+  );
+  --botao-pri-fundo: var(--ps-preto);
+  --botao-pri-texto: var(--ps-branco);
+  --botao-pri-fundo-hover: color-mix(
+    in srgb,
+    var(--ps-preto) 82%,
+    var(--ps-branco)
+  );
+  --botao-pri-fundo-pressionado: #000000;
+  --botao-foco: var(--ps-preto);
+  --botao-foco-espessura: 3px;
+  --botao-foco-afastamento: 2px;
+  --botao-desabilitado-opacidade: 0.45;
+  /* Seletor de duas posições: a opção ativa fica preenchida com o destaque. */
+  --seletor-ativo-fundo: var(--ps-preto);
+  --seletor-ativo-texto: var(--ps-branco);
+
+  /* Avisos */
+  --aviso-sucesso-fundo: rgb(22 128 61 / 0.88);
+  --aviso-sucesso-texto: var(--ps-branco);
+  --aviso-erro-fundo: #b42318;
+  --aviso-erro-texto: var(--ps-branco);
+  --aviso-duracao: 1500ms;
+  --sombra-aviso: 0 6px 24px rgb(0 0 0 / 0.25);
+  --largura-menu: 300px;
+  --altura-menu: 60vh;
+
   /* Impressão (A4, printToPDF) */
   --fs-print-xs: 6.5pt;
   --fs-print-sm: 7.5pt;

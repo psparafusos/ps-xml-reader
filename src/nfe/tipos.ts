@@ -51,6 +51,8 @@ export interface Item {
   infAdProd: string;
   vIPI: string;
   vICMS: string;
+  /** Tributação do ICMS: orig + CST (ou orig + CSOSN), como no DANFE. */
+  cstIcms: string;
 }
 
 export interface Totais {

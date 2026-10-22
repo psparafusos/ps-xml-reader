@@ -24,63 +24,86 @@
           >Cópia editada, sem validade fiscal</span
         >
       </div>
-      <div class="barra__acoes">
-        <button
-          id="btn-pasta-barra"
-          type="button"
-          class="botao botao--claro botao--pasta"
-        >
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-            />
-            <path d="M12 11v5" />
-            <path d="M9.5 13.5h5" />
-          </svg>
-          <span class="botao__textos">
-            <span>Pasta de destino</span>
-            <span class="botao__caminho"></span>
-          </span>
-        </button>
-        <button id="btn-alternar" type="button" class="botao botao--claro">
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 8h13" />
-            <path d="M14 5l3 3-3 3" />
-            <path d="M20 16H7" />
-            <path d="M10 13l-3 3 3 3" />
-          </svg>
-          <span id="btn-alternar-texto">DANFE</span>
-        </button>
-        <button id="btn-abrir-outro" type="button" class="botao botao--claro">
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-            />
-          </svg>
-          <span>Abrir outro XML</span>
-        </button>
-        <button id="btn-imprimir" type="button" class="botao botao--claro">
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 9V4h10v5" />
-            <path
-              d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"
-            />
-            <path d="M7 14h10v6H7z" />
-          </svg>
-          <span>Imprimir</span>
-        </button>
-        <button id="btn-salvar" type="button" class="botao">
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 4v11" />
-            <path d="M7 10l5 5 5-5" />
-            <path d="M5 20h14" />
-          </svg>
-          <span>Salvar</span>
-        </button>
-      </div>
+      <!-- Grupos por função: navegação, modo, saída. Salvar é o único botão
+           principal; os demais são secundários. -->
+      <nav class="barra__acoes" aria-label="Ações da nota">
+        <div class="barra__grupo" role="group" aria-label="Navegação">
+          <button id="btn-inicio" type="button" class="botao botao--claro">
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 11l8-7 8 7" />
+              <path d="M6 10v10h12V10" />
+            </svg>
+            <span>Início</span>
+          </button>
+          <button id="btn-abrir-outro" type="button" class="botao botao--claro">
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+              />
+            </svg>
+            <span>Abrir outro XML</span>
+          </button>
+        </div>
+        <div class="barra__grupo seletor" role="group" aria-label="Modo">
+          <button
+            id="btn-modo-conferencia"
+            type="button"
+            class="seletor__opcao"
+            aria-pressed="true"
+          >
+            Conferência
+          </button>
+          <button
+            id="btn-modo-danfe"
+            type="button"
+            class="seletor__opcao"
+            aria-pressed="false"
+          >
+            DANFE
+          </button>
+        </div>
+        <div class="barra__grupo" role="group" aria-label="Saída">
+          <button
+            id="btn-pasta-barra"
+            type="button"
+            class="botao botao--claro botao--pasta"
+          >
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+              />
+              <path d="M12 11v5" />
+              <path d="M9.5 13.5h5" />
+            </svg>
+            <span class="botao__textos">
+              <span>Pasta de destino</span>
+              <span class="botao__caminho"></span>
+            </span>
+          </button>
+          <button id="btn-imprimir" type="button" class="botao botao--claro">
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 9V4h10v5" />
+              <path
+                d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"
+              />
+              <path d="M7 14h10v6H7z" />
+            </svg>
+            <span>Imprimir</span>
+          </button>
+          <button id="btn-salvar" type="button" class="botao botao--principal">
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v11" />
+              <path d="M7 10l5 5 5-5" />
+              <path d="M5 20h14" />
+            </svg>
+            <span id="btn-salvar-texto">Salvar</span>
+          </button>
+        </div>
+      </nav>
     </header>
 
-    <div id="mensagem" class="mensagem" role="status" aria-live="polite" hidden>
+    <!-- Erro: fica visível em qualquer posição de rolagem até a pessoa fechar. -->
+    <div id="mensagem" class="mensagem" role="alert" hidden>
       <span id="mensagem-texto"></span>
       <button
         id="mensagem-fechar"
@@ -93,6 +116,17 @@
         </svg>
         <span>Fechar</span>
       </button>
+    </div>
+
+    <!-- Sucesso: aviso pequeno no centro, some sozinho e não bloqueia cliques.
+         A região existe sempre, para o leitor de tela anunciar a mudança. -->
+    <div class="aviso-regiao" role="status" aria-live="polite">
+      <div id="aviso" class="aviso" hidden>
+        <svg class="icone aviso__icone" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
+        <span id="aviso-texto"></span>
+      </div>
     </div>
 
     <section id="vazio" class="vazio">

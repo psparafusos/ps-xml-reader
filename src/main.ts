@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu } from 'electron';
+import { execFile } from 'node:child_process';
 import {
   access,
   constants,
@@ -95,23 +96,59 @@ function nomeRaiz(xml: string): string {
   return m ? m[1] : '';
 }
 
+/** Raízes de um arquivo que o app abre (NF-e ou cópia editada). */
+const RAIZES_ACEITAS = ['nfeProc', 'NFe', 'psCopiaEditada'];
+
 async function lerArquivoAberto(caminho: string): Promise<ArquivoAberto> {
   const texto = await readFile(caminho, 'utf8');
   arquivoAberto = caminho;
-  abertoEhCopia = nomeRaiz(texto) === 'psCopiaEditada';
+  const raiz = nomeRaiz(texto);
+  abertoEhCopia = raiz === 'psCopiaEditada';
+  // Aberto com sucesso (é NF-e ou cópia editada): a pasta dele vira o ponto de
+  // partida do próximo diálogo de abrir. Falha ao gravar não impede a abertura.
+  if (RAIZES_ACEITAS.includes(raiz)) {
+    await gravarConfig({ ultimaPastaAbertura: path.dirname(caminho) }).catch(
+      () => {},
+    );
+  }
   return { nome: path.basename(caminho), texto };
+}
+
+/** Tempo máximo para conferir se a última pasta ainda existe (rede fora). */
+const ESPERA_PASTA_MS = 2000;
+
+/**
+ * Pasta onde o diálogo de abrir começa: a do último arquivo aberto com
+ * sucesso, se ainda existir. Pasta removida (pendrive, rede fora) ou que não
+ * responde a tempo: null, e o diálogo abre no padrão do Windows.
+ */
+async function pastaInicialAbertura(): Promise<string | null> {
+  const { ultimaPastaAbertura } = await lerConfig();
+  if (typeof ultimaPastaAbertura !== 'string' || ultimaPastaAbertura === '') {
+    return null;
+  }
+  const existe = stat(ultimaPastaAbertura).then(
+    (s) => s.isDirectory(),
+    () => false,
+  );
+  const limite = new Promise<boolean>((r) =>
+    setTimeout(() => r(false), ESPERA_PASTA_MS),
+  );
+  return (await Promise.race([existe, limite])) ? ultimaPastaAbertura : null;
 }
 
 ipcMain.handle(
   'abrir-arquivo',
   async (event): Promise<ArquivoAberto | null> => {
     const janela = BrowserWindow.fromWebContents(event.sender);
+    const inicial = await pastaInicialAbertura();
     const opcoes: Electron.OpenDialogOptions = {
       title: 'Abrir XML da NF-e',
       filters: [
         { name: 'XML da NF-e ou cópia editada', extensions: ['xml', 'psxml'] },
       ],
       properties: ['openFile'],
+      ...(inicial ? { defaultPath: inicial } : {}),
     };
     const { canceled, filePaths } = janela
       ? await dialog.showOpenDialog(janela, opcoes)
@@ -136,28 +173,43 @@ ipcMain.handle(
   },
 );
 
-// ---------- pasta de destino (config.json em userData) ----------
+// ---------- config.json em userData (pasta de destino, última pasta) ----------
+
+interface Config {
+  pastaDestino?: unknown;
+  ultimaPastaAbertura?: unknown;
+}
 
 function caminhoConfig(): string {
   return path.join(app.getPath('userData'), 'config.json');
 }
 
-async function lerPastaDestino(): Promise<string | null> {
+async function lerConfig(): Promise<Config> {
   try {
     const config: unknown = JSON.parse(await readFile(caminhoConfig(), 'utf8'));
-    if (
-      typeof config === 'object' &&
-      config !== null &&
-      'pastaDestino' in config &&
-      typeof config.pastaDestino === 'string' &&
-      config.pastaDestino !== ''
-    ) {
-      return config.pastaDestino;
-    }
+    if (typeof config === 'object' && config !== null) return config as Config;
   } catch {
-    // Sem config (primeira execução) ou arquivo ilegível: sem pasta.
+    // Sem config (primeira execução) ou arquivo ilegível: config vazia.
   }
-  return null;
+  return {};
+}
+
+/** Grava as chaves de `parcial` mantendo as demais. */
+async function gravarConfig(parcial: Config): Promise<void> {
+  const config = { ...(await lerConfig()), ...parcial };
+  await mkdir(app.getPath('userData'), { recursive: true });
+  await writeFile(
+    caminhoConfig(),
+    `${JSON.stringify(config, null, 2)}\n`,
+    'utf8',
+  );
+}
+
+async function lerPastaDestino(): Promise<string | null> {
+  const { pastaDestino } = await lerConfig();
+  return typeof pastaDestino === 'string' && pastaDestino !== ''
+    ? pastaDestino
+    : null;
 }
 
 ipcMain.handle(
@@ -180,12 +232,7 @@ ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
   if (canceled || filePaths.length === 0) return null;
 
   const pasta = filePaths[0];
-  await mkdir(app.getPath('userData'), { recursive: true });
-  await writeFile(
-    caminhoConfig(),
-    `${JSON.stringify({ pastaDestino: pasta }, null, 2)}\n`,
-    'utf8',
-  );
+  await gravarConfig({ pastaDestino: pasta });
   return pasta;
 });
 
@@ -482,6 +529,49 @@ ipcMain.handle('fechar-janela', (event) => {
 
 // ---------- imprimir ----------
 
+// Impressora de cupom (térmica): o nome da impressora padrão contém uma destas
+// palavras, sem diferenciar maiúsculas nem acentos ("térmica" e "termica").
+// É a única lista; para incluir outra marca ou modelo, acrescente aqui.
+const PALAVRAS_IMPRESSORA_CUPOM = ['elgin', 'pos', 'térmica', '80mm', '58mm'];
+
+const semAcento = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+
+function ehImpressoraCupom(nome: string): boolean {
+  const n = semAcento(nome);
+  return PALAVRAS_IMPRESSORA_CUPOM.some((p) => n.includes(semAcento(p)));
+}
+
+/**
+ * Nome da impressora padrão do Windows, ou null. O Electron lista as
+ * impressoras (getPrintersAsync), mas não diz qual é a padrão; o Windows a
+ * guarda em HKCU\...\Windows, valor Device ("Nome,winspool,Ne01:"). Lido com
+ * o reg.exe do próprio Windows; erro ou demora: null (sem aviso).
+ */
+function impressoraPadrao(): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(
+      'reg',
+      [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows',
+        '/v',
+        'Device',
+      ],
+      { timeout: 3000, windowsHide: true },
+      (erro, saida) => {
+        if (erro) return resolve(null);
+        const m = /\bDevice\s+REG_SZ\s+([^\r\n]*)/.exec(String(saida));
+        const nome = m ? m[1].split(',')[0].trim() : '';
+        resolve(nome || null);
+      },
+    );
+  });
+}
+
 // No DANFE as margens são do layout: imprime em A4 sem margem do Electron.
 const OPCOES_IMPRESSAO: Record<
   ModoImpressao,
@@ -508,8 +598,27 @@ const OPCOES_IMPRESSAO: Record<
 
 ipcMain.handle(
   'imprimir',
-  (event, modo: unknown): Promise<ResultadoImprimir> =>
-    new Promise((resolve) => {
+  async (event, modo: unknown): Promise<ResultadoImprimir> => {
+    // Antes do diálogo do Windows: se a padrão é de cupom, avisa. Cancelar
+    // não abre o diálogo de impressão.
+    const padrao = await impressoraPadrao();
+    if (padrao && ehImpressoraCupom(padrao)) {
+      const janela = BrowserWindow.fromWebContents(event.sender);
+      const opcoes: Electron.MessageBoxOptions = {
+        type: 'warning',
+        title: 'Impressora de cupom',
+        message: `A impressora padrão (${padrao}) é de cupom. Escolha outra impressora no próximo diálogo.`,
+        buttons: ['Continuar', 'Cancelar'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      };
+      const { response } = janela
+        ? await dialog.showMessageBox(janela, opcoes)
+        : await dialog.showMessageBox(opcoes);
+      if (response !== 0) return { status: 'cancelado' };
+    }
+    return new Promise((resolve) => {
       event.sender.print(
         OPCOES_IMPRESSAO[modo === 'danfe' ? 'danfe' : 'conferencia'],
         (sucesso, motivo) => {
@@ -523,7 +632,118 @@ ipcMain.handle(
             });
         },
       );
-    }),
+    });
+  },
+);
+
+// ---------- área de transferência e menu do botão direito ----------
+
+const AVISOS_COPIA: AvisoCopia[] = ['Copiado', 'Chave copiada', 'Recortado'];
+const LIMITE_TEXTO_COPIA = 1_000_000;
+
+const textoValido = (t: unknown): t is string =>
+  typeof t === 'string' && t.length <= LIMITE_TEXTO_COPIA;
+
+function itemValido(i: unknown): i is ItemMenuCopia {
+  if (typeof i !== 'object' || i === null) return false;
+  const o = i as Record<string, unknown>;
+  return (
+    textoValido(o.rotulo) &&
+    o.rotulo.length <= 200 &&
+    textoValido(o.texto) &&
+    AVISOS_COPIA.includes(o.aviso as AvisoCopia)
+  );
+}
+
+/**
+ * Copia um texto, ou mostra o menu do botão direito e faz a ação escolhida.
+ * O renderer diz o que há no lugar do clique (caixa de texto, seleção, célula
+ * ou chave); quem monta o menu e escreve na área de transferência é este
+ * processo.
+ */
+ipcMain.handle(
+  'area-transferencia',
+  async (event, pedido: unknown): Promise<ResultadoAreaTransferencia> => {
+    if (typeof pedido !== 'object' || pedido === null)
+      return { status: 'nada' };
+    const p = pedido as Record<string, unknown>;
+
+    if (p.tipo === 'copiar') {
+      if (
+        !textoValido(p.texto) ||
+        !AVISOS_COPIA.includes(p.aviso as AvisoCopia)
+      ) {
+        return { status: 'nada' };
+      }
+      await clipboard.writeText(p.texto);
+      return { status: 'copiado', aviso: p.aviso as AvisoCopia };
+    }
+
+    if (p.tipo !== 'menu') return { status: 'nada' };
+    const janela = BrowserWindow.fromWebContents(event.sender);
+    if (!janela) return { status: 'nada' };
+    const editavel = p.editavel === true;
+    const selecao = textoValido(p.selecao) ? p.selecao : '';
+    const itens = Array.isArray(p.itens) ? p.itens.filter(itemValido) : [];
+    const wc = event.sender;
+
+    return new Promise((resolve) => {
+      let resolvido = false;
+      const fim = (r: ResultadoAreaTransferencia) => {
+        if (resolvido) return;
+        resolvido = true;
+        resolve(r);
+      };
+      const copiar = (texto: string, aviso: AvisoCopia) => () => {
+        void clipboard
+          .writeText(texto)
+          .then(() => fim({ status: 'copiado', aviso }));
+      };
+      const modelo: Electron.MenuItemConstructorOptions[] = [];
+      if (editavel) {
+        modelo.push(
+          {
+            label: 'Recortar',
+            enabled: selecao !== '',
+            // Primeiro grava a seleção; depois apaga na caixa (cut do Chromium).
+            click: () => {
+              void clipboard.writeText(selecao).then(() => {
+                wc.delete();
+                fim({ status: 'copiado', aviso: 'Recortado' });
+              });
+            },
+          },
+          {
+            label: 'Copiar',
+            enabled: selecao !== '',
+            click: copiar(selecao, 'Copiado'),
+          },
+          {
+            label: 'Colar',
+            click: () => (wc.paste(), fim({ status: 'nada' })),
+          },
+          { type: 'separator' },
+          {
+            label: 'Selecionar tudo',
+            click: () => (wc.selectAll(), fim({ status: 'nada' })),
+          },
+        );
+      } else if (selecao) {
+        modelo.push({ label: 'Copiar', click: copiar(selecao, 'Copiado') });
+      }
+      if (itens.length > 0) {
+        if (modelo.length > 0) modelo.push({ type: 'separator' });
+        for (const i of itens)
+          modelo.push({ label: i.rotulo, click: copiar(i.texto, i.aviso) });
+      }
+      if (modelo.length === 0) return fim({ status: 'nada' });
+      Menu.buildFromTemplate(modelo).popup({
+        window: janela,
+        // Fechado sem escolher: o clique, se houve, chega antes de terminar.
+        callback: () => setTimeout(() => fim({ status: 'nada' }), 300),
+      });
+    });
+  },
 );
 
 function mensagemDe(erro: unknown): string {

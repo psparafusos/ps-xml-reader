@@ -5,12 +5,26 @@
    Fonte: Times New Roman (item 2.7). Mínimos: rótulos em caixa alta e
    negrito, 5 pt nos títulos de quadro e nos rótulos de produtos, 6 pt nos
    demais rótulos; conteúdo 6 pt; razão social do emitente 12 pt; demais dados
-   do emitente 8 pt; "DANFE" 12 pt; número, série, folha e tipo 10 pt. */
+   do emitente 8 pt; "DANFE" 12 pt; número, série, folha e tipo 10 pt.
+
+   Linhas: uma espessura só (--danfe-traco). Cada faixa (.df) é uma grade
+   única, então cada linha é desenhada uma vez e quadros vizinhos fecham na
+   mesma altura. (Linhas feitas com o espaço entre células somem: o espaço é
+   menor que 1 px e o fundo das células, arredondado para o pixel, o cobre.) */
 
 .danfe {
   --danfe-margem: 5mm;
-  --danfe-linha: 0.2mm solid #000;
-  --danfe-tracejado: 0.15mm dashed #000;
+  --danfe-traco: 0.2mm;
+  --danfe-cor-linha: #000;
+  /* Respiro: distância mínima entre o texto e as linhas do quadro. */
+  --danfe-respiro-topo: 0.6mm;
+  --danfe-respiro-base: 0.6mm;
+  --danfe-respiro-lado: 0.8mm;
+  /* Linhas da grade do cabeçalho, à direita: barras, chave, consulta. */
+  --danfe-cab-barras: 15mm;
+  --danfe-cab-chave: 7.6mm;
+  --danfe-cab-consulta: 15.4mm;
+  --danfe-altura-adicionais: 38mm;
   --danfe-fonte: 'Times New Roman', Times, serif;
   --danfe-fs-rotulo: 6pt;
   --danfe-fs-rotulo-produto: 5.5pt;
@@ -59,51 +73,52 @@
   flex: none;
 }
 
-/* ---------- campos e quadros ---------- */
+/* ---------- quadros, faixas e campos ---------- */
 
 .dq {
   margin: 0;
 }
 
 .dq__titulo {
-  margin: 0 0 0.3mm;
+  margin: 0 0 0.4mm;
   font-size: var(--danfe-fs-titulo);
   font-weight: 700;
+  line-height: 1;
   text-transform: uppercase;
 }
 
-.dl {
+/* Faixa: grade única. A grade desenha a borda de cima e a da esquerda; cada
+   célula, só a da direita e a de baixo. Cada linha sai uma vez, e células da
+   mesma linha da grade terminam na mesma borda. */
+.df {
   display: grid;
+  border-top: var(--danfe-traco) solid var(--danfe-cor-linha);
+  border-left: var(--danfe-traco) solid var(--danfe-cor-linha);
 }
 
-/* Bordas coladas: cada campo desenha direita e baixo; a linha, esquerda e topo. */
-.dq > .dl,
-.cab > .dl {
-  border-left: var(--danfe-linha);
-}
-
-.dq__titulo + .dl,
-.cab__topo {
-  border-top: var(--danfe-linha);
+.df > * {
+  min-width: 0;
+  border-right: var(--danfe-traco) solid var(--danfe-cor-linha);
+  border-bottom: var(--danfe-traco) solid var(--danfe-cor-linha);
 }
 
 .dc {
-  min-width: 0;
-  min-height: 6.4mm;
-  padding: 0.3mm 0.8mm 0.4mm;
-  border-right: var(--danfe-linha);
-  border-bottom: var(--danfe-linha);
+  min-height: 6.6mm;
+  padding: var(--danfe-respiro-topo) var(--danfe-respiro-lado)
+    var(--danfe-respiro-base);
   overflow-wrap: anywhere;
 }
 
 .dc__rotulo {
   font-size: var(--danfe-fs-rotulo);
   font-weight: 700;
+  line-height: 1.1;
   text-transform: uppercase;
 }
 
 .dc__valor {
   min-height: 1.15em;
+  margin-top: 0.3mm;
   font-size: var(--danfe-fs-valor);
 }
 
@@ -112,20 +127,6 @@
 }
 
 /* ---------- canhoto ---------- */
-
-.canhoto {
-  display: grid;
-  grid-template-columns: 160fr 40fr;
-  border-top: var(--danfe-linha);
-  border-left: var(--danfe-linha);
-  padding-bottom: 2mm;
-  border-bottom: var(--danfe-tracejado);
-  margin-bottom: 1mm;
-}
-
-.canhoto .dl {
-  border-left: none;
-}
 
 .canhoto__texto {
   min-height: 7mm;
@@ -136,9 +137,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-right: var(--danfe-linha);
-  border-bottom: var(--danfe-linha);
+  gap: 0.4mm;
   font-weight: 700;
+  line-height: 1.05;
 }
 
 .canhoto__nfe {
@@ -149,25 +150,34 @@
   font-size: var(--danfe-fs-numero);
 }
 
-/* ---------- cabeçalho ---------- */
-
-.cab__topo {
-  display: grid;
-  grid-template-columns: 80fr 34fr 86fr;
-  height: 36mm;
-  border-left: var(--danfe-linha);
+/* Linha de corte: tracejada, na largura toda, com a espessura do traço. */
+.canhoto__corte {
+  margin: 2mm 0 1mm;
+  border-top: var(--danfe-traco) dashed var(--danfe-cor-linha);
 }
+
+/* ---------- cabeçalho ---------- */
 
 .cab__emitente {
   display: flex;
   flex-direction: column;
-  gap: 0.4mm;
+}
+
+/* Dados do emitente centralizados na altura e na largura do quadro. */
+.cab__emitente-dados {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8mm;
+  text-align: center;
   font-size: var(--danfe-fs-emitente);
   font-weight: 700;
 }
 
 .cab__razao {
-  margin: 0.6mm 0 0.4mm;
+  margin-bottom: 0.6mm;
   font-size: var(--danfe-fs-razao);
   font-weight: 700;
   line-height: 1.05;
@@ -175,14 +185,16 @@
 
 .cab__endereco {
   font-size: var(--danfe-fs-emitente);
+  line-height: 1.1;
 }
 
 .cab__danfe {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 0.5mm;
   text-align: center;
-  gap: 0.6mm;
 }
 
 .cab__titulo {
@@ -193,7 +205,7 @@
 
 .cab__subtitulo {
   font-size: var(--danfe-fs-subtitulo);
-  line-height: 1.05;
+  line-height: 1.12;
 }
 
 .cab__operacao {
@@ -201,29 +213,25 @@
   align-items: center;
   gap: 2mm;
   font-size: var(--danfe-fs-subtitulo);
+  line-height: 1.1;
   text-align: left;
 }
 
 .cab__tpnf {
   min-width: 5mm;
-  padding: 0.3mm 1mm;
-  border: var(--danfe-linha);
+  padding: var(--danfe-respiro-topo) 1.2mm var(--danfe-respiro-base);
+  border: var(--danfe-traco) solid var(--danfe-cor-linha);
   font-size: var(--danfe-fs-numero);
   font-weight: 700;
+  line-height: 1.1;
   text-align: center;
 }
 
 .cab__numero {
-  min-height: 1.15em;
+  min-height: 1.1em;
   font-size: var(--danfe-fs-numero);
   font-weight: 700;
   line-height: 1.1;
-}
-
-.cab__chave {
-  display: grid;
-  grid-template-rows: 15mm auto 1fr;
-  min-width: 0;
 }
 
 .cab__barras {
@@ -256,24 +264,11 @@
 
 /* ---------- fatura ---------- */
 
-.fat__dups {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  border-left: var(--danfe-linha);
-}
-
-.dq__titulo + .fat__dups {
-  border-top: var(--danfe-linha);
-}
-
 .fat__dup {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: 1mm;
   align-items: baseline;
-  padding: 0.3mm 0.8mm;
-  border-right: var(--danfe-linha);
-  border-bottom: var(--danfe-linha);
 }
 
 .fat__valor {
@@ -300,13 +295,16 @@
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
-  border: var(--danfe-linha);
+  border: var(--danfe-traco) solid var(--danfe-cor-linha);
 }
 
 .dq--produtos-ajustado .prod__area {
   flex: none;
 }
 
+/* Bordas fundidas (collapse): cada divisória entre colunas sai uma vez. A
+   linha vazia de preenchimento no fim (danfe.ts) leva as divisórias até a
+   borda de baixo do quadro. */
 .prod {
   width: 100%;
   border-collapse: collapse;
@@ -315,9 +313,8 @@
 }
 
 .prod th {
-  padding: 0.4mm 0.5mm;
-  border-bottom: var(--danfe-linha);
-  border-left: var(--danfe-linha);
+  padding: 0.6mm 0.7mm 0.6mm;
+  border-bottom: var(--danfe-traco) solid var(--danfe-cor-linha);
   font-size: var(--danfe-fs-rotulo-produto);
   font-weight: 700;
   text-transform: uppercase;
@@ -327,25 +324,30 @@
   overflow-wrap: anywhere;
 }
 
-.prod th:first-child,
-.prod td:first-child {
-  border-left: none;
-}
-
 .prod td {
-  padding: 0.5mm 0.5mm;
-  border-left: var(--danfe-linha);
+  padding: 0.6mm 0.7mm 0.6mm;
   vertical-align: top;
   overflow-wrap: anywhere;
+}
+
+.prod th + th,
+.prod td + td {
+  border-left: var(--danfe-traco) solid var(--danfe-cor-linha);
 }
 
 .prod .num {
   text-align: right;
 }
 
-/* Destaque divisório entre itens (MOC, item 2.1.7): linha tracejada. */
+/* Destaque divisório entre itens (MOC, item 2.1.7): linha tracejada, com a
+   espessura do traço. O último item sem preenchimento abaixo (folha em que a
+   continuação vem logo depois) não leva, para não encostar na borda. */
 .prod__item {
-  border-bottom: var(--danfe-tracejado);
+  border-bottom: var(--danfe-traco) dashed var(--danfe-cor-linha);
+}
+
+.prod__item:last-of-type {
+  border-bottom: none;
 }
 
 .prod__extra,
@@ -353,18 +355,10 @@
   font-size: var(--danfe-fs-produto);
 }
 
-.prod__linha-infad td {
-  padding-top: 0;
-}
-
 /* ---------- dados adicionais ---------- */
 
 .ad__linha {
-  display: grid;
-  grid-template-columns: 130fr 70fr;
-  height: 38mm;
-  border-top: var(--danfe-linha);
-  border-left: var(--danfe-linha);
+  grid-template-rows: var(--danfe-altura-adicionais);
 }
 
 .ad__area {
@@ -375,6 +369,7 @@
 }
 
 .ad__texto {
+  margin-top: 0.3mm;
   font-size: var(--danfe-fs-complementar);
 }
 
@@ -389,15 +384,10 @@
   min-height: 0;
 }
 
-.dq--continuacao .ad__area {
+.ad__continuacao {
   flex: 1 1 0;
-  border-top: var(--danfe-linha);
-  border-left: var(--danfe-linha);
-}
-
-/* Na folha que também tem itens, a continuação ocupa só o espaço que sobra. */
-.dq--produtos-ajustado ~ .dq--continuacao {
-  flex: 1 1 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 /* ---------- homologação ---------- */
