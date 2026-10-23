@@ -10,12 +10,14 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    icon: './assets/ps-reader',
   },
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({
       // Sem espaço: o Squirrel quebra com espaço no nome.
       name: 'PSXmlReader',
+      setupIcon: './assets/ps-reader.ico',
     }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),

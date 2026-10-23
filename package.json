@@ -1,7 +1,7 @@
 {
   "name": "ps-xml-reader",
-  "productName": "Leitor NF-e PS",
-  "version": "1.0.0",
+  "productName": "PS Reader",
+  "version": "1.0.1",
   "private": true,
   "description": "Leitor de XML de NF-e para conferência interna",
   "keywords": [],
