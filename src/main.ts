@@ -9,7 +9,7 @@ import {
   shell,
 } from 'electron';
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import {
   access,
   constants,
@@ -25,14 +25,73 @@ import {
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { EXTENSAO, tratarEventoSquirrel } from './associacao';
 import { ehImpressoraCupom } from './impressoras';
 
-app.setAppUserModelId('com.squirrel.PSXmlReader.PSXmlReader');
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// Eventos do Squirrel antes de qualquer outra inicialização: atalhos
+// (electron-squirrel-startup, que sai quando o Update.exe termina) e a
+// associação do .psxml no registro do usuário (src/associacao.ts).
+tratarEventoSquirrel(process.argv[1]);
 if (started) {
   app.quit();
 }
+
+app.setAppUserModelId('com.squirrel.PSXmlReader.PSXmlReader');
+
+// ---------- arquivo passado na linha de comando (duplo clique) ----------
+
+/**
+ * Arquivo a abrir nos argumentos: o primeiro caminho .psxml ou .xml que existe
+ * no disco. Ignora as opções (--squirrel-firstrun, as do Chromium) e o resto
+ * que o npm start passa (o executável do Electron, a pasta do app), que não
+ * são arquivos com essas extensões. Relativo vale a partir de `pasta`.
+ */
+function arquivoDosArgumentos(argv: string[], pasta: string): string | null {
+  for (const arg of argv.slice(1)) {
+    if (arg.startsWith('-')) continue;
+    const ext = path.extname(arg).toLowerCase();
+    if (ext !== EXTENSAO && ext !== '.xml') continue;
+    const caminho = path.resolve(pasta, arg);
+    try {
+      if (statSync(caminho).isFile()) return caminho;
+    } catch {
+      // Não existe: ignora.
+    }
+  }
+  return null;
+}
+
+/** Arquivo pedido e ainda não aberto pelo renderer (ver 'abrir-externo'). */
+let arquivoExterno = started
+  ? null
+  : arquivoDosArgumentos(process.argv, process.cwd());
+
+// Instância única: se o app já está aberto, o arquivo vai para a janela
+// existente (evento second-instance) e esta instância sai. O caminho vai em
+// additionalData, porque o argv que chega lá pode vir reordenado.
+const instanciaPrincipal =
+  !started && app.requestSingleInstanceLock({ arquivo: arquivoExterno });
+if (!started && !instanciaPrincipal) app.quit();
+
+/** A janela do app (uma só). */
+let janelaPrincipal: BrowserWindow | null = null;
+
+app.on('second-instance', (_event, argv, pasta, dados) => {
+  const pedido = (dados as { arquivo?: unknown } | null)?.arquivo;
+  const arquivo =
+    typeof pedido === 'string'
+      ? arquivoDosArgumentos(['', pedido], pasta)
+      : arquivoDosArgumentos(argv, pasta);
+  const janela = janelaPrincipal;
+  if (!janela || janela.isDestroyed()) return;
+  if (janela.isMinimized()) janela.restore();
+  janela.show();
+  janela.focus();
+  if (!arquivo) return;
+  // O renderer pergunta sobre anotações não salvas e só então pede o arquivo.
+  arquivoExterno = arquivo;
+  janela.webContents.send('arquivo-externo');
+});
 
 // 10 mm em polegadas. printToPDF recebe margens em polegadas.
 const MARGEM_PDF = 10 / 25.4;
@@ -134,7 +193,12 @@ const createWindow = () => {
     height: inicial.height,
     minWidth: LARGURA_MINIMA,
     minHeight: ALTURA_MINIMA,
-    title: 'Leitor NF-e PS',
+    title: 'PS Reader',
+    // Empacotado, a janela usa o ícone do executável (packagerConfig.icon).
+    // No npm start o executável é o do Electron: o ícone vem de assets\.
+    ...(app.isPackaged
+      ? {}
+      : { icon: path.join(app.getAppPath(), 'assets', 'ps-reader.ico') }),
     // A janela só aparece em ready-to-show (primeiro desenho já com o CSS).
     // Até lá o fundo é o do app: --cor-fundo de src/styles/tokens.css, que
     // vem de --ps-branco (#ffffff). O main não lê CSS; se o token mudar, mude aqui.
@@ -145,6 +209,10 @@ const createWindow = () => {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+  janelaPrincipal = mainWindow;
+  mainWindow.on('closed', () => {
+    if (janelaPrincipal === mainWindow) janelaPrincipal = null;
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -283,6 +351,15 @@ ipcMain.handle(
     return lerArquivoAberto(caminho);
   },
 );
+
+// Duplo clique num .psxml (ou .xml passado na linha de comando): o renderer
+// pede o arquivo na abertura e depois de cada aviso 'arquivo-externo', já
+// tendo perguntado sobre anotações não salvas. null se não há arquivo pedido.
+ipcMain.handle('abrir-externo', async (): Promise<ArquivoAberto | null> => {
+  const caminho = arquivoExterno;
+  arquivoExterno = null;
+  return caminho ? lerArquivoAberto(caminho) : null;
+});
 
 // ---------- config.json em userData (pasta de destino, última pasta, janela) ----------
 
@@ -951,6 +1028,8 @@ function mensagemDe(erro: unknown): string {
 }
 
 app.whenReady().then(() => {
+  // Evento do Squirrel ou segunda instância: o app está saindo, sem janela.
+  if (started || !instanciaPrincipal) return;
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
   createWindow();

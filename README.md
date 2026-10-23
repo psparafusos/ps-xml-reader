@@ -1,4 +1,4 @@
-# Leitor NF-e PS
+# PS Reader
 
 Aplicativo Windows de uso interno da PS Parafusos e Segurança LTDA. Lê o XML de
 uma NF-e (layout 4.00), mostra a nota em tela e salva em PDF, em dois modos:
@@ -35,6 +35,18 @@ miniatura da primeira página da nota naquele modo, gerada da nota aberta (só a
 primeira página, depois que a tela aparece). Se a nota não suporta DANFE, a
 opção aparece desabilitada com o motivo. Um `.psxml` pula essa tela e abre
 direto na **Conferência**.
+
+Embaixo de cada miniatura, **Salvar PDF** grava só o PDF daquele modo na pasta
+de destino (`<FORNECEDOR>_NF<número>_Conferencia.pdf` ou `..._DANFE.pdf`), sem
+entrar no modo. Sem pasta escolhida, pede a pasta antes. Se a nota não suporta
+DANFE, o **Salvar PDF** do DANFE fica desabilitado.
+
+Com o app instalado, um duplo clique num `.psxml` no Explorer abre o PS Reader
+direto na **Conferência** daquele arquivo. O app abre uma janela só: se já
+estiver aberto, o arquivo vai para a janela existente, que volta para a frente;
+com anotação não salva, aparece antes a pergunta **Salvar**, **Descartar** ou
+**Cancelar**. O `.xml` continua abrindo com o programa de antes; um `.xml`
+passado na linha de comando (`"PS Reader.exe" nota.xml`) também abre.
 
 Na tabela de itens da conferência, a coluna **Anotação** recebe um texto livre
 por item.
@@ -83,7 +95,7 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
 - Saída:
   - **Pasta de destino**: escolhe a pasta onde os arquivos são gravados. O
     caminho fica em `config.json`, dentro da pasta de dados do app
-    (`%APPDATA%\Leitor NF-e PS`). Colado nele, **Abrir pasta**, igual ao da
+    (`%APPDATA%\PS Reader`). Colado nele, **Abrir pasta**, igual ao da
     tela inicial.
   - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual. Se a
     impressora padrão for de cupom, avisa antes; Cancelar não abre o diálogo. A
@@ -201,8 +213,41 @@ npm run make
 ```
 
 O instalador fica em `out\make\squirrel.windows\x64\`, com o nome
-`Leitor NF-e PS-<versão> Setup.exe`. Não há assinatura de código configurada, então
+`PS Reader-<versão> Setup.exe`. Não há assinatura de código configurada, então
 o Windows pode mostrar o aviso do SmartScreen na primeira instalação.
+
+O nome de exibição é **PS Reader** (`productName` no `package.json`): é o nome
+da janela, dos atalhos, do executável (`PS Reader.exe`) e da pasta de dados
+(`%APPDATA%\PS Reader`). A instalação fica em `%LocalAppData%\PSXmlReader\`
+(nome do Squirrel, sem espaço) e não pede administrador.
+
+Os ícones ficam em `assets\`: `ps-reader.ico` (executável, janela, instalador,
+arquivos `.psxml` e Configurações > Aplicativos), `ps-logo.svg` e
+`ps-logo-icone-simplificado.svg` (logo vetorizado) e `ps-logo-1024.png`.
+
+Na instalação e em cada atualização, o app associa a extensão `.psxml` (só ela)
+no registro do usuário atual, `HKCU\Software\Classes` (`src/associacao.ts`); a
+desinstalação apaga essas chaves. O comando de abrir e o ícone apontam para o
+executável fixo da raiz, `%LocalAppData%\PSXmlReader\PS Reader.exe`, que não
+muda entre versões. Se o Explorer não mostrar o ícone novo logo, reinicie o
+Explorer ou saia e entre no Windows.
+
+O ícone em Configurações > Aplicativos vem de `iconUrl` (`forge.config.mts`): o
+instalador baixa `assets/ps-reader.ico` do GitHub na primeira instalação. Sem
+internet nessa hora, a instalação segue normal, só sem esse ícone. O app em si
+não faz chamada de rede.
+
+### Gerar e entregar uma versão nova
+
+1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.0.1 para
+   1.0.2) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
+   maior que a instalada.
+2. Rode `npm run make`.
+3. Leve só o `out\make\squirrel.windows\x64\PS Reader-<versão> Setup.exe`. Os
+   outros arquivos da pasta (`.nupkg`, `RELEASES`) não são necessários para
+   instalar.
+4. No computador, rode o Setup.exe: ele instala ou atualiza por cima, sem
+   administrador, e abre o app. A versão aparece no canto da tela inicial.
 
 ## Outros comandos
 
@@ -218,6 +263,7 @@ src/
   main.ts            processo principal: janela, diálogos, printToPDF
   preload.ts         contextBridge com a API psApi (abrir, pasta, salvar, imprimir, copiar)
   impressoras.ts     lista de nomes de impressora de cupom (aviso antes de imprimir)
+  associacao.ts      associação do .psxml no registro do usuário (eventos do Squirrel)
   renderer.ts        monta a tela a partir do objeto Nota
   declarations.d.ts  tipos globais (window.psApi)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
@@ -235,6 +281,7 @@ src/
   danfe/code128.ts   código de barras CODE-128C (tabela, DV, barras)
   danfe/danfe.css    layout do DANFE em mm/pt, tela e impressão
 index.html           estrutura da página
+assets/              ícone do app (ps-reader.ico) e logo da PS
 forge.config.mts     configuração do Electron Forge (instalador Squirrel)
 samples/             XMLs de teste locais (fora do git, nunca versionar)
 ```

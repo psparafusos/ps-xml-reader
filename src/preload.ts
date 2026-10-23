@@ -8,6 +8,11 @@ contextBridge.exposeInMainWorld('psApi', {
   // principal lê o arquivo e guarda o caminho.
   abrirSolto: (arquivo: File): Promise<ArquivoAberto> =>
     ipcRenderer.invoke('abrir-caminho', webUtils.getPathForFile(arquivo)),
+  abrirExterno: (): Promise<ArquivoAberto | null> =>
+    ipcRenderer.invoke('abrir-externo'),
+  aoArquivoExterno: (callback: () => void): void => {
+    ipcRenderer.on('arquivo-externo', () => callback());
+  },
   pastaDestino: (): Promise<string | null> =>
     ipcRenderer.invoke('pasta-destino'),
   escolherPasta: (): Promise<string | null> =>

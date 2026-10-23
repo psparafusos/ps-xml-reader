@@ -62,6 +62,13 @@ interface PsApi {
   abrirArquivo(): Promise<ArquivoAberto | null>;
   /** Lê um arquivo solto na janela (arrastar e soltar). */
   abrirSolto(arquivo: File): Promise<ArquivoAberto>;
+  /**
+   * Lê o arquivo pedido de fora (duplo clique num .psxml, linha de comando),
+   * ou null se não há. Chamar só depois de perguntar sobre anotações.
+   */
+  abrirExterno(): Promise<ArquivoAberto | null>;
+  /** Chamado quando chega um arquivo de fora com o app já aberto. */
+  aoArquivoExterno(callback: () => void): void;
   /** Pasta de destino salva na configuração, ou null. */
   pastaDestino(): Promise<string | null>;
   /** Abre o diálogo de pasta e salva a escolha. null se cancelado. */

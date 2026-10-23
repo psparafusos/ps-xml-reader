@@ -1194,7 +1194,7 @@ function carregar(arquivo: ArquivoAberto): void {
       lido.ordem && criterioValido(lido.ordem.criterio)
         ? lido.ordem
         : ORDEM_NOTA;
-    document.title = 'Leitor NF-e PS';
+    document.title = 'PS Reader';
     if (lido.copiaEditada) mostrarConferencia();
     else mostrarEscolha(arquivo, lido);
   } catch (erro) {
@@ -1207,7 +1207,7 @@ function carregar(arquivo: ArquivoAberto): void {
     anotacoes.clear();
     marcarGravadas();
     notaEl.replaceChildren();
-    document.title = 'Leitor NF-e PS';
+    document.title = 'PS Reader';
     mostrarTela('vazio');
     if (erro instanceof NaoEhNfeError) {
       mostrarMensagem(erro.message, 'erro');
@@ -1300,6 +1300,7 @@ function marcarGeradoEm(): void {
  * O Salvar mostra "Salvando..." enquanto grava.
  */
 function bloquearAcoes(bloquear: boolean, salvando = false): void {
+  acoesBloqueadas = bloquear;
   for (const b of [
     btnSalvar,
     btnImprimir,
@@ -1311,6 +1312,7 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
     b.disabled = bloquear;
   }
   btnSalvarTexto.textContent = bloquear && salvando ? 'Salvando...' : 'Salvar';
+  if (!bloquear) retomarExterno();
 }
 
 /** Salva conforme o modo: conferência (PDF e cópia) ou DANFE (só o PDF). */
@@ -1421,6 +1423,7 @@ async function salvarPrevia(destino: ModoImpressao): Promise<void> {
   ];
   const desabilitadosAntes = botoes.map((b) => b.disabled);
   for (const b of botoes) b.disabled = true;
+  acoesBloqueadas = true;
   const textoBotao =
     destino === 'danfe'
       ? btnSalvarPreviaDanfe.querySelector('.modo__salvar-texto')
@@ -1472,7 +1475,50 @@ async function salvarPrevia(destino: ModoImpressao): Promise<void> {
       b.disabled = desabilitadosAntes[i];
     });
     if (textoBotao) textoBotao.textContent = textoAntes;
+    acoesBloqueadas = false;
+    retomarExterno();
   }
+}
+
+// ---------- arquivo vindo de fora (duplo clique num .psxml) ----------
+
+/** true enquanto salva ou imprime: o arquivo de fora espera terminar. */
+let acoesBloqueadas = false;
+/** Pergunta de anotações (ou leitura) em andamento para um arquivo de fora. */
+let abrindoExterno = false;
+/** Chegou arquivo de fora enquanto as ações estavam bloqueadas ou abrindo. */
+let externoAguardando = false;
+
+/**
+ * Abre o arquivo pedido de fora no fluxo normal (carregar: .psxml vai direto
+ * para a conferência). Com anotação não salva, faz a pergunta de sempre;
+ * Cancelar deixa a nota como está. O processo principal guarda só o último
+ * pedido.
+ */
+async function abrirExterno(): Promise<void> {
+  if (acoesBloqueadas || abrindoExterno) {
+    externoAguardando = true;
+    return;
+  }
+  abrindoExterno = true;
+  try {
+    if (!(await podeSair())) return;
+    const arquivo = await window.psApi.abrirExterno();
+    if (arquivo !== null) carregar(arquivo);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
+    console.error(erro);
+  } finally {
+    abrindoExterno = false;
+    retomarExterno();
+  }
+}
+
+/** Abre o arquivo de fora que chegou enquanto não dava. */
+function retomarExterno(): void {
+  if (!externoAguardando || acoesBloqueadas || abrindoExterno) return;
+  externoAguardando = false;
+  void abrirExterno();
 }
 
 /**
@@ -1536,7 +1582,7 @@ async function irParaInicio(): Promise<void> {
   anotacoes.clear();
   marcarGravadas();
   esconderMensagem();
-  document.title = 'Leitor NF-e PS';
+  document.title = 'PS Reader';
   mostrarTela('vazio');
 }
 
@@ -1707,6 +1753,10 @@ window.psApi.aoPedirFechar(() => {
 });
 // Uma página recarregada começa sem pendências.
 window.psApi.informarPendentes(false);
+// Duplo clique num .psxml: com o app fechado, o arquivo vem na abertura; com
+// ele aberto, chega o aviso e a janela existente abre o arquivo.
+window.psApi.aoArquivoExterno(() => void abrirExterno());
+void abrirExterno();
 for (const b of botoesPasta) {
   b.addEventListener('click', () => void escolherPasta());
 }

@@ -18,6 +18,11 @@ const config: ForgeConfig = {
       // Sem espaço: o Squirrel quebra com espaço no nome.
       name: 'PSXmlReader',
       setupIcon: './assets/ps-reader.ico',
+      // Ícone em Configurações > Aplicativos. O Update.exe baixa este endereço
+      // só na instalação e só se ainda não existe app.ico na raiz; sem internet
+      // ele registra o erro e segue (o app em si continua sem rede).
+      iconUrl:
+        'https://raw.githubusercontent.com/psparafusos/ps-xml-reader/main/assets/ps-reader.ico',
     }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),
