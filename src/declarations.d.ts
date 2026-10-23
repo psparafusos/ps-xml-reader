@@ -74,6 +74,11 @@ interface PsApi {
    * o nome do arquivo aberto.
    */
   salvar(textoCopia: string, base: string | null): Promise<ResultadoSalvar>;
+  /**
+   * Grava só <base>_Conferencia.pdf (da tela atual, sem a cópia editada) na
+   * pasta de destino.
+   */
+  salvarPdfConferencia(base: string | null): Promise<ResultadoSalvarDanfe>;
   /** Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de destino. */
   salvarDanfe(base: string | null): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */

@@ -277,26 +277,58 @@
         </header>
         <h2 class="modo__titulo">Como deseja abrir a nota?</h2>
         <div class="modo__opcoes">
-          <button id="btn-conferencia" type="button" class="botao modo__opcao">
-            <span
-              id="mini-conferencia"
-              class="modo__miniatura"
-              aria-hidden="true"
-            ></span>
-            <span class="modo__nome">Conferência</span>
-            <span class="modo__descricao">Itens, totais e anotações</span>
-          </button>
-          <button id="btn-danfe" type="button" class="botao modo__opcao">
-            <span
-              id="mini-danfe"
-              class="modo__miniatura"
-              aria-hidden="true"
-            ></span>
-            <span class="modo__nome">DANFE</span>
-            <span id="danfe-descricao" class="modo__descricao"
-              >Documento auxiliar, A4 retrato</span
+          <div class="modo__item">
+            <button
+              id="btn-conferencia"
+              type="button"
+              class="botao modo__opcao"
             >
-          </button>
+              <span
+                id="mini-conferencia"
+                class="modo__miniatura"
+                aria-hidden="true"
+              ></span>
+              <span class="modo__nome">Conferência</span>
+              <span class="modo__descricao">Itens, totais e anotações</span>
+            </button>
+            <button
+              id="btn-salvar-previa-conferencia"
+              type="button"
+              class="botao botao--claro modo__salvar"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v11" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M5 20h14" />
+              </svg>
+              <span class="modo__salvar-texto">Salvar PDF</span>
+            </button>
+          </div>
+          <div class="modo__item">
+            <button id="btn-danfe" type="button" class="botao modo__opcao">
+              <span
+                id="mini-danfe"
+                class="modo__miniatura"
+                aria-hidden="true"
+              ></span>
+              <span class="modo__nome">DANFE</span>
+              <span id="danfe-descricao" class="modo__descricao"
+                >Documento auxiliar, A4 retrato</span
+              >
+            </button>
+            <button
+              id="btn-salvar-previa-danfe"
+              type="button"
+              class="botao botao--claro modo__salvar"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v11" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M5 20h14" />
+              </svg>
+              <span class="modo__salvar-texto">Salvar PDF</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>

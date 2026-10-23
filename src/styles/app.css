@@ -336,7 +336,11 @@ ul {
 
 /* As duas opções com a mesma largura: a da miniatura mais o respiro (o texto
    do motivo, quando o DANFE não é suportado, quebra em linhas). */
-.modo__opcao {
+.modo__item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--esp-2);
   width: max(
     var(--largura-modo-opcao),
     calc(
@@ -345,6 +349,17 @@ ul {
     )
   );
   max-width: 100%;
+}
+
+/* "Salvar PDF" embaixo da miniatura, fora do botão da opção (botão dentro de
+   botão não vale). */
+.modo__salvar {
+  justify-content: center;
+}
+
+.modo__opcao {
+  width: 100%;
+  flex: 1 1 auto;
   flex-direction: column;
   justify-content: center;
   gap: var(--esp-2);
@@ -1104,4 +1119,16 @@ ul {
 
 .rodape-pdf {
   display: none;
+}
+
+/* PDF gerado pela tela de escolha: o documento do modo é montado aqui, fora da
+   área visível, e só aparece na mídia print (print.css). */
+body.pdf-previa #nota,
+body.pdf-previa #danfe {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
 }

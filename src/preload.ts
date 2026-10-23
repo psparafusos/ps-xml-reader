@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('abrir-pasta-destino'),
   salvar: (textoCopia: string, base: string | null): Promise<ResultadoSalvar> =>
     ipcRenderer.invoke('salvar', textoCopia, base),
+  salvarPdfConferencia: (base: string | null): Promise<ResultadoSalvarDanfe> =>
+    ipcRenderer.invoke('salvar-pdf-conferencia', base),
   salvarDanfe: (base: string | null): Promise<ResultadoSalvarDanfe> =>
     ipcRenderer.invoke('salvar-danfe', base),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),

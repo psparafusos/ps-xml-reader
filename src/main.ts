@@ -630,6 +630,27 @@ async function gravarSaidas(
   }
 }
 
+/** Opções do PDF da conferência: A4 retrato com margem de 10 mm. */
+const PDF_CONFERENCIA: Electron.PrintToPDFOptions = {
+  pageSize: 'A4',
+  landscape: false,
+  printBackground: true,
+  margins: {
+    top: MARGEM_PDF,
+    bottom: MARGEM_PDF,
+    left: MARGEM_PDF,
+    right: MARGEM_PDF,
+  },
+};
+
+/** Opções do PDF do DANFE: as margens são do próprio layout (folha de 210 x 297 mm). */
+const PDF_DANFE: Electron.PrintToPDFOptions = {
+  pageSize: 'A4',
+  landscape: false,
+  printBackground: true,
+  margins: { top: 0, bottom: 0, left: 0, right: 0 },
+};
+
 ipcMain.handle(
   'salvar',
   async (
@@ -648,17 +669,7 @@ ipcMain.handle(
       },
       {
         destino: path.join(pasta, `${b}_Conferencia.pdf`),
-        pdf: {
-          pageSize: 'A4',
-          landscape: false,
-          printBackground: true,
-          margins: {
-            top: MARGEM_PDF,
-            bottom: MARGEM_PDF,
-            left: MARGEM_PDF,
-            right: MARGEM_PDF,
-          },
-        },
+        pdf: PDF_CONFERENCIA,
       },
     ]);
     if (r.status !== 'salvo') return r;
@@ -666,20 +677,30 @@ ipcMain.handle(
   },
 );
 
-// DANFE: só o PDF. As margens são do próprio layout (cada folha é um bloco de
-// 210 x 297 mm), então o Electron imprime sem margem.
+// Conferência pela tela de escolha: só o PDF, com as mesmas opções de salvar
+// dentro do modo (não há cópia editada para guardar ainda).
+ipcMain.handle(
+  'salvar-pdf-conferencia',
+  async (event, base: unknown): Promise<ResultadoSalvarDanfe> => {
+    const r = await gravarSaidas(event, base, (pasta, b) => [
+      {
+        destino: path.join(pasta, `${b}_Conferencia.pdf`),
+        pdf: PDF_CONFERENCIA,
+      },
+    ]);
+    if (r.status !== 'salvo') return r;
+    return { status: 'salvo', pdf: r.destinos[0] };
+  },
+);
+
+// DANFE: só o PDF (PDF_DANFE: o Electron imprime sem margem).
 ipcMain.handle(
   'salvar-danfe',
   async (event, base: unknown): Promise<ResultadoSalvarDanfe> => {
     const r = await gravarSaidas(event, base, (pasta, b) => [
       {
         destino: path.join(pasta, `${b}_DANFE.pdf`),
-        pdf: {
-          pageSize: 'A4',
-          landscape: false,
-          printBackground: true,
-          margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        },
+        pdf: PDF_DANFE,
       },
     ]);
     if (r.status !== 'salvo') return r;
