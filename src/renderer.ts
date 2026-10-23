@@ -728,6 +728,10 @@ const btnAbrir = $('btn-abrir') as HTMLButtonElement;
 const btnAbrirOutro = $('btn-abrir-outro') as HTMLButtonElement;
 const btnConferencia = $('btn-conferencia') as HTMLButtonElement;
 const btnDanfe = $('btn-danfe') as HTMLButtonElement;
+const btnSalvarPreviaConferencia = $(
+  'btn-salvar-previa-conferencia',
+) as HTMLButtonElement;
+const btnSalvarPreviaDanfe = $('btn-salvar-previa-danfe') as HTMLButtonElement;
 const btnInicio = $('btn-inicio') as HTMLButtonElement;
 const btnModoConferencia = $('btn-modo-conferencia') as HTMLButtonElement;
 const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
@@ -1149,6 +1153,7 @@ function mostrarEscolha(arquivo: ArquivoAberto, lido: ArquivoLido): void {
   delete miniDanfe.dataset.largura;
   const { dados, motivo } = lerDadosDanfe(arquivo.texto);
   btnDanfe.disabled = dados === null;
+  btnSalvarPreviaDanfe.disabled = dados === null;
   miniDanfe.hidden = dados === null;
   danfeDescricao.textContent = motivo ?? 'Documento auxiliar, A4 retrato';
 
@@ -1385,6 +1390,92 @@ async function salvarConferencia(): Promise<boolean> {
 }
 
 /**
+ * "Salvar PDF" da tela de escolha: grava só o PDF do modo, sem entrar nele.
+ * O documento é montado em #nota ou #danfe, que o CSS da classe pdf-previa
+ * deixa fora da área visível na tela e põe no fluxo normal só na mídia print,
+ * onde o printToPDF o lê. É o mesmo código, o mesmo CSS e as mesmas opções de
+ * PDF de quando se entra no modo e salva, e a tela de escolha não pisca.
+ * Termina desmontando o documento: a escolha fica como estava.
+ */
+async function salvarPrevia(destino: ModoImpressao): Promise<void> {
+  if (!aberto || aberto.lido.copiaEditada || modo.hidden) return;
+  const n = aberto.lido.nota;
+  let dadosDanfe: DadosDanfe | null = null;
+  if (destino === 'danfe') {
+    const lido = lerDadosDanfe(aberto.texto);
+    if (!lido.dados) {
+      mostrarMensagem(lido.motivo, 'erro');
+      return;
+    }
+    dadosDanfe = lido.dados;
+  }
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return;
+
+  const modoAnterior = document.body.dataset.modo;
+  const botoes = [
+    btnConferencia,
+    btnDanfe,
+    btnSalvarPreviaConferencia,
+    btnSalvarPreviaDanfe,
+  ];
+  const desabilitadosAntes = botoes.map((b) => b.disabled);
+  for (const b of botoes) b.disabled = true;
+  const textoBotao =
+    destino === 'danfe'
+      ? btnSalvarPreviaDanfe.querySelector('.modo__salvar-texto')
+      : btnSalvarPreviaConferencia.querySelector('.modo__salvar-texto');
+  const textoAntes = textoBotao?.textContent ?? '';
+  if (textoBotao) textoBotao.textContent = 'Salvando...';
+
+  const area = destino === 'danfe' ? danfeEl : notaEl;
+  try {
+    document.body.classList.add('pdf-previa');
+    document.body.dataset.modo = destino;
+    marcarGeradoEm();
+    rodapeCopia.hidden = true;
+    if (destino === 'danfe' && dadosDanfe) {
+      area.hidden = false;
+      // Paginado sempre em 100%, como ao entrar no DANFE.
+      area.style.zoom = '1';
+      montarDanfe(area, dadosDanfe);
+    } else {
+      area.replaceChildren(...conteudoNota(n));
+      conferenciaMontada = true;
+      aplicarOrdem();
+      area.hidden = false;
+    }
+    const nome = nomeBaseArquivo(n);
+    const r =
+      destino === 'danfe'
+        ? await window.psApi.salvarDanfe(nome)
+        : await window.psApi.salvarPdfConferencia(nome);
+    if (r.status === 'salvo')
+      mostrarSucesso('Salvo', { nome: nomeDoCaminho(r.pdf) });
+    else if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+  } catch (erro) {
+    mostrarMensagem('Não foi possível salvar.', 'erro');
+    console.error(erro);
+  } finally {
+    area.hidden = true;
+    area.replaceChildren();
+    conferenciaMontada = false;
+    danfeMontado = false;
+    tabelaItensEl = null;
+    corposItens.clear();
+    document.body.classList.remove('pdf-previa');
+    if (modoAnterior === undefined) delete document.body.dataset.modo;
+    else document.body.dataset.modo = modoAnterior;
+    aplicarZoom();
+    marcarGeradoEm();
+    botoes.forEach((b, i) => {
+      b.disabled = desabilitadosAntes[i];
+    });
+    if (textoBotao) textoBotao.textContent = textoAntes;
+  }
+}
+
+/**
  * Antes de sair da nota (abrir outro arquivo ou fechar a janela): com
  * anotações alteradas, pergunta Salvar, Descartar ou Cancelar. true = pode
  * seguir; false = fica onde está, com as anotações intactas.
@@ -1601,6 +1692,14 @@ document.addEventListener('mousedown', (e) => {
 window.addEventListener('contextmenu', (e) => void menuContexto(e));
 btnImprimir.addEventListener('click', () => void imprimir());
 btnSalvar.addEventListener('click', () => void salvar());
+btnSalvarPreviaConferencia.addEventListener(
+  'click',
+  () => void salvarPrevia('conferencia'),
+);
+btnSalvarPreviaDanfe.addEventListener(
+  'click',
+  () => void salvarPrevia('danfe'),
+);
 window.psApi.aoPedirFechar(() => {
   void podeSair().then((pode) => {
     if (pode) return window.psApi.fecharJanela();

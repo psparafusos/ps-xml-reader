@@ -31,6 +31,15 @@
     zoom: 1 !important;
   }
 
+  /* PDF gerado pela tela de escolha: o documento fica fora da tela e volta ao
+     fluxo normal só no papel. */
+  body.pdf-previa #nota,
+  body.pdf-previa #danfe {
+    position: static;
+    width: auto;
+    visibility: visible;
+  }
+
   /* No papel só a seta da coluna ordenada, sem a caixa preta. */
   .tabela--itens th[data-ordenavel]::after {
     content: none;
