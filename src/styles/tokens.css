@@ -120,6 +120,8 @@
   --aviso-sucesso-texto: var(--ps-branco);
   --aviso-erro-fundo: #b42318;
   --aviso-erro-texto: var(--ps-branco);
+  --aviso-info-fundo: var(--ps-preto);
+  --aviso-info-texto: var(--ps-branco);
   --aviso-duracao: 1500ms;
   --sombra-aviso: 0 6px 24px rgb(0 0 0 / 0.25);
   --largura-menu: 300px;

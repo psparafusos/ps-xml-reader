@@ -17,6 +17,22 @@ type ResultadoSalvarDanfe =
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
+/**
+ * Arquivo pedido de fora (duplo clique). `pastaSessao`: a pasta do .psxml
+ * aberto assim, que passou a ser a pasta de destino só desta sessão; null se
+ * esta abertura não mudou a pasta.
+ */
+type ArquivoExterno = ArquivoAberto & { pastaSessao: string | null };
+
+/**
+ * Pasta onde o Salvar grava. `sessao`: true se é a pasta de um .psxml aberto
+ * por duplo clique, que vale só até o app fechar e não fica salva.
+ */
+interface PastaDestino {
+  caminho: string | null;
+  sessao: boolean;
+}
+
 type ResultadoAbrirPasta =
   | { status: 'aberta' }
   | { status: 'erro'; mensagem: string };
@@ -66,11 +82,14 @@ interface PsApi {
    * Lê o arquivo pedido de fora (duplo clique num .psxml, linha de comando),
    * ou null se não há. Chamar só depois de perguntar sobre anotações.
    */
-  abrirExterno(): Promise<ArquivoAberto | null>;
+  abrirExterno(): Promise<ArquivoExterno | null>;
   /** Chamado quando chega um arquivo de fora com o app já aberto. */
   aoArquivoExterno(callback: () => void): void;
-  /** Pasta de destino salva na configuração, ou null. */
-  pastaDestino(): Promise<string | null>;
+  /**
+   * Pasta onde o Salvar grava: a desta sessão (duplo clique num .psxml) ou a
+   * salva na configuração.
+   */
+  pastaDestino(): Promise<PastaDestino>;
   /** Abre o diálogo de pasta e salva a escolha. null se cancelado. */
   escolherPasta(): Promise<string | null>;
   /** Abre a pasta de destino no Explorer (erro se ela não existe mais). */

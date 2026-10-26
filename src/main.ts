@@ -36,7 +36,13 @@ if (started) {
   app.quit();
 }
 
-app.setAppUserModelId('com.squirrel.PSXmlReader.PSXmlReader');
+// O mesmo AUMID que o Squirrel grava nos atalhos, para a barra de tarefas
+// juntar o atalho fixado e a janela aberta: com.squirrel.<id>.<exe>, com o id
+// do pacote (name do MakerSquirrel, PSXmlReader) e o nome do executável sem
+// .exe, os dois sem espaços. "PS Reader.exe" vira com.squirrel.PSXmlReader.PSReader.
+app.setAppUserModelId(
+  `com.squirrel.PSXmlReader.${path.basename(process.execPath, '.exe').replace(/ /g, '')}`,
+);
 
 // ---------- arquivo passado na linha de comando (duplo clique) ----------
 
@@ -352,13 +358,26 @@ ipcMain.handle(
   },
 );
 
+/**
+ * Pasta de destino só desta sessão: a de um .psxml aberto por duplo clique no
+ * Explorer (linha de comando ou second-instance). Fica só em memória, nunca vai
+ * para o config.json, e some ao fechar o app ou ao escolher uma pasta no botão.
+ */
+let pastaSessao: string | null = null;
+
 // Duplo clique num .psxml (ou .xml passado na linha de comando): o renderer
 // pede o arquivo na abertura e depois de cada aviso 'arquivo-externo', já
 // tendo perguntado sobre anotações não salvas. null se não há arquivo pedido.
-ipcMain.handle('abrir-externo', async (): Promise<ArquivoAberto | null> => {
+// Uma cópia editada aberta assim faz da pasta dela a pasta desta sessão.
+ipcMain.handle('abrir-externo', async (): Promise<ArquivoExterno | null> => {
   const caminho = arquivoExterno;
   arquivoExterno = null;
-  return caminho ? lerArquivoAberto(caminho) : null;
+  if (!caminho) return null;
+  const arquivo = await lerArquivoAberto(caminho);
+  const copia =
+    abertoEhCopia && path.extname(caminho).toLowerCase() === EXTENSAO;
+  if (copia) pastaSessao = path.dirname(caminho);
+  return { ...arquivo, pastaSessao: copia ? pastaSessao : null };
 });
 
 // ---------- config.json em userData (pasta de destino, última pasta, janela) ----------
@@ -436,24 +455,56 @@ async function ehPasta(caminho: string): Promise<boolean> {
   }
 }
 
-const pastaSumiu = (pasta: string) =>
-  `A pasta de destino não existe mais: ${pasta}. Escolha outra.`;
+/**
+ * Pasta onde o Salvar grava, a mesma que o botão mostra: a desta sessão, se
+ * houver, senão a pasta salva no config.json.
+ */
+async function pastaEfetiva(): Promise<PastaDestino> {
+  if (pastaSessao) return { caminho: pastaSessao, sessao: true };
+  return { caminho: await lerPastaDestino(), sessao: false };
+}
 
-ipcMain.handle(
-  'pasta-destino',
-  (): Promise<string | null> => lerPastaDestino(),
-);
+const pastaSumiu = ({ caminho, sessao }: PastaDestino) =>
+  sessao
+    ? `A pasta do arquivo aberto não existe mais: ${caminho}. Escolha outra pasta de destino.`
+    : `A pasta de destino não existe mais: ${caminho}. Escolha outra.`;
+
+/** Limite do caminho nas mensagens (o fim do caminho fica sempre inteiro). */
+const LIMITE_CAMINHO_MENSAGEM = 60;
+
+/**
+ * Caminho encurtado no meio para as mensagens: o disco no começo e as últimas
+ * pastas inteiras no fim ("H:\…\notas\testes").
+ */
+function encurtarCaminho(caminho: string): string {
+  if (caminho.length <= LIMITE_CAMINHO_MENSAGEM) return caminho;
+  const partes = caminho.split(/[\\/]/).filter((p) => p !== '');
+  let fim = partes[partes.length - 1] ?? '';
+  for (let i = partes.length - 2; i > 0; i--) {
+    const maior = `${partes[i]}\\${fim}`;
+    if (partes[0].length + 3 + maior.length > LIMITE_CAMINHO_MENSAGEM) break;
+    fim = maior;
+  }
+  return `${partes[0]}\\…\\${fim}`;
+}
+
+/** true se as duas pastas são a mesma (sem diferenciar maiúsculas). */
+const mesmaPasta = (a: string, b: string) =>
+  path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+
+ipcMain.handle('pasta-destino', (): Promise<PastaDestino> => pastaEfetiva());
 
 // Abre a pasta de destino no Explorer. shell.openPath devolve "" quando abre e
 // a mensagem de erro quando não abre.
 ipcMain.handle(
   'abrir-pasta-destino',
   async (): Promise<ResultadoAbrirPasta> => {
-    const pasta = await lerPastaDestino();
+    const efetiva = await pastaEfetiva();
+    const pasta = efetiva.caminho;
     if (!pasta)
       return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
     if (!(await ehPasta(pasta)))
-      return { status: 'erro', mensagem: pastaSumiu(pasta) };
+      return { status: 'erro', mensagem: pastaSumiu(efetiva) };
     const erro = await shell.openPath(pasta);
     return erro
       ? { status: 'erro', mensagem: `Não foi possível abrir a pasta: ${erro}` }
@@ -463,7 +514,7 @@ ipcMain.handle(
 
 ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
   const janela = BrowserWindow.fromWebContents(event.sender);
-  const atual = await lerPastaDestino();
+  const atual = (await pastaEfetiva()).caminho;
   const opcoes: Electron.OpenDialogOptions = {
     title: 'Pasta de destino',
     buttonLabel: 'Escolher pasta',
@@ -475,8 +526,10 @@ ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
     : await dialog.showOpenDialog(opcoes);
   if (canceled || filePaths.length === 0) return null;
 
+  // A escolha no botão vence: vira a pasta salva e a desta sessão deixa de valer.
   const pasta = filePaths[0];
   await gravarConfig({ pastaDestino: pasta });
+  pastaSessao = null;
   return pasta;
 });
 
@@ -583,10 +636,11 @@ type Saida =
   | { destino: string; pdf: Electron.PrintToPDFOptions };
 
 /**
- * Grava as saídas na pasta de destino, com as mesmas regras para o modo
- * Conferência e o DANFE: recusa gravar sobre a NF-e original aberta, pergunta
- * antes de substituir e grava primeiro em temporários (gravação segura).
- * `nomes(base)` monta os caminhos a partir do nome base (ver nomeBase).
+ * Grava as saídas na pasta de destino que o botão mostra (pastaEfetiva), com
+ * as mesmas regras para o modo Conferência e o DANFE: recusa gravar sobre a
+ * NF-e original aberta, pergunta antes de substituir e grava primeiro em
+ * temporários (gravação segura). `nomes(base)` monta os caminhos a partir do
+ * nome base (ver nomeBase).
  */
 async function gravarSaidas(
   event: Electron.IpcMainInvokeEvent,
@@ -603,12 +657,13 @@ async function gravarSaidas(
     return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
   }
 
-  const pasta = await lerPastaDestino();
+  const efetiva = await pastaEfetiva();
+  const pasta = efetiva.caminho;
   if (!pasta) {
     return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
   }
   if (!(await ehPasta(pasta))) {
-    return { status: 'erro', mensagem: pastaSumiu(pasta) };
+    return { status: 'erro', mensagem: pastaSumiu(efetiva) };
   }
 
   const saidas = nomes(pasta, nomeBase(baseDoRenderer, arquivoAberto));
@@ -634,13 +689,15 @@ async function gravarSaidas(
     if (await existe(destino)) existentes.push(path.basename(destino));
   }
   if (existentes.length > 0) {
+    // A pasta real, encurtada no meio, com o fim inteiro.
+    const onde = `em ${encurtarCaminho(pasta)}`;
     const { response } = await dialog.showMessageBox(janela, {
       type: 'question',
       title: 'Substituir arquivos',
       message:
         existentes.length === 1
-          ? `O arquivo ${existentes[0]} já existe na pasta de destino. Deseja substituir?`
-          : `Os arquivos ${existentes.join(' e ')} já existem na pasta de destino. Deseja substituir?`,
+          ? `O arquivo ${existentes[0]} já existe ${onde}. Deseja substituir?`
+          : `Os arquivos ${existentes.join(' e ')} já existem ${onde}. Deseja substituir?`,
       buttons: ['Substituir', 'Cancelar'],
       defaultId: 1,
       cancelId: 1,
@@ -738,10 +795,18 @@ ipcMain.handle(
     if (typeof textoCopia !== 'string' || textoCopia === '') {
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
     }
-    // A cópia é gravada antes do PDF, como antes.
+    // Tudo vai para a pasta de destino que o botão mostra. Cópia editada
+    // aberta que está nessa mesma pasta: grava por cima dela (com a pergunta
+    // de substituir). Em outra pasta, ou NF-e original: um .psxml novo com o
+    // nome padrão, e o arquivo aberto fica como está. A cópia é gravada antes
+    // do PDF, como antes.
+    const copiaAberta = abertoEhCopia ? arquivoAberto : null;
     const r = await gravarSaidas(event, base, (pasta, b) => [
       {
-        destino: path.join(pasta, `${b}_Conferencia.psxml`),
+        destino:
+          copiaAberta && mesmaPasta(path.dirname(copiaAberta), pasta)
+            ? copiaAberta
+            : path.join(pasta, `${b}_Conferencia.psxml`),
         texto: textoCopia,
       },
       {

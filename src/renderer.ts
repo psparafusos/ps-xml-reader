@@ -743,6 +743,7 @@ const avisoTexto = $('aviso-texto');
 const avisoArquivo = $('aviso-arquivo');
 const avisoNome = $('aviso-nome');
 const avisoTipos = $('aviso-tipos');
+const avisoPasta = $('aviso-pasta');
 const btnZoom = $('btn-zoom') as HTMLButtonElement;
 const btnZoomValor = $('btn-zoom-valor');
 const botoesPasta = [
@@ -758,8 +759,11 @@ const botoesAbrirPasta = [
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
 let pastaDestino: string | null = null;
 
-/** Erro: aviso vermelho fixo na janela, que fica até a pessoa fechar. */
-function mostrarMensagem(texto: string, tipo: 'erro'): void {
+/**
+ * Aviso fixo na janela, que fica até a pessoa fechar: erro em vermelho,
+ * informação (por exemplo a pasta desta sessão) em escuro.
+ */
+function mostrarMensagem(texto: string, tipo: 'erro' | 'info'): void {
   mensagemTexto.textContent = texto;
   mensagem.dataset.tipo = tipo;
   mensagem.hidden = false;
@@ -767,19 +771,22 @@ function mostrarMensagem(texto: string, tipo: 'erro'): void {
 
 let temporizadorAviso: number | undefined;
 
-/** Duração dos avisos de sucesso: cópia, e salvo (que tem o nome para ler). */
+/**
+ * Duração dos avisos de sucesso: cópia, e salvo (que tem o nome e a pasta
+ * para ler).
+ */
 const DURACAO_AVISO_MS = 1500;
-const DURACAO_AVISO_SALVO_MS = 2500;
+const DURACAO_AVISO_SALVO_MS = 3500;
 
 /**
  * Sucesso: aviso pequeno no centro da janela ("Salvo", "Copiado"...), que some
  * sozinho. Fica numa região aria-live, então o leitor de tela anuncia o texto.
  * Não pega cliques (pointer-events: none no CSS). `arquivo`: nome do arquivo
- * salvo, numa linha acima, e os tipos gravados em letra menor.
+ * salvo, numa linha acima, e em letra menor os tipos gravados e a pasta.
  */
 function mostrarSucesso(
   texto: string,
-  arquivo?: { nome: string; tipos?: string },
+  arquivo?: { nome: string; tipos?: string; pasta?: string },
 ): void {
   window.clearTimeout(temporizadorAviso);
   aviso.hidden = true;
@@ -789,6 +796,11 @@ function mostrarSucesso(
   avisoNome.title = arquivo?.nome ?? '';
   avisoTipos.textContent = arquivo?.tipos ?? '';
   avisoTipos.hidden = !arquivo?.tipos;
+  avisoPasta.textContent = arquivo?.pasta
+    ? `em ${abreviarCaminho(arquivo.pasta)}`
+    : '';
+  avisoPasta.title = arquivo?.pasta ?? '';
+  avisoPasta.hidden = !arquivo?.pasta;
   const duracao = arquivo ? DURACAO_AVISO_SALVO_MS : DURACAO_AVISO_MS;
   aviso.style.setProperty('--aviso-duracao', `${duracao}ms`);
   // Reinicia a animação mesmo com dois avisos seguidos.
@@ -812,6 +824,10 @@ function encurtarNoMeio(nome: string): string {
 
 /** Último trecho de um caminho do Windows. */
 const nomeDoCaminho = (caminho: string) => caminho.split(/[\\/]/).pop() ?? '';
+
+/** Pasta de um caminho do Windows (tudo antes do último trecho). */
+const pastaDoCaminho = (caminho: string) =>
+  caminho.replace(/[\\/][^\\/]*$/, '');
 
 function esconderMensagem(): void {
   mensagem.hidden = true;
@@ -1244,7 +1260,12 @@ function abreviarCaminho(caminho: string): string {
   return `…${caminho.slice(-(LIMITE_CAMINHO - 1))}`;
 }
 
-function atualizarPasta(caminho: string | null): void {
+/**
+ * Mostra no botão a pasta onde o Salvar grava. `sessao`: é a pasta de um
+ * .psxml aberto por duplo clique, só até fechar o app; o botão leva a marca
+ * "só nesta sessão".
+ */
+function atualizarPasta(caminho: string | null, sessao = false): void {
   pastaDestino = caminho;
   for (const b of botoesPasta) {
     const rotulo = b.querySelector('.botao__caminho');
@@ -1253,7 +1274,12 @@ function atualizarPasta(caminho: string | null): void {
         ? abreviarCaminho(caminho)
         : 'Nenhuma pasta escolhida';
     }
-    b.title = caminho ?? '';
+    const marca = b.querySelector<HTMLElement>('.botao__sessao');
+    if (marca) marca.hidden = !(caminho && sessao);
+    b.title =
+      caminho && sessao
+        ? `${caminho}\nSó nesta sessão: a pasta do arquivo aberto. A pasta salva volta quando você fechar o app.`
+        : (caminho ?? '');
   }
   for (const b of botoesAbrirPasta) {
     b.disabled = !caminho;
@@ -1278,7 +1304,11 @@ async function abrirPastaDestino(): Promise<void> {
 async function escolherPasta(): Promise<string | null> {
   try {
     const pasta = await window.psApi.escolherPasta();
-    if (pasta !== null) atualizarPasta(pasta);
+    if (pasta !== null) {
+      // A escolha vira a pasta salva: a desta sessão (e o aviso dela) acabou.
+      atualizarPasta(pasta);
+      if (mensagem.dataset.tipo === 'info') esconderMensagem();
+    }
     return pasta;
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar a pasta de destino.', 'erro');
@@ -1329,7 +1359,10 @@ async function salvarDanfe(): Promise<boolean> {
   try {
     const r = await window.psApi.salvarDanfe(nomeBaseArquivo(aberto.lido.nota));
     if (r.status === 'salvo') {
-      mostrarSucesso('Salvo', { nome: nomeDoCaminho(r.pdf) });
+      mostrarSucesso('Salvo', {
+        nome: nomeDoCaminho(r.pdf),
+        pasta: pastaDoCaminho(r.pdf),
+      });
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -1343,7 +1376,11 @@ async function salvarDanfe(): Promise<boolean> {
   }
 }
 
-/** Salva PDF e cópia editada. true se gravou. */
+/**
+ * Salva PDF e cópia editada na pasta de destino do botão. true se gravou. Uma
+ * cópia editada aberta nessa mesma pasta é substituída (com a pergunta); em
+ * outra pasta, o processo principal cria uma cópia nova com o nome padrão.
+ */
 async function salvarConferencia(): Promise<boolean> {
   if (!aberto) return false;
   esconderMensagem();
@@ -1373,11 +1410,21 @@ async function salvarConferencia(): Promise<boolean> {
       for (const [nItem, texto] of gravadas)
         anotacoesGravadas.set(nItem, texto);
       atualizarPendentes();
-      // PDF e cópia têm o mesmo nome base: mostra o nome uma vez só.
-      mostrarSucesso('Salvo', {
-        nome: nomeDoCaminho(r.pdf).replace(/\.pdf$/i, ''),
-        tipos: 'PDF e PSXML',
-      });
+      // PDF e cópia com o mesmo nome base: mostra o nome uma vez só. Uma cópia
+      // aberta com nome antigo continua com ele: aí vão os dois nomes.
+      const nomePdf = nomeDoCaminho(r.pdf);
+      const nomeCopia = nomeDoCaminho(r.copia);
+      const base = nomePdf.replace(/\.pdf$/i, '');
+      mostrarSucesso(
+        'Salvo',
+        base === nomeCopia.replace(/\.psxml$/i, '')
+          ? { nome: base, tipos: 'PDF e PSXML', pasta: pastaDoCaminho(r.pdf) }
+          : {
+              nome: nomePdf,
+              tipos: `e ${nomeCopia}`,
+              pasta: pastaDoCaminho(r.pdf),
+            },
+      );
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -1454,7 +1501,10 @@ async function salvarPrevia(destino: ModoImpressao): Promise<void> {
         ? await window.psApi.salvarDanfe(nome)
         : await window.psApi.salvarPdfConferencia(nome);
     if (r.status === 'salvo')
-      mostrarSucesso('Salvo', { nome: nomeDoCaminho(r.pdf) });
+      mostrarSucesso('Salvo', {
+        nome: nomeDoCaminho(r.pdf),
+        pasta: pastaDoCaminho(r.pdf),
+      });
     else if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar.', 'erro');
@@ -1504,7 +1554,19 @@ async function abrirExterno(): Promise<void> {
   try {
     if (!(await podeSair())) return;
     const arquivo = await window.psApi.abrirExterno();
-    if (arquivo !== null) carregar(arquivo);
+    if (arquivo === null) return;
+    carregar(arquivo);
+    // .psxml por duplo clique: a pasta dele vale como pasta de destino só até
+    // fechar o app. O botão mostra a marca e o aviso explica (depois de
+    // carregar, que esconde as mensagens).
+    if (arquivo.pastaSessao) {
+      atualizarPasta(arquivo.pastaSessao, true);
+      if (aberto)
+        mostrarMensagem(
+          `Nesta sessão os arquivos serão salvos em ${arquivo.pastaSessao}, a pasta do arquivo aberto. Sua pasta salva volta quando você fechar o app.`,
+          'info',
+        );
+    }
   } catch (erro) {
     mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
     console.error(erro);
@@ -1756,7 +1818,6 @@ window.psApi.informarPendentes(false);
 // Duplo clique num .psxml: com o app fechado, o arquivo vem na abertura; com
 // ele aberto, chega o aviso e a janela existente abre o arquivo.
 window.psApi.aoArquivoExterno(() => void abrirExterno());
-void abrirExterno();
 for (const b of botoesPasta) {
   b.addEventListener('click', () => void escolherPasta());
 }
@@ -1773,13 +1834,16 @@ window.psApi
   })
   .catch((erro: unknown) => console.error(erro));
 
+// Primeiro a pasta salva, depois o arquivo da linha de comando: assim a pasta
+// desta sessão (se o arquivo for um .psxml) não é sobrescrita pela salva.
 window.psApi
   .pastaDestino()
-  .then(atualizarPasta)
+  .then((p) => atualizarPasta(p.caminho, p.sessao))
   .catch((erro: unknown) => {
     atualizarPasta(null);
     console.error(erro);
-  });
+  })
+  .finally(() => void abrirExterno());
 
 // Arrastar e soltar: aceito na janela toda. Sem preventDefault o Electron
 // tentaria abrir o arquivo como página.

@@ -48,6 +48,14 @@ com anotação não salva, aparece antes a pergunta **Salvar**, **Descartar** ou
 **Cancelar**. O `.xml` continua abrindo com o programa de antes; um `.xml`
 passado na linha de comando (`"PS Reader.exe" nota.xml`) também abre.
 
+Um `.psxml` aberto assim (duplo clique, com o app fechado ou aberto) faz da
+pasta dele a pasta de destino só nesta sessão: o botão **Pasta de destino**
+mostra essa pasta com a marca "só nesta sessão", e um aviso explica que a pasta
+salva volta quando o app fechar. Essa pasta fica só na memória e nunca é
+gravada no `config.json`. Escolher uma pasta no botão durante a sessão vence:
+ela vira a pasta salva e a da sessão deixa de valer. Abrir um `.psxml` pelo
+**Abrir arquivo**, pelo **Abrir outro XML** ou arrastando não muda a pasta.
+
 Na tabela de itens da conferência, a coluna **Anotação** recebe um texto livre
 por item.
 
@@ -93,10 +101,11 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
   passar o mouse (e para o leitor de tela): "O DANFE só é gerado a partir do
   XML original."
 - Saída:
-  - **Pasta de destino**: escolhe a pasta onde os arquivos são gravados. O
-    caminho fica em `config.json`, dentro da pasta de dados do app
-    (`%APPDATA%\PS Reader`). Colado nele, **Abrir pasta**, igual ao da
-    tela inicial.
+  - **Pasta de destino**: escolhe a pasta onde os arquivos são gravados e
+    mostra a pasta onde o Salvar vai gravar. O caminho fica em `config.json`
+    (chave `pastaDestino`), dentro da pasta de dados do app
+    (`%APPDATA%\PS Reader`), e vale também depois de reabrir o app. Colado
+    nele, **Abrir pasta**, igual ao da tela inicial.
   - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual. Se a
     impressora padrão for de cupom, avisa antes; Cancelar não abre o diálogo. A
     lista de nomes de impressora de cupom fica em `src/impressoras.ts`: ELGIN,
@@ -105,7 +114,11 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
   - **Salvar**, o único botão principal: na conferência, grava na pasta de
     destino o PDF (A4 retrato) e a cópia editada; no DANFE, só o PDF. Se algum
     arquivo já existir, pergunta antes de substituir. Enquanto grava, mostra
-    "Salvando...".
+    "Salvando...". O Salvar grava sempre na pasta mostrada no botão **Pasta
+    de destino**. Com um `.psxml` aberto que está nessa mesma pasta, grava
+    por cima dele, com a pergunta de substituir; se ele está em outra pasta,
+    cria um `.psxml` novo na pasta do botão, com o nome padrão, e o aberto
+    fica como está.
 
 Os nomes saem dos dados da nota, não do nome do arquivo aberto
 (`src/nfe/nome.ts`):
@@ -123,15 +136,18 @@ DA, DO, DAS, DOS, o E e letras soltas. Fica em maiúsculas, sem acento, só letr
 e números, palavras unidas por hífen, com no máximo 20 caracteres. O número vai
 sem zeros à esquerda; série diferente de 1 acrescenta `-S<série>`
 (`NF2330596-S2`). Nota sem emitente ou sem número usa o nome do arquivo aberto.
-Um `.psxml` com nome no formato antigo abre normalmente e, ao salvar, recebe o
+Um `.psxml` com nome no formato antigo abre normalmente. Se ele está na pasta
+de destino, o Salvar grava por cima dele e ele mantém o nome; o PDF sai com o
 nome novo.
 
 Sucesso aparece como um aviso pequeno no centro da janela, que some sozinho. Ao
-salvar, o aviso tem duas linhas: o nome do arquivo em cima (na conferência, o
-nome base e "PDF e PSXML" em letra menor; nome longo é encurtado no meio com
-reticências) e "Salvo" embaixo, por cerca de 2,5 s. "Copiado" e "Chave copiada"
-continuam em uma linha, por cerca de 1,5 s. Erro aparece em vermelho, fixo na
-janela, até ser fechado.
+salvar, o aviso mostra o nome do arquivo em cima (na conferência, o nome base e
+"PDF e PSXML" em letra menor; nome longo é encurtado no meio com reticências),
+a pasta onde gravou ("em C:\…\Notas") e "Salvo" embaixo, por cerca de 3,5 s. A
+pergunta de substituir também mostra a pasta real, encurtada no meio com o fim
+inteiro. "Copiado" e "Chave copiada" continuam em uma linha, por cerca de
+1,5 s. Erro aparece em vermelho, fixo na janela, até ser fechado; o aviso da
+pasta desta sessão aparece no mesmo lugar, em escuro.
 
 ### Ordenar (modo Conferência)
 
@@ -170,10 +186,11 @@ sempre na ordem do XML.
 
 O app nunca grava em uma NF-e original (raiz `nfeProc` ou `NFe`): qualquer
 gravação cujo destino seja o próprio XML aberto é recusada. Uma cópia editada
-aberta pode ser substituída, sempre com a pergunta de substituir.
+aberta só é substituída quando está na pasta de destino, sempre com a pergunta
+de substituir.
 
-A gravação é segura: os arquivos vão primeiro para temporários na pasta de
-destino e só então substituem os finais. Se algo falhar, os arquivos antigos
+A gravação é segura: os arquivos vão primeiro para temporários na pasta onde
+serão gravados e só então substituem os finais. Se algo falhar, os arquivos antigos
 ficam como estavam e os temporários são apagados.
 
 Se houver anotações alteradas e não salvas, abrir outro arquivo ou fechar a
@@ -229,8 +246,17 @@ Na instalação e em cada atualização, o app associa a extensão `.psxml` (só
 no registro do usuário atual, `HKCU\Software\Classes` (`src/associacao.ts`); a
 desinstalação apaga essas chaves. O comando de abrir e o ícone apontam para o
 executável fixo da raiz, `%LocalAppData%\PSXmlReader\PS Reader.exe`, que não
-muda entre versões. Se o Explorer não mostrar o ícone novo logo, reinicie o
-Explorer ou saia e entre no Windows.
+muda entre versões. Depois de gravar ou apagar as chaves, o app avisa o
+Explorer (SHChangeNotify com SHCNE_ASSOCCHANGED) para atualizar o ícone e o
+nome do tipo. Na instalação e na atualização, o app também apaga os atalhos
+`Leitor NF-e PS.lnk` que sobraram do nome antigo, só no menu Iniciar (pasta
+"PS Parafusos e Segurança LTDA" e raiz de Programas) e na área de trabalho do
+usuário, e só se o atalho aponta para dentro de `%LocalAppData%\PSXmlReader\`.
+Cada instalação, atualização ou desinstalação sobrescreve um log curto em
+`%TEMP%\ps-reader-associacao.log` (evento, resultado de cada chamada ao
+`reg.exe`, saída do aviso ao Explorer, atalhos antigos apagados ou mantidos e
+tempo total). Se o Explorer mesmo
+assim não mostrar o ícone novo, reinicie o Explorer ou saia e entre no Windows.
 
 O ícone em Configurações > Aplicativos vem de `iconUrl` (`forge.config.mts`): o
 instalador baixa `assets/ps-reader.ico` do GitHub na primeira instalação. Sem

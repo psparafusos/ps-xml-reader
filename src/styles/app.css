@@ -137,6 +137,18 @@ ul {
   text-overflow: ellipsis;
 }
 
+/* Marca "só nesta sessão" da pasta de um .psxml aberto por duplo clique. */
+.botao__sessao {
+  align-self: flex-start;
+  padding: 0 var(--esp-1);
+  border-radius: var(--esp-1);
+  background: var(--cor-texto-forte);
+  color: var(--ps-branco);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
+  white-space: nowrap;
+}
+
 .botao--pequeno {
   padding: var(--esp-1) var(--esp-2);
   font-size: var(--fs-sm);
@@ -607,6 +619,18 @@ ul {
   font-weight: var(--peso-medio);
   box-shadow: var(--sombra-aviso);
   overflow-wrap: anywhere;
+}
+
+/* O Fechar não encolhe com texto longo (caminho de pasta inteiro). */
+.mensagem > .botao {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Informação (pasta desta sessão): mesmo lugar do erro, em escuro. */
+.mensagem[data-tipo='info'] {
+  background: var(--aviso-info-fundo);
+  color: var(--aviso-info-texto);
 }
 
 /* Sucesso: pequeno, no centro da janela, some sozinho e não pega cliques. */
