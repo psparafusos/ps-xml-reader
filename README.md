@@ -164,40 +164,98 @@ quando a coluna volta. Uma extra recriada com o mesmo título tem o mesmo id
 (`anotacao-` mais o título sem acento, por exemplo `anotacao-qtd-recebida`) e
 recupera o texto.
 
+### Perfis de configuração
+
+Um perfil guarda as colunas (ordem, visibilidade e largura das anotações), as
+anotações extras, a orientação da folha e o layout dos blocos (reservado para
+os blocos como widgets). Um perfil fica ativo para o app inteiro: trocar de
+perfil muda todas as janelas abertas na hora.
+
+No topo do painel **Editar colunas** aparecem o perfil ativo e um botão para
+cada perfil; clicar num deles passa a usá-lo. Se o painel tem mudanças ainda
+não aplicadas, uma caixa pergunta antes: **Aplicar e trocar** (grava no perfil
+atual), **Descartar e trocar** ou **Cancelar**. Ao lado:
+
+- **Novo**: pede o nome (sugestão "<ativo> (cópia)"); o perfil novo começa
+  igual ao ativo e passa a ser o ativo.
+- **Renomear**: o perfil ativo. Nome obrigatório, de até 40 caracteres, e
+  diferente dos outros (sem contar acento e maiúscula).
+- **Excluir**: o perfil ativo, depois de confirmar; o primeiro da lista passa
+  a ser o ativo. O último perfil nunca pode ser excluído (o botão fica
+  desabilitado).
+
+**Aplicar** grava no perfil ativo e mostra o aviso "Alterações salvas no
+perfil <nome>".
+
 No rodapé do painel:
 
-- **Exportar** grava a configuração aplicada num arquivo único, com o nome
-  sugerido `PS Reader - configuracao.json`, onde você escolher. Pasta de
-  destino, última pasta aberta e tamanho da janela não vão junto (são da
-  máquina).
-- **Importar** lê um arquivo exportado, valida o arquivo inteiro e só então
-  aplica e salva. Arquivo inválido, de outro tipo ou de versão mais nova
-  mostra o motivo no painel e nada muda.
-- **Restaurar padrão** pergunta antes e volta colunas, anotações extras e
-  layout ao padrão.
+- **Exportar** grava o perfil ativo (como está salvo) num arquivo
+  `PS Reader - perfil <nome>.json`, onde você escolher. Pasta de destino,
+  última pasta aberta e tamanho da janela não vão junto (são da máquina).
+- **Importar** lê um arquivo, valida o arquivo inteiro e acrescenta o perfil à
+  lista (o ativo não muda). Se já existe um perfil com esse nome, pergunta:
+  **Substituir** (o perfil com esse nome fica com o conteúdo do arquivo) ou
+  **Manter os dois** (o importado entra como "<nome> (2)", "(3)"...). Arquivo
+  inválido, de outro tipo ou de versão mais nova mostra o motivo no painel e
+  nada muda. O arquivo de configuração exportado antes dos perfis
+  (`PS Reader - configuracao.json`) também é aceito e entra como o perfil
+  "Configuração importada".
+- **Restaurar padrão** pergunta antes e volta o perfil ativo (colunas,
+  anotações extras, orientação e layout) ao padrão; o nome fica.
 
-A configuração fica em `config.json`, na chave `conferencia`, junto da pasta
-de destino e do resto (`src/nfe/config.ts`):
+Na primeira abertura desta versão, a configuração anterior (chave
+`conferencia` do `config.json`) vira o primeiro perfil, sem perder nada, com o
+nome do usuário do Windows. A chave antiga fica como estava, para uma versão
+anterior do app ainda conseguir ler. Os perfis ficam na chave `perfis`
+(`src/nfe/perfis.ts`):
 
 ```json
 {
   "versao": 1,
-  "colunas": [
-    { "id": "nItem", "visivel": true },
-    { "id": "anotacao", "visivel": true },
-    { "id": "ean", "visivel": false },
-    { "id": "anotacao-qtd-recebida", "visivel": true, "largura": "estreita" }
+  "ativo": "p-k3x9q2",
+  "lista": [
+    {
+      "id": "p-k3x9q2",
+      "nome": "Recebimento",
+      "colunas": [
+        { "id": "nItem", "visivel": true },
+        { "id": "anotacao", "visivel": true },
+        { "id": "ean", "visivel": false },
+        {
+          "id": "anotacao-qtd-recebida",
+          "visivel": true,
+          "largura": "estreita"
+        }
+      ],
+      "anotacoes": [
+        { "id": "anotacao-qtd-recebida", "titulo": "Qtd recebida" }
+      ],
+      "orientacao": "paisagem",
+      "layout": {
+        "blocos": [{ "id": "emitente", "visivel": true, "largura": 6 }]
+      }
+    }
   ],
-  "anotacoes": [{ "id": "anotacao-qtd-recebida", "titulo": "Qtd recebida" }],
-  "layout": {
-    "blocos": [{ "id": "emitente", "visivel": true, "largura": 6 }]
-  },
-  "orientacao": "automatica",
   "fornecedores": {}
 }
 ```
 
-(O exemplo está encurtado: o arquivo real lista todas as colunas e os oito
+O arquivo de um perfil exportado tem o mesmo conteúdo de um item da lista,
+sem o id, com o tipo e a versão do arquivo:
+
+```json
+{
+  "tipo": "perfil-ps-reader",
+  "versao": 1,
+  "nome": "Recebimento",
+  "colunas": [{ "id": "nItem", "visivel": true }],
+  "anotacoes": [{ "id": "anotacao-qtd-recebida", "titulo": "Qtd recebida" }],
+  "orientacao": "paisagem",
+  "layout": { "blocos": [{ "id": "emitente", "visivel": true, "largura": 6 }] }
+}
+```
+
+(Os exemplos estão encurtados: o arquivo real lista todas as colunas e os oito
 blocos.) `colunas` é a ordem da tabela; `largura` (`automatica`, `estreita`,
 `media` ou `larga`) só existe nas colunas de anotação e, sem ela, vale
 `automatica`. `orientacao` é `automatica`, `retrato` ou `paisagem`; sem ela
@@ -477,6 +535,7 @@ src/
   dom.ts             utilitários de DOM (el, icone, botao)
   declarations.d.ts  tipos globais (window.psApi)
   nfe/config.ts      personalização da conferência: tipo, padrão, validação e migração
+  nfe/perfis.ts      perfis de configuração: lista, migração, arquivo exportado e importado
   nfe/folha.ts       folha A4: largura útil por orientação e plano da tabela (fonte, partes)
   folhaTabela.ts     cópias da tabela de itens para o papel e medida das colunas
   dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)

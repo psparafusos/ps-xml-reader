@@ -98,8 +98,27 @@ type ResultadoAreaTransferencia =
 /** Personalização da conferência (src/nfe/config.ts). */
 type ConfigConferencia = import('./nfe/config').ConfigConferencia;
 
-type ResultadoConfig =
-  | { status: 'ok'; config: ConfigConferencia }
+/**
+ * Perfis de configuração (src/nfe/perfis.ts), como o renderer vê: a lista
+ * (id e nome), o perfil ativo e a configuração dele.
+ */
+interface EstadoPerfis {
+  lista: { id: string; nome: string }[];
+  ativo: string;
+  nomeAtivo: string;
+  config: ConfigConferencia;
+}
+
+type ResultadoPerfis =
+  | { status: 'ok'; estado: EstadoPerfis }
+  | { status: 'erro'; mensagem: string };
+
+/** Perfil lido de um arquivo, ainda não acrescentado à lista. */
+type PerfilImportado = import('./nfe/perfis').PerfilImportado;
+
+type ResultadoImportarPerfil =
+  | { status: 'lido'; perfil: PerfilImportado; existe: boolean }
+  | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
 type ResultadoExportarConfig =
@@ -122,8 +141,8 @@ interface PsApi {
   ): Promise<ArquivoAberto | null>;
   /** A janela voltou para a tela inicial (sem nota aberta). */
   informarSemNota(): void;
-  /** A configuração da conferência mudou em outra janela. */
-  aoMudarConfig(callback: (config: ConfigConferencia) => void): void;
+  /** Os perfis (ou o perfil ativo, ou a configuração dele) mudaram em outra janela. */
+  aoMudarPerfis(callback: (estado: EstadoPerfis) => void): void;
   /** A pasta de destino salva mudou em outra janela. */
   aoMudarPasta(callback: () => void): void;
   /**
@@ -182,16 +201,28 @@ interface PsApi {
   aoPedirFechar(callback: () => void): void;
   /** Resposta ao pedido de fechar: true = pode fechar (salvou ou descartou). */
   responderFechar(pode: boolean): void;
-  /** Personalização da conferência salva (ou a padrão). */
-  configConferencia(): Promise<ConfigConferencia>;
-  /** Valida e salva a personalização da conferência. */
-  gravarConfigConferencia(config: ConfigConferencia): Promise<ResultadoConfig>;
-  /** Grava a personalização salva num .json escolhido pelo usuário. */
-  exportarConfig(): Promise<ResultadoExportarConfig>;
-  /** Lê um .json exportado, valida o arquivo todo e só então aplica e salva. */
-  importarConfig(): Promise<ResultadoConfig | { status: 'cancelado' }>;
-  /** Pergunta e volta a personalização ao padrão. */
-  restaurarConfig(): Promise<ResultadoConfig | { status: 'cancelado' }>;
+  /** Perfis salvos (na primeira vez, migra a configuração anterior). */
+  perfis(): Promise<EstadoPerfis>;
+  /** Valida e salva a configuração no perfil ativo. */
+  gravarConfigConferencia(config: ConfigConferencia): Promise<ResultadoPerfis>;
+  /** Passa a usar outro perfil (em todas as janelas). */
+  ativarPerfil(id: string): Promise<ResultadoPerfis>;
+  /** Perfil novo, cópia do ativo, que passa a ser o ativo. */
+  criarPerfil(nome: string): Promise<ResultadoPerfis>;
+  renomearPerfil(id: string, nome: string): Promise<ResultadoPerfis>;
+  /** Exclui um perfil (nunca o último). */
+  excluirPerfil(id: string): Promise<ResultadoPerfis>;
+  /** Grava o perfil ativo em "PS Reader - perfil <nome>.json". */
+  exportarPerfil(): Promise<ResultadoExportarConfig>;
+  /** Lê e valida um perfil (ou configuração da Parte A), sem gravar. */
+  importarPerfil(): Promise<ResultadoImportarPerfil>;
+  /** Acrescenta o perfil importado; nome repetido: substituir ou manter os dois. */
+  adicionarPerfil(
+    perfil: PerfilImportado,
+    modo: 'substituir' | 'manter',
+  ): Promise<ResultadoPerfis>;
+  /** Pergunta e volta o perfil ativo ao padrão. */
+  restaurarConfig(): Promise<ResultadoPerfis | { status: 'cancelado' }>;
   /** Copia um texto ou mostra o menu do botão direito (Recortar, Copiar...). */
   areaTransferencia(
     pedido: PedidoAreaTransferencia,

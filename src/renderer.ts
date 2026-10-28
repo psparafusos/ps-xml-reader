@@ -36,7 +36,11 @@ import { lerDanfe, motivoNaoSuportado, type DadosDanfe } from './danfe/dados';
 import { montarDanfe } from './danfe/danfe';
 import type { Anotacoes, Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
-import { abrirEditorColunas, editorAberto } from './editorColunas';
+import {
+  abrirEditorColunas,
+  atualizarEditor,
+  editorAberto,
+} from './editorColunas';
 import { comSetasDeRolagem, el, icone, type Filho } from './dom';
 import { perguntar, pedirNomeCopia } from './dialogos';
 import { desmontarFolha, montarFolha, planoDaTabela } from './folhaTabela';
@@ -247,25 +251,84 @@ function aplicarConfig(nova: ConfigConferencia): void {
 }
 
 /** Abre o painel Editar colunas; Aplicar salva e remonta a tabela. */
-function editarColunas(): void {
-  abrirEditorColunas(configAtual, {
+/**
+ * Perfis de configuração (src/nfe/perfis.ts): a lista, o ativo e a
+ * configuração dele. Trocam em todas as janelas ao mesmo tempo.
+ */
+let perfisAtual: EstadoPerfis | null = null;
+
+/** Passa a usar estes perfis: a configuração do ativo vale na tela na hora. */
+function aplicarPerfis(estado: EstadoPerfis): void {
+  perfisAtual = estado;
+  aplicarConfig(estado.config);
+}
+
+/** Aplica os perfis de um resultado que deu certo e o devolve. */
+function aoGravar<R extends { status: string }>(r: R): R {
+  if (r.status === 'ok')
+    aplicarPerfis((r as unknown as { estado: EstadoPerfis }).estado);
+  return r;
+}
+
+/**
+ * Importar perfil: lê e valida o arquivo; se o nome já existe, pergunta se
+ * substitui o perfil com esse nome ou mantém os dois ("<nome> (2)").
+ */
+async function importarPerfil(): Promise<
+  | { status: 'ok'; estado: EstadoPerfis; nome: string }
+  | { status: 'cancelado' }
+  | { status: 'erro'; mensagem: string }
+> {
+  const lido = await window.psApi.importarPerfil();
+  if (lido.status !== 'lido') return lido;
+  let modo: 'substituir' | 'manter' = 'manter';
+  if (lido.existe) {
+    const r = await perguntar({
+      titulo: 'Perfil com o mesmo nome',
+      texto: `Já existe um perfil ${lido.perfil.nome}. Substituir o conteúdo dele pelo do arquivo, ou manter os dois (o importado fica com um número no nome)?`,
+      botoes: [
+        { rotulo: 'Cancelar', valor: 'cancelar' },
+        { rotulo: 'Manter os dois', valor: 'manter' },
+        { rotulo: 'Substituir', valor: 'substituir', principal: true },
+      ],
+      cancelar: 'cancelar',
+    });
+    if (r === 'cancelar') return { status: 'cancelado' };
+    modo = r;
+  }
+  const antes = new Set(perfisAtual?.lista.map((p) => p.id));
+  const r = aoGravar(await window.psApi.adicionarPerfil(lido.perfil, modo));
+  if (r.status === 'erro') return r;
+  // O nome com que ficou: o do perfil novo, ou o substituído.
+  const novo = r.estado.lista.find((p) => !antes.has(p.id));
+  return {
+    status: 'ok',
+    estado: r.estado,
+    nome: novo?.nome ?? lido.perfil.nome,
+  };
+}
+
+/**
+ * Abre o painel Editar colunas com os perfis. Aplicar grava no perfil ativo
+ * e avisa "Alterações salvas no perfil <nome>".
+ */
+async function editarColunas(): Promise<void> {
+  const estado = perfisAtual ?? (await window.psApi.perfis());
+  abrirEditorColunas(estado, {
     aplicar: async (nova) => {
-      const r = await window.psApi.gravarConfigConferencia(nova);
-      if (r.status === 'erro') return r.mensagem;
-      aplicarConfig(r.config);
-      return null;
-    },
-    exportar: () => window.psApi.exportarConfig(),
-    importar: async () => {
-      const r = await window.psApi.importarConfig();
-      if (r.status === 'ok') aplicarConfig(r.config);
+      const r = aoGravar(await window.psApi.gravarConfigConferencia(nova));
+      if (r.status === 'ok')
+        mostrarSucesso(`Alterações salvas no perfil ${r.estado.nomeAtivo}`);
       return r;
     },
-    restaurar: async () => {
-      const r = await window.psApi.restaurarConfig();
-      if (r.status === 'ok') aplicarConfig(r.config);
-      return r;
-    },
+    ativar: async (id) => aoGravar(await window.psApi.ativarPerfil(id)),
+    criar: async (nome) => aoGravar(await window.psApi.criarPerfil(nome)),
+    renomear: async (id, nome) =>
+      aoGravar(await window.psApi.renomearPerfil(id, nome)),
+    excluir: async (id) => aoGravar(await window.psApi.excluirPerfil(id)),
+    exportar: () => window.psApi.exportarPerfil(),
+    importar: importarPerfil,
+    restaurar: async () => aoGravar(await window.psApi.restaurarConfig()),
     plano: planoComConfig,
   });
 }
@@ -591,7 +654,7 @@ function controleOrdenar(miniatura = false): HTMLElement {
   editar.type = 'button';
   editar.id = 'btn-editar-colunas';
   editar.setAttribute('aria-haspopup', 'dialog');
-  editar.addEventListener('click', editarColunas);
+  editar.addEventListener('click', () => void editarColunas());
   return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar, editar);
 }
 
@@ -2325,7 +2388,12 @@ window.psApi.aoPedirFechar(() => {
     .then((pode) => window.psApi.responderFechar(pode));
 });
 // Configuração mudada em outra janela: aplica aqui também, na hora.
-window.psApi.aoMudarConfig((config) => aplicarConfig(config));
+// Perfis mudados em outra janela (outro ativo, colunas aplicadas, perfil
+// importado...): aplica aqui também, na hora, e atualiza o painel aberto.
+window.psApi.aoMudarPerfis((estado) => {
+  aplicarPerfis(estado);
+  atualizarEditor(estado);
+});
 // Pasta de destino salva mudada em outra janela: o botão mostra a nova (ou
 // continua com a pasta só desta janela, se houver).
 window.psApi.aoMudarPasta(() => {
@@ -2357,9 +2425,10 @@ window.psApi
 
 // A personalização salva da conferência; falha: fica a padrão.
 const configCarregada = window.psApi
-  .configConferencia()
-  .then((c) => {
-    configAtual = c;
+  .perfis()
+  .then((estado) => {
+    perfisAtual = estado;
+    configAtual = estado.config;
   })
   .catch((erro: unknown) => console.error(erro));
 

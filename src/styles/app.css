@@ -1930,3 +1930,72 @@ body.pdf-previa #pdf-previa {
 .modo__acao:disabled {
   display: none;
 }
+
+/* ---------- perfis, no topo do painel Editar colunas ---------- */
+
+.perfis {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--esp-2) var(--esp-3);
+  margin-bottom: var(--esp-3);
+  padding-bottom: var(--esp-3);
+  border-bottom: var(--borda) solid var(--cor-borda-suave);
+}
+
+.perfis__rotulo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--esp-2);
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-medio);
+}
+
+.perfis__ativo {
+  padding: 0 var(--esp-2);
+  border-radius: var(--raio);
+  background: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+  font-size: var(--fs-md);
+}
+
+/* Um botão por perfil: clicar troca o ativo. */
+.perfis__lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-1);
+}
+
+.perfis__opcao {
+  padding: var(--esp-1) var(--esp-3);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: 999px;
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.perfis__opcao:hover:not(:disabled) {
+  border-color: var(--ps-preto);
+  background: var(--botao-sec-fundo-hover);
+}
+
+.perfis__opcao[aria-checked='true'] {
+  border-color: var(--ps-preto);
+  background: var(--ps-preto);
+  color: var(--ps-branco);
+  cursor: default;
+}
+
+.perfis__opcao:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.perfis__acoes {
+  display: flex;
+  gap: var(--esp-2);
+  margin-left: auto;
+}

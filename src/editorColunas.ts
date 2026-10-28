@@ -1,8 +1,10 @@
 // Painel "Editar colunas" da conferência: marcar, desmarcar e arrastar as
 // colunas da tabela de itens, criar e remover anotações extras, com a prévia
-// da tabela ao lado. Tudo é um rascunho até Aplicar; Cancelar (ou Esc) volta
-// ao estado anterior. Exportar, Importar e Restaurar padrão agem direto na
-// configuração salva e recarregam o painel com o resultado.
+// da tabela ao lado. Tudo é um rascunho até Aplicar, que grava no perfil
+// ativo; Cancelar (ou Esc) volta ao estado anterior. No topo, o perfil ativo
+// e a lista dos perfis (trocar com um clique, criar, renomear, excluir).
+// Exportar, Importar e Restaurar padrão agem direto nos perfis salvos e
+// recarregam o painel com o resultado.
 
 import { classeColuna, colunasDaConfig, type ColunaItem } from './nfe/colunas';
 import {
@@ -24,13 +26,30 @@ import {
   type PlanoFolha,
 } from './nfe/folha';
 import { botao, comSetasDeRolagem, el, icone } from './dom';
+import { perguntar, pedirTexto } from './dialogos';
+import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
 
+/**
+ * O que o painel pede ao resto da tela. Cada ação grava nos perfis salvos e,
+ * se deu certo, a tela já aplicou o resultado; o painel recarrega com ele.
+ */
 export interface AcoesEditor {
-  /** Salva e aplica na tabela. Devolve a mensagem de erro, ou null. */
-  aplicar(config: ConfigConferencia): Promise<string | null>;
+  /** Grava o rascunho no perfil ativo. */
+  aplicar(config: ConfigConferencia): Promise<ResultadoPerfis>;
+  ativar(id: string): Promise<ResultadoPerfis>;
+  /** Perfil novo, cópia do ativo, que passa a ser o ativo. */
+  criar(nome: string): Promise<ResultadoPerfis>;
+  renomear(id: string, nome: string): Promise<ResultadoPerfis>;
+  excluir(id: string): Promise<ResultadoPerfis>;
+  /** Exporta o perfil ativo. */
   exportar(): Promise<ResultadoExportarConfig>;
-  importar(): Promise<ResultadoConfig | { status: 'cancelado' }>;
-  restaurar(): Promise<ResultadoConfig | { status: 'cancelado' }>;
+  /** Importa um perfil (pergunta se o nome já existe); devolve o nome dado. */
+  importar(): Promise<
+    | { status: 'ok'; estado: EstadoPerfis; nome: string }
+    | { status: 'cancelado' }
+    | { status: 'erro'; mensagem: string }
+  >;
+  restaurar(): Promise<ResultadoPerfis | { status: 'cancelado' }>;
   /**
    * Como a tabela da nota aberta iria para a folha com esta configuração
    * (para o indicador); null sem nota ou sem itens.
@@ -134,19 +153,55 @@ const ITENS_PREVIA: Item[] = [
 const TEXTO_PREVIA_ANOTACAO = 'Conferido';
 
 let dialogo: HTMLDialogElement | null = null;
+/** Atualiza o painel aberto com perfis que mudaram em outra janela. */
+let atualizarAberto: ((estado: EstadoPerfis) => void) | null = null;
 
 /** true enquanto o painel está aberto. */
 export function editorAberto(): boolean {
   return dialogo?.open === true;
 }
 
+/**
+ * Perfis mudaram em outra janela: o painel aberto mostra a lista nova; se o
+ * rascunho não tinha mudanças, passa a mostrar a configuração nova também.
+ */
+export function atualizarEditor(estado: EstadoPerfis): void {
+  atualizarAberto?.(estado);
+}
+
 export function abrirEditorColunas(
-  config: ConfigConferencia,
+  estadoInicial: EstadoPerfis,
   acoes: AcoesEditor,
 ): void {
   if (editorAberto()) return;
-  let rascunho: ConfigConferencia = structuredClone(config);
+  let estado = estadoInicial;
+  let rascunho: ConfigConferencia = structuredClone(estado.config);
   let ocupado = false;
+  /** O rascunho tem mudanças ainda não aplicadas no perfil ativo. */
+  const mudou = () =>
+    JSON.stringify(rascunho) !== JSON.stringify(estado.config);
+
+  // ---------- perfis, no topo ----------
+  const listaPerfis = el('div', 'perfis__lista');
+  listaPerfis.setAttribute('role', 'radiogroup');
+  listaPerfis.setAttribute('aria-label', 'Perfis');
+  const btnNovoPerfil = botao(
+    'botao botao--claro botao--pequeno',
+    icone('M12 5v14', 'M5 12h14'),
+    el('span', '', 'Novo'),
+  );
+  btnNovoPerfil.title = 'Novo perfil, começando igual ao perfil ativo';
+  const btnRenomear = botao(
+    'botao botao--claro botao--pequeno',
+    icone('M4 20h4L19 9l-4-4L4 16z'),
+    el('span', '', 'Renomear'),
+  );
+  const btnExcluir = botao(
+    'botao botao--claro botao--pequeno',
+    icone('M5 7h14', 'M10 11v6', 'M14 11v6', 'M7 7l1 13h8l1-13', 'M9 7V4h6v3'),
+    el('span', '', 'Excluir'),
+  );
+  const perfilAtivoEl = el('strong', 'perfis__ativo');
 
   const lista = el('ol', 'colunas-lista');
   lista.setAttribute('aria-label', 'Colunas');
@@ -194,13 +249,15 @@ export function abrirEditorColunas(
     icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
     el('span', '', 'Exportar'),
   );
-  btnExportar.title = 'Exporta a configuração aplicada para um arquivo .json';
+  btnExportar.title =
+    'Exporta o perfil ativo (como está salvo) para um arquivo .json';
   const btnImportar = botao(
     'botao botao--claro botao--pequeno',
     icone('M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'),
     el('span', '', 'Importar'),
   );
-  btnImportar.title = 'Lê um arquivo .json exportado e aplica';
+  btnImportar.title =
+    'Acrescenta um perfil exportado (ou uma configuração antiga) à lista';
   const btnRestaurar = botao(
     'botao botao--claro botao--pequeno',
     icone('M4 12a8 8 0 1 0 3-6.2', 'M4 4v5h5'),
@@ -217,11 +274,18 @@ export function abrirEditorColunas(
     el(
       'header',
       'painel__cabecalho',
+      el(
+        'div',
+        'perfis',
+        el('span', 'perfis__rotulo', 'Perfil ativo:', perfilAtivoEl),
+        listaPerfis,
+        el('div', 'perfis__acoes', btnNovoPerfil, btnRenomear, btnExcluir),
+      ),
       titulo,
       el(
         'p',
         'painel__dica',
-        'Marque as colunas que aparecem e arraste para mudar a ordem. Vale para todas as notas, na tela, na impressão e no PDF.',
+        'Marque as colunas que aparecem e arraste para mudar a ordem. Vale para todas as notas, na tela, na impressão e no PDF, e fica salvo no perfil ativo.',
       ),
     ),
     el(
@@ -570,7 +634,31 @@ export function abrirEditorColunas(
         : `Fonte da tabela na folha: ${String(plano.fontePt).replace('.', ',')} pt.`;
   }
 
+  function desenharPerfis(): void {
+    perfilAtivoEl.textContent = estado.nomeAtivo;
+    listaPerfis.replaceChildren(
+      ...estado.lista.map((p) => {
+        const b = botao('perfis__opcao', p.nome);
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(p.id === estado.ativo));
+        b.title =
+          p.id === estado.ativo ? 'Perfil ativo' : `Usar o perfil ${p.nome}`;
+        b.addEventListener('click', () => {
+          if (p.id !== estado.ativo) void trocarPara(() => acoes.ativar(p.id));
+        });
+        return b;
+      }),
+    );
+    btnExcluir.disabled = estado.lista.length <= 1;
+    btnExcluir.title =
+      estado.lista.length <= 1
+        ? 'O último perfil não pode ser excluído'
+        : `Excluir o perfil ${estado.nomeAtivo}`;
+    btnRenomear.title = `Renomear o perfil ${estado.nomeAtivo}`;
+  }
+
   function desenhar(): void {
+    desenharPerfis();
     lista.replaceChildren(...colunas().map(linha));
     desenharProntas();
     desenharPrevia();
@@ -581,7 +669,10 @@ export function abrirEditorColunas(
   function fechar(): void {
     d.close();
     d.remove();
-    if (dialogo === d) dialogo = null;
+    if (dialogo === d) {
+      dialogo = null;
+      atualizarAberto = null;
+    }
   }
 
   /** Bloqueia os botões durante uma ação (diálogos do Windows, gravação). */
@@ -594,7 +685,12 @@ export function abrirEditorColunas(
       btnRestaurar,
       btnCancelar,
       btnAplicar,
+      btnNovoPerfil,
+      btnRenomear,
+      btnExcluir,
+      ...listaPerfis.querySelectorAll('button'),
     ];
+    const antes = botoes.map((b) => b.disabled);
     for (const b of botoes) b.disabled = true;
     status.textContent = '';
     try {
@@ -603,18 +699,140 @@ export function abrirEditorColunas(
       mostrarErro('Não foi possível concluir a ação.');
       console.error(e);
     } finally {
-      for (const b of botoes) b.disabled = false;
+      botoes.forEach((b, i) => {
+        if (b.isConnected) b.disabled = antes[i];
+      });
+      desenharPerfis();
       ocupado = false;
     }
   }
 
-  /** Configuração nova (importada ou padrão): recarrega o painel com ela. */
-  function recarregar(nova: ConfigConferencia, aviso: string): void {
-    rascunho = structuredClone(nova);
+  /** Perfis novos (outro ativo, importado, padrão): recarrega o painel. */
+  function recarregar(novo: EstadoPerfis, aviso: string): void {
+    estado = novo;
+    rascunho = structuredClone(novo.config);
     mostrarErro(null);
     status.textContent = aviso;
     desenhar();
   }
+
+  /**
+   * Antes de trocar o perfil ativo (outro perfil, perfil novo, excluir o
+   * ativo): com mudanças não aplicadas no painel, pergunta se aplica no
+   * perfil atual, descarta ou cancela. true = pode trocar.
+   */
+  async function podeTrocar(): Promise<boolean> {
+    if (!mudou()) return true;
+    const r = await perguntar({
+      titulo: 'Mudanças não aplicadas',
+      texto: `As mudanças deste painel ainda não foram aplicadas no perfil ${estado.nomeAtivo}.`,
+      botoes: [
+        { rotulo: 'Cancelar', valor: 'cancelar' },
+        { rotulo: 'Descartar e trocar', valor: 'descartar' },
+        { rotulo: 'Aplicar e trocar', valor: 'aplicar', principal: true },
+      ],
+      cancelar: 'cancelar',
+    });
+    if (r === 'cancelar') return false;
+    if (r === 'descartar') return true;
+    if (!rascunho.colunas.some((c) => c.visivel)) {
+      mostrarErro('Deixe pelo menos uma coluna marcada.');
+      return false;
+    }
+    const a = await acoes.aplicar(rascunho);
+    if (a.status === 'erro') {
+      mostrarErro(a.mensagem);
+      return false;
+    }
+    estado = a.estado;
+    return true;
+  }
+
+  /** Troca o perfil ativo com `acao` (depois de podeTrocar). */
+  async function trocarPara(
+    acao: () => Promise<ResultadoPerfis>,
+  ): Promise<void> {
+    await comBloqueio(async () => {
+      mostrarErro(null);
+      if (!(await podeTrocar())) return;
+      const r = await acao();
+      if (r.status === 'ok')
+        recarregar(r.estado, `Perfil ativo: ${r.estado.nomeAtivo}.`);
+      else mostrarErro(r.mensagem);
+    });
+  }
+
+  btnNovoPerfil.addEventListener('click', () => {
+    void (async () => {
+      if (ocupado) return;
+      const nome = await pedirTexto({
+        titulo: 'Novo perfil',
+        texto: `O perfil novo começa igual ao perfil ${estado.nomeAtivo} e passa a ser o ativo.`,
+        valor: nomeLivre(`${estado.nomeAtivo} (cópia)`, estado.lista),
+        rotulo: 'Nome do perfil',
+        confirmar: 'Criar',
+        problema: (n) => problemaNomePerfil(n, estado.lista),
+      });
+      if (nome !== null) await trocarPara(() => acoes.criar(nome));
+    })();
+  });
+  btnRenomear.addEventListener('click', () => {
+    void (async () => {
+      if (ocupado) return;
+      const id = estado.ativo;
+      const nome = await pedirTexto({
+        titulo: 'Renomear perfil',
+        texto: 'O perfil continua com as mesmas colunas e anotações.',
+        valor: estado.nomeAtivo,
+        rotulo: 'Nome do perfil',
+        confirmar: 'Renomear',
+        problema: (n) => problemaNomePerfil(n, estado.lista, id),
+      });
+      if (nome === null) return;
+      await comBloqueio(async () => {
+        const r = await acoes.renomear(id, nome);
+        if (r.status === 'erro') return mostrarErro(r.mensagem);
+        // O rascunho fica: renomear não muda colunas nem anotações.
+        estado = { ...r.estado, config: estado.config };
+        status.textContent = `Perfil renomeado para ${nome}.`;
+      });
+    })();
+  });
+  btnExcluir.addEventListener('click', () => {
+    void (async () => {
+      if (ocupado || estado.lista.length <= 1) return;
+      const id = estado.ativo;
+      const nome = estado.nomeAtivo;
+      const r = await perguntar({
+        titulo: 'Excluir perfil',
+        texto: `Excluir o perfil ${nome}? As colunas, anotações extras e orientação dele se perdem; o texto já salvo nos arquivos .psxml não.`,
+        botoes: [
+          { rotulo: 'Cancelar', valor: 'cancelar' },
+          { rotulo: 'Excluir', valor: 'excluir', principal: true },
+        ],
+        cancelar: 'cancelar',
+      });
+      if (r !== 'excluir') return;
+      await comBloqueio(async () => {
+        const x = await acoes.excluir(id);
+        if (x.status === 'ok')
+          recarregar(
+            x.estado,
+            `Perfil "${nome}" excluído. Perfil ativo: "${x.estado.nomeAtivo}".`,
+          );
+        else mostrarErro(x.mensagem);
+      });
+    })();
+  });
+
+  atualizarAberto = (novo) => {
+    if (ocupado) return;
+    if (mudou()) {
+      // Mantém o rascunho; só a lista e o nome do ativo mudam.
+      estado = { ...novo, config: estado.config };
+      desenharPerfis();
+    } else recarregar(novo, 'Os perfis foram alterados em outra janela.');
+  };
 
   btnAplicar.addEventListener('click', () => {
     void comBloqueio(async () => {
@@ -622,8 +840,8 @@ export function abrirEditorColunas(
         mostrarErro('Deixe pelo menos uma coluna marcada.');
         return;
       }
-      const problema = await acoes.aplicar(rascunho);
-      if (problema) mostrarErro(problema);
+      const r = await acoes.aplicar(rascunho);
+      if (r.status === 'erro') mostrarErro(r.mensagem);
       else fechar();
     });
   });
@@ -640,7 +858,7 @@ export function abrirEditorColunas(
       mostrarErro(null);
       const r = await acoes.exportar();
       if (r.status === 'exportado')
-        status.textContent = `Exportada em ${r.caminho}`;
+        status.textContent = `Perfil ${estado.nomeAtivo} exportado em ${r.caminho}`;
       else if (r.status === 'erro') mostrarErro(r.mensagem);
     });
   });
@@ -648,16 +866,30 @@ export function abrirEditorColunas(
     void comBloqueio(async () => {
       mostrarErro(null);
       const r = await acoes.importar();
-      if (r.status === 'ok')
-        recarregar(r.config, 'Configuração importada e aplicada.');
-      else if (r.status === 'erro') mostrarErro(r.mensagem);
+      if (r.status === 'ok') {
+        // O perfil importado entra na lista; o ativo continua o mesmo (se
+        // foi ele o substituído, o painel mostra o conteúdo novo).
+        if (
+          mudou() &&
+          r.estado.ativo === estado.ativo &&
+          JSON.stringify(r.estado.config) === JSON.stringify(estado.config)
+        ) {
+          estado = { ...r.estado, config: estado.config };
+          desenharPerfis();
+          status.textContent = `Importado como perfil "${r.nome}".`;
+        } else recarregar(r.estado, `Importado como perfil "${r.nome}".`);
+      } else if (r.status === 'erro') mostrarErro(r.mensagem);
     });
   });
   btnRestaurar.addEventListener('click', () => {
     void comBloqueio(async () => {
       mostrarErro(null);
       const r = await acoes.restaurar();
-      if (r.status === 'ok') recarregar(r.config, 'Padrão restaurado.');
+      if (r.status === 'ok')
+        recarregar(
+          r.estado,
+          `Perfil "${r.estado.nomeAtivo}" voltou ao padrão.`,
+        );
       else if (r.status === 'erro') mostrarErro(r.mensagem);
     });
   });

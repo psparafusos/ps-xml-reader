@@ -14,9 +14,9 @@ contextBridge.exposeInMainWorld('psApi', {
   ): Promise<ArquivoAberto | null> =>
     ipcRenderer.invoke('confirmar-abertura', destino, modo),
   informarSemNota: (): void => ipcRenderer.send('sem-nota'),
-  aoMudarConfig: (callback: (config: ConfigConferencia) => void): void => {
-    ipcRenderer.on('config-mudou', (_e, config: ConfigConferencia) =>
-      callback(config),
+  aoMudarPerfis: (callback: (estado: EstadoPerfis) => void): void => {
+    ipcRenderer.on('perfis-mudou', (_e, estado: EstadoPerfis) =>
+      callback(estado),
     );
   },
   aoMudarPasta: (callback: () => void): void => {
@@ -63,17 +63,29 @@ contextBridge.exposeInMainWorld('psApi', {
   },
   responderFechar: (pode: boolean): void =>
     ipcRenderer.send('resposta-fechar', pode),
-  configConferencia: (): Promise<ConfigConferencia> =>
-    ipcRenderer.invoke('config-conferencia'),
+  perfis: (): Promise<EstadoPerfis> => ipcRenderer.invoke('perfis'),
   gravarConfigConferencia: (
     config: ConfigConferencia,
-  ): Promise<ResultadoConfig> =>
+  ): Promise<ResultadoPerfis> =>
     ipcRenderer.invoke('gravar-config-conferencia', config),
-  exportarConfig: (): Promise<ResultadoExportarConfig> =>
-    ipcRenderer.invoke('exportar-config'),
-  importarConfig: (): Promise<ResultadoConfig | { status: 'cancelado' }> =>
-    ipcRenderer.invoke('importar-config'),
-  restaurarConfig: (): Promise<ResultadoConfig | { status: 'cancelado' }> =>
+  ativarPerfil: (id: string): Promise<ResultadoPerfis> =>
+    ipcRenderer.invoke('ativar-perfil', id),
+  criarPerfil: (nome: string): Promise<ResultadoPerfis> =>
+    ipcRenderer.invoke('criar-perfil', nome),
+  renomearPerfil: (id: string, nome: string): Promise<ResultadoPerfis> =>
+    ipcRenderer.invoke('renomear-perfil', id, nome),
+  excluirPerfil: (id: string): Promise<ResultadoPerfis> =>
+    ipcRenderer.invoke('excluir-perfil', id),
+  exportarPerfil: (): Promise<ResultadoExportarConfig> =>
+    ipcRenderer.invoke('exportar-perfil'),
+  importarPerfil: (): Promise<ResultadoImportarPerfil> =>
+    ipcRenderer.invoke('importar-perfil'),
+  adicionarPerfil: (
+    perfil: PerfilImportado,
+    modo: 'substituir' | 'manter',
+  ): Promise<ResultadoPerfis> =>
+    ipcRenderer.invoke('adicionar-perfil', perfil, modo),
+  restaurarConfig: (): Promise<ResultadoPerfis | { status: 'cancelado' }> =>
     ipcRenderer.invoke('restaurar-config'),
   areaTransferencia: (
     pedido: PedidoAreaTransferencia,

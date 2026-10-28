@@ -23,18 +23,26 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { userInfo } from 'node:os';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { EXTENSAO, tratarEventoSquirrel } from './associacao';
 import { ehImpressoraCupom } from './impressoras';
+import { configPadrao, validarConfig } from './nfe/config';
 import {
-  configPadrao,
-  lerConfigTexto,
-  NOME_EXPORTACAO,
-  textoConfig,
-  validarConfig,
-  type ConfigConferencia,
-} from './nfe/config';
+  lerArquivoPerfil,
+  migrarParaPerfis,
+  nomeArquivoPerfil,
+  nomeLivre,
+  novoIdPerfil,
+  perfilAtivo,
+  perfilComNome,
+  perfisParaGravar,
+  problemaNomePerfil,
+  textoArquivoPerfil,
+  validarPerfis,
+  type Perfis,
+} from './nfe/perfis';
 import { MARGEM_FOLHA_MM } from './nfe/folha';
 import { problemaNomeArquivo } from './nfe/nome';
 
@@ -681,8 +689,13 @@ interface Config {
   pastaDestino?: unknown;
   ultimaPastaAbertura?: unknown;
   janela?: unknown;
-  /** Personalização da conferência (src/nfe/config.ts). */
+  /**
+   * Personalização da Parte A (src/nfe/config.ts). Lida só para migrar para
+   * os perfis; fica como estava, para uma versão anterior do app ainda ler.
+   */
   conferencia?: unknown;
+  /** Perfis de configuração da conferência (src/nfe/perfis.ts). */
+  perfis?: unknown;
 }
 
 function caminhoConfig(): string {
@@ -842,138 +855,262 @@ ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
   return pasta;
 });
 
-// ---------- personalização da conferência (colunas, anotações, layout) ----------
+// ---------- perfis de configuração da conferência ----------
 
-/**
- * Personalização salva. Sem a chave (primeira execução ou config antiga) ou
- * com conteúdo inválido: a padrão.
- */
-async function lerConferencia(): Promise<ConfigConferencia> {
-  const { conferencia } = await lerConfig();
-  if (conferencia === undefined) return configPadrao();
+/** Nome do usuário do Windows, para o primeiro perfil. */
+function nomeUsuario(): string {
   try {
-    return validarConfig(conferencia);
+    return userInfo().username;
   } catch {
-    return configPadrao();
+    return '';
   }
 }
 
 /**
- * Grava a personalização e avisa as outras janelas, que aplicam na hora;
- * erro vira a mensagem para o renderer.
+ * Perfis salvos. Na primeira vez (ou com a chave inválida), a configuração da
+ * Parte A vira o primeiro perfil, com o nome do usuário do Windows, e já fica
+ * gravada.
  */
-async function gravarConferencia(
-  config: ConfigConferencia,
+async function lerPerfis(): Promise<Perfis> {
+  const config = await lerConfig();
+  if (config.perfis !== undefined) {
+    try {
+      return validarPerfis(config.perfis);
+    } catch {
+      // Inválido: refaz a partir da configuração da Parte A, abaixo.
+    }
+  }
+  const perfis = migrarParaPerfis(config.conferencia, nomeUsuario());
+  await gravarConfig({ perfis: perfisParaGravar(perfis) }).catch(() => {});
+  return perfis;
+}
+
+/** O que o renderer precisa: a lista (id e nome), o ativo e a config dele. */
+function estadoDosPerfis(p: Perfis): EstadoPerfis {
+  const ativo = perfilAtivo(p);
+  return {
+    lista: p.lista.map((x) => ({ id: x.id, nome: x.nome })),
+    ativo: ativo.id,
+    nomeAtivo: ativo.nome,
+    config: ativo.config,
+  };
+}
+
+/**
+ * Grava os perfis e avisa as outras janelas, que aplicam o perfil ativo na
+ * hora. Erro vira a mensagem para o renderer.
+ */
+async function gravarPerfis(
+  p: Perfis,
   origem: Electron.WebContents,
-): Promise<ResultadoConfig> {
+): Promise<ResultadoPerfis> {
   try {
-    await gravarConfig({ conferencia: config });
-    avisarOutras(origem, 'config-mudou', config);
-    return { status: 'ok', config };
+    await gravarConfig({ perfis: perfisParaGravar(p) });
   } catch (erro) {
     return {
       status: 'erro',
       mensagem: `Não foi possível salvar a configuração: ${mensagemDe(erro)}`,
     };
   }
+  const estado = estadoDosPerfis(p);
+  avisarOutras(origem, 'perfis-mudou', estado);
+  return { status: 'ok', estado };
 }
 
+/** Mudança nos perfis: lê, aplica `mudar` e grava (mensagem de erro se falhar). */
+async function mudarPerfis(
+  event: Electron.IpcMainInvokeEvent,
+  mudar: (p: Perfis) => string | null,
+): Promise<ResultadoPerfis> {
+  const p = await lerPerfis();
+  let problema: string | null;
+  try {
+    problema = mudar(p);
+  } catch (erro) {
+    problema = mensagemDe(erro);
+  }
+  if (problema) return { status: 'erro', mensagem: problema };
+  return gravarPerfis(p, event.sender);
+}
+
+const texto = (v: unknown) => (typeof v === 'string' ? v : '');
+
 ipcMain.handle(
-  'config-conferencia',
-  (): Promise<ConfigConferencia> => lerConferencia(),
+  'perfis',
+  async (): Promise<EstadoPerfis> => estadoDosPerfis(await lerPerfis()),
+);
+
+/** Aplicar no editor de colunas: grava no perfil ativo. */
+ipcMain.handle(
+  'gravar-config-conferencia',
+  (event, config: unknown): Promise<ResultadoPerfis> =>
+    mudarPerfis(event, (p) => {
+      perfilAtivo(p).config = validarConfig(config);
+      return null;
+    }),
 );
 
 ipcMain.handle(
-  'gravar-config-conferencia',
-  async (event, config: unknown): Promise<ResultadoConfig> => {
-    try {
-      return await gravarConferencia(validarConfig(config), event.sender);
-    } catch (erro) {
-      return { status: 'erro', mensagem: mensagemDe(erro) };
-    }
-  },
+  'ativar-perfil',
+  (event, id: unknown): Promise<ResultadoPerfis> =>
+    mudarPerfis(event, (p) => {
+      if (!p.lista.some((x) => x.id === id)) return 'Perfil não encontrado.';
+      p.ativo = id as string;
+      return null;
+    }),
+);
+
+/** Perfil novo, cópia do ativo, que passa a ser o ativo. */
+ipcMain.handle(
+  'criar-perfil',
+  (event, nome: unknown): Promise<ResultadoPerfis> =>
+    mudarPerfis(event, (p) => {
+      const n = texto(nome).trim();
+      const problema = problemaNomePerfil(n, p.lista);
+      if (problema) return problema;
+      const id = novoIdPerfil(p.lista);
+      p.lista.push({
+        id,
+        nome: n,
+        config: structuredClone(perfilAtivo(p).config),
+      });
+      p.ativo = id;
+      return null;
+    }),
+);
+
+ipcMain.handle(
+  'renomear-perfil',
+  (event, id: unknown, nome: unknown): Promise<ResultadoPerfis> =>
+    mudarPerfis(event, (p) => {
+      const perfil = p.lista.find((x) => x.id === id);
+      if (!perfil) return 'Perfil não encontrado.';
+      const n = texto(nome).trim();
+      const problema = problemaNomePerfil(n, p.lista, perfil.id);
+      if (problema) return problema;
+      perfil.nome = n;
+      return null;
+    }),
+);
+
+/** Exclui um perfil (nunca o último). Excluir o ativo ativa o primeiro. */
+ipcMain.handle(
+  'excluir-perfil',
+  (event, id: unknown): Promise<ResultadoPerfis> =>
+    mudarPerfis(event, (p) => {
+      if (p.lista.length <= 1) return 'O último perfil não pode ser excluído.';
+      const i = p.lista.findIndex((x) => x.id === id);
+      if (i < 0) return 'Perfil não encontrado.';
+      p.lista.splice(i, 1);
+      if (p.ativo === id) p.ativo = p.lista[0].id;
+      return null;
+    }),
 );
 
 /**
- * Exporta a personalização salva para um .json escolhido pelo usuário. Só a
- * personalização: pasta de destino, última pasta e janela são da máquina e
+ * Exporta o perfil ativo para "PS Reader - perfil <nome>.json", onde o
+ * usuário escolher. Pasta de destino, última pasta e janela são da máquina e
  * ficam de fora.
  */
 ipcMain.handle(
-  'exportar-config',
+  'exportar-perfil',
   async (event): Promise<ResultadoExportarConfig> => {
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    const opcoes: Electron.SaveDialogOptions = {
-      title: 'Exportar configuração',
-      defaultPath: path.join(app.getPath('documents'), NOME_EXPORTACAO),
-      filters: [{ name: 'Configuração do PS Reader', extensions: ['json'] }],
-    };
-    const { canceled, filePath } = janela
-      ? await dialog.showSaveDialog(janela, opcoes)
-      : await dialog.showSaveDialog(opcoes);
+    const j = estadoDe(event.sender);
+    const perfil = perfilAtivo(await lerPerfis());
+    const { canceled, filePath } = await dialog.showSaveDialog(j.janela, {
+      title: 'Exportar perfil',
+      defaultPath: path.join(
+        app.getPath('documents'),
+        nomeArquivoPerfil(perfil.nome),
+      ),
+      filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
+    });
     if (canceled || !filePath) return { status: 'cancelado' };
     try {
-      await writeFile(filePath, textoConfig(await lerConferencia()), 'utf8');
+      await writeFile(filePath, textoArquivoPerfil(perfil), 'utf8');
       return { status: 'exportado', caminho: filePath };
     } catch (erro) {
       return {
         status: 'erro',
-        mensagem: `Não foi possível exportar a configuração: ${mensagemDe(erro)}`,
+        mensagem: `Não foi possível exportar o perfil: ${mensagemDe(erro)}`,
       };
     }
   },
 );
 
 /**
- * Importa um arquivo exportado. O arquivo inteiro é validado antes de
- * aplicar: inválido ou de versão desconhecida devolve o motivo e nada muda.
+ * Importar: lê o arquivo escolhido e valida tudo, sem gravar. Aceita um
+ * perfil exportado ou a configuração da Parte A. `existe`: já há um perfil
+ * com esse nome (o renderer pergunta se substitui ou mantém os dois).
  */
 ipcMain.handle(
-  'importar-config',
-  async (event): Promise<ResultadoConfig | { status: 'cancelado' }> => {
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    const opcoes: Electron.OpenDialogOptions = {
-      title: 'Importar configuração',
-      filters: [{ name: 'Configuração do PS Reader', extensions: ['json'] }],
+  'importar-perfil',
+  async (event): Promise<ResultadoImportarPerfil> => {
+    const j = estadoDe(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
+      title: 'Importar perfil',
+      filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
       properties: ['openFile'],
-    };
-    const { canceled, filePaths } = janela
-      ? await dialog.showOpenDialog(janela, opcoes)
-      : await dialog.showOpenDialog(opcoes);
+    });
     if (canceled || filePaths.length === 0) return { status: 'cancelado' };
-    let config: ConfigConferencia;
     try {
-      config = lerConfigTexto(await readFile(filePaths[0], 'utf8'));
+      const perfil = lerArquivoPerfil(await readFile(filePaths[0], 'utf8'));
+      const existe = perfilComNome(perfil.nome, (await lerPerfis()).lista);
+      return { status: 'lido', perfil, existe: existe !== null };
     } catch (erro) {
       return {
         status: 'erro',
-        mensagem: `Configuração não importada; nada foi alterado. ${mensagemDe(erro)}`,
+        mensagem: `Perfil não importado; nada foi alterado. ${mensagemDe(erro)}`,
       };
     }
-    return gravarConferencia(config, event.sender);
   },
 );
 
-/** Volta a personalização ao padrão, depois de confirmar. */
+/**
+ * Acrescenta o perfil lido no importar. Nome repetido: `substituir` troca o
+ * conteúdo do perfil com esse nome; `manter` acrescenta como "<nome> (2)".
+ * O perfil ativo continua o mesmo (se for o substituído, aplica o novo).
+ */
+ipcMain.handle(
+  'adicionar-perfil',
+  (event, perfil: unknown, modo: unknown): Promise<ResultadoPerfis> =>
+    mudarPerfis(event, (p) => {
+      const o = perfil as { nome?: unknown; config?: unknown } | null;
+      const nome = texto(o?.nome).trim();
+      const config = validarConfig(o?.config);
+      const igual = perfilComNome(nome, p.lista);
+      if (igual && modo === 'substituir') {
+        igual.config = config;
+        return null;
+      }
+      const livre = igual ? nomeLivre(nome, p.lista) : nome;
+      const problema = problemaNomePerfil(livre, p.lista);
+      if (problema) return problema;
+      p.lista.push({ id: novoIdPerfil(p.lista), nome: livre, config });
+      return null;
+    }),
+);
+
+/** Volta o perfil ativo ao padrão (o nome fica), depois de confirmar. */
 ipcMain.handle(
   'restaurar-config',
-  async (event): Promise<ResultadoConfig | { status: 'cancelado' }> => {
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    const opcoes: Electron.MessageBoxOptions = {
+  async (event): Promise<ResultadoPerfis | { status: 'cancelado' }> => {
+    const j = estadoDe(event.sender);
+    const nome = perfilAtivo(await lerPerfis()).nome;
+    const { response } = await dialog.showMessageBox(j.janela, {
       type: 'question',
       title: 'Restaurar padrão',
-      message:
-        'Voltar as colunas e o layout da conferência ao padrão? As anotações extras saem da tabela, mas o texto já salvo nos arquivos .psxml não se perde.',
+      message: `Voltar as colunas, as anotações extras, a orientação e o layout do perfil ${nome} ao padrão? O texto já salvo nos arquivos .psxml não se perde.`,
       buttons: ['Restaurar', 'Cancelar'],
       defaultId: 1,
       cancelId: 1,
       noLink: true,
-    };
-    const { response } = janela
-      ? await dialog.showMessageBox(janela, opcoes)
-      : await dialog.showMessageBox(opcoes);
+    });
     if (response !== 0) return { status: 'cancelado' };
-    return gravarConferencia(configPadrao(), event.sender);
+    return mudarPerfis(event, (p) => {
+      perfilAtivo(p).config = configPadrao();
+      return null;
+    });
   },
 );
 

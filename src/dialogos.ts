@@ -77,34 +77,38 @@ export function perguntar<T extends string>(opcoes: {
 }
 
 /**
- * Pede o nome do arquivo do Salvar cópia: campo com a sugestão selecionada,
- * a extensão ao lado e a pasta embaixo. `problema` diz o que há de errado com
- * o nome (null se pode salvar) e é conferido a cada tecla. Devolve o nome
- * (sem extensão) ou null se cancelou.
+ * Pede um texto numa caixa: campo com `valor` selecionado, `sufixo` ao lado
+ * (por exemplo a extensão) e `nota` embaixo. `problema` diz o que há de
+ * errado (null se pode confirmar) e é conferido a cada tecla. Devolve o texto
+ * (sem espaços nas pontas) ou null se cancelou.
  */
-export function pedirNomeCopia(opcoes: {
-  sugestao: string;
-  extensao: string;
-  pasta: string;
-  problema: (nome: string) => string | null;
+export function pedirTexto(opcoes: {
+  titulo: string;
+  texto: string;
+  valor: string;
+  rotulo: string;
+  confirmar: string;
+  sufixo?: string;
+  nota?: string;
+  problema: (texto: string) => string | null;
 }): Promise<string | null> {
   return new Promise((resolve) => {
     const { d, fim } = novaCaixa<string | null>(
-      'Salvar cópia',
-      'A cópia é um .psxml novo com as anotações de agora. O arquivo aberto não muda, e a janela passa a trabalhar na cópia.',
+      opcoes.titulo,
+      opcoes.texto,
       null,
       resolve,
     );
     const campo = el('input', 'caixa-dialogo__campo');
     campo.type = 'text';
-    campo.value = opcoes.sugestao;
+    campo.value = opcoes.valor;
     campo.spellcheck = false;
-    campo.setAttribute('aria-label', 'Nome da cópia');
+    campo.setAttribute('aria-label', opcoes.rotulo);
     const erro = el('p', 'caixa-dialogo__erro');
-    erro.id = 'erro-nome-copia';
+    erro.id = `erro-${Math.random().toString(36).slice(2)}`;
     erro.hidden = true;
     campo.setAttribute('aria-describedby', erro.id);
-    const salvar = botao('botao botao--principal', 'Salvar');
+    const confirmar = botao('botao botao--principal', opcoes.confirmar);
     const cancelar = botao('botao botao--claro', 'Cancelar');
 
     const conferir = (): boolean => {
@@ -112,20 +116,19 @@ export function pedirNomeCopia(opcoes: {
       erro.textContent = p ?? '';
       erro.hidden = !p;
       campo.setAttribute('aria-invalid', String(Boolean(p)));
-      salvar.disabled = Boolean(p);
+      confirmar.disabled = Boolean(p);
       return !p;
     };
     campo.addEventListener('input', conferir);
-    const confirmar = () => {
-      if (!conferir()) return;
-      fim(campo.value.trim());
+    const concluir = () => {
+      if (conferir()) fim(campo.value.trim());
     };
     campo.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      confirmar();
+      concluir();
     });
-    salvar.addEventListener('click', confirmar);
+    confirmar.addEventListener('click', concluir);
     cancelar.addEventListener('click', () => fim(null));
 
     d.append(
@@ -133,16 +136,39 @@ export function pedirNomeCopia(opcoes: {
         'div',
         'caixa-dialogo__linha',
         campo,
-        el('span', 'caixa-dialogo__extensao', opcoes.extensao),
+        opcoes.sufixo && el('span', 'caixa-dialogo__extensao', opcoes.sufixo),
       ),
       erro,
-      el('p', 'caixa-dialogo__pasta', `em ${opcoes.pasta}`),
-      el('div', 'caixa-dialogo__botoes', cancelar, salvar),
+      ...(opcoes.nota ? [el('p', 'caixa-dialogo__pasta', opcoes.nota)] : []),
+      el('div', 'caixa-dialogo__botoes', cancelar, confirmar),
     );
     document.body.append(d);
     d.showModal();
     conferir();
     campo.focus();
     campo.select();
+  });
+}
+
+/**
+ * Pede o nome do arquivo do Salvar cópia: a sugestão selecionada, a extensão
+ * ao lado e a pasta embaixo. Devolve o nome (sem extensão) ou null.
+ */
+export function pedirNomeCopia(opcoes: {
+  sugestao: string;
+  extensao: string;
+  pasta: string;
+  problema: (nome: string) => string | null;
+}): Promise<string | null> {
+  return pedirTexto({
+    titulo: 'Salvar cópia',
+    texto:
+      'A cópia é um .psxml novo com as anotações de agora. O arquivo aberto não muda, e a janela passa a trabalhar na cópia.',
+    valor: opcoes.sugestao,
+    rotulo: 'Nome da cópia',
+    confirmar: 'Salvar',
+    sufixo: opcoes.extensao,
+    nota: `em ${opcoes.pasta}`,
+    problema: opcoes.problema,
   });
 }

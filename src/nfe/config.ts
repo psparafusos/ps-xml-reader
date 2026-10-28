@@ -18,9 +18,6 @@ import { ORIENTACOES_CONFIG, type OrientacaoConfig } from './folha';
 
 export const VERSAO_CONFIG = 1;
 
-/** Nome sugerido ao exportar. */
-export const NOME_EXPORTACAO = 'PS Reader - configuracao.json';
-
 export interface ColunaConfig {
   id: string;
   visivel: boolean;
@@ -330,22 +327,6 @@ export function validarConfig(v: unknown): ConfigConferencia {
     // Reservado para a configuração por fornecedor: nesta versão não é lido.
     fornecedores: {},
   };
-}
-
-/** Configuração a partir do texto de um arquivo .json. */
-export function lerConfigTexto(texto: string): ConfigConferencia {
-  let v: unknown;
-  try {
-    v = JSON.parse(texto.replace(/^﻿/, ''));
-  } catch {
-    falha('O arquivo não é um JSON válido.');
-  }
-  return validarConfig(v);
-}
-
-/** Texto do arquivo exportado. */
-export function textoConfig(c: ConfigConferencia): string {
-  return `${JSON.stringify(c, null, 2)}\n`;
 }
 
 /** true se a coluna com este id é de anotação (a original ou uma extra). */
