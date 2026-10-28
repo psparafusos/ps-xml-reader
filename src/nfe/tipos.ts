@@ -117,3 +117,9 @@ export interface Nota {
   infAdic: InfAdic;
   protocolo: Protocolo;
 }
+
+/**
+ * Anotações digitadas na conferência: id da coluna de anotação -> nItem ->
+ * texto. Texto vazio não fica guardado.
+ */
+export type Anotacoes = Map<string, Map<string, string>>;

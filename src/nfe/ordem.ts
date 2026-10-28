@@ -11,8 +11,8 @@
 // A ordenação é estável: empate mantém a ordem da nota. Valor vazio fica no
 // fim, nas duas direções.
 
-import { COLUNAS_ITENS, ID_ANOTACAO, type ColunaItem } from './colunas';
-import type { Item } from './tipos';
+import type { ColunaItem } from './colunas';
+import type { Anotacoes, Item } from './tipos';
 
 export type Direcao = 'asc' | 'desc';
 
@@ -53,16 +53,19 @@ function compararDigitos(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Colunas que podem ordenar (as visíveis). */
-export function colunasOrdenaveis(): ColunaItem[] {
-  return COLUNAS_ITENS.filter((c) => c.visivel);
+/** Colunas que podem ordenar: as visíveis de `colunas` (colunasDaConfig). */
+export function colunasOrdenaveis(colunas: ColunaItem[]): ColunaItem[] {
+  return colunas.filter((c) => c.visivel);
 }
 
-/** true se o critério existe nesta versão. */
-export function criterioValido(criterio: string): boolean {
+/** true se o critério existe nesta versão e com estas colunas. */
+export function criterioValido(
+  criterio: string,
+  colunas: ColunaItem[],
+): boolean {
   if (['nota', 'cst', 'codigo-texto', 'codigo-numero'].includes(criterio))
     return true;
-  return colunasOrdenaveis().some(
+  return colunasOrdenaveis(colunas).some(
     (c) => c.id === criterio && c.id !== 'codigo',
   );
 }
@@ -79,7 +82,8 @@ type Valor =
 function valorDe(
   i: Item,
   criterio: string,
-  anotacoes: Map<string, string>,
+  anotacoes: Anotacoes,
+  colunas: ColunaItem[],
 ): Valor {
   if (criterio === 'codigo-texto')
     return i.cProd ? { tipo: 'texto', v: i.cProd } : null;
@@ -87,12 +91,12 @@ function valorDe(
     const d = digitosDoCodigo(i.cProd);
     return d === null ? null : { tipo: 'digitos', v: d };
   }
-  if (criterio === ID_ANOTACAO) {
-    const t = anotacoes.get(i.nItem) ?? '';
+  const col = colunas.find((c) => c.id === criterio);
+  if (!col) return null;
+  if (col.anotacao) {
+    const t = anotacoes.get(col.id)?.get(i.nItem) ?? '';
     return t.trim() ? { tipo: 'texto', v: t } : null;
   }
-  const col = COLUNAS_ITENS.find((c) => c.id === criterio);
-  if (!col) return null;
   const bruto = col.chave ? col.chave(i) : col.valor(i);
   if (col.ordenacao === 'numero') {
     const n = numero(bruto);
@@ -113,7 +117,8 @@ function compararValores(a: Valor, b: Valor): number {
 export function ordenarItens(
   itens: Item[],
   ordem: Ordem,
-  anotacoes: Map<string, string>,
+  anotacoes: Anotacoes,
+  colunas: ColunaItem[],
 ): Item[] {
   const comIndice = itens.map((item, indice) => ({ item, indice }));
   if (ordem.criterio === 'nota') return itens.slice();
@@ -135,7 +140,7 @@ export function ordenarItens(
   const valores = new Map(
     comIndice.map((x) => [
       x.indice,
-      valorDe(x.item, ordem.criterio, anotacoes),
+      valorDe(x.item, ordem.criterio, anotacoes, colunas),
     ]),
   );
   return comIndice
@@ -155,12 +160,12 @@ export function ordenarItens(
 }
 
 /** Rótulo curto da ordem, para o botão Ordenar. */
-export function descreverOrdem(o: Ordem): string {
+export function descreverOrdem(o: Ordem, colunas: ColunaItem[]): string {
   if (o.criterio === 'nota') return 'Ordem da nota';
   if (o.criterio === 'cst') return 'Agrupado por CST';
   const dir = o.direcao === 'asc' ? 'crescente' : 'decrescente';
   if (o.criterio === 'codigo-texto') return `Código (como texto), ${dir}`;
   if (o.criterio === 'codigo-numero') return `Código (como número), ${dir}`;
-  const col = COLUNAS_ITENS.find((c) => c.id === o.criterio);
+  const col = colunas.find((c) => c.id === o.criterio);
   return `${col?.rotulo ?? o.criterio}, ${dir}`;
 }

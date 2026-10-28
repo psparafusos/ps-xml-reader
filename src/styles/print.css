@@ -21,7 +21,9 @@
   .ordenar,
   .copiar-chave,
   .vazio,
-  .modo {
+  .modo,
+  .painel,
+  .rolagem__seta {
     display: none !important;
   }
 
@@ -111,6 +113,12 @@
     overflow: visible;
   }
 
+  /* No papel a tabela inteira aparece: sem sombra de rolagem. */
+  .rolagem::before,
+  .rolagem::after {
+    content: none;
+  }
+
   .tabela {
     font-size: var(--fs-print-sm);
   }
@@ -145,13 +153,18 @@
     display: none;
   }
 
-  /* A descrição ocupa 100% da largura; sem min-width a anotação encolhe. */
-  .tabela--itens .col-anotacao {
+  /* A descrição ocupa 100% da largura; sem min-width a anotação encolhe.
+     A largura de cada caixa (--largura-coluna-print) vem do renderer: o
+     tamanho escolhido no painel, reduzido quando as caixas juntas não cabem
+     no A4 (nfe/colunas.ts). */
+  .tabela--itens .coluna-anotacao {
     width: calc(
-      var(--largura-anotacao-print) + 2 * var(--esp-lado-anotacao-print)
+      var(--largura-coluna-print, var(--largura-anotacao-print)) + 2 *
+        var(--esp-lado-anotacao-print)
     );
     min-width: calc(
-      var(--largura-anotacao-print) + 2 * var(--esp-lado-anotacao-print)
+      var(--largura-coluna-print, var(--largura-anotacao-print)) + 2 *
+        var(--esp-lado-anotacao-print)
     );
     padding-left: var(--esp-lado-anotacao-print);
     padding-right: var(--esp-lado-anotacao-print);

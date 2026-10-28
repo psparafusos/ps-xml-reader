@@ -27,6 +27,14 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { EXTENSAO, tratarEventoSquirrel } from './associacao';
 import { ehImpressoraCupom } from './impressoras';
+import {
+  configPadrao,
+  lerConfigTexto,
+  NOME_EXPORTACAO,
+  textoConfig,
+  validarConfig,
+  type ConfigConferencia,
+} from './nfe/config';
 
 // Eventos do Squirrel antes de qualquer outra inicialização: atalhos
 // (electron-squirrel-startup, que sai quando o Update.exe termina) e a
@@ -380,12 +388,14 @@ ipcMain.handle('abrir-externo', async (): Promise<ArquivoExterno | null> => {
   return { ...arquivo, pastaSessao: copia ? pastaSessao : null };
 });
 
-// ---------- config.json em userData (pasta de destino, última pasta, janela) ----------
+// ---------- config.json em userData (pasta de destino, última pasta, janela, conferência) ----------
 
 interface Config {
   pastaDestino?: unknown;
   ultimaPastaAbertura?: unknown;
   janela?: unknown;
+  /** Personalização da conferência (src/nfe/config.ts). */
+  conferencia?: unknown;
 }
 
 function caminhoConfig(): string {
@@ -532,6 +542,136 @@ ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
   pastaSessao = null;
   return pasta;
 });
+
+// ---------- personalização da conferência (colunas, anotações, layout) ----------
+
+/**
+ * Personalização salva. Sem a chave (primeira execução ou config antiga) ou
+ * com conteúdo inválido: a padrão.
+ */
+async function lerConferencia(): Promise<ConfigConferencia> {
+  const { conferencia } = await lerConfig();
+  if (conferencia === undefined) return configPadrao();
+  try {
+    return validarConfig(conferencia);
+  } catch {
+    return configPadrao();
+  }
+}
+
+/** Grava a personalização; erro vira a mensagem para o renderer. */
+async function gravarConferencia(
+  config: ConfigConferencia,
+): Promise<ResultadoConfig> {
+  try {
+    await gravarConfig({ conferencia: config });
+    return { status: 'ok', config };
+  } catch (erro) {
+    return {
+      status: 'erro',
+      mensagem: `Não foi possível salvar a configuração: ${mensagemDe(erro)}`,
+    };
+  }
+}
+
+ipcMain.handle(
+  'config-conferencia',
+  (): Promise<ConfigConferencia> => lerConferencia(),
+);
+
+ipcMain.handle(
+  'gravar-config-conferencia',
+  async (_event, config: unknown): Promise<ResultadoConfig> => {
+    try {
+      return await gravarConferencia(validarConfig(config));
+    } catch (erro) {
+      return { status: 'erro', mensagem: mensagemDe(erro) };
+    }
+  },
+);
+
+/**
+ * Exporta a personalização salva para um .json escolhido pelo usuário. Só a
+ * personalização: pasta de destino, última pasta e janela são da máquina e
+ * ficam de fora.
+ */
+ipcMain.handle(
+  'exportar-config',
+  async (event): Promise<ResultadoExportarConfig> => {
+    const janela = BrowserWindow.fromWebContents(event.sender);
+    const opcoes: Electron.SaveDialogOptions = {
+      title: 'Exportar configuração',
+      defaultPath: path.join(app.getPath('documents'), NOME_EXPORTACAO),
+      filters: [{ name: 'Configuração do PS Reader', extensions: ['json'] }],
+    };
+    const { canceled, filePath } = janela
+      ? await dialog.showSaveDialog(janela, opcoes)
+      : await dialog.showSaveDialog(opcoes);
+    if (canceled || !filePath) return { status: 'cancelado' };
+    try {
+      await writeFile(filePath, textoConfig(await lerConferencia()), 'utf8');
+      return { status: 'exportado', caminho: filePath };
+    } catch (erro) {
+      return {
+        status: 'erro',
+        mensagem: `Não foi possível exportar a configuração: ${mensagemDe(erro)}`,
+      };
+    }
+  },
+);
+
+/**
+ * Importa um arquivo exportado. O arquivo inteiro é validado antes de
+ * aplicar: inválido ou de versão desconhecida devolve o motivo e nada muda.
+ */
+ipcMain.handle(
+  'importar-config',
+  async (event): Promise<ResultadoConfig | { status: 'cancelado' }> => {
+    const janela = BrowserWindow.fromWebContents(event.sender);
+    const opcoes: Electron.OpenDialogOptions = {
+      title: 'Importar configuração',
+      filters: [{ name: 'Configuração do PS Reader', extensions: ['json'] }],
+      properties: ['openFile'],
+    };
+    const { canceled, filePaths } = janela
+      ? await dialog.showOpenDialog(janela, opcoes)
+      : await dialog.showOpenDialog(opcoes);
+    if (canceled || filePaths.length === 0) return { status: 'cancelado' };
+    let config: ConfigConferencia;
+    try {
+      config = lerConfigTexto(await readFile(filePaths[0], 'utf8'));
+    } catch (erro) {
+      return {
+        status: 'erro',
+        mensagem: `Configuração não importada; nada foi alterado. ${mensagemDe(erro)}`,
+      };
+    }
+    return gravarConferencia(config);
+  },
+);
+
+/** Volta a personalização ao padrão, depois de confirmar. */
+ipcMain.handle(
+  'restaurar-config',
+  async (event): Promise<ResultadoConfig | { status: 'cancelado' }> => {
+    const janela = BrowserWindow.fromWebContents(event.sender);
+    const opcoes: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: 'Restaurar padrão',
+      message:
+        'Voltar as colunas e o layout da conferência ao padrão? As anotações extras saem da tabela, mas o texto já salvo nos arquivos .psxml não se perde.',
+      buttons: ['Restaurar', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+    };
+    const { response } = janela
+      ? await dialog.showMessageBox(janela, opcoes)
+      : await dialog.showMessageBox(opcoes);
+    if (response !== 0) return { status: 'cancelado' };
+    return gravarConferencia(configPadrao());
+  },
+);
 
 // ---------- salvar (PDF + cópia editada) ----------
 

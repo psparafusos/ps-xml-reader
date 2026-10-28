@@ -70,7 +70,10 @@
   --largura-rotulo-total: 180px;
   --largura-minima-campo: 200px;
   --largura-minima-tabela: 1000px;
+  /* Caixa de anotação na tela, pela largura escolhida no painel. */
+  --largura-anotacao-estreita: 100px;
   --largura-anotacao: 200px;
+  --largura-anotacao-larga: 320px;
   --esp-lado-anotacao: var(--esp-3);
   --largura-modo-opcao: 220px;
   /* Miniatura A4 na escolha de modo: acompanha a altura da janela para a
@@ -125,6 +128,20 @@
   --aviso-duracao: 1500ms;
   --sombra-aviso: 0 6px 24px rgb(0 0 0 / 0.25);
   --largura-menu: 300px;
+  /* Painel Editar colunas */
+  --largura-painel: 1040px;
+  --largura-lista-colunas: 320px;
+  --largura-anotacao-previa-estreita: 50px;
+  --largura-anotacao-previa: 90px;
+  --largura-anotacao-previa-larga: 150px;
+  /* Contorno de foco inteiro dentro de áreas que rolam. */
+  --folga-foco: calc(
+    var(--botao-foco-espessura) + var(--botao-foco-afastamento)
+  );
+  /* Setas de rolagem lateral das tabelas */
+  --tamanho-seta-rolagem: 26px;
+  --largura-sombra-rolagem: 28px;
+  --sombra-rolagem: rgb(0 0 0 / 0.18);
   --altura-menu: 60vh;
 
   /* Impressão (A4, printToPDF) */
@@ -137,6 +154,7 @@
   --esp-print-2: 3pt;
   --esp-print-3: 6pt;
   --esp-print-4: 9pt;
+  /* Caixa de anotação sem largura calculada (a folha usa a do renderer). */
   --largura-anotacao-print: 30mm;
   --esp-lado-anotacao-print: var(--esp-print-3);
   --altura-anotacao-print: 11pt;

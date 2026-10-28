@@ -59,6 +59,83 @@ ela vira a pasta salva e a da sessão deixa de valer. Abrir um `.psxml` pelo
 Na tabela de itens da conferência, a coluna **Anotação** recebe um texto livre
 por item.
 
+### Editar colunas (modo Conferência)
+
+Na barra acima da tabela de itens, à direita, **Editar colunas** abre um painel
+com todas as colunas, inclusive EAN e as anotações extras. Marque ou desmarque
+cada uma e arraste pela alça (ou use as setas do teclado na alça) para mudar a
+ordem. Ao lado, a prévia mostra a tabela com quatro itens fictícios, o
+cabeçalho em destaque e as linhas sumindo para baixo; ela muda a cada clique.
+**Aplicar** salva e remonta a tabela; **Cancelar** (ou Esc) volta ao que era.
+A configuração vale para todas as notas, na tela, na impressão e no PDF. O
+DANFE não muda.
+
+Anotações extras: cada uma vira uma coluna com uma caixa de texto por item,
+como a Anotação, e sai no PDF e na impressão do mesmo jeito. Há três prontas
+para adicionar com um clique (**CFOP de entrada**, **Qtd recebida**,
+**Observação**) e a anotação livre, com título obrigatório, de até 40
+caracteres. Título igual ao de outra coluna (sem contar acento, maiúscula e
+pontuação) é recusado. São no máximo 10 anotações extras. O × ao lado de uma
+extra a remove da tabela. A Anotação original pode ser escondida e movida, mas
+não removida.
+
+Cada coluna de anotação (a original e as extras) tem um seletor de largura na
+lista: **Estreita**, **Média** (padrão) ou **Larga**. Na tela a caixa tem 100,
+200 ou 320 px; na folha, 15, 30 ou 45 mm. Se as caixas juntas passam de 80 mm,
+todas diminuem na mesma proporção para a tabela caber no A4 retrato
+(`src/nfe/colunas.ts`). Numa coluna estreita, o título quebra em duas linhas
+para não alargar a coluna. A prévia acompanha a escolha.
+
+A tabela de itens e a prévia rolam na horizontal dentro do próprio quadro.
+Quando há colunas escondidas de um lado, aparece naquela borda uma sombra e
+uma seta na altura do cabeçalho; clicar na seta rola para aquele lado. A seta
+some quando não há mais nada daquele lado, e nunca sai na impressão nem no PDF.
+
+O texto digitado nunca se perde ao mexer nas colunas: coluna escondida ou
+removida continua com o texto na memória e no `.psxml`, e ele volta a aparecer
+quando a coluna volta. Uma extra recriada com o mesmo título tem o mesmo id
+(`anotacao-` mais o título sem acento, por exemplo `anotacao-qtd-recebida`) e
+recupera o texto.
+
+No rodapé do painel:
+
+- **Exportar** grava a configuração aplicada num arquivo único, com o nome
+  sugerido `PS Reader - configuracao.json`, onde você escolher. Pasta de
+  destino, última pasta aberta e tamanho da janela não vão junto (são da
+  máquina).
+- **Importar** lê um arquivo exportado, valida o arquivo inteiro e só então
+  aplica e salva. Arquivo inválido, de outro tipo ou de versão mais nova
+  mostra o motivo no painel e nada muda.
+- **Restaurar padrão** pergunta antes e volta colunas, anotações extras e
+  layout ao padrão.
+
+A configuração fica em `config.json`, na chave `conferencia`, junto da pasta
+de destino e do resto (`src/nfe/config.ts`):
+
+```json
+{
+  "versao": 1,
+  "colunas": [
+    { "id": "nItem", "visivel": true },
+    { "id": "anotacao", "visivel": true },
+    { "id": "ean", "visivel": false },
+    { "id": "anotacao-qtd-recebida", "visivel": true, "largura": "estreita" }
+  ],
+  "anotacoes": [{ "id": "anotacao-qtd-recebida", "titulo": "Qtd recebida" }],
+  "layout": {
+    "blocos": [{ "id": "emitente", "visivel": true, "largura": 6 }]
+  },
+  "fornecedores": {}
+}
+```
+
+(O exemplo está encurtado: o arquivo real lista todas as colunas e os oito
+blocos.) `colunas` é a ordem da tabela; `largura` (`estreita`, `media` ou `larga`) só existe nas colunas de anotação e, sem ela, vale `media`. `layout` guarda os blocos da
+conferência numa grade de 12 colunas; nesta versão ele ainda não é editável.
+`fornecedores` fica reservado para a configuração por fornecedor e por
+enquanto é sempre vazio. Coluna que falte no arquivo entra no fim com a
+visibilidade padrão.
+
 A janela tem tamanho mínimo de 1024 x 560 (cabe maximizada numa tela de
 1366 x 768 com escala de 125%; a conta está em `src/main.ts`). Sem rolagem
 horizontal na janela: só a tabela de itens rola na horizontal, dentro do
@@ -200,21 +277,34 @@ janela pergunta **Salvar**, **Descartar** ou **Cancelar**.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<psCopiaEditada xmlns="urn:psparafusos:ps-xml-reader" versao="1">
+<psCopiaEditada xmlns="urn:psparafusos:ps-xml-reader" versao="2">
   <aviso>Cópia de uso interno. Não é NF-e e não tem validade fiscal.</aviso>
   <original>
     <!-- elemento raiz do XML original (nfeProc ou NFe), sem alteração -->
   </original>
-  <anotacoes>
+  <anotacoes titulo="Anotação">
     <anotacao nItem="5">texto</anotacao>
+    <coluna id="anotacao-qtd-recebida" titulo="Qtd recebida">
+      <anotacao nItem="5">390</anotacao>
+    </coluna>
   </anotacoes>
   <ordem criterio="vTotal" direcao="desc"/>
 </psCopiaEditada>
 ```
 
+A coluna Anotação fica nos `<anotacao nItem>` direto em `<anotacoes>`, como na
+versão 1.0.1, e o atributo `titulo` guarda o título dela. Cada anotação extra
+fica num `<coluna>` com o id e o título, para o arquivo ser legível sozinho.
+Só entram itens com texto. Uma cópia salva pela 1.0.1 (sem `<coluna>`, com
+`versao="1"`) abre com a anotação dela na coluna Anotação. Uma cópia nova
+aberta na 1.0.1 mostra a coluna Anotação; as extras ela ignora, e se ela
+salvar por cima, as extras se perdem. Coluna que está no arquivo mas não na
+configuração é regravada como veio, com o título lido do arquivo.
+
 `<ordem>` guarda a ordem dos itens na conferência: `criterio` é `nota`, `cst`,
-`codigo-texto`, `codigo-numero` ou o id de uma coluna (`src/nfe/colunas.ts`), e
-`direcao` é `asc` ou `desc`. Cópia antiga, sem esse elemento, abre na ordem da
+`codigo-texto`, `codigo-numero` ou o id de uma coluna (`src/nfe/colunas.ts`,
+ou de uma anotação extra), e `direcao` é `asc` ou `desc`. Cópia antiga, sem
+esse elemento, ou com o critério de uma coluna escondida, abre na ordem da
 nota.
 
 A raiz não é `nfeProc` nem `NFe`, então a cópia não é aceita como NF-e por
@@ -291,7 +381,10 @@ src/
   impressoras.ts     lista de nomes de impressora de cupom (aviso antes de imprimir)
   associacao.ts      associação do .psxml no registro do usuário (eventos do Squirrel)
   renderer.ts        monta a tela a partir do objeto Nota
+  editorColunas.ts   painel Editar colunas (lista, arrastar, anotações extras, prévia)
+  dom.ts             utilitários de DOM (el, icone, botao)
   declarations.d.ts  tipos globais (window.psApi)
+  nfe/config.ts      personalização da conferência: tipo, padrão, validação e migração
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer
   nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível, ordenação)

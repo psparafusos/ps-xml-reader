@@ -36,6 +36,18 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.on('pedido-fechar', () => callback());
   },
   fecharJanela: (): Promise<void> => ipcRenderer.invoke('fechar-janela'),
+  configConferencia: (): Promise<ConfigConferencia> =>
+    ipcRenderer.invoke('config-conferencia'),
+  gravarConfigConferencia: (
+    config: ConfigConferencia,
+  ): Promise<ResultadoConfig> =>
+    ipcRenderer.invoke('gravar-config-conferencia', config),
+  exportarConfig: (): Promise<ResultadoExportarConfig> =>
+    ipcRenderer.invoke('exportar-config'),
+  importarConfig: (): Promise<ResultadoConfig | { status: 'cancelado' }> =>
+    ipcRenderer.invoke('importar-config'),
+  restaurarConfig: (): Promise<ResultadoConfig | { status: 'cancelado' }> =>
+    ipcRenderer.invoke('restaurar-config'),
   areaTransferencia: (
     pedido: PedidoAreaTransferencia,
   ): Promise<ResultadoAreaTransferencia> =>

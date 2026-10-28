@@ -845,7 +845,7 @@ ul {
   background: var(--cor-zebra);
 }
 
-.tabela--itens .item__linha > td:not(.col-descricao, .col-anotacao) {
+.tabela--itens .item__linha > td:not(.col-descricao, .coluna-anotacao) {
   white-space: nowrap;
 }
 
@@ -1033,14 +1033,35 @@ ul {
 
 /* ---------- anotação ---------- */
 
-.tabela--itens .col-anotacao {
-  min-width: calc(var(--largura-anotacao) + 2 * var(--esp-lado-anotacao));
+/* Largura da caixa: a escolhida no painel Editar colunas (média por padrão). */
+.coluna-anotacao {
+  --largura-caixa: var(--largura-anotacao);
+  --largura-caixa-previa: var(--largura-anotacao-previa);
+}
+
+.coluna-anotacao--estreita {
+  --largura-caixa: var(--largura-anotacao-estreita);
+  --largura-caixa-previa: var(--largura-anotacao-previa-estreita);
+}
+
+.coluna-anotacao--larga {
+  --largura-caixa: var(--largura-anotacao-larga);
+  --largura-caixa-previa: var(--largura-anotacao-previa-larga);
+}
+
+/* Coluna estreita: o título quebra em linhas para não alargar a coluna. */
+.tabela th.coluna-anotacao--estreita {
+  white-space: normal;
+}
+
+.tabela--itens .coluna-anotacao {
+  min-width: calc(var(--largura-caixa) + 2 * var(--esp-lado-anotacao));
   padding-left: var(--esp-lado-anotacao);
   padding-right: var(--esp-lado-anotacao);
 }
 
 /* Título centralizado sobre a caixa. */
-.tabela--itens th.col-anotacao {
+.tabela--itens th.coluna-anotacao {
   text-align: center;
 }
 
@@ -1155,4 +1176,373 @@ body.pdf-previa #danfe {
   width: 100%;
   visibility: hidden;
   pointer-events: none;
+}
+
+/* ---------- painel Editar colunas ---------- */
+
+.ordenar__editar {
+  margin-left: auto;
+}
+
+.painel {
+  width: min(var(--largura-painel), calc(100vw - 2 * var(--esp-5)));
+  max-height: calc(100vh - 2 * var(--esp-5));
+  padding: 0;
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto);
+  box-shadow: var(--sombra-aviso);
+}
+
+.painel[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.painel::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.painel__cabecalho {
+  padding: var(--esp-4) var(--esp-5) var(--esp-3);
+  border-bottom: var(--borda) solid var(--cor-borda-suave);
+}
+
+.painel__titulo {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-lg);
+  font-weight: var(--peso-forte);
+}
+
+.painel__subtitulo {
+  margin: 0 0 var(--esp-2);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-forte);
+  letter-spacing: var(--espaco-letras-rotulo);
+  text-transform: uppercase;
+}
+
+.painel__dica {
+  margin-top: var(--esp-1);
+  font-size: var(--fs-sm);
+}
+
+.painel__corpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--largura-lista-colunas) minmax(0, 1fr);
+  gap: var(--esp-5);
+  padding: var(--esp-4) var(--esp-5);
+  overflow: hidden;
+}
+
+.painel__lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  min-height: 0;
+  overflow-y: auto;
+  /* Folga para o contorno de foco não ser cortado pela rolagem. */
+  margin: calc(-1 * var(--folga-foco));
+  padding: var(--folga-foco) calc(var(--folga-foco) + var(--esp-2))
+    var(--folga-foco) var(--folga-foco);
+}
+
+.colunas-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--borda) solid var(--cor-borda-suave);
+  border-radius: var(--raio);
+}
+
+.colunas-lista__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-2);
+  border-bottom: var(--borda) solid var(--cor-borda-suave);
+  background: var(--ps-branco);
+}
+
+.colunas-lista__item:last-child {
+  border-bottom: none;
+}
+
+/* Linha sendo arrastada: por cima das outras, com sombra. */
+.colunas-lista__item--arrastando {
+  z-index: 1;
+  background: var(--cor-destaque-suave);
+  box-shadow: var(--sombra-aviso);
+}
+
+.colunas-lista__alca,
+.colunas-lista__remover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tamanho-limpar);
+  height: var(--tamanho-limpar);
+  padding: 0;
+  border: var(--borda) solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--cor-texto-forte);
+}
+
+.colunas-lista__alca {
+  cursor: grab;
+  touch-action: none;
+}
+
+.colunas-lista__item--arrastando .colunas-lista__alca {
+  cursor: grabbing;
+}
+
+.colunas-lista__alca:hover,
+.colunas-lista__remover:hover {
+  border-color: var(--ps-preto);
+}
+
+.colunas-lista__remover {
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.colunas-lista__alca:focus-visible,
+.colunas-lista__remover:focus-visible,
+.colunas-lista__marca:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.colunas-lista__marca {
+  width: var(--icone);
+  height: var(--icone);
+  margin: 0;
+  accent-color: var(--ps-preto);
+  cursor: pointer;
+}
+
+.colunas-lista__rotulo {
+  color: var(--cor-texto-forte);
+  cursor: pointer;
+}
+
+/* Largura da caixa, só nas colunas de anotação (marca que é anotação). */
+.colunas-lista__largura {
+  margin-left: auto;
+  padding: 0 var(--esp-1);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--raio);
+  background: var(--cor-destaque-suave);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.colunas-lista__largura + .colunas-lista__remover {
+  margin-left: 0;
+}
+
+.colunas-lista__largura:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.painel__prontas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  margin: var(--esp-3) 0;
+}
+
+.painel__criar {
+  display: flex;
+  gap: var(--esp-2);
+}
+
+.painel__campo {
+  flex: 1;
+  min-width: 0;
+  padding: var(--esp-1) var(--esp-2);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--raio);
+  color: var(--cor-texto-forte);
+  font: inherit;
+}
+
+.painel__campo:focus {
+  outline: none;
+  border-color: var(--ps-preto);
+  box-shadow: 0 0 0 var(--borda) var(--ps-preto);
+  background: var(--cor-destaque-suave);
+}
+
+.painel__campo[aria-invalid='true'] {
+  border-color: var(--aviso-erro-fundo);
+}
+
+.painel__erro-campo {
+  margin-top: var(--esp-1);
+  color: var(--aviso-erro-fundo);
+  font-size: var(--fs-sm);
+}
+
+.painel__previa {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Prévia com dados fictícios: o cabeçalho inteiro e as linhas sumindo para
+   baixo. Rola na horizontal quando há muitas colunas. */
+.previa {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: var(--esp-1);
+}
+
+/* O fade vai no conteúdo (largo como a tabela), e não na área que rola,
+   para a barra de rolagem continuar visível. */
+.previa__conteudo {
+  width: max-content;
+  min-width: 100%;
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+}
+
+.previa__tabela {
+  min-width: 0;
+}
+
+.previa__tabela th {
+  font-size: var(--fs-sm);
+}
+
+/* Cada item numa linha só: a prévia mostra as colunas, não o texto inteiro. */
+.previa__tabela td {
+  white-space: nowrap;
+}
+
+.previa__tabela .coluna-anotacao {
+  min-width: calc(var(--largura-caixa-previa) + 2 * var(--esp-2));
+  padding-left: var(--esp-2);
+  padding-right: var(--esp-2);
+}
+
+/* Caixa de anotação desenhada, sem campo de verdade. */
+.previa__anotacao {
+  display: block;
+  min-height: 1.6em;
+  padding: 0 var(--esp-2);
+  border: var(--borda-forte) solid var(--cor-destaque);
+  border-radius: var(--raio);
+  color: var(--cor-texto-forte);
+}
+
+.previa__vazia {
+  padding: var(--esp-5);
+  text-align: center;
+}
+
+.painel__erro {
+  margin: 0 var(--esp-5) var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border-radius: var(--raio);
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
+}
+
+.painel__rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-5);
+  border-top: var(--borda) solid var(--cor-borda-suave);
+}
+
+.painel__grupo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+}
+
+.painel__status {
+  max-width: var(--largura-caminho);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- setas de rolagem lateral (tabela de itens e prévia) ---------- */
+
+/* Quando a tabela tem colunas escondidas na lateral, aparece na borda uma
+   sombra e uma seta na altura do cabeçalho; clicar rola para aquele lado. */
+.rolagem {
+  position: relative;
+}
+
+.rolagem::before,
+.rolagem::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: var(--largura-sombra-rolagem);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.rolagem::before {
+  left: 0;
+  background: linear-gradient(to right, var(--sombra-rolagem), transparent);
+}
+
+.rolagem::after {
+  right: 0;
+  background: linear-gradient(to left, var(--sombra-rolagem), transparent);
+}
+
+.rolagem--esquerda::before,
+.rolagem--direita::after {
+  opacity: 1;
+}
+
+.rolagem__seta {
+  position: absolute;
+  top: var(--esp-1);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tamanho-seta-rolagem);
+  height: var(--tamanho-seta-rolagem);
+  padding: 0;
+  border: var(--borda-forte) solid var(--ps-branco);
+  border-radius: 50%;
+  background: var(--ps-preto);
+  color: var(--ps-branco);
+  box-shadow: var(--sombra-aviso);
+  cursor: pointer;
+}
+
+.rolagem__seta:hover {
+  background: var(--botao-pri-fundo-hover);
+}
+
+.rolagem__seta--esquerda {
+  left: var(--esp-1);
+}
+
+.rolagem__seta--direita {
+  right: var(--esp-1);
 }

@@ -3,7 +3,14 @@
 
 // Os estilos são carregados por <link> em index.html, não por import aqui.
 
-import { COLUNAS_ITENS, ID_ANOTACAO, type ColunaItem } from './nfe/colunas';
+import {
+  classeColuna,
+  colunasDaConfig,
+  ID_ANOTACAO,
+  largurasAnotacaoPrint,
+  type ColunaItem,
+} from './nfe/colunas';
+import { configPadrao } from './nfe/config';
 import { montarCopia } from './nfe/copia';
 import { nomeBaseArquivo } from './nfe/nome';
 import {
@@ -23,26 +30,12 @@ import {
 } from './nfe/ordem';
 import { lerDanfe, motivoNaoSuportado, type DadosDanfe } from './danfe/dados';
 import { montarDanfe } from './danfe/danfe';
-import type { Endereco, Item, Nota } from './nfe/tipos';
+import type { Anotacoes, Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
+import { abrirEditorColunas, editorAberto } from './editorColunas';
+import { comSetasDeRolagem, el, icone, type Filho } from './dom';
 
 // ---------- utilitários de DOM ----------
-
-type Filho = Node | string | null | undefined | false;
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  classe?: string,
-  ...filhos: Filho[]
-): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  if (classe) e.className = classe;
-  for (const c of filhos) {
-    if (c === null || c === undefined || c === false) continue;
-    e.append(c);
-  }
-  return e;
-}
 
 function $(id: string): HTMLElement {
   const e = document.getElementById(id);
@@ -156,21 +149,6 @@ function blocoDestinatario(n: Nota): HTMLElement | null {
   return secao('Destinatário', 'secao--parte', conteudo);
 }
 
-/** Ícone de linhas (caminhos SVG), no mesmo traço dos ícones da barra. */
-function icone(...caminhos: string[]): SVGSVGElement {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('class', 'icone');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  for (const d of caminhos) {
-    const p = document.createElementNS(ns, 'path');
-    p.setAttribute('d', d);
-    svg.append(p);
-  }
-  return svg;
-}
-
 /** Ícone de copiar (dois retângulos). */
 const iconeCopiar = () => icone('M9 9h11v11H9z', 'M5 15H4V4h11v1');
 
@@ -232,19 +210,106 @@ function blocoDadosNota(n: Nota): HTMLElement | null {
   return secao('Dados da NF-e', 'secao--dados', conteudo);
 }
 
-/** Anotações digitadas na tela, por nItem. Texto vazio não fica guardado. */
-const anotacoes = new Map<string, string>();
+// ---------- personalização (colunas e anotações extras) ----------
+
+/**
+ * Personalização da conferência em uso (src/nfe/config.ts). Começa na padrão
+ * e é trocada pela salva logo na abertura do app.
+ */
+let configAtual: ConfigConferencia = configPadrao();
+
+/** Todas as colunas da tabela de itens, na ordem e visibilidade da configuração. */
+const colunasAtuais = (): ColunaItem[] => colunasDaConfig(configAtual);
+
+/**
+ * Passa a usar `nova`: a ordem que dependia de uma coluna escondida volta à
+ * ordem da nota, e a conferência aberta é montada de novo (as anotações
+ * digitadas ficam, inclusive as de colunas escondidas ou removidas).
+ */
+function aplicarConfig(nova: ConfigConferencia): void {
+  configAtual = nova;
+  if (!criterioValido(ordemAtual.criterio, colunasAtuais()))
+    ordemAtual = ORDEM_NOTA;
+  if (!aberto || !conferenciaMontada || notaEl.hidden) {
+    conferenciaMontada = false;
+    return;
+  }
+  const y = window.scrollY;
+  notaEl.replaceChildren(...conteudoNota(aberto.lido.nota));
+  aplicarOrdem();
+  window.scrollTo(window.scrollX, y);
+}
+
+/** Abre o painel Editar colunas; Aplicar salva e remonta a tabela. */
+function editarColunas(): void {
+  abrirEditorColunas(configAtual, {
+    aplicar: async (nova) => {
+      const r = await window.psApi.gravarConfigConferencia(nova);
+      if (r.status === 'erro') return r.mensagem;
+      aplicarConfig(r.config);
+      return null;
+    },
+    exportar: () => window.psApi.exportarConfig(),
+    importar: async () => {
+      const r = await window.psApi.importarConfig();
+      if (r.status === 'ok') aplicarConfig(r.config);
+      return r;
+    },
+    restaurar: async () => {
+      const r = await window.psApi.restaurarConfig();
+      if (r.status === 'ok') aplicarConfig(r.config);
+      return r;
+    },
+  });
+}
+
+/**
+ * Anotações digitadas na tela, por coluna e nItem. Texto vazio não fica
+ * guardado. Guarda também as de colunas escondidas ou removidas da
+ * configuração: vão de novo para o .psxml e voltam se a coluna voltar.
+ */
+const anotacoes: Anotacoes = new Map();
 /** Anotações como estavam no último abrir ou salvar. */
-const anotacoesGravadas = new Map<string, string>();
+const anotacoesGravadas: Anotacoes = new Map();
+/**
+ * Título de cada coluna de anotação lido do .psxml aberto: regrava com o
+ * mesmo título uma coluna que não está mais na configuração.
+ */
+const titulosLidos = new Map<string, string>();
 let pendentesInformado = false;
+
+function copiarAnotacoes(origem: Anotacoes, destino: Anotacoes): void {
+  destino.clear();
+  for (const [id, m] of origem) destino.set(id, new Map(m));
+}
 
 /** true se alguma anotação mudou desde o último abrir ou salvar. */
 function haAlteracoes(): boolean {
-  if (anotacoes.size !== anotacoesGravadas.size) return true;
-  for (const [nItem, texto] of anotacoes) {
-    if (anotacoesGravadas.get(nItem) !== texto) return true;
+  const ids = new Set([...anotacoes.keys(), ...anotacoesGravadas.keys()]);
+  for (const id of ids) {
+    const atual = anotacoes.get(id) ?? new Map<string, string>();
+    const gravada = anotacoesGravadas.get(id) ?? new Map<string, string>();
+    if (atual.size !== gravada.size) return true;
+    for (const [nItem, texto] of atual) {
+      if (gravada.get(nItem) !== texto) return true;
+    }
   }
   return false;
+}
+
+/**
+ * Título de cada coluna com anotação, para a cópia editada: Anotação
+ * primeiro, depois as extras na ordem da configuração e por fim as que só
+ * existem no arquivo aberto (com o título lido dele).
+ */
+function titulosParaCopia(): Map<string, string> {
+  const titulos = new Map<string, string>();
+  for (const c of colunasAtuais()) if (c.anotacao) titulos.set(c.id, c.rotulo);
+  for (const id of anotacoes.keys())
+    if (!titulos.has(id)) titulos.set(id, titulosLidos.get(id) ?? id);
+  const original = titulos.get(ID_ANOTACAO) ?? 'Anotação';
+  titulos.delete(ID_ANOTACAO);
+  return new Map([[ID_ANOTACAO, original], ...titulos]);
 }
 
 /** Repassa ao processo principal (que barra o fechamento) só quando muda. */
@@ -257,30 +322,38 @@ function atualizarPendentes(): void {
 
 /** O estado atual passa a ser o gravado (depois de abrir ou salvar). */
 function marcarGravadas(): void {
-  anotacoesGravadas.clear();
-  for (const [nItem, texto] of anotacoes) anotacoesGravadas.set(nItem, texto);
+  copiarAnotacoes(anotacoes, anotacoesGravadas);
   atualizarPendentes();
 }
 
 /**
- * Célula de anotação: na tela é um campo de texto; na impressão o campo some
- * e sai o espelho em texto (campos de formulário nem sempre são impressos).
+ * Célula de anotação (a coluna Anotação ou uma extra): na tela é um campo de
+ * texto; na impressão o campo some e sai o espelho em texto (campos de
+ * formulário nem sempre são impressos).
  */
-function celulaAnotacao(i: Item, classe: string): HTMLElement {
+function celulaAnotacao(
+  i: Item,
+  coluna: ColunaItem,
+  td: HTMLTableCellElement,
+): HTMLElement {
   const campoTexto = el('input', 'anotacao__campo');
   campoTexto.type = 'text';
-  campoTexto.value = anotacoes.get(i.nItem) ?? '';
-  campoTexto.setAttribute('aria-label', `Anotação do item ${i.nItem}`);
+  campoTexto.value = anotacoes.get(coluna.id)?.get(i.nItem) ?? '';
+  campoTexto.setAttribute('aria-label', `${coluna.rotulo} do item ${i.nItem}`);
   const espelho = el('div', 'anotacao__impressao', campoTexto.value);
 
   campoTexto.addEventListener('input', () => {
-    if (campoTexto.value.trim()) anotacoes.set(i.nItem, campoTexto.value);
-    else anotacoes.delete(i.nItem);
+    let daColuna = anotacoes.get(coluna.id);
+    if (!daColuna) anotacoes.set(coluna.id, (daColuna = new Map()));
+    if (campoTexto.value.trim()) daColuna.set(i.nItem, campoTexto.value);
+    else daColuna.delete(i.nItem);
+    if (daColuna.size === 0) anotacoes.delete(coluna.id);
     espelho.textContent = campoTexto.value;
     atualizarPendentes();
   });
 
-  return el('td', classe, campoTexto, espelho);
+  td.append(campoTexto, espelho);
+  return td;
 }
 
 // ---------- ordem dos itens (modo Conferência) ----------
@@ -309,7 +382,7 @@ function opcoesOrdenar(): { rotulo: string; ordem: Ordem }[] {
       ordem: { criterio: 'cst', direcao: 'asc' } as Ordem,
     },
   ];
-  for (const c of colunasOrdenaveis()) {
+  for (const c of colunasOrdenaveis(colunasAtuais())) {
     const variantes =
       c.id === 'codigo'
         ? [
@@ -338,7 +411,12 @@ const mesmaOrdem = (a: Ordem, b: Ordem) =>
 /** Aplica `ordemAtual`: move os tbody, atualiza setas, botão e menu. */
 function aplicarOrdem(): void {
   if (!aberto || !tabelaItensEl) return;
-  const ordenados = ordenarItens(aberto.lido.nota.itens, ordemAtual, anotacoes);
+  const ordenados = ordenarItens(
+    aberto.lido.nota.itens,
+    ordemAtual,
+    anotacoes,
+    colunasAtuais(),
+  );
   for (const i of ordenados) {
     const corpo = corposItens.get(i.nItem);
     if (corpo) tabelaItensEl.append(corpo);
@@ -405,7 +483,7 @@ function mostrarOrdemAtual(
   const foraDaNota = ordemAtual.criterio !== 'nota';
   const atual = botao.querySelector('.ordenar__atual');
   if (atual) {
-    atual.textContent = descreverOrdem(ordemAtual);
+    atual.textContent = descreverOrdem(ordemAtual, colunasAtuais());
     atual.classList.toggle('ordenar__atual--destaque', foraDaNota);
   }
   if (limpar) limpar.hidden = !foraDaNota;
@@ -486,7 +564,18 @@ function controleOrdenar(miniatura = false): HTMLElement {
     else return;
     e.preventDefault();
   });
-  return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar);
+  // Na mesma barra, à direita: o painel de colunas.
+  const editar = el(
+    'button',
+    'botao botao--claro botao--pequeno ordenar__editar',
+    icone('M4 5h16v14H4z', 'M10 5v14', 'M16 5v14'),
+    el('span', '', 'Editar colunas'),
+  );
+  editar.type = 'button';
+  editar.id = 'btn-editar-colunas';
+  editar.setAttribute('aria-haspopup', 'dialog');
+  editar.addEventListener('click', editarColunas);
+  return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar, editar);
 }
 
 /** Itens montados na miniatura: bastam os que enchem a primeira página. */
@@ -499,9 +588,22 @@ const ITENS_MINIATURA = 40;
 function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
   if (n.itens.length === 0) return null;
 
-  const colunas = COLUNAS_ITENS.filter((c) => c.visivel);
-  const classe = (c: ColunaItem) =>
-    `col-${c.id}${c.alinhamento === 'direita' ? ' num' : ''}`;
+  const colunas = colunasAtuais().filter((c) => c.visivel);
+  // Na folha, cada caixa de anotação tem a largura escolhida, reduzida quando
+  // todas juntas não cabem no A4 (nfe/colunas.ts); vai em cada célula como
+  // --largura-coluna-print, que o print.css usa.
+  const larguraPrint = largurasAnotacaoPrint(colunas);
+  const celula = <K extends 'th' | 'td'>(
+    tag: K,
+    c: ColunaItem,
+    ...filhos: Filho[]
+  ) => {
+    const e = el(tag, classeColuna(c), ...filhos);
+    const mm = larguraPrint.get(c.id);
+    if (mm !== undefined)
+      e.style.setProperty('--largura-coluna-print', `${mm}mm`);
+    return e;
+  };
 
   // Título clicável (e por teclado): alterna crescente, decrescente e ordem
   // da nota. aria-sort mostra o estado, e o CSS desenha a seta.
@@ -512,7 +614,7 @@ function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
       'tr',
       '',
       ...colunas.map((c) => {
-        const th = el('th', classe(c), c.rotulo);
+        const th = celula('th', c, c.rotulo);
         th.dataset.ordenavel = '';
         th.dataset.coluna = c.id;
         th.tabIndex = 0;
@@ -542,9 +644,9 @@ function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
         'tr',
         'item__linha',
         ...colunas.map((c) =>
-          c.id === ID_ANOTACAO
-            ? celulaAnotacao(i, classe(c))
-            : el('td', classe(c), c.valor(i)),
+          c.anotacao
+            ? celulaAnotacao(i, c, celula('td', c))
+            : celula('td', c, c.valor(i)),
         ),
       ),
     );
@@ -566,7 +668,11 @@ function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
     titulo,
     'secao--itens',
     controleOrdenar(miniatura),
-    el('div', 'tabela-rolagem', tabela),
+    // A tabela rola dentro do quadro; setas nas laterais avisam o que ficou
+    // escondido (a miniatura é só desenho, sem setas).
+    miniatura
+      ? el('div', 'tabela-rolagem', tabela)
+      : comSetasDeRolagem(el('div', 'tabela-rolagem', tabela)),
   );
 }
 
@@ -927,7 +1033,7 @@ window.addEventListener(
   (e) => {
     if (!e.ctrlKey) return;
     e.preventDefault();
-    if (!areaZoom()) return;
+    if (!areaZoom() || editorAberto()) return;
     deltaAcumulado += e.deltaY;
     if (Math.abs(deltaAcumulado) < DELTA_POR_NIVEL) return;
     mudarZoom(deltaAcumulado < 0 ? 1 : -1);
@@ -1201,13 +1307,14 @@ function carregar(arquivo: ArquivoAberto): void {
     conferenciaMontada = false;
     danfeMontado = false;
     danfeEl.replaceChildren();
-    anotacoes.clear();
-    for (const [nItem, texto] of lido.anotacoes) anotacoes.set(nItem, texto);
+    copiarAnotacoes(lido.anotacoes, anotacoes);
+    titulosLidos.clear();
+    for (const [id, t] of lido.titulosAnotacoes) titulosLidos.set(id, t);
     marcarGravadas();
     // Ordem gravada na cópia editada; cópia antiga (sem <ordem>) ou critério
-    // desconhecido: ordem da nota.
+    // desconhecido (por exemplo, coluna escondida): ordem da nota.
     ordemAtual =
-      lido.ordem && criterioValido(lido.ordem.criterio)
+      lido.ordem && criterioValido(lido.ordem.criterio, colunasAtuais())
         ? lido.ordem
         : ORDEM_NOTA;
     document.title = 'PS Reader';
@@ -1221,6 +1328,7 @@ function carregar(arquivo: ArquivoAberto): void {
     danfeMontado = false;
     danfeEl.replaceChildren();
     anotacoes.clear();
+    titulosLidos.clear();
     marcarGravadas();
     notaEl.replaceChildren();
     document.title = 'PS Reader';
@@ -1388,13 +1496,19 @@ async function salvarConferencia(): Promise<boolean> {
 
   let copia: string;
   try {
-    copia = montarCopia(aberto.texto, anotacoes, ordemAtual);
+    copia = montarCopia(
+      aberto.texto,
+      anotacoes,
+      titulosParaCopia(),
+      ordemAtual,
+    );
   } catch (erro) {
     mostrarMensagem('Não foi possível montar a cópia editada.', 'erro');
     console.error(erro);
     return false;
   }
-  const gravadas = new Map(anotacoes);
+  const gravadas: Anotacoes = new Map();
+  copiarAnotacoes(anotacoes, gravadas);
 
   marcarGeradoEm();
   bloquearAcoes(true, true);
@@ -1406,9 +1520,7 @@ async function salvarConferencia(): Promise<boolean> {
     if (r.status === 'salvo') {
       // Grava como salvo o que foi para o arquivo, não o que foi digitado
       // enquanto o salvamento acontecia.
-      anotacoesGravadas.clear();
-      for (const [nItem, texto] of gravadas)
-        anotacoesGravadas.set(nItem, texto);
+      copiarAnotacoes(gravadas, anotacoesGravadas);
       atualizarPendentes();
       // PDF e cópia com o mesmo nome base: mostra o nome uma vez só. Uma cópia
       // aberta com nome antigo continua com ele: aí vão os dois nomes.
@@ -1642,6 +1754,7 @@ async function irParaInicio(): Promise<void> {
   corposItens.clear();
   ordemAtual = ORDEM_NOTA;
   anotacoes.clear();
+  titulosLidos.clear();
   marcarGravadas();
   esconderMensagem();
   document.title = 'PS Reader';
@@ -1695,12 +1808,10 @@ async function menuContexto(e: MouseEvent): Promise<void> {
       td.querySelector<HTMLInputElement>('input.anotacao__campo')?.value ??
       td.textContent?.trim() ??
       '';
-    const rotulo = (titulos[celula.cellIndex] as HTMLElement | undefined)
-      ?.dataset.coluna
-      ? (COLUNAS_ITENS.find(
-          (c) =>
-            c.id === (titulos[celula.cellIndex] as HTMLElement).dataset.coluna,
-        )?.rotulo ?? '')
+    const idColuna = (titulos[celula.cellIndex] as HTMLElement | undefined)
+      ?.dataset.coluna;
+    const rotulo = idColuna
+      ? (colunasAtuais().find((c) => c.id === idColuna)?.rotulo ?? '')
       : '';
     itens.push({
       rotulo: `Copiar ${rotulo}`,
@@ -1759,7 +1870,8 @@ function passoZoom(e: KeyboardEvent): -1 | 0 | 1 | null {
 }
 
 window.addEventListener('keydown', (e) => {
-  if (!e.ctrlKey || e.altKey || e.metaKey) return;
+  // Com o painel de colunas aberto, os atalhos da nota não valem.
+  if (!e.ctrlKey || e.altKey || e.metaKey || editorAberto()) return;
   const passo = passoZoom(e);
   if (passo !== null) {
     e.preventDefault();
@@ -1834,8 +1946,17 @@ window.psApi
   })
   .catch((erro: unknown) => console.error(erro));
 
-// Primeiro a pasta salva, depois o arquivo da linha de comando: assim a pasta
-// desta sessão (se o arquivo for um .psxml) não é sobrescrita pela salva.
+// A personalização salva da conferência; falha: fica a padrão.
+const configCarregada = window.psApi
+  .configConferencia()
+  .then((c) => {
+    configAtual = c;
+  })
+  .catch((erro: unknown) => console.error(erro));
+
+// Primeiro a pasta salva e a personalização, depois o arquivo da linha de
+// comando: assim a pasta desta sessão (se o arquivo for um .psxml) não é
+// sobrescrita pela salva, e a nota já abre com as colunas do usuário.
 window.psApi
   .pastaDestino()
   .then((p) => atualizarPasta(p.caminho, p.sessao))
@@ -1843,6 +1964,7 @@ window.psApi
     atualizarPasta(null);
     console.error(erro);
   })
+  .then(() => configCarregada)
   .finally(() => void abrirExterno());
 
 // Arrastar e soltar: aceito na janela toda. Sem preventDefault o Electron
@@ -1870,7 +1992,7 @@ window.addEventListener('drop', (e) => {
   contadorArraste = 0;
   areaSoltar.classList.remove('vazio__caixa--ativa');
   const arquivo = e.dataTransfer?.files[0];
-  if (!arquivo) return;
+  if (!arquivo || editorAberto()) return;
   const nome = arquivo.name.toLowerCase();
   if (!nome.endsWith('.xml') && !nome.endsWith('.psxml')) {
     mostrarMensagem('Selecione um arquivo .xml ou .psxml.', 'erro');

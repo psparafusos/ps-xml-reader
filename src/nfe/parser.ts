@@ -5,7 +5,10 @@
 // arquivo não é uma NF-e: raiz diferente de nfeProc, NFe ou psCopiaEditada,
 // ou sem infNFe.
 
+import { ehColunaAnotacao } from './config';
+import { ID_ANOTACAO } from './colunas';
 import type {
+  Anotacoes,
   Destinatario,
   Duplicata,
   Emitente,
@@ -235,15 +238,47 @@ export function localizarOriginal(doc: Document): {
   throw new NaoEhNfeError();
 }
 
-/** Anotações de uma cópia editada, por nItem. Texto vazio não entra. */
-function lerAnotacoes(copia: Element | null): Map<string, string> {
-  const anotacoes = new Map<string, string>();
-  for (const a of filhos(filho(copia, 'anotacoes'), 'anotacao')) {
+/** Lê os <anotacao nItem="..."> filhos diretos de `el` para `destino`. */
+function lerValores(el: Element, destino: Map<string, string>): void {
+  for (const a of filhos(el, 'anotacao')) {
     const nItem = a.getAttribute('nItem')?.trim() ?? '';
     const texto = a.textContent ?? '';
-    if (nItem && texto.trim()) anotacoes.set(nItem, texto);
+    if (nItem && texto.trim()) destino.set(nItem, texto);
   }
-  return anotacoes;
+}
+
+/**
+ * Anotações de uma cópia editada, por coluna e nItem. Texto vazio não entra.
+ * A coluna Anotação fica nos <anotacao nItem> direto em <anotacoes> (como na
+ * versão 1.0.1, que só tinha ela); cada anotação extra fica num
+ * <coluna id titulo>. Os títulos lidos ficam guardados para regravar uma
+ * coluna que não existe mais na configuração com o mesmo título.
+ */
+function lerAnotacoes(copia: Element | null): {
+  anotacoes: Anotacoes;
+  titulos: Map<string, string>;
+} {
+  const anotacoes: Anotacoes = new Map();
+  const titulos = new Map<string, string>();
+  const el = filho(copia, 'anotacoes');
+  if (!el) return { anotacoes, titulos };
+  const daColuna = (id: string) => {
+    let m = anotacoes.get(id);
+    if (!m) anotacoes.set(id, (m = new Map()));
+    return m;
+  };
+  lerValores(el, daColuna(ID_ANOTACAO));
+  const tituloOriginal = el.getAttribute('titulo')?.trim();
+  if (tituloOriginal) titulos.set(ID_ANOTACAO, tituloOriginal);
+  for (const c of filhos(el, 'coluna')) {
+    const id = c.getAttribute('id')?.trim() ?? '';
+    if (!ehColunaAnotacao(id)) continue;
+    lerValores(c, daColuna(id));
+    const titulo = c.getAttribute('titulo')?.trim();
+    if (titulo) titulos.set(id, titulo);
+  }
+  for (const [id, m] of anotacoes) if (m.size === 0) anotacoes.delete(id);
+  return { anotacoes, titulos };
 }
 
 /**
@@ -266,7 +301,9 @@ export interface ArquivoLido {
   nota: Nota;
   /** true quando o arquivo é uma cópia editada (raiz psCopiaEditada). */
   copiaEditada: boolean;
-  anotacoes: Map<string, string>;
+  anotacoes: Anotacoes;
+  /** Título de cada coluna de anotação gravado na cópia, por id. */
+  titulosAnotacoes: Map<string, string>;
   /** Ordem dos itens gravada na cópia editada, ou null. */
   ordem: { criterio: string; direcao: 'asc' | 'desc' } | null;
 }
@@ -277,10 +314,12 @@ export interface ArquivoLido {
  */
 export function lerArquivo(xml: string): ArquivoLido {
   const { original, copia } = localizarOriginal(lerDocumento(xml));
+  const { anotacoes, titulos } = lerAnotacoes(copia);
   return {
     nota: lerNotaDe(original),
     copiaEditada: copia !== null,
-    anotacoes: lerAnotacoes(copia),
+    anotacoes,
+    titulosAnotacoes: titulos,
     ordem: lerOrdem(copia),
   };
 }

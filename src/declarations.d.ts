@@ -73,6 +73,18 @@ type ResultadoAreaTransferencia =
   | { status: 'copiado'; aviso: AvisoCopia }
   | { status: 'nada' };
 
+/** Personalização da conferência (src/nfe/config.ts). */
+type ConfigConferencia = import('./nfe/config').ConfigConferencia;
+
+type ResultadoConfig =
+  | { status: 'ok'; config: ConfigConferencia }
+  | { status: 'erro'; mensagem: string };
+
+type ResultadoExportarConfig =
+  | { status: 'exportado'; caminho: string }
+  | { status: 'cancelado' }
+  | { status: 'erro'; mensagem: string };
+
 interface PsApi {
   /** Abre o diálogo de arquivo (.xml ou .psxml), ou null se cancelado. */
   abrirArquivo(): Promise<ArquivoAberto | null>;
@@ -119,6 +131,16 @@ interface PsApi {
   aoPedirFechar(callback: () => void): void;
   /** Fecha a janela sem nova pergunta (depois de salvar ou descartar). */
   fecharJanela(): Promise<void>;
+  /** Personalização da conferência salva (ou a padrão). */
+  configConferencia(): Promise<ConfigConferencia>;
+  /** Valida e salva a personalização da conferência. */
+  gravarConfigConferencia(config: ConfigConferencia): Promise<ResultadoConfig>;
+  /** Grava a personalização salva num .json escolhido pelo usuário. */
+  exportarConfig(): Promise<ResultadoExportarConfig>;
+  /** Lê um .json exportado, valida o arquivo todo e só então aplica e salva. */
+  importarConfig(): Promise<ResultadoConfig | { status: 'cancelado' }>;
+  /** Pergunta e volta a personalização ao padrão. */
+  restaurarConfig(): Promise<ResultadoConfig | { status: 'cancelado' }>;
   /** Copia um texto ou mostra o menu do botão direito (Recortar, Copiar...). */
   areaTransferencia(
     pedido: PedidoAreaTransferencia,
