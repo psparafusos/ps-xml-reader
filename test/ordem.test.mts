@@ -237,7 +237,10 @@ describe('ordem: Agrupar por CST', () => {
   });
 
   it('a direção não inverte os grupos', () => {
-    const itens = [item('1', { cstIcms: '010' }), item('2', { cstIcms: '000' })];
+    const itens = [
+      item('1', { cstIcms: '010' }),
+      item('2', { cstIcms: '000' }),
+    ];
     assert.deepEqual(ids(ordenarItens(itens, desc('cst'), SEM_NOTAS)), [
       '2',
       '1',
@@ -258,7 +261,10 @@ describe('ordem: Agrupar por CST', () => {
   });
 
   it('CSOSN (orig + código) entra no mesmo agrupamento', () => {
-    const itens = [item('1', { cstIcms: '0102' }), item('2', { cstIcms: '0101' })];
+    const itens = [
+      item('1', { cstIcms: '0102' }),
+      item('2', { cstIcms: '0101' }),
+    ];
     assert.deepEqual(ids(ordenarItens(itens, asc('cst'), SEM_NOTAS)), [
       '2',
       '1',

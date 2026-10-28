@@ -9,6 +9,21 @@ chamada de rede.
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
 
+## Versão 1.1.0
+
+- **Editar colunas** na Conferência: escolher, ordenar e dar largura às
+  colunas da tabela de itens, com anotações extras (uma caixa de texto por
+  item) e prévia.
+- **Orientação e folha**: retrato ou paisagem automático, fonte que desce até
+  7 pt e tabela dividida em partes quando não cabe, com aviso antes.
+- **Salvar**: na Conferência grava o `.psxml`; a seta ao lado tem **Salvar
+  PDF** e **Salvar cópia...**. Alterações não salvas: Salvar, Salvar cópia,
+  Descartar ou Cancelar.
+- **Várias janelas**: cada nota na sua janela, com a escolha por cima da nota
+  (Abrir aqui ou Nova janela).
+- **Perfis de configuração**: trocar, criar, renomear, excluir, exportar e
+  importar, valendo para todas as janelas.
+
 ## Requisitos
 
 - Windows 10 ou 11
@@ -505,8 +520,8 @@ não faz chamada de rede.
 
 ### Gerar e entregar uma versão nova
 
-1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.0.1 para
-   1.0.2) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
+1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.1.0 para
+   1.1.1) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
    maior que a instalada.
 2. Rode `npm run make`.
 3. Leve só o `out\make\squirrel.windows\x64\PS Reader-<versão> Setup.exe`. Os

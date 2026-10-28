@@ -104,7 +104,10 @@ describe('formato: documentos e contato (dados inventados)', () => {
 
   it('nomeArquivoSeguro tira caracteres proibidos no Windows', () => {
     assert.equal(f.nomeArquivoSeguro('a<b>c:d"e/f\\g|h?i*j'), 'abcdefghij');
-    assert.equal(f.nomeArquivoSeguro('  nome   com   espaços  '), 'nome com espaços');
+    assert.equal(
+      f.nomeArquivoSeguro('  nome   com   espaços  '),
+      'nome com espaços',
+    );
     assert.equal(f.nomeArquivoSeguro('arquivo. '), 'arquivo');
     assert.equal(f.nomeArquivoSeguro('a\u0001b'), 'ab');
   });
