@@ -1887,14 +1887,10 @@ body.pdf-previa #pdf-previa {
   display: inline-flex;
 }
 
-/* Abrir aqui e Nova janela: só na escolha por cima da nota, sobre a prévia,
-   quando o mouse passa por ela ou o foco está nela. A prévia fica desfocada
-   e semitransparente por baixo. */
+/* Abrir aqui e Nova janela: sempre na tela de escolha (janela vazia ou por
+   cima da nota), sobre a prévia, quando o mouse passa por ela ou o foco
+   está nela. A prévia fica desfocada e semitransparente por baixo. */
 .modo__acoes {
-  display: none;
-}
-
-.modo--sobreposta .modo__acoes {
   position: absolute;
   top: 0;
   left: 0;
@@ -1909,14 +1905,14 @@ body.pdf-previa #pdf-previa {
   pointer-events: none;
 }
 
-.modo--sobreposta .modo__item:hover .modo__acoes,
-.modo--sobreposta .modo__item:focus-within .modo__acoes {
+.modo__item:hover .modo__acoes,
+.modo__item:focus-within .modo__acoes {
   opacity: 1;
   pointer-events: auto;
 }
 
-.modo--sobreposta .modo__item:hover .modo__miniatura,
-.modo--sobreposta .modo__item:focus-within .modo__miniatura {
+.modo__item:hover .modo__miniatura,
+.modo__item:focus-within .modo__miniatura {
   filter: blur(var(--desfoque-previa));
   opacity: var(--opacidade-previa);
 }
@@ -1931,71 +1927,217 @@ body.pdf-previa #pdf-previa {
   display: none;
 }
 
-/* ---------- perfis, no topo do painel Editar colunas ---------- */
+/* ---------- perfil ativo, no topo do painel Editar colunas ---------- */
 
-.perfis {
+/* Bloco "Perfil ativo": o nome em destaque e o botão Trocar perfil, que abre
+   a lista dos perfis logo abaixo dele. */
+.perfil-ativo {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--esp-2) var(--esp-3);
+  justify-content: space-between;
+  gap: var(--esp-4);
   margin-bottom: var(--esp-3);
-  padding-bottom: var(--esp-3);
-  border-bottom: var(--borda) solid var(--cor-borda-suave);
-}
-
-.perfis__rotulo {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--esp-2);
-  font-size: var(--fs-sm);
-  font-weight: var(--peso-medio);
-}
-
-.perfis__ativo {
-  padding: 0 var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border-left: var(--borda-destaque) solid var(--cor-destaque);
   border-radius: var(--raio);
-  background: var(--cor-destaque);
-  color: var(--cor-texto-sobre-destaque);
-  font-size: var(--fs-md);
+  background: var(--cor-destaque-suave);
 }
 
-/* Um botão por perfil: clicar troca o ativo. */
-.perfis__lista {
+.perfil-ativo__textos {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--esp-1);
+  flex-direction: column;
+  min-width: 0;
 }
 
-.perfis__opcao {
-  padding: var(--esp-1) var(--esp-3);
-  border: var(--borda) solid var(--cor-borda);
-  border-radius: 999px;
+.perfil-ativo__rotulo {
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-medio);
+  letter-spacing: var(--espaco-letras-rotulo);
+  text-transform: uppercase;
+}
+
+.perfil-ativo__nome {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-xl);
+  font-weight: var(--peso-forte);
+  overflow-wrap: anywhere;
+}
+
+.perfil-ativo__troca {
+  position: relative;
+  flex: none;
+}
+
+/* Lista do Trocar perfil: um perfil por linha, ações no fim. */
+.perfis-menu {
+  position: absolute;
+  top: calc(100% + var(--esp-1));
+  right: 0;
+  z-index: 5;
+  width: var(--largura-menu-perfis);
+  max-height: var(--altura-menu);
+  overflow-y: auto;
+  padding: var(--esp-1) 0;
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
   background: var(--ps-branco);
+  box-shadow: var(--sombra-aviso);
+}
+
+.perfis-menu__lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.perfis-menu__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  padding: var(--esp-1) var(--esp-2);
+}
+
+/* O perfil ativo: marcado e com o fundo na cor da marca. */
+.perfis-menu__linha--ativo {
+  background: var(--cor-destaque);
+}
+
+.perfis-menu__linha--editando {
+  flex-wrap: wrap;
+}
+
+.perfis-menu__nome {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-2);
+  border: none;
+  border-radius: var(--raio);
+  background: none;
   color: var(--cor-texto-forte);
   font: inherit;
-  font-size: var(--fs-sm);
+  text-align: left;
   cursor: pointer;
 }
 
-.perfis__opcao:hover:not(:disabled) {
-  border-color: var(--ps-preto);
+.perfis-menu__linha:not(.perfis-menu__linha--ativo) .perfis-menu__nome:hover {
   background: var(--botao-sec-fundo-hover);
 }
 
-.perfis__opcao[aria-checked='true'] {
-  border-color: var(--ps-preto);
-  background: var(--ps-preto);
-  color: var(--ps-branco);
+.perfis-menu__linha--ativo .perfis-menu__nome {
+  font-weight: var(--peso-forte);
   cursor: default;
 }
 
-.perfis__opcao:focus-visible {
-  outline: var(--botao-foco-espessura) solid var(--botao-foco);
-  outline-offset: var(--botao-foco-afastamento);
+.perfis-menu__marca {
+  flex: none;
+  width: 1.2em;
+  font-weight: var(--peso-forte);
 }
 
-.perfis__acoes {
+.perfis-menu__texto {
+  overflow-wrap: anywhere;
+}
+
+.perfis-menu__icone {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tamanho-limpar);
+  height: var(--tamanho-limpar);
+  padding: 0;
+  border: var(--borda) solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--cor-texto-forte);
+  cursor: pointer;
+}
+
+.perfis-menu__icone:hover:not(:disabled) {
+  border-color: var(--ps-preto);
+  background: var(--ps-branco);
+}
+
+.perfis-menu__icone:disabled {
+  cursor: not-allowed;
+  opacity: var(--botao-desabilitado-opacidade);
+}
+
+.perfis-menu__campo {
+  flex: 1;
+  min-width: 0;
+  padding: var(--esp-1) var(--esp-2);
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  font: inherit;
+}
+
+.perfis-menu__campo:focus {
+  outline: none;
+  box-shadow: 0 0 0 var(--borda) var(--ps-preto);
+}
+
+.perfis-menu__campo[aria-invalid='true'] {
+  border-color: var(--aviso-erro-fundo);
+}
+
+.perfis-menu__erro {
+  flex-basis: 100%;
+  margin-top: var(--esp-1);
+  color: var(--aviso-erro-fundo);
+  font-size: var(--fs-sm);
+}
+
+.perfis-menu__acoes {
   display: flex;
+  flex-direction: column;
+  margin-top: var(--esp-1);
+  padding-top: var(--esp-1);
+  border-top: var(--borda) solid var(--cor-borda-suave);
+}
+
+.perfis-menu__acao {
+  display: flex;
+  align-items: center;
   gap: var(--esp-2);
-  margin-left: auto;
+  width: 100%;
+  padding: var(--esp-2) var(--esp-4);
+  border: none;
+  background: none;
+  color: var(--cor-texto-forte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.perfis-menu__acao:hover:not(:disabled) {
+  background: var(--botao-sec-fundo-hover);
+}
+
+.perfis-menu__nome:focus-visible,
+.perfis-menu__icone:focus-visible,
+.perfis-menu__acao:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: calc(-1 * var(--botao-foco-espessura));
+}
+
+/* Aviso curto no meio do painel ("Perfil <nome> ativo"). */
+.painel__aviso {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  padding: var(--esp-3) var(--esp-5);
+  border-radius: var(--raio);
+  background: var(--aviso-sucesso-fundo);
+  color: var(--aviso-sucesso-texto);
+  font-weight: var(--peso-forte);
+  box-shadow: var(--sombra-aviso);
+  pointer-events: none;
 }

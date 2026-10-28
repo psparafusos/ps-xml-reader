@@ -151,19 +151,21 @@ export function pedirTexto(opcoes: {
 }
 
 /**
- * Pede o nome do arquivo do Salvar cópia: a sugestão selecionada, a extensão
- * ao lado e a pasta embaixo. Devolve o nome (sem extensão) ou null.
+ * Pede o nome do arquivo do Salvar cópia (.psxml ou PDF): a sugestão
+ * selecionada, a extensão ao lado e a pasta embaixo. Devolve o nome (sem
+ * extensão) ou null.
  */
 export function pedirNomeCopia(opcoes: {
   sugestao: string;
   extensao: string;
   pasta: string;
+  /** O que a cópia é (texto embaixo do título). */
+  texto: string;
   problema: (nome: string) => string | null;
 }): Promise<string | null> {
   return pedirTexto({
     titulo: 'Salvar cópia',
-    texto:
-      'A cópia é um .psxml novo com as anotações de agora. O arquivo aberto não muda, e a janela passa a trabalhar na cópia.',
+    texto: opcoes.texto,
     valor: opcoes.sugestao,
     rotulo: 'Nome da cópia',
     confirmar: 'Salvar',

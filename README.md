@@ -9,6 +9,15 @@ chamada de rede.
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
 
+## Versão 1.1.1
+
+- **Abrir aqui** e **Nova janela** sobre as prévias também na tela de escolha
+  de uma janela vazia.
+- Arquivo que já existe (PDF ou `.psxml`): a pergunta, no visual do app, é
+  **Substituir**, **Salvar cópia...** ou **Cancelar**.
+- Perfis: bloco **Perfil ativo** com **Trocar perfil**, que abre a lista dos
+  perfis (renomear e excluir na própria linha).
+
 ## Versão 1.1.0
 
 - **Editar colunas** na Conferência: escolher, ordenar e dar largura às
@@ -51,10 +60,19 @@ primeira página, depois que a tela aparece). Se a nota não suporta DANFE, a
 opção aparece desabilitada com o motivo. Um `.psxml` pula essa tela e abre
 direto na **Conferência**.
 
+Ao passar o mouse (ou com o foco) numa prévia, ela fica desfocada e
+semitransparente, com dois botões: **Abrir aqui** (abre nesta janela, naquele
+modo) e **Nova janela** (abre numa janela nova, naquele modo; esta volta para a
+tela inicial). Clicar na própria prévia é o mesmo que **Abrir aqui**. Na tela de
+escolha de uma janela vazia, **Abrir aqui** fica em destaque; na escolha por
+cima de uma nota aberta (ver Várias janelas), **Nova janela**.
+
 Embaixo de cada miniatura, **Salvar PDF** grava só o PDF daquele modo na pasta
 de destino (`<FORNECEDOR>_NF<número>_Conferencia.pdf` ou `..._DANFE.pdf`), sem
-entrar no modo. Sem pasta escolhida, pede a pasta antes. Se a nota não suporta
-DANFE, o **Salvar PDF** do DANFE fica desabilitado.
+entrar no modo. Sem pasta escolhida, pede a pasta antes. Se o PDF já existe,
+faz a mesma pergunta de Substituir, Salvar cópia ou Cancelar (ver Salvar
+cópia). Se a nota não suporta DANFE, o **Salvar PDF** do DANFE fica
+desabilitado.
 
 ### Várias janelas
 
@@ -69,9 +87,8 @@ Cada janela tem a sua nota. O app continua sendo um processo só (instância
 - `.psxml` pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: janela
   nova, direto na **Conferência**.
 - XML pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: a tela de
-  escolha aparece por cima da nota, que fica como estava. Ao passar o mouse
-  (ou com o foco) numa prévia, ela fica desfocada e semitransparente, com
-  **Abrir aqui** e **Nova janela**, e abre direto naquele modo. **Abrir aqui**
+  escolha aparece por cima da nota, que fica como estava, com **Abrir aqui** e
+  **Nova janela** sobre as prévias (**Nova janela** em destaque). **Abrir aqui**
   troca a nota desta janela e, com anotação não salva, pergunta antes. Os
   **Salvar PDF** das prévias continuam e gravam o PDF do XML da escolha, sem
   mexer na nota de baixo. **Voltar à nota** (ou Esc) fecha a escolha.
@@ -186,27 +203,27 @@ anotações extras, a orientação da folha e o layout dos blocos (reservado par
 os blocos como widgets). Um perfil fica ativo para o app inteiro: trocar de
 perfil muda todas as janelas abertas na hora.
 
-No topo do painel **Editar colunas** aparecem o perfil ativo e um botão para
-cada perfil; clicar num deles passa a usá-lo. Se o painel tem mudanças ainda
-não aplicadas, uma caixa pergunta antes: **Aplicar e trocar** (grava no perfil
-atual), **Descartar e trocar** ou **Cancelar**. Ao lado:
+No topo do painel **Editar colunas** fica o bloco **Perfil ativo**, com o nome
+do perfil em destaque e o botão **Trocar perfil**. O botão abre a lista dos
+perfis, um por linha, com o ativo marcado (✓) e com fundo amarelo; clicar
+numa linha passa a usar aquele perfil e mostra o aviso "Perfil <nome> ativo".
+Se o painel tem mudanças ainda não aplicadas, uma caixa pergunta antes:
+**Aplicar e trocar** (grava no perfil atual), **Descartar e trocar** ou
+**Cancelar**. Esc ou um clique fora fecham só a lista.
 
-- **Novo**: pede o nome (sugestão "<ativo> (cópia)"); o perfil novo começa
-  igual ao ativo e passa a ser o ativo.
-- **Renomear**: o perfil ativo. Nome obrigatório, de até 40 caracteres, e
-  diferente dos outros (sem contar acento e maiúscula).
-- **Excluir**: o perfil ativo, depois de confirmar; o primeiro da lista passa
-  a ser o ativo. O último perfil nunca pode ser excluído (o botão fica
-  desabilitado).
+Em cada linha:
 
-**Aplicar** grava no perfil ativo e mostra o aviso "Alterações salvas no
-perfil <nome>".
+- Lápis: renomeia na própria linha. Enter salva, Esc (ou sair do campo)
+  cancela. Nome vazio ou igual ao de outro perfil (sem contar acento e
+  maiúscula) não vale, e o motivo aparece embaixo. Até 40 caracteres.
+- Lixeira: exclui, depois de confirmar. Excluir o ativo ativa o primeiro da
+  lista. O último perfil nunca pode ser excluído (a lixeira fica
+  desabilitada).
 
-No rodapé do painel:
+No fim da lista:
 
-- **Exportar** grava o perfil ativo (como está salvo) num arquivo
-  `PS Reader - perfil <nome>.json`, onde você escolher. Pasta de destino,
-  última pasta aberta e tamanho da janela não vão junto (são da máquina).
+- **Novo perfil**: pede o nome (sugestão "<ativo> (cópia)"); o perfil novo
+  começa igual ao ativo e passa a ser o ativo.
 - **Importar** lê um arquivo, valida o arquivo inteiro e acrescenta o perfil à
   lista (o ativo não muda). Se já existe um perfil com esse nome, pergunta:
   **Substituir** (o perfil com esse nome fica com o conteúdo do arquivo) ou
@@ -215,8 +232,14 @@ No rodapé do painel:
   nada muda. O arquivo de configuração exportado antes dos perfis
   (`PS Reader - configuracao.json`) também é aceito e entra como o perfil
   "Configuração importada".
-- **Restaurar padrão** pergunta antes e volta o perfil ativo (colunas,
-  anotações extras, orientação e layout) ao padrão; o nome fica.
+- **Exportar perfil ativo** grava o perfil ativo (como está salvo) num arquivo
+  `PS Reader - perfil <nome>.json`, onde você escolher. Pasta de destino,
+  última pasta aberta e tamanho da janela não vão junto (são da máquina).
+
+**Aplicar** grava no perfil ativo e mostra o aviso "Alterações salvas no
+perfil <nome>". **Restaurar padrão**, no rodapé do painel, pergunta antes e
+volta o perfil ativo (colunas, anotações extras, orientação e layout) ao
+padrão; o nome fica.
 
 Na primeira abertura desta versão, a configuração anterior (chave
 `conferencia` do `config.json`) vira o primeiro perfil, sem perder nada, com o
@@ -339,8 +362,9 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
     de destino**. Com um `.psxml` aberto que está nessa mesma pasta, grava
     por cima dele sem perguntar (é o próprio arquivo aberto); se ele está em
     outra pasta, ou se o aberto é o XML original, grava o `.psxml` com o nome
-    padrão na pasta do botão, perguntando antes se ele já existe, e o aberto
-    fica como está.
+    padrão na pasta do botão e o aberto fica como está. Se esse `.psxml` já
+    existe, pergunta **Substituir**, **Salvar cópia...** ou **Cancelar** (ver
+    Salvar cópia).
   - A seta colada no Salvar abre um menu com **Salvar PDF** (o PDF do modo
     em que a tela está; na Conferência, com a orientação e a fonte
     calculadas) e **Salvar cópia...**.
@@ -365,18 +389,26 @@ Um `.psxml` com nome no formato antigo abre normalmente. Se ele está na pasta
 de destino, o Salvar grava por cima dele e ele mantém o nome; o PDF sai com o
 nome novo.
 
-### Salvar cópia
+### Arquivo que já existe e Salvar cópia
 
-**Salvar cópia...** abre uma caixa no visual do app com o nome sugerido
-`<FORNECEDOR>_NF<número>_Conferencia_copia1` (ou `copia2`, `copia3`... se já
-existir na pasta), todo selecionado para editar, e a pasta onde vai gravar.
-Caracteres que o Windows não aceita (`< > : " / \ | ? *` e de controle),
-nome terminado em ponto e nomes reservados (CON, PRN, AUX, NUL, COM1 a COM9,
-LPT1 a LPT9) são recusados na hora, com o motivo. Nome que já existe: pergunta
-antes de substituir. A cópia vai para a pasta de destino em uso; o arquivo
-aberto não muda (gravar a cópia por cima dele é recusado). Depois de salvar,
-a janela passa a trabalhar na cópia, como um "Salvar como": o título da janela
-mostra o nome dela e os próximos Salvar (Ctrl+S) vão para ela.
+Quando o arquivo a gravar já existe na pasta de destino (o `.psxml` do Salvar,
+o PDF da Conferência ou do DANFE, ou o **Salvar PDF** das prévias), uma caixa
+no visual do app pergunta: **Substituir**, **Salvar cópia...** ou
+**Cancelar**. Regravar o `.psxml` aberto na própria pasta dele não pergunta.
+
+**Salvar cópia...** (no menu da seta do Salvar, ou nessa pergunta) abre uma
+caixa com o nome sugerido, todo selecionado para editar, e a pasta onde vai
+gravar: `<FORNECEDOR>_NF<número>_Conferencia_copia1` para o `.psxml` e o PDF
+da Conferência, `<FORNECEDOR>_NF<número>_DANFE_copia1` para o DANFE (ou
+`copia2`, `copia3`... se já existir). Caracteres que o Windows não aceita
+(`< > : " / \ | ? *` e de controle), nome terminado em ponto e nomes
+reservados (CON, PRN, AUX, NUL, COM1 a COM9, LPT1 a LPT9) são recusados na
+hora, com o motivo. Se o nome escolhido já existe, pergunta **Substituir** ou
+**Cancelar** (que volta à caixa do nome). A cópia vai para a pasta de destino
+em uso; o arquivo aberto não muda (gravar a cópia do `.psxml` por cima dele é
+recusado). Depois de salvar a cópia do `.psxml`, a janela passa a trabalhar
+nela, como um "Salvar como": o título da janela mostra o nome dela e os
+próximos Salvar (Ctrl+S) vão para ela.
 
 O título da janela começa pelo nome do arquivo em que ela está trabalhando.
 
@@ -384,8 +416,7 @@ Sucesso aparece como um aviso pequeno no centro da janela, que some sozinho. Ao
 salvar, o aviso mostra o nome do arquivo em cima (nome longo é encurtado no
 meio com reticências),
 a pasta onde gravou ("em C:\…\Notas") e "Salvo" embaixo, por cerca de 3,5 s. A
-pergunta de substituir também mostra a pasta real, encurtada no meio com o fim
-inteiro. "Copiado" e "Chave copiada" continuam em uma linha, por cerca de
+pergunta de arquivo que já existe também mostra a pasta, encurtada. "Copiado" e "Chave copiada" continuam em uma linha, por cerca de
 1,5 s. Erro aparece em vermelho, fixo na janela, até ser fechado; o aviso da
 pasta desta sessão aparece no mesmo lugar, em escuro.
 
@@ -520,8 +551,8 @@ não faz chamada de rede.
 
 ### Gerar e entregar uma versão nova
 
-1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.1.0 para
-   1.1.1) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
+1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.1.1 para
+   1.1.2) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
    maior que a instalada.
 2. Rode `npm run make`.
 3. Leve só o `out\make\squirrel.windows\x64\PS Reader-<versão> Setup.exe`. Os

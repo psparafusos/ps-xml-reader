@@ -1460,6 +1460,14 @@ function mostrarEscolha(
   miniDanfe.hidden = dados === null;
   danfeDescricao.textContent = motivo ?? 'Documento auxiliar, A4 retrato';
 
+  // Em destaque: Abrir aqui na janela vazia; Nova janela por cima de uma
+  // nota (o caminho que não mexe na nota aberta).
+  for (const b of acoesEscolha) {
+    const destaque = (b.dataset.destino === 'aqui') !== sobreposta;
+    b.classList.toggle('botao--principal', destaque);
+    b.classList.toggle('botao--claro', !destaque);
+  }
+
   if (sobreposta) {
     // Por cima da nota: a nota, a barra e o estado da janela ficam como estão.
     modo.classList.add('modo--sobreposta');
@@ -1512,8 +1520,25 @@ async function abrirDaEscolha(
   destino: 'aqui' | 'nova',
   destinoModo: ModoImpressao,
 ): Promise<void> {
-  if (!escolha?.sobreposta || acoesBloqueadas) return;
+  if (!escolha || acoesBloqueadas) return;
   if (destinoModo === 'danfe' && btnDanfe.disabled) return;
+  if (!escolha.sobreposta) {
+    // Janela vazia: Abrir aqui é o mesmo que clicar na prévia; Nova janela
+    // leva o arquivo para outra janela e esta volta para a tela inicial.
+    if (destino === 'aqui') {
+      if (destinoModo === 'danfe') mostrarDanfe();
+      else mostrarConferencia();
+      return;
+    }
+    try {
+      await window.psApi.confirmarAbertura('nova', destinoModo);
+      limparNota();
+    } catch (erro) {
+      mostrarMensagem('Não foi possível abrir o arquivo.', 'erro');
+      console.error(erro);
+    }
+    return;
+  }
   if (destino === 'aqui' && !(await podeSair())) return;
   const arquivo = escolha.arquivo;
   try {
@@ -1748,23 +1773,128 @@ function salvarPdf(): Promise<boolean> {
   return modoAtual === 'danfe' ? salvarDanfe() : salvarPdfConferencia();
 }
 
+// ---------- gravar com a pergunta de substituir ----------
+
+/** Texto do pedido de nome do Salvar cópia, por tipo. */
+const TEXTO_COPIA: Record<TipoCopia, string> = {
+  psxml:
+    'A cópia é um .psxml novo com as anotações de agora. O arquivo aberto não muda, e a janela passa a trabalhar na cópia.',
+  conferencia:
+    'O PDF vai com outro nome. O PDF que já existe com o nome padrão não muda.',
+  danfe:
+    'O PDF vai com outro nome. O PDF que já existe com o nome padrão não muda.',
+};
+
+/**
+ * Salvar cópia: pede o nome (sugestão <base>..._copiaN, na pasta de destino
+ * em uso) e grava com `gravar`. Nome que já existe: pergunta Substituir ou
+ * Cancelar (que volta ao pedido de nome). Devolve o resultado, ou cancelado.
+ */
+async function gravarCopia<R extends { status: string }>(
+  tipo: TipoCopia,
+  daEscolha: boolean,
+  gravar: (
+    opcoes: OpcoesSalvar & { nome: string },
+  ) => Promise<R | ArquivoExistente>,
+): Promise<R | { status: 'cancelado' } | { status: 'erro'; mensagem: string }> {
+  const base =
+    escolha && daEscolha
+      ? nomeBaseArquivo(escolha.lido.nota)
+      : aberto
+        ? nomeBaseArquivo(aberto.lido.nota)
+        : null;
+  for (;;) {
+    const sugestao = await window.psApi.sugerirCopia(base, tipo, daEscolha);
+    if (sugestao.status === 'erro') return sugestao;
+    const nome = await pedirNomeCopia({
+      sugestao: sugestao.nome,
+      extensao: tipo === 'psxml' ? '.psxml' : '.pdf',
+      pasta: sugestao.pasta,
+      texto: TEXTO_COPIA[tipo],
+      problema: problemaNomeArquivo,
+    });
+    if (nome === null) return { status: 'cancelado' };
+    const r = await gravar({ nome });
+    if (r.status !== 'existe') return r as R;
+    const existente = r as ArquivoExistente;
+    const resposta = await perguntar({
+      titulo: 'Arquivo já existe',
+      texto: `O arquivo ${existente.nome} já existe em ${abreviarCaminho(existente.pasta)}. Deseja substituir?`,
+      botoes: [
+        { rotulo: 'Cancelar', valor: 'cancelar' },
+        { rotulo: 'Substituir', valor: 'substituir', principal: true },
+      ],
+      cancelar: 'cancelar',
+    });
+    if (resposta === 'substituir')
+      return (await gravar({ nome, substituir: true })) as R;
+    // Cancelar: volta ao pedido de nome, com uma sugestão nova.
+  }
+}
+
+/**
+ * Grava com `gravar`. Se o arquivo já existe, pergunta no visual do app:
+ * Substituir, Salvar cópia (pede outro nome, ver gravarCopia) ou Cancelar.
+ * `copiou`: true quando gravou como cópia.
+ */
+async function gravarComPergunta<R extends { status: string }>(
+  tipo: TipoCopia,
+  daEscolha: boolean,
+  gravar: (opcoes: OpcoesSalvar) => Promise<R | ArquivoExistente>,
+): Promise<{
+  r: R | { status: 'cancelado' } | { status: 'erro'; mensagem: string };
+  copiou: boolean;
+}> {
+  const r = await gravar({});
+  if (r.status !== 'existe') return { r: r as R, copiou: false };
+  const existente = r as ArquivoExistente;
+  const resposta = await perguntar({
+    titulo: 'Arquivo já existe',
+    texto: `O arquivo ${existente.nome} já existe em ${abreviarCaminho(existente.pasta)}. O que fazer?`,
+    botoes: [
+      { rotulo: 'Cancelar', valor: 'cancelar' },
+      { rotulo: 'Salvar cópia...', valor: 'copia' },
+      { rotulo: 'Substituir', valor: 'substituir', principal: true },
+    ],
+    cancelar: 'cancelar',
+  });
+  if (resposta === 'cancelar')
+    return { r: { status: 'cancelado' }, copiou: false };
+  if (resposta === 'substituir')
+    return { r: (await gravar({ substituir: true })) as R, copiou: false };
+  return { r: await gravarCopia(tipo, daEscolha, gravar), copiou: true };
+}
+
+/** Aviso de PDF salvo, ou a mensagem de erro. true se gravou. */
+function avisarPdf(
+  r:
+    | ResultadoSalvarDanfe
+    | { status: 'cancelado' }
+    | { status: 'erro'; mensagem: string },
+): boolean {
+  if (r.status === 'salvo') {
+    mostrarSucesso('Salvo', {
+      nome: nomeDoCaminho(r.pdf),
+      pasta: pastaDoCaminho(r.pdf),
+    });
+    return true;
+  }
+  if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+  return false;
+}
+
 /** Salva só o PDF do DANFE (<base>_DANFE.pdf). true se gravou. */
 async function salvarDanfe(): Promise<boolean> {
   if (!aberto) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
+  const base = nomeBaseArquivo(aberto.lido.nota);
   bloquearAcoes(true, true);
   try {
-    const r = await window.psApi.salvarDanfe(nomeBaseArquivo(aberto.lido.nota));
-    if (r.status === 'salvo') {
-      mostrarSucesso('Salvo', {
-        nome: nomeDoCaminho(r.pdf),
-        pasta: pastaDoCaminho(r.pdf),
-      });
-      return true;
-    }
-    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
-    return false;
+    const { r } = await gravarComPergunta('danfe', false, (o) =>
+      window.psApi.salvarDanfe(base, false, o),
+    );
+    return avisarPdf(r);
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
@@ -1799,10 +1929,40 @@ function montarTextoCopia(): { texto: string; gravadas: Anotacoes } | null {
 }
 
 /**
+ * Depois de gravar o .psxml: as anotações gravadas passam a ser as salvas e,
+ * se foi uma cópia, a janela trabalha nela (nome e título). true se gravou.
+ */
+function concluirPsxml(
+  r:
+    | ResultadoSalvar
+    | { status: 'cancelado' }
+    | { status: 'erro'; mensagem: string },
+  gravadas: Anotacoes,
+  copia: boolean,
+): boolean {
+  if (r.status === 'salvo') {
+    copiarAnotacoes(gravadas, anotacoesGravadas);
+    atualizarPendentes();
+    if (copia && aberto) {
+      aberto.nome = nomeDoCaminho(r.copia);
+      preencherBarra(aberto.lido.nota);
+    }
+    mostrarSucesso(copia ? 'Cópia salva' : 'Salvo', {
+      nome: nomeDoCaminho(r.copia),
+      pasta: pastaDoCaminho(r.copia),
+    });
+    return true;
+  }
+  if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+  return false;
+}
+
+/**
  * Salvar da Conferência: grava só o .psxml na pasta de destino do botão.
  * true se gravou. O .psxml aberto nessa mesma pasta é regravado sem
- * pergunta; em outra pasta, ou de uma NF-e original, o processo principal
- * grava <base>_Conferencia.psxml (perguntando se ele já existe).
+ * pergunta; em outra pasta, ou de uma NF-e original, grava
+ * <base>_Conferencia.psxml e, se ele já existe, pergunta Substituir, Salvar
+ * cópia ou Cancelar.
  */
 async function salvarConferencia(): Promise<boolean> {
   if (!aberto) return false;
@@ -1810,23 +1970,15 @@ async function salvarConferencia(): Promise<boolean> {
   if (!pastaDestino && !(await escolherPasta())) return false;
   const montada = montarTextoCopia();
   if (!montada) return false;
+  const base = nomeBaseArquivo(aberto.lido.nota);
   bloquearAcoes(true, true);
   try {
-    const r = await window.psApi.salvar(
-      montada.texto,
-      nomeBaseArquivo(aberto.lido.nota),
+    const { r, copiou } = await gravarComPergunta('psxml', false, (o) =>
+      o.nome
+        ? window.psApi.salvarCopia(montada.texto, o.nome, o)
+        : window.psApi.salvar(montada.texto, base, o),
     );
-    if (r.status === 'salvo') {
-      copiarAnotacoes(montada.gravadas, anotacoesGravadas);
-      atualizarPendentes();
-      mostrarSucesso('Salvo', {
-        nome: nomeDoCaminho(r.copia),
-        pasta: pastaDoCaminho(r.copia),
-      });
-      return true;
-    }
-    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
-    return false;
+    return concluirPsxml(r, montada.gravadas, copiou);
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
@@ -1838,7 +1990,8 @@ async function salvarConferencia(): Promise<boolean> {
 
 /**
  * "Salvar PDF" na Conferência: monta a tabela da folha (orientação, fonte e,
- * se preciso, partes, com a pergunta antes) e grava <base>_Conferencia.pdf.
+ * se preciso, partes, com a pergunta antes) e grava <base>_Conferencia.pdf
+ * (se já existe: Substituir, Salvar cópia ou Cancelar).
  */
 async function salvarPdfConferencia(): Promise<boolean> {
   if (!aberto) return false;
@@ -1846,22 +1999,19 @@ async function salvarPdfConferencia(): Promise<boolean> {
   if (!pastaDestino && !(await escolherPasta())) return false;
   const orientacao = await prepararFolha();
   if (!orientacao) return false;
+  const base = nomeBaseArquivo(aberto.lido.nota);
   marcarGeradoEm();
   bloquearAcoes(true, true);
   try {
-    const r = await window.psApi.salvarPdfConferencia(
-      nomeBaseArquivo(aberto.lido.nota),
-      orientacao === 'paisagem',
+    const { r } = await gravarComPergunta('conferencia', false, (o) =>
+      window.psApi.salvarPdfConferencia(
+        base,
+        orientacao === 'paisagem',
+        false,
+        o,
+      ),
     );
-    if (r.status === 'salvo') {
-      mostrarSucesso('Salvo', {
-        nome: nomeDoCaminho(r.pdf),
-        pasta: pastaDoCaminho(r.pdf),
-      });
-      return true;
-    }
-    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
-    return false;
+    return avisarPdf(r);
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
@@ -1882,44 +2032,14 @@ async function salvarCopia(): Promise<boolean> {
   if (!aberto) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
-  const base = nomeBaseArquivo(aberto.lido.nota);
-  let sugestao: SugestaoCopia;
-  try {
-    sugestao = await window.psApi.sugerirCopia(base);
-  } catch (erro) {
-    mostrarMensagem('Não foi possível preparar a cópia.', 'erro');
-    console.error(erro);
-    return false;
-  }
-  if (sugestao.status === 'erro') {
-    mostrarMensagem(sugestao.mensagem, 'erro');
-    return false;
-  }
-  const nome = await pedirNomeCopia({
-    sugestao: sugestao.nome,
-    extensao: '.psxml',
-    pasta: sugestao.pasta,
-    problema: problemaNomeArquivo,
-  });
-  if (nome === null) return false;
   const montada = montarTextoCopia();
   if (!montada) return false;
   bloquearAcoes(true, true);
   try {
-    const r = await window.psApi.salvarCopia(montada.texto, nome);
-    if (r.status === 'salvo') {
-      copiarAnotacoes(montada.gravadas, anotacoesGravadas);
-      atualizarPendentes();
-      aberto.nome = nomeDoCaminho(r.copia);
-      preencherBarra(aberto.lido.nota);
-      mostrarSucesso('Cópia salva', {
-        nome: nomeDoCaminho(r.copia),
-        pasta: pastaDoCaminho(r.copia),
-      });
-      return true;
-    }
-    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
-    return false;
+    const r = await gravarCopia('psxml', false, (o) =>
+      window.psApi.salvarCopia(montada.texto, o.nome, o),
+    );
+    return concluirPsxml(r, montada.gravadas, true);
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar a cópia.', 'erro');
     console.error(erro);
@@ -2006,16 +2126,12 @@ async function salvarPrevia(destino: ModoImpressao): Promise<void> {
       if (!orientacao) return;
       paisagem = orientacao === 'paisagem';
     }
-    const r =
+    const { r } = await gravarComPergunta(destino, sobreposta, (o) =>
       destino === 'danfe'
-        ? await window.psApi.salvarDanfe(nome, sobreposta)
-        : await window.psApi.salvarPdfConferencia(nome, paisagem, sobreposta);
-    if (r.status === 'salvo')
-      mostrarSucesso('Salvo', {
-        nome: nomeDoCaminho(r.pdf),
-        pasta: pastaDoCaminho(r.pdf),
-      });
-    else if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+        ? window.psApi.salvarDanfe(nome, sobreposta, o)
+        : window.psApi.salvarPdfConferencia(nome, paisagem, sobreposta, o),
+    );
+    avisarPdf(r);
   } catch (erro) {
     mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
@@ -2150,8 +2266,14 @@ async function imprimir(): Promise<void> {
  */
 async function irParaInicio(): Promise<void> {
   if (!(await podeSair())) return;
-  fecharSobreposicao();
   window.psApi.informarSemNota();
+  limparNota();
+}
+
+/** Tira a nota desta janela e volta para a tela inicial (sem perguntar). */
+function limparNota(): void {
+  fecharSobreposicao();
+  escolha = null;
   aberto = null;
   conferenciaMontada = false;
   danfeMontado = false;

@@ -7,13 +7,31 @@ interface ArquivoAberto {
   texto: string;
 }
 
+/**
+ * O arquivo a gravar já existe e não foi substituído: o renderer pergunta
+ * Substituir, Salvar cópia ou Cancelar e chama de novo.
+ */
+type ArquivoExistente = { status: 'existe'; nome: string; pasta: string };
+
+/** Salvar e Salvar cópia: substituir sem perguntar, ou gravar com outro nome. */
+interface OpcoesSalvar {
+  substituir?: boolean;
+  /** Nome do arquivo (sem extensão), no lugar do nome padrão. */
+  nome?: string;
+}
+
+/** O que o Salvar cópia está copiando: o .psxml ou um dos PDFs. */
+type TipoCopia = 'psxml' | 'conferencia' | 'danfe';
+
 type ResultadoSalvar =
   | { status: 'salvo'; copia: string }
+  | ArquivoExistente
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
 type ResultadoSalvarDanfe =
   | { status: 'salvo'; pdf: string }
+  | ArquivoExistente
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
@@ -166,14 +184,29 @@ interface PsApi {
    * .psxml aberto se ele está na pasta de destino). `base` vem dos dados da
    * nota (nfe/nome.ts); null usa o nome do arquivo aberto.
    */
-  salvar(textoCopia: string, base: string | null): Promise<ResultadoSalvar>;
-  /** Nome sugerido (<base>_Conferencia_copiaN) e pasta do Salvar cópia. */
-  sugerirCopia(base: string | null): Promise<SugestaoCopia>;
+  salvar(
+    textoCopia: string,
+    base: string | null,
+    opcoes?: OpcoesSalvar,
+  ): Promise<ResultadoSalvar>;
+  /**
+   * Nome sugerido do Salvar cópia (<base>_Conferencia_copiaN ou
+   * <base>_DANFE_copiaN, sem extensão) e a pasta onde ele vai.
+   */
+  sugerirCopia(
+    base: string | null,
+    tipo: TipoCopia,
+    daEscolha?: boolean,
+  ): Promise<SugestaoCopia>;
   /**
    * Grava a cópia <nome>.psxml na pasta de destino; depois a janela trabalha
    * nela.
    */
-  salvarCopia(textoCopia: string, nome: string): Promise<ResultadoSalvar>;
+  salvarCopia(
+    textoCopia: string,
+    nome: string,
+    opcoes?: OpcoesSalvar,
+  ): Promise<ResultadoSalvar>;
   /**
    * Grava só <base>_Conferencia.pdf (da tela atual) na pasta de destino, em
    * retrato ou paisagem.
@@ -182,6 +215,7 @@ interface PsApi {
     base: string | null,
     paisagem: boolean,
     daEscolha?: boolean,
+    opcoes?: OpcoesSalvar,
   ): Promise<ResultadoSalvarDanfe>;
   /**
    * Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de
@@ -190,6 +224,7 @@ interface PsApi {
   salvarDanfe(
     base: string | null,
     daEscolha?: boolean,
+    opcoes?: OpcoesSalvar,
   ): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */
   versao(): Promise<string>;

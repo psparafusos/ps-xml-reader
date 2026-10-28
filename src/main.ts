@@ -622,9 +622,11 @@ ipcMain.handle(
 );
 
 /**
- * Resposta à tela de escolha por cima da nota: Abrir aqui (o renderer já
- * perguntou sobre anotações não salvas), Nova janela (no modo escolhido) ou
- * Cancelar.
+ * Resposta à tela de escolha. Por cima de uma nota (há candidato): Abrir aqui
+ * (o renderer já perguntou sobre anotações não salvas), Nova janela (no modo
+ * escolhido) ou Cancelar. Numa janela vazia (o arquivo já é desta janela):
+ * Nova janela leva o arquivo para uma janela nova e esta volta a ficar
+ * vazia (o renderer volta para a tela inicial).
  */
 ipcMain.handle(
   'confirmar-abertura',
@@ -634,12 +636,17 @@ ipcMain.handle(
     modo: unknown,
   ): Promise<ArquivoAberto | null> => {
     const j = estadoDe(event.sender);
-    const caminho = j.candidato;
+    const daJanela = !j.candidato && destino === 'nova';
+    const caminho = daJanela ? j.arquivoAberto : j.candidato;
     j.candidato = null;
     if (!caminho || destino === 'cancelar') return null;
     if (destino === 'aqui') {
       j.pastaSessao = null;
       return lerArquivoNaJanela(j, caminho);
+    }
+    if (daJanela) {
+      j.arquivoAberto = null;
+      j.abertoEhCopia = false;
     }
     criarJanela({
       caminho,
@@ -779,25 +786,6 @@ const pastaSumiu = ({ caminho, sessao }: PastaDestino) =>
   sessao
     ? `A pasta do arquivo aberto não existe mais: ${caminho}. Escolha outra pasta de destino.`
     : `A pasta de destino não existe mais: ${caminho}. Escolha outra.`;
-
-/** Limite do caminho nas mensagens (o fim do caminho fica sempre inteiro). */
-const LIMITE_CAMINHO_MENSAGEM = 60;
-
-/**
- * Caminho encurtado no meio para as mensagens: o disco no começo e as últimas
- * pastas inteiras no fim ("H:\…\notas\testes").
- */
-function encurtarCaminho(caminho: string): string {
-  if (caminho.length <= LIMITE_CAMINHO_MENSAGEM) return caminho;
-  const partes = caminho.split(/[\\/]/).filter((p) => p !== '');
-  let fim = partes[partes.length - 1] ?? '';
-  for (let i = partes.length - 2; i > 0; i--) {
-    const maior = `${partes[i]}\\${fim}`;
-    if (partes[0].length + 3 + maior.length > LIMITE_CAMINHO_MENSAGEM) break;
-    fim = maior;
-  }
-  return `${partes[0]}\\…\\${fim}`;
-}
 
 /** true se os dois caminhos são o mesmo (sem diferenciar maiúsculas). */
 const mesmoCaminho = (a: string, b: string) =>
@@ -1216,29 +1204,40 @@ type Saida =
   | { destino: string; texto: string }
   | { destino: string; pdf: Electron.PrintToPDFOptions };
 
+interface OpcoesGravar {
+  /** Destinos que são o próprio arquivo aberto: regrava sem perguntar. */
+  semPergunta?: (destino: string) => boolean;
+  /**
+   * Usa o XML da tela de escolha por cima da nota (Salvar PDF das prévias)
+   * em vez do arquivo aberto na janela.
+   */
+  doCandidato?: boolean;
+  /** O renderer já perguntou e a pessoa escolheu Substituir. */
+  substituir?: boolean;
+}
+
 /**
  * Grava as saídas na pasta de destino que o botão mostra (pastaEfetiva), com
  * as mesmas regras para o modo Conferência e o DANFE: recusa gravar sobre a
- * NF-e original aberta, pergunta antes de substituir e grava primeiro em
- * temporários (gravação segura). `nomes(base)` monta os caminhos a partir do
- * nome base (ver nomeBase).
+ * NF-e original aberta e grava primeiro em temporários (gravação segura).
+ * Arquivo que já existe não é substituído sem `substituir`: volta
+ * { status: 'existe' } e o renderer pergunta, no visual do app, Substituir,
+ * Salvar cópia ou Cancelar. `nomes(base)` monta os caminhos a partir do nome
+ * base (ver nomeBase).
  */
 async function gravarSaidas(
   event: Electron.IpcMainInvokeEvent,
   baseDoRenderer: unknown,
   nomes: (pasta: string, base: string) => Saida[],
-  /** Destinos que são o próprio arquivo aberto: substitui sem perguntar. */
-  semPergunta: (destino: string) => boolean = () => false,
-  /**
-   * Usa o XML da tela de escolha por cima da nota (Salvar PDF das prévias)
-   * em vez do arquivo aberto na janela.
-   */
-  doCandidato = false,
+  opcoes: OpcoesGravar = {},
 ): Promise<
   | { status: 'salvo'; destinos: string[] }
+  | ArquivoExistente
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string }
 > {
+  const semPergunta = opcoes.semPergunta ?? (() => false);
+  const doCandidato = opcoes.doCandidato === true;
   const j = estadoDe(event.sender);
   const janela = j.janela;
   const arquivoAberto = doCandidato ? j.candidato : j.arquivoAberto;
@@ -1279,23 +1278,8 @@ async function gravarSaidas(
     if (!semPergunta(destino) && (await existe(destino)))
       existentes.push(path.basename(destino));
   }
-  if (existentes.length > 0) {
-    // A pasta real, encurtada no meio, com o fim inteiro.
-    const onde = `em ${encurtarCaminho(pasta)}`;
-    const { response } = await dialog.showMessageBox(janela, {
-      type: 'question',
-      title: 'Substituir arquivos',
-      message:
-        existentes.length === 1
-          ? `O arquivo ${existentes[0]} já existe ${onde}. Deseja substituir?`
-          : `Os arquivos ${existentes.join(' e ')} já existem ${onde}. Deseja substituir?`,
-      buttons: ['Substituir', 'Cancelar'],
-      defaultId: 1,
-      cancelId: 1,
-      noLink: true,
-    });
-    if (response !== 0) return { status: 'cancelado' };
-  }
+  if (existentes.length > 0 && !opcoes.substituir)
+    return { status: 'existe', nome: existentes.join(' e '), pasta };
 
   const dados: (string | Buffer)[] = [];
   for (const s of saidas) {
@@ -1389,12 +1373,38 @@ const pdfConferencia = (paisagem: unknown): Electron.PrintToPDFOptions => ({
  * um .psxml com o nome padrão, com a pergunta se ele já existir; o arquivo
  * aberto fica como está.
  */
+/** Opções vindas do renderer: substituir e nome da cópia. */
+function opcoesDoRenderer(v: unknown): {
+  substituir: boolean;
+  nome: string | null;
+} {
+  const o = (typeof v === 'object' && v !== null ? v : {}) as Record<
+    string,
+    unknown
+  >;
+  return {
+    substituir: o.substituir === true,
+    nome:
+      typeof o.nome === 'string'
+        ? o.nome.trim().replace(/\.(psxml|pdf)$/i, '')
+        : null,
+  };
+}
+
+/**
+ * Salvar da Conferência: só o .psxml, na pasta de destino que o botão mostra.
+ * Cópia editada aberta que está nessa mesma pasta: grava por cima dela, sem
+ * perguntar (é o próprio arquivo aberto). Em outra pasta, ou NF-e original:
+ * um .psxml com o nome padrão; se ele já existir, volta 'existe' (o renderer
+ * pergunta) e o arquivo aberto fica como está.
+ */
 ipcMain.handle(
   'salvar',
   async (
     event,
     textoCopia: unknown,
     base: unknown,
+    opcoes: unknown,
   ): Promise<ResultadoSalvar> => {
     if (typeof textoCopia !== 'string' || textoCopia === '') {
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
@@ -1413,7 +1423,11 @@ ipcMain.handle(
           texto: textoCopia,
         },
       ],
-      (destino) => copiaAberta !== null && mesmoCaminho(destino, copiaAberta),
+      {
+        semPergunta: (destino) =>
+          copiaAberta !== null && mesmoCaminho(destino, copiaAberta),
+        substituir: opcoesDoRenderer(opcoes).substituir,
+      },
     );
     if (r.status !== 'salvo') return r;
     return { status: 'salvo', copia: r.destinos[0] };
@@ -1422,7 +1436,8 @@ ipcMain.handle(
 
 /**
  * PDF da Conferência (menu do Salvar e tela de escolha), na orientação que o
- * renderer calculou para a tabela caber.
+ * renderer calculou para a tabela caber. `opcoes.nome`: grava com esse nome
+ * (Salvar cópia), em vez de <base>_Conferencia.pdf.
  */
 ipcMain.handle(
   'salvar-pdf-conferencia',
@@ -1431,55 +1446,101 @@ ipcMain.handle(
     base: unknown,
     paisagem: unknown,
     daEscolha: unknown,
-  ): Promise<ResultadoSalvarDanfe> => {
-    const r = await gravarSaidas(
+    opcoes: unknown,
+  ): Promise<ResultadoSalvarDanfe> =>
+    salvarPdf(
       event,
       base,
-      (pasta, b) => [
-        {
-          destino: path.join(pasta, `${b}_Conferencia.pdf`),
-          pdf: pdfConferencia(paisagem),
-        },
-      ],
-      undefined,
-      daEscolha === true,
-    );
-    if (r.status !== 'salvo') return r;
-    return { status: 'salvo', pdf: r.destinos[0] };
-  },
+      daEscolha,
+      opcoes,
+      '_Conferencia',
+      pdfConferencia(paisagem),
+    ),
 );
 
+// DANFE: só o PDF (PDF_DANFE: o Electron imprime sem margem).
+ipcMain.handle(
+  'salvar-danfe',
+  async (
+    event,
+    base: unknown,
+    daEscolha: unknown,
+    opcoes: unknown,
+  ): Promise<ResultadoSalvarDanfe> =>
+    salvarPdf(event, base, daEscolha, opcoes, '_DANFE', PDF_DANFE),
+);
+
+/** Grava um PDF (<base><sufixo>.pdf ou o nome da cópia) na pasta de destino. */
+async function salvarPdf(
+  event: Electron.IpcMainInvokeEvent,
+  base: unknown,
+  daEscolha: unknown,
+  opcoes: unknown,
+  sufixo: '_Conferencia' | '_DANFE',
+  pdf: Electron.PrintToPDFOptions,
+): Promise<ResultadoSalvarDanfe> {
+  const { substituir, nome } = opcoesDoRenderer(opcoes);
+  if (nome !== null) {
+    const problema = problemaNomeArquivo(nome);
+    if (problema) return { status: 'erro', mensagem: problema };
+  }
+  const r = await gravarSaidas(
+    event,
+    base,
+    (pasta, b) => [
+      { destino: path.join(pasta, `${nome ?? `${b}${sufixo}`}.pdf`), pdf },
+    ],
+    { doCandidato: daEscolha === true, substituir },
+  );
+  if (r.status !== 'salvo') return r;
+  return { status: 'salvo', pdf: r.destinos[0] };
+}
+
+/** Sufixo e extensão de cada tipo de cópia. */
+const TIPOS_COPIA: Record<TipoCopia, { sufixo: string; extensao: string }> = {
+  psxml: { sufixo: '_Conferencia', extensao: EXTENSAO },
+  conferencia: { sufixo: '_Conferencia', extensao: '.pdf' },
+  danfe: { sufixo: '_DANFE', extensao: '.pdf' },
+};
+
 /**
- * Nome sugerido do Salvar cópia: <base>_Conferencia_copia1, ou copia2,
- * copia3... se já existir na pasta de destino em uso.
+ * Nome sugerido do Salvar cópia: <base><sufixo>_copia1, ou copia2,
+ * copia3... se já existir na pasta de destino em uso. `daEscolha`: o arquivo
+ * é o XML da escolha por cima da nota.
  */
 ipcMain.handle(
   'sugerir-copia',
-  async (event, base: unknown): Promise<SugestaoCopia> => {
+  async (
+    event,
+    base: unknown,
+    tipo: unknown,
+    daEscolha: unknown,
+  ): Promise<SugestaoCopia> => {
     const j = estadoDe(event.sender);
-    const arquivoAberto = j.arquivoAberto;
-    if (!arquivoAberto)
-      return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
+    const arquivo = daEscolha === true ? j.candidato : j.arquivoAberto;
+    if (!arquivo) return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
     const efetiva = await pastaEfetiva(j);
     const pasta = efetiva.caminho;
     if (!pasta)
       return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
     if (!(await ehPasta(pasta)))
       return { status: 'erro', mensagem: pastaSumiu(efetiva) };
-    const b = nomeBase(base, arquivoAberto);
+    const { sufixo, extensao } =
+      TIPOS_COPIA[tipo === 'conferencia' || tipo === 'danfe' ? tipo : 'psxml'];
+    const b = nomeBase(base, arquivo);
     for (let n = 1; ; n++) {
-      const nome = `${b}_Conferencia_copia${n}`;
-      if (!(await existe(path.join(pasta, `${nome}${EXTENSAO}`))))
+      const nome = `${b}${sufixo}_copia${n}`;
+      if (!(await existe(path.join(pasta, `${nome}${extensao}`))))
         return { status: 'ok', pasta, nome };
     }
   },
 );
 
 /**
- * Salvar cópia: grava um .psxml novo com o nome digitado na pasta de destino
- * em uso. O arquivo aberto não muda (gravar sobre ele é recusado). Nome que
- * já existe: pergunta antes de substituir. Depois de gravar, a janela passa
- * a trabalhar na cópia: os próximos Salvar vão para ela.
+ * Salvar cópia do .psxml: grava um .psxml novo com o nome digitado na pasta
+ * de destino em uso. O arquivo aberto não muda (gravar sobre ele é recusado).
+ * Nome que já existe: volta 'existe' (o renderer pergunta). Depois de gravar,
+ * a janela passa a trabalhar na cópia: os próximos Salvar vão para ela.
  */
 ipcMain.handle(
   'salvar-copia',
@@ -1487,6 +1548,7 @@ ipcMain.handle(
     event,
     textoCopia: unknown,
     nome: unknown,
+    opcoes: unknown,
   ): Promise<ResultadoSalvar> => {
     if (typeof textoCopia !== 'string' || textoCopia === '')
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
@@ -1509,38 +1571,18 @@ ipcMain.handle(
           'Esse é o próprio arquivo aberto. Para gravar nele use Salvar; para a cópia, escolha outro nome.',
       };
     }
-    const r = await gravarSaidas(event, null, (pasta) => [
-      { destino: path.join(pasta, `${limpo}${EXTENSAO}`), texto: textoCopia },
-    ]);
+    const r = await gravarSaidas(
+      event,
+      null,
+      (pasta) => [
+        { destino: path.join(pasta, `${limpo}${EXTENSAO}`), texto: textoCopia },
+      ],
+      { substituir: opcoesDoRenderer(opcoes).substituir },
+    );
     if (r.status !== 'salvo') return r;
     j.arquivoAberto = r.destinos[0];
     j.abertoEhCopia = true;
     return { status: 'salvo', copia: r.destinos[0] };
-  },
-);
-
-// DANFE: só o PDF (PDF_DANFE: o Electron imprime sem margem).
-ipcMain.handle(
-  'salvar-danfe',
-  async (
-    event,
-    base: unknown,
-    daEscolha: unknown,
-  ): Promise<ResultadoSalvarDanfe> => {
-    const r = await gravarSaidas(
-      event,
-      base,
-      (pasta, b) => [
-        {
-          destino: path.join(pasta, `${b}_DANFE.pdf`),
-          pdf: PDF_DANFE,
-        },
-      ],
-      undefined,
-      daEscolha === true,
-    );
-    if (r.status !== 'salvo') return r;
-    return { status: 'salvo', pdf: r.destinos[0] };
   },
 );
 

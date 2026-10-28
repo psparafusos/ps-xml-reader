@@ -33,23 +33,43 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('escolher-pasta'),
   abrirPastaDestino: (): Promise<ResultadoAbrirPasta> =>
     ipcRenderer.invoke('abrir-pasta-destino'),
-  salvar: (textoCopia: string, base: string | null): Promise<ResultadoSalvar> =>
-    ipcRenderer.invoke('salvar', textoCopia, base),
-  sugerirCopia: (base: string | null): Promise<SugestaoCopia> =>
-    ipcRenderer.invoke('sugerir-copia', base),
-  salvarCopia: (textoCopia: string, nome: string): Promise<ResultadoSalvar> =>
-    ipcRenderer.invoke('salvar-copia', textoCopia, nome),
+  salvar: (
+    textoCopia: string,
+    base: string | null,
+    opcoes: OpcoesSalvar = {},
+  ): Promise<ResultadoSalvar> =>
+    ipcRenderer.invoke('salvar', textoCopia, base, opcoes),
+  sugerirCopia: (
+    base: string | null,
+    tipo: TipoCopia,
+    daEscolha = false,
+  ): Promise<SugestaoCopia> =>
+    ipcRenderer.invoke('sugerir-copia', base, tipo, daEscolha),
+  salvarCopia: (
+    textoCopia: string,
+    nome: string,
+    opcoes: OpcoesSalvar = {},
+  ): Promise<ResultadoSalvar> =>
+    ipcRenderer.invoke('salvar-copia', textoCopia, nome, opcoes),
   salvarPdfConferencia: (
     base: string | null,
     paisagem: boolean,
     daEscolha = false,
+    opcoes: OpcoesSalvar = {},
   ): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-pdf-conferencia', base, paisagem, daEscolha),
+    ipcRenderer.invoke(
+      'salvar-pdf-conferencia',
+      base,
+      paisagem,
+      daEscolha,
+      opcoes,
+    ),
   salvarDanfe: (
     base: string | null,
     daEscolha = false,
+    opcoes: OpcoesSalvar = {},
   ): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-danfe', base, daEscolha),
+    ipcRenderer.invoke('salvar-danfe', base, daEscolha, opcoes),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
   imprimir: (
     modo: ModoImpressao,

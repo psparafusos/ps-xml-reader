@@ -1,10 +1,11 @@
 // Painel "Editar colunas" da conferência: marcar, desmarcar e arrastar as
 // colunas da tabela de itens, criar e remover anotações extras, com a prévia
 // da tabela ao lado. Tudo é um rascunho até Aplicar, que grava no perfil
-// ativo; Cancelar (ou Esc) volta ao estado anterior. No topo, o perfil ativo
-// e a lista dos perfis (trocar com um clique, criar, renomear, excluir).
-// Exportar, Importar e Restaurar padrão agem direto nos perfis salvos e
-// recarregam o painel com o resultado.
+// ativo; Cancelar (ou Esc) volta ao estado anterior. No topo, o bloco
+// "Perfil ativo" com o botão Trocar perfil, que abre a lista dos perfis
+// (trocar com um clique, renomear e excluir na linha, Novo perfil, Importar,
+// Exportar perfil ativo). Essas ações e o Restaurar padrão agem direto nos
+// perfis salvos e recarregam o painel com o resultado.
 
 import { classeColuna, colunasDaConfig, type ColunaItem } from './nfe/colunas';
 import {
@@ -181,27 +182,51 @@ export function abrirEditorColunas(
   const mudou = () =>
     JSON.stringify(rascunho) !== JSON.stringify(estado.config);
 
-  // ---------- perfis, no topo ----------
-  const listaPerfis = el('div', 'perfis__lista');
-  listaPerfis.setAttribute('role', 'radiogroup');
+  // ---------- perfis: bloco "Perfil ativo" e a lista do Trocar perfil ----------
+  const perfilAtivoEl = el('strong', 'perfil-ativo__nome');
+  const btnTrocar = botao(
+    'botao botao--claro perfil-ativo__trocar',
+    icone('M7 7h12l-3-3', 'M17 17H5l3 3'),
+    el('span', '', 'Trocar perfil'),
+    icone('M6 9l6 6 6-6'),
+  );
+  btnTrocar.setAttribute('aria-haspopup', 'true');
+  btnTrocar.setAttribute('aria-expanded', 'false');
+  btnTrocar.setAttribute('aria-controls', 'menu-perfis');
+  const listaPerfis = el('ul', 'perfis-menu__lista');
   listaPerfis.setAttribute('aria-label', 'Perfis');
   const btnNovoPerfil = botao(
-    'botao botao--claro botao--pequeno',
+    'perfis-menu__acao',
     icone('M12 5v14', 'M5 12h14'),
-    el('span', '', 'Novo'),
+    el('span', '', 'Novo perfil'),
   );
   btnNovoPerfil.title = 'Novo perfil, começando igual ao perfil ativo';
-  const btnRenomear = botao(
-    'botao botao--claro botao--pequeno',
-    icone('M4 20h4L19 9l-4-4L4 16z'),
-    el('span', '', 'Renomear'),
+  const btnImportar = botao(
+    'perfis-menu__acao',
+    icone('M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'),
+    el('span', '', 'Importar'),
   );
-  const btnExcluir = botao(
-    'botao botao--claro botao--pequeno',
-    icone('M5 7h14', 'M10 11v6', 'M14 11v6', 'M7 7l1 13h8l1-13', 'M9 7V4h6v3'),
-    el('span', '', 'Excluir'),
+  btnImportar.title =
+    'Acrescenta um perfil exportado (ou uma configuração antiga) à lista';
+  const btnExportar = botao(
+    'perfis-menu__acao',
+    icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
+    el('span', '', 'Exportar perfil ativo'),
   );
-  const perfilAtivoEl = el('strong', 'perfis__ativo');
+  btnExportar.title =
+    'Exporta o perfil ativo (como está salvo) para um arquivo .json';
+  const menuPerfis = el(
+    'div',
+    'perfis-menu',
+    listaPerfis,
+    el('div', 'perfis-menu__acoes', btnNovoPerfil, btnImportar, btnExportar),
+  );
+  menuPerfis.id = 'menu-perfis';
+  menuPerfis.hidden = true;
+  /** Aviso curto dentro do painel ("Perfil <nome> ativo"), que some sozinho. */
+  const avisoPainel = el('div', 'painel__aviso');
+  avisoPainel.setAttribute('role', 'status');
+  avisoPainel.hidden = true;
 
   const lista = el('ol', 'colunas-lista');
   lista.setAttribute('aria-label', 'Colunas');
@@ -244,20 +269,6 @@ export function abrirEditorColunas(
   erro.setAttribute('role', 'alert');
   erro.hidden = true;
 
-  const btnExportar = botao(
-    'botao botao--claro botao--pequeno',
-    icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
-    el('span', '', 'Exportar'),
-  );
-  btnExportar.title =
-    'Exporta o perfil ativo (como está salvo) para um arquivo .json';
-  const btnImportar = botao(
-    'botao botao--claro botao--pequeno',
-    icone('M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'),
-    el('span', '', 'Importar'),
-  );
-  btnImportar.title =
-    'Acrescenta um perfil exportado (ou uma configuração antiga) à lista';
   const btnRestaurar = botao(
     'botao botao--claro botao--pequeno',
     icone('M4 12a8 8 0 1 0 3-6.2', 'M4 4v5h5'),
@@ -276,10 +287,14 @@ export function abrirEditorColunas(
       'painel__cabecalho',
       el(
         'div',
-        'perfis',
-        el('span', 'perfis__rotulo', 'Perfil ativo:', perfilAtivoEl),
-        listaPerfis,
-        el('div', 'perfis__acoes', btnNovoPerfil, btnRenomear, btnExcluir),
+        'perfil-ativo',
+        el(
+          'div',
+          'perfil-ativo__textos',
+          el('span', 'perfil-ativo__rotulo', 'Perfil ativo'),
+          perfilAtivoEl,
+        ),
+        el('div', 'perfil-ativo__troca', btnTrocar, menuPerfis),
       ),
       titulo,
       el(
@@ -331,16 +346,10 @@ export function abrirEditorColunas(
     el(
       'footer',
       'painel__rodape',
-      el(
-        'div',
-        'painel__grupo',
-        btnExportar,
-        btnImportar,
-        btnRestaurar,
-        status,
-      ),
+      el('div', 'painel__grupo', btnRestaurar, status),
       el('div', 'painel__grupo', btnCancelar, btnAplicar),
     ),
+    avisoPainel,
   );
   d.setAttribute('aria-labelledby', titulo.id);
   dialogo = d;
@@ -636,25 +645,181 @@ export function abrirEditorColunas(
 
   function desenharPerfis(): void {
     perfilAtivoEl.textContent = estado.nomeAtivo;
-    listaPerfis.replaceChildren(
-      ...estado.lista.map((p) => {
-        const b = botao('perfis__opcao', p.nome);
-        b.setAttribute('role', 'radio');
-        b.setAttribute('aria-checked', String(p.id === estado.ativo));
-        b.title =
-          p.id === estado.ativo ? 'Perfil ativo' : `Usar o perfil ${p.nome}`;
-        b.addEventListener('click', () => {
-          if (p.id !== estado.ativo) void trocarPara(() => acoes.ativar(p.id));
-        });
-        return b;
-      }),
+    listaPerfis.replaceChildren(...estado.lista.map(linhaPerfil));
+  }
+
+  /**
+   * Uma linha da lista: o nome (o ativo marcado e em destaque; clicar noutro
+   * ativa), o lápis para renomear na própria linha e a lixeira para excluir.
+   */
+  function linhaPerfil(p: { id: string; nome: string }): HTMLLIElement {
+    const ativo = p.id === estado.ativo;
+    const nome = botao(
+      'perfis-menu__nome',
+      el('span', 'perfis-menu__marca', ativo ? '\u2713' : ''),
+      el('span', 'perfis-menu__texto', p.nome),
     );
-    btnExcluir.disabled = estado.lista.length <= 1;
-    btnExcluir.title =
-      estado.lista.length <= 1
-        ? 'O último perfil não pode ser excluído'
-        : `Excluir o perfil ${estado.nomeAtivo}`;
-    btnRenomear.title = `Renomear o perfil ${estado.nomeAtivo}`;
+    if (ativo) nome.setAttribute('aria-current', 'true');
+    nome.title = ativo ? 'Perfil ativo' : `Usar o perfil ${p.nome}`;
+    nome.addEventListener('click', () => {
+      if (ativo) return;
+      fecharMenu();
+      void trocarPara(() => acoes.ativar(p.id));
+    });
+    const lapis = botao(
+      'perfis-menu__icone',
+      icone('M4 20h4L19 9l-4-4L4 16z', 'M13 7l4 4'),
+    );
+    lapis.setAttribute('aria-label', `Renomear o perfil ${p.nome}`);
+    lapis.title = 'Renomear';
+    const ultimo = estado.lista.length <= 1;
+    const lixeira = botao(
+      'perfis-menu__icone',
+      icone(
+        'M5 7h14',
+        'M10 11v6',
+        'M14 11v6',
+        'M7 7l1 13h8l1-13',
+        'M9 7V4h6v3',
+      ),
+    );
+    lixeira.setAttribute('aria-label', `Excluir o perfil ${p.nome}`);
+    lixeira.title = ultimo
+      ? 'O último perfil não pode ser excluído'
+      : 'Excluir';
+    lixeira.disabled = ultimo;
+    const li = el(
+      'li',
+      `perfis-menu__linha${ativo ? ' perfis-menu__linha--ativo' : ''}`,
+      nome,
+      lapis,
+      lixeira,
+    );
+    lapis.addEventListener('click', () => editarNome(li, p));
+    lixeira.addEventListener('click', () => void excluirPerfil(p));
+    return li;
+  }
+
+  /**
+   * Renomear na própria linha: Enter salva, Esc (ou sair do campo) cancela.
+   * Nome vazio ou repetido não vale e mostra o motivo embaixo.
+   */
+  function editarNome(
+    li: HTMLLIElement,
+    p: { id: string; nome: string },
+  ): void {
+    if (ocupado) return;
+    const campo = el('input', 'perfis-menu__campo');
+    campo.type = 'text';
+    campo.value = p.nome;
+    campo.spellcheck = false;
+    campo.setAttribute('aria-label', `Novo nome do perfil ${p.nome}`);
+    const erroNome = el('p', 'perfis-menu__erro');
+    erroNome.id = `erro-perfil-${p.id}`;
+    erroNome.hidden = true;
+    campo.setAttribute('aria-describedby', erroNome.id);
+    const conferir = (): boolean => {
+      const problema = problemaNomePerfil(campo.value, estado.lista, p.id);
+      erroNome.textContent = problema ?? '';
+      erroNome.hidden = !problema;
+      campo.setAttribute('aria-invalid', String(Boolean(problema)));
+      return !problema;
+    };
+    let salvando = false;
+    const cancelar = () => {
+      if (salvando) return;
+      desenharPerfis();
+      listaPerfis
+        .querySelector<HTMLElement>(
+          `[aria-label="Renomear o perfil ${CSS.escape(p.nome)}"]`,
+        )
+        ?.focus();
+    };
+    campo.addEventListener('input', conferir);
+    campo.addEventListener('blur', cancelar);
+    campo.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // Só cancela a edição: o menu e o painel ficam abertos.
+        e.preventDefault();
+        e.stopPropagation();
+        cancelar();
+        return;
+      }
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (!conferir()) return;
+      const novo = campo.value.trim();
+      if (novo === p.nome) return cancelar();
+      salvando = true;
+      void comBloqueio(async () => {
+        const r = await acoes.renomear(p.id, novo);
+        if (r.status === 'erro') return mostrarErro(r.mensagem);
+        // O rascunho fica: renomear não muda colunas nem anotações.
+        estado = { ...r.estado, config: estado.config };
+        status.textContent = `Perfil renomeado para ${novo}.`;
+      });
+    });
+    li.classList.add('perfis-menu__linha--editando');
+    li.replaceChildren(campo, erroNome);
+    campo.focus();
+    campo.select();
+  }
+
+  /** Lixeira: confirma e exclui. Excluir o ativo ativa o primeiro da lista. */
+  async function excluirPerfil(p: { id: string; nome: string }): Promise<void> {
+    if (ocupado || estado.lista.length <= 1) return;
+    const ativo = p.id === estado.ativo;
+    const r = await perguntar({
+      titulo: 'Excluir perfil',
+      texto: `Excluir o perfil ${p.nome}? As colunas, anotações extras e orientação dele se perdem; o texto já salvo nos arquivos .psxml não.`,
+      botoes: [
+        { rotulo: 'Cancelar', valor: 'cancelar' },
+        { rotulo: 'Excluir', valor: 'excluir', principal: true },
+      ],
+      cancelar: 'cancelar',
+    });
+    if (r !== 'excluir') return;
+    await comBloqueio(async () => {
+      const x = await acoes.excluir(p.id);
+      if (x.status === 'erro') return mostrarErro(x.mensagem);
+      if (ativo) {
+        recarregar(x.estado, `Perfil "${p.nome}" excluído.`);
+        mostrarAviso(`Perfil ${x.estado.nomeAtivo} ativo`);
+      } else {
+        estado = { ...x.estado, config: estado.config };
+        status.textContent = `Perfil "${p.nome}" excluído.`;
+      }
+    });
+  }
+
+  function abrirMenu(): void {
+    desenharPerfis();
+    menuPerfis.hidden = false;
+    btnTrocar.setAttribute('aria-expanded', 'true');
+    // O foco começa no perfil ativo (as setas e o Tab seguem daí).
+    (
+      listaPerfis.querySelector<HTMLElement>(
+        '.perfis-menu__linha--ativo .perfis-menu__nome',
+      ) ?? listaPerfis.querySelector<HTMLElement>('.perfis-menu__nome')
+    )?.focus();
+  }
+
+  function fecharMenu(focarBotao = false): void {
+    if (menuPerfis.hidden) return;
+    menuPerfis.hidden = true;
+    btnTrocar.setAttribute('aria-expanded', 'false');
+    if (focarBotao) btnTrocar.focus();
+  }
+
+  let temporizadorAviso: number | undefined;
+  /** Aviso curto no meio do painel, que some sozinho. */
+  function mostrarAviso(texto: string): void {
+    window.clearTimeout(temporizadorAviso);
+    avisoPainel.textContent = texto;
+    avisoPainel.hidden = false;
+    temporizadorAviso = window.setTimeout(() => {
+      avisoPainel.hidden = true;
+    }, 2500);
   }
 
   function desenhar(): void {
@@ -680,15 +845,11 @@ export function abrirEditorColunas(
     if (ocupado) return;
     ocupado = true;
     const botoes = [
-      btnExportar,
-      btnImportar,
       btnRestaurar,
       btnCancelar,
       btnAplicar,
-      btnNovoPerfil,
-      btnRenomear,
-      btnExcluir,
-      ...listaPerfis.querySelectorAll('button'),
+      btnTrocar,
+      ...menuPerfis.querySelectorAll('button'),
     ];
     const antes = botoes.map((b) => b.disabled);
     for (const b of botoes) b.disabled = true;
@@ -756,13 +917,31 @@ export function abrirEditorColunas(
       mostrarErro(null);
       if (!(await podeTrocar())) return;
       const r = await acao();
-      if (r.status === 'ok')
-        recarregar(r.estado, `Perfil ativo: ${r.estado.nomeAtivo}.`);
-      else mostrarErro(r.mensagem);
+      if (r.status === 'ok') {
+        recarregar(r.estado, '');
+        mostrarAviso(`Perfil ${r.estado.nomeAtivo} ativo`);
+      } else mostrarErro(r.mensagem);
     });
   }
 
+  btnTrocar.addEventListener('click', () => {
+    if (menuPerfis.hidden) abrirMenu();
+    else fecharMenu();
+  });
+  // Esc no menu fecha só o menu; clicar fora dele também.
+  menuPerfis.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    fecharMenu(true);
+  });
+  d.addEventListener('mousedown', (e) => {
+    const alvo = e.target as Node;
+    if (!menuPerfis.contains(alvo) && !btnTrocar.contains(alvo)) fecharMenu();
+  });
+
   btnNovoPerfil.addEventListener('click', () => {
+    fecharMenu();
     void (async () => {
       if (ocupado) return;
       const nome = await pedirTexto({
@@ -776,55 +955,6 @@ export function abrirEditorColunas(
       if (nome !== null) await trocarPara(() => acoes.criar(nome));
     })();
   });
-  btnRenomear.addEventListener('click', () => {
-    void (async () => {
-      if (ocupado) return;
-      const id = estado.ativo;
-      const nome = await pedirTexto({
-        titulo: 'Renomear perfil',
-        texto: 'O perfil continua com as mesmas colunas e anotações.',
-        valor: estado.nomeAtivo,
-        rotulo: 'Nome do perfil',
-        confirmar: 'Renomear',
-        problema: (n) => problemaNomePerfil(n, estado.lista, id),
-      });
-      if (nome === null) return;
-      await comBloqueio(async () => {
-        const r = await acoes.renomear(id, nome);
-        if (r.status === 'erro') return mostrarErro(r.mensagem);
-        // O rascunho fica: renomear não muda colunas nem anotações.
-        estado = { ...r.estado, config: estado.config };
-        status.textContent = `Perfil renomeado para ${nome}.`;
-      });
-    })();
-  });
-  btnExcluir.addEventListener('click', () => {
-    void (async () => {
-      if (ocupado || estado.lista.length <= 1) return;
-      const id = estado.ativo;
-      const nome = estado.nomeAtivo;
-      const r = await perguntar({
-        titulo: 'Excluir perfil',
-        texto: `Excluir o perfil ${nome}? As colunas, anotações extras e orientação dele se perdem; o texto já salvo nos arquivos .psxml não.`,
-        botoes: [
-          { rotulo: 'Cancelar', valor: 'cancelar' },
-          { rotulo: 'Excluir', valor: 'excluir', principal: true },
-        ],
-        cancelar: 'cancelar',
-      });
-      if (r !== 'excluir') return;
-      await comBloqueio(async () => {
-        const x = await acoes.excluir(id);
-        if (x.status === 'ok')
-          recarregar(
-            x.estado,
-            `Perfil "${nome}" excluído. Perfil ativo: "${x.estado.nomeAtivo}".`,
-          );
-        else mostrarErro(x.mensagem);
-      });
-    })();
-  });
-
   atualizarAberto = (novo) => {
     if (ocupado) return;
     if (mudou()) {
@@ -854,6 +984,7 @@ export function abrirEditorColunas(
     if (!ocupado) fechar();
   });
   btnExportar.addEventListener('click', () => {
+    fecharMenu();
     void comBloqueio(async () => {
       mostrarErro(null);
       const r = await acoes.exportar();
@@ -863,6 +994,7 @@ export function abrirEditorColunas(
     });
   });
   btnImportar.addEventListener('click', () => {
+    fecharMenu();
     void comBloqueio(async () => {
       mostrarErro(null);
       const r = await acoes.importar();
