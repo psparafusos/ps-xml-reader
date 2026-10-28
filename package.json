@@ -15,7 +15,8 @@
     "release": "electron-forge release",
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/registrar-hook.mjs --test \"test/*.test.mts\""
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
