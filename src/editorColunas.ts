@@ -16,6 +16,13 @@ import {
   type ConfigConferencia,
 } from './nfe/config';
 import type { Item } from './nfe/tipos';
+import {
+  descreverPlano,
+  ORIENTACOES_CONFIG,
+  ROTULO_ORIENTACAO,
+  type OrientacaoConfig,
+  type PlanoFolha,
+} from './nfe/folha';
 import { botao, comSetasDeRolagem, el, icone } from './dom';
 
 export interface AcoesEditor {
@@ -24,6 +31,11 @@ export interface AcoesEditor {
   exportar(): Promise<ResultadoExportarConfig>;
   importar(): Promise<ResultadoConfig | { status: 'cancelado' }>;
   restaurar(): Promise<ResultadoConfig | { status: 'cancelado' }>;
+  /**
+   * Como a tabela da nota aberta iria para a folha com esta configuração
+   * (para o indicador); null sem nota ou sem itens.
+   */
+  plano(config: ConfigConferencia): PlanoFolha | null;
 }
 
 /** Itens fictícios da prévia (nunca vêm de uma nota). */
@@ -154,6 +166,23 @@ export function abrirEditorColunas(
     el('span', '', 'Criar'),
   );
   const previa = el('div', 'previa');
+  // Orientação da Conferência no PDF e na impressão, e se a tabela da nota
+  // aberta cabe numa folha com o rascunho.
+  const orientacao = el(
+    'select',
+    'painel__orientacao',
+    ...ORIENTACOES_CONFIG.map((o) => {
+      const op = el('option', '', ROTULO_ORIENTACAO[o]);
+      op.value = o;
+      return op;
+    }),
+  );
+  orientacao.addEventListener('change', () => {
+    rascunho.orientacao = orientacao.value as OrientacaoConfig;
+    desenharIndicador();
+  });
+  const indicador = el('p', 'painel__indicador');
+  indicador.setAttribute('role', 'status');
   const status = el('p', 'painel__status');
   status.setAttribute('role', 'status');
   const erro = el('p', 'painel__erro');
@@ -220,6 +249,17 @@ export function abrirEditorColunas(
         'section',
         'painel__previa',
         el('h3', 'painel__subtitulo', 'Prévia'),
+        el(
+          'div',
+          'painel__folha',
+          el(
+            'label',
+            'painel__folha-rotulo',
+            'Orientação da folha',
+            orientacao,
+          ),
+          indicador,
+        ),
         comSetasDeRolagem(previa),
       ),
     ),
@@ -341,7 +381,7 @@ export function abrirEditorColunas(
         return o;
       }),
     );
-    s.value = c.largura ?? 'media';
+    s.value = c.largura ?? 'automatica';
     s.setAttribute('aria-label', `Largura da coluna ${c.rotulo}`);
     s.title = 'Largura da caixa de anotação, na tela e na folha';
     s.addEventListener('change', () => {
@@ -502,6 +542,32 @@ export function abrirEditorColunas(
         ? el('div', 'previa__conteudo', tabela)
         : el('p', 'previa__vazia', 'Nenhuma coluna marcada.'),
     );
+    desenharIndicador();
+  }
+
+  /**
+   * "Cabe em retrato", "Cabe em paisagem" ou "Não cabe numa folha", medido
+   * com os itens da nota aberta e o rascunho (colunas, larguras, orientação).
+   */
+  function desenharIndicador(): void {
+    orientacao.value = rascunho.orientacao;
+    let plano: PlanoFolha | null = null;
+    try {
+      plano = rascunho.colunas.some((c) => c.visivel)
+        ? acoes.plano(rascunho)
+        : null;
+    } catch (e) {
+      console.error(e);
+    }
+    indicador.hidden = plano === null;
+    if (!plano) return;
+    const texto = descreverPlano(plano);
+    indicador.textContent = texto;
+    indicador.dataset.cabe = String(plano.partes.length === 1);
+    indicador.title =
+      plano.partes.length > 1
+        ? `Mesmo com a fonte em 7 pt, a tabela sai dividida em ${plano.partes.length} partes, cada uma numa folha.`
+        : `Fonte da tabela na folha: ${String(plano.fontePt).replace('.', ',')} pt.`;
   }
 
   function desenhar(): void {

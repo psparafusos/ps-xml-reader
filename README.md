@@ -80,11 +80,43 @@ extra a remove da tabela. A Anotação original pode ser escondida e movida, mas
 não removida.
 
 Cada coluna de anotação (a original e as extras) tem um seletor de largura na
-lista: **Estreita**, **Média** (padrão) ou **Larga**. Na tela a caixa tem 100,
-200 ou 320 px; na folha, 15, 30 ou 45 mm. Se as caixas juntas passam de 80 mm,
-todas diminuem na mesma proporção para a tabela caber no A4 retrato
-(`src/nfe/colunas.ts`). Numa coluna estreita, o título quebra em duas linhas
-para não alargar a coluna. A prévia acompanha a escolha.
+lista: **Automática** (padrão), **Estreita**, **Média** ou **Larga**.
+Automática: a coluna fica da largura do título, com um mínimo (64 px na tela,
+10 mm na folha). As outras fixam a caixa: 80, 140 ou 240 px na tela e 14, 24
+ou 36 mm na folha, e o título quebra em linhas se for mais comprido. A caixa
+ocupa a coluna inteira, com o título centralizado em cima. A prévia acompanha
+a escolha.
+
+Na tabela de itens, todas as células têm o mesmo espaçamento e ficam
+alinhadas ao meio, inclusive as de anotação. A Descrição fica com o espaço
+que sobra, mas nunca abaixo de cerca de 30 caracteres; se a tabela não couber
+na tela, ela rola na horizontal.
+
+### Orientação e folha (modo Conferência)
+
+No painel, acima da prévia, **Orientação da folha**: **Automática** (padrão),
+**Retrato** ou **Paisagem**. Ao lado, um indicador mostra como a tabela da
+nota aberta vai para a folha com as colunas do painel: "Cabe em retrato",
+"Cabe em paisagem" ou "Não cabe numa folha" (o texto de ajuda diz a fonte ou
+em quantas partes ela sai).
+
+Ao salvar o PDF ou imprimir, o app mede a largura de cada coluna da tabela na
+folha e decide:
+
+1. Automática: retrato se a tabela couber; senão, paisagem. Retrato ou
+   Paisagem: sempre essa.
+2. Se não couber na orientação em uso, a fonte da tabela desce de 7,5 pt até
+   no mínimo 7 pt, de 0,25 em 0,25.
+3. Se nem com 7 pt couber, a tabela é dividida em partes, cada uma numa folha
+   ("Itens, parte 1 de 2"), repetindo Nº, Código e Descrição. Antes de salvar
+   o PDF ou imprimir, o app avisa e pergunta se continua.
+
+A largura útil é a do A4 menos 10 mm de margem de cada lado: 190 mm em
+retrato e 277 mm em paisagem. Esse cálculo fica num ponto só,
+`src/nfe/folha.ts`, que os blocos em grade de 12 colunas também vão usar. A
+folha não usa a tabela da tela: antes de salvar o PDF ou imprimir, o app monta
+cópias dela para o papel (`src/folhaTabela.ts`), e a medida é feita numa
+cópia escondida com as mesmas regras de CSS do papel.
 
 A tabela de itens e a prévia rolam na horizontal dentro do próprio quadro.
 Quando há colunas escondidas de um lado, aparece naquela borda uma sombra e
@@ -125,12 +157,16 @@ de destino e do resto (`src/nfe/config.ts`):
   "layout": {
     "blocos": [{ "id": "emitente", "visivel": true, "largura": 6 }]
   },
+  "orientacao": "automatica",
   "fornecedores": {}
 }
 ```
 
 (O exemplo está encurtado: o arquivo real lista todas as colunas e os oito
-blocos.) `colunas` é a ordem da tabela; `largura` (`estreita`, `media` ou `larga`) só existe nas colunas de anotação e, sem ela, vale `media`. `layout` guarda os blocos da
+blocos.) `colunas` é a ordem da tabela; `largura` (`automatica`, `estreita`,
+`media` ou `larga`) só existe nas colunas de anotação e, sem ela, vale
+`automatica`. `orientacao` é `automatica`, `retrato` ou `paisagem`; sem ela
+(configuração anterior), `automatica`. `layout` guarda os blocos da
 conferência numa grade de 12 colunas; nesta versão ele ainda não é editável.
 `fornecedores` fica reservado para a configuração por fornecedor e por
 enquanto é sempre vazio. Coluna que falte no arquivo entra no fim com a
@@ -152,7 +188,7 @@ A versão do app (do `package.json`) aparece discreta no canto da tela inicial.
 | Atalho                      | O que faz                                          |
 | --------------------------- | -------------------------------------------------- |
 | Ctrl+O                      | Abrir arquivo (tela inicial e barra da nota)       |
-| Ctrl+S                      | Salvar                                             |
+| Ctrl+S                      | Salvar (.psxml na Conferência, PDF no DANFE)       |
 | Ctrl+P                      | Imprimir, com o mesmo aviso de impressora de cupom |
 | Ctrl + / Ctrl - / Ctrl+roda | Zoom da conferência ou do DANFE                    |
 | Ctrl+0                      | Zoom de volta a 100%                               |
@@ -183,19 +219,23 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
     (chave `pastaDestino`), dentro da pasta de dados do app
     (`%APPDATA%\PS Reader`), e vale também depois de reabrir o app. Colado
     nele, **Abrir pasta**, igual ao da tela inicial.
-  - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual. Se a
+  - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual (na
+    Conferência, já na orientação calculada para a tabela). Se a
     impressora padrão for de cupom, avisa antes; Cancelar não abre o diálogo. A
     lista de nomes de impressora de cupom fica em `src/impressoras.ts`: ELGIN,
     térmica, 80mm, 58mm, POS só como palavra inteira (POS-80 e POS58 casam,
     Positivo não) e TM-T seguido de dígitos (EPSON TM-T20X-II).
-  - **Salvar**, o único botão principal: na conferência, grava na pasta de
-    destino o PDF (A4 retrato) e a cópia editada; no DANFE, só o PDF. Se algum
-    arquivo já existir, pergunta antes de substituir. Enquanto grava, mostra
+  - **Salvar**, o único botão principal: na Conferência grava só a cópia
+    editada (`.psxml`); no DANFE, só o PDF. Enquanto grava, mostra
     "Salvando...". O Salvar grava sempre na pasta mostrada no botão **Pasta
     de destino**. Com um `.psxml` aberto que está nessa mesma pasta, grava
-    por cima dele, com a pergunta de substituir; se ele está em outra pasta,
-    cria um `.psxml` novo na pasta do botão, com o nome padrão, e o aberto
+    por cima dele sem perguntar (é o próprio arquivo aberto); se ele está em
+    outra pasta, ou se o aberto é o XML original, grava o `.psxml` com o nome
+    padrão na pasta do botão, perguntando antes se ele já existe, e o aberto
     fica como está.
+  - A seta colada no Salvar abre um menu com **Salvar PDF** (o PDF do modo
+    em que a tela está; na Conferência, com a orientação e a fonte
+    calculadas) e **Salvar cópia...**.
 
 Os nomes saem dos dados da nota, não do nome do arquivo aberto
 (`src/nfe/nome.ts`):
@@ -217,9 +257,24 @@ Um `.psxml` com nome no formato antigo abre normalmente. Se ele está na pasta
 de destino, o Salvar grava por cima dele e ele mantém o nome; o PDF sai com o
 nome novo.
 
+### Salvar cópia
+
+**Salvar cópia...** abre uma caixa no visual do app com o nome sugerido
+`<FORNECEDOR>_NF<número>_Conferencia_copia1` (ou `copia2`, `copia3`... se já
+existir na pasta), todo selecionado para editar, e a pasta onde vai gravar.
+Caracteres que o Windows não aceita (`< > : " / \ | ? *` e de controle),
+nome terminado em ponto e nomes reservados (CON, PRN, AUX, NUL, COM1 a COM9,
+LPT1 a LPT9) são recusados na hora, com o motivo. Nome que já existe: pergunta
+antes de substituir. A cópia vai para a pasta de destino em uso; o arquivo
+aberto não muda (gravar a cópia por cima dele é recusado). Depois de salvar,
+a janela passa a trabalhar na cópia, como um "Salvar como": o título da janela
+mostra o nome dela e os próximos Salvar (Ctrl+S) vão para ela.
+
+O título da janela começa pelo nome do arquivo em que ela está trabalhando.
+
 Sucesso aparece como um aviso pequeno no centro da janela, que some sozinho. Ao
-salvar, o aviso mostra o nome do arquivo em cima (na conferência, o nome base e
-"PDF e PSXML" em letra menor; nome longo é encurtado no meio com reticências),
+salvar, o aviso mostra o nome do arquivo em cima (nome longo é encurtado no
+meio com reticências),
 a pasta onde gravou ("em C:\…\Notas") e "Salvo" embaixo, por cerca de 3,5 s. A
 pergunta de substituir também mostra a pasta real, encurtada no meio com o fim
 inteiro. "Copiado" e "Chave copiada" continuam em uma linha, por cerca de
@@ -263,15 +318,17 @@ sempre na ordem do XML.
 
 O app nunca grava em uma NF-e original (raiz `nfeProc` ou `NFe`): qualquer
 gravação cujo destino seja o próprio XML aberto é recusada. Uma cópia editada
-aberta só é substituída quando está na pasta de destino, sempre com a pergunta
-de substituir.
+aberta só é regravada pelo Salvar quando está na pasta de destino.
 
 A gravação é segura: os arquivos vão primeiro para temporários na pasta onde
 serão gravados e só então substituem os finais. Se algo falhar, os arquivos antigos
 ficam como estavam e os temporários são apagados.
 
-Se houver anotações alteradas e não salvas, abrir outro arquivo ou fechar a
-janela pergunta **Salvar**, **Descartar** ou **Cancelar**.
+Se houver anotações alteradas e não salvas, abrir outro arquivo, ir para o
+Início ou fechar a janela mostra uma caixa no visual do app com **Salvar**,
+**Salvar cópia...**, **Descartar** e **Cancelar** (Esc). Salvar cópia abre a
+caixa do nome; concluída, a ação pedida segue (fechar, abrir o outro arquivo
+etc.). Cancelar, ali ou na caixa do nome, deixa tudo como estava.
 
 ## Cópia editada (.psxml)
 
@@ -385,6 +442,9 @@ src/
   dom.ts             utilitários de DOM (el, icone, botao)
   declarations.d.ts  tipos globais (window.psApi)
   nfe/config.ts      personalização da conferência: tipo, padrão, validação e migração
+  nfe/folha.ts       folha A4: largura útil por orientação e plano da tabela (fonte, partes)
+  folhaTabela.ts     cópias da tabela de itens para o papel e medida das colunas
+  dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer
   nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível, ordenação)

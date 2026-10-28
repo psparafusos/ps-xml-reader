@@ -8,7 +8,7 @@ interface ArquivoAberto {
 }
 
 type ResultadoSalvar =
-  | { status: 'salvo'; pdf: string; copia: string }
+  | { status: 'salvo'; copia: string }
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
@@ -44,7 +44,13 @@ type ResultadoImprimir =
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
-type RespostaAlteracoes = 'salvar' | 'descartar' | 'cancelar';
+/** Resposta à pergunta de alterações não salvas (no visual do app). */
+type RespostaAlteracoes = 'salvar' | 'copia' | 'descartar' | 'cancelar';
+
+/** Nome sugerido do Salvar cópia e a pasta onde ela vai. */
+type SugestaoCopia =
+  | { status: 'ok'; pasta: string; nome: string }
+  | { status: 'erro'; mensagem: string };
 
 /** Texto do aviso de sucesso de uma cópia. */
 type AvisoCopia = 'Copiado' | 'Chave copiada' | 'Recortado';
@@ -107,26 +113,34 @@ interface PsApi {
   /** Abre a pasta de destino no Explorer (erro se ela não existe mais). */
   abrirPastaDestino(): Promise<ResultadoAbrirPasta>;
   /**
-   * Grava <base>_Conferencia.pdf (da tela atual) e <base>_Conferencia.psxml
-   * na pasta de destino. `base` vem dos dados da nota (nfe/nome.ts); null usa
-   * o nome do arquivo aberto.
+   * Salvar da Conferência: grava só o .psxml (<base>_Conferencia.psxml, ou o
+   * .psxml aberto se ele está na pasta de destino). `base` vem dos dados da
+   * nota (nfe/nome.ts); null usa o nome do arquivo aberto.
    */
   salvar(textoCopia: string, base: string | null): Promise<ResultadoSalvar>;
+  /** Nome sugerido (<base>_Conferencia_copiaN) e pasta do Salvar cópia. */
+  sugerirCopia(base: string | null): Promise<SugestaoCopia>;
   /**
-   * Grava só <base>_Conferencia.pdf (da tela atual, sem a cópia editada) na
-   * pasta de destino.
+   * Grava a cópia <nome>.psxml na pasta de destino; depois a janela trabalha
+   * nela.
    */
-  salvarPdfConferencia(base: string | null): Promise<ResultadoSalvarDanfe>;
+  salvarCopia(textoCopia: string, nome: string): Promise<ResultadoSalvar>;
+  /**
+   * Grava só <base>_Conferencia.pdf (da tela atual) na pasta de destino, em
+   * retrato ou paisagem.
+   */
+  salvarPdfConferencia(
+    base: string | null,
+    paisagem: boolean,
+  ): Promise<ResultadoSalvarDanfe>;
   /** Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de destino. */
   salvarDanfe(base: string | null): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */
   versao(): Promise<string>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
-  imprimir(modo: ModoImpressao): Promise<ResultadoImprimir>;
+  imprimir(modo: ModoImpressao, paisagem: boolean): Promise<ResultadoImprimir>;
   /** Avisa o processo principal se há anotações alteradas e não salvas. */
   informarPendentes(pendentes: boolean): void;
-  /** Pergunta Salvar, Descartar ou Cancelar sobre as anotações não salvas. */
-  perguntarAlteracoes(): Promise<RespostaAlteracoes>;
   /** Chamado quando o usuário tenta fechar a janela com anotações pendentes. */
   aoPedirFechar(callback: () => void): void;
   /** Fecha a janela sem nova pergunta (depois de salvar ou descartar). */

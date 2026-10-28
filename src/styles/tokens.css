@@ -71,10 +71,13 @@
   --largura-minima-campo: 200px;
   --largura-minima-tabela: 1000px;
   /* Caixa de anotação na tela, pela largura escolhida no painel. */
-  --largura-anotacao-estreita: 100px;
-  --largura-anotacao: 200px;
-  --largura-anotacao-larga: 320px;
-  --esp-lado-anotacao: var(--esp-3);
+  --largura-anotacao-minima: 64px;
+  --largura-anotacao-estreita: 80px;
+  --largura-anotacao-media: 140px;
+  --largura-anotacao-larga: 240px;
+  --esp-campo-anotacao: 2px var(--esp-2);
+  /* Descrição da tabela de itens: nunca menos que cerca de 30 caracteres. */
+  --largura-minima-descricao: 30ch;
   --largura-modo-opcao: 220px;
   /* Miniatura A4 na escolha de modo: acompanha a altura da janela para a
      tela caber sem rolagem também em 1366 x 768 a 125%. */
@@ -128,12 +131,15 @@
   --aviso-duracao: 1500ms;
   --sombra-aviso: 0 6px 24px rgb(0 0 0 / 0.25);
   --largura-menu: 300px;
+  --largura-menu-salvar: 180px;
+  --largura-caixa-dialogo: 520px;
   /* Painel Editar colunas */
   --largura-painel: 1040px;
   --largura-lista-colunas: 320px;
+  --largura-anotacao-previa-minima: 40px;
   --largura-anotacao-previa-estreita: 50px;
-  --largura-anotacao-previa: 90px;
-  --largura-anotacao-previa-larga: 150px;
+  --largura-anotacao-previa-media: 80px;
+  --largura-anotacao-previa-larga: 130px;
   /* Contorno de foco inteiro dentro de áreas que rolam. */
   --folga-foco: calc(
     var(--botao-foco-espessura) + var(--botao-foco-afastamento)
@@ -155,7 +161,12 @@
   --esp-print-3: 6pt;
   --esp-print-4: 9pt;
   /* Caixa de anotação sem largura calculada (a folha usa a do renderer). */
-  --largura-anotacao-print: 30mm;
-  --esp-lado-anotacao-print: var(--esp-print-3);
+  /* Tabela de itens na folha: fonte (o renderer desce até 7 pt quando não
+     cabe) e caixa de anotação por tamanho. */
+  --fs-tabela-folha: var(--fs-print-sm);
+  --largura-anotacao-folha-minima: 10mm;
+  --largura-anotacao-folha-estreita: 14mm;
+  --largura-anotacao-folha-media: 24mm;
+  --largura-anotacao-folha-larga: 36mm;
   --altura-anotacao-print: 11pt;
 }

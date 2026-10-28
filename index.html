@@ -127,20 +127,63 @@
             </svg>
             <span>Imprimir</span>
           </button>
-          <button
-            id="btn-salvar"
-            type="button"
-            class="botao botao--principal"
-            title="Salvar (Ctrl+S)"
-            aria-keyshortcuts="Control+S"
-          >
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 4v11" />
-              <path d="M7 10l5 5 5-5" />
-              <path d="M5 20h14" />
-            </svg>
-            <span id="btn-salvar-texto">Salvar</span>
-          </button>
+          <!-- Salvar: na Conferência grava o .psxml; no DANFE, o PDF. A seta
+               ao lado abre Salvar PDF e Salvar cópia (sem botões novos na
+               barra). -->
+          <div class="salvar-grupo">
+            <button
+              id="btn-salvar"
+              type="button"
+              class="botao botao--principal salvar-grupo__principal"
+              title="Salvar (Ctrl+S)"
+              aria-keyshortcuts="Control+S"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 4v11" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M5 20h14" />
+              </svg>
+              <span id="btn-salvar-texto">Salvar</span>
+            </button>
+            <button
+              id="btn-salvar-mais"
+              type="button"
+              class="botao botao--principal salvar-grupo__seta"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="menu-salvar"
+              aria-label="Mais opções de salvar"
+              title="Salvar PDF ou Salvar cópia"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            <div
+              id="menu-salvar"
+              class="menu-salvar"
+              role="menu"
+              aria-label="Salvar"
+              hidden
+            >
+              <button
+                id="btn-salvar-pdf"
+                type="button"
+                class="menu-salvar__opcao"
+                role="menuitem"
+              >
+                Salvar PDF
+              </button>
+              <button
+                id="btn-salvar-copia"
+                type="button"
+                class="menu-salvar__opcao"
+                role="menuitem"
+              >
+                Salvar cópia...
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
     </header>

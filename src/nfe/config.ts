@@ -8,10 +8,13 @@
 //   colunas       todas as colunas, na ordem da tabela: { id, visivel }
 //   anotacoes     anotações extras criadas pelo usuário: { id, titulo }
 //   layout        blocos da conferência: { blocos: [{ id, visivel, largura }] }
+//   orientacao    folha da Conferência: automatica (padrão), retrato ou
+//                 paisagem. Sem o campo (configuração da Parte A): automatica.
 //   fornecedores  reservado para a configuração por fornecedor (raiz de 8
 //                 dígitos do CNPJ). Nesta versão fica sempre {}.
 
 import { COLUNAS_ITENS, ID_ANOTACAO } from './colunas';
+import { ORIENTACOES_CONFIG, type OrientacaoConfig } from './folha';
 
 export const VERSAO_CONFIG = 1;
 
@@ -21,15 +24,24 @@ export const NOME_EXPORTACAO = 'PS Reader - configuracao.json';
 export interface ColunaConfig {
   id: string;
   visivel: boolean;
-  /** Só nas colunas de anotação; sem o campo, 'media'. */
+  /** Só nas colunas de anotação; sem o campo, 'automatica'. */
   largura?: LarguraAnotacao;
 }
 
-/** Larguras da caixa de anotação (tela, prévia, impressão e PDF). */
-export const LARGURAS_ANOTACAO = ['estreita', 'media', 'larga'] as const;
+/**
+ * Larguras da caixa de anotação (tela, prévia, impressão e PDF). Automática:
+ * a largura do título, com um mínimo; as outras fixam a largura.
+ */
+export const LARGURAS_ANOTACAO = [
+  'automatica',
+  'estreita',
+  'media',
+  'larga',
+] as const;
 export type LarguraAnotacao = (typeof LARGURAS_ANOTACAO)[number];
 
 export const ROTULO_LARGURA: Record<LarguraAnotacao, string> = {
+  automatica: 'Automática',
   estreita: 'Estreita',
   media: 'Média',
   larga: 'Larga',
@@ -53,6 +65,7 @@ export interface ConfigConferencia {
   colunas: ColunaConfig[];
   anotacoes: AnotacaoExtra[];
   layout: { blocos: BlocoLayout[] };
+  orientacao: OrientacaoConfig;
   fornecedores: Record<string, never>;
 }
 
@@ -109,6 +122,7 @@ export function configPadrao(): ConfigConferencia {
         largura: LARGURA_PADRAO[id],
       })),
     },
+    orientacao: 'automatica',
     fornecedores: {},
   };
 }
@@ -302,11 +316,17 @@ export function validarConfig(v: unknown): ConfigConferencia {
   const o = migrar(v);
   if (!objeto(o.fornecedores)) falha('A seção de fornecedores está faltando.');
   const anotacoes = validarAnotacoes(o.anotacoes);
+  if (
+    o.orientacao !== undefined &&
+    !(ORIENTACOES_CONFIG as readonly unknown[]).includes(o.orientacao)
+  )
+    falha(`A orientação precisa ser ${ORIENTACOES_CONFIG.join(', ')}.`);
   return {
     versao: VERSAO_CONFIG,
     colunas: validarColunas(o.colunas, anotacoes),
     anotacoes,
     layout: validarLayout(o.layout),
+    orientacao: (o.orientacao as OrientacaoConfig | undefined) ?? 'automatica',
     // Reservado para a configuração por fornecedor: nesta versão não é lido.
     fornecedores: {},
   };

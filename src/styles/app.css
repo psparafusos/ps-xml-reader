@@ -833,6 +833,15 @@ ul {
   vertical-align: top;
 }
 
+/* Tabela de itens (tela e folha): todas as células com o mesmo espaçamento
+   e alinhadas ao meio, inclusive as de anotação. */
+.tabela--itens th,
+.tabela--itens td,
+.tabela--folha th,
+.tabela--folha td {
+  vertical-align: middle;
+}
+
 .tabela .num {
   text-align: right;
   white-space: nowrap;
@@ -840,8 +849,9 @@ ul {
 
 /* Zebra: nas tabelas simples por linha; na de itens por item (tbody), para
    que a linha de infAdProd tenha o mesmo fundo do item. */
-.tabela:not(.tabela--itens) > tbody > tr:nth-child(even),
-.tabela--itens > tbody.item:nth-of-type(even) > tr {
+.tabela:not(.tabela--itens, .tabela--folha) > tbody > tr:nth-child(even),
+.tabela--itens > tbody.item:nth-of-type(even) > tr,
+.tabela--folha > tbody.item:nth-of-type(even) > tr {
   background: var(--cor-zebra);
 }
 
@@ -849,8 +859,11 @@ ul {
   white-space: nowrap;
 }
 
+/* A descrição fica com o espaço que sobra, mas nunca abaixo de cerca de 30
+   caracteres: se não couber, a tabela rola na horizontal. */
 .tabela--itens .col-descricao {
   width: 100%;
+  min-width: var(--largura-minima-descricao);
   color: var(--cor-texto-forte);
 }
 
@@ -1033,41 +1046,47 @@ ul {
 
 /* ---------- anotação ---------- */
 
-/* Largura da caixa: a escolhida no painel Editar colunas (média por padrão). */
+/* Largura da caixa, escolhida no painel Editar colunas. Automática (padrão):
+   a coluna fica da largura do título, com um mínimo. Estreita, Média e Larga
+   fixam a caixa, e o título quebra em linhas se for mais comprido. Cada
+   tamanho tem a medida da tela, da prévia e da folha (tabela--folha). */
 .coluna-anotacao {
-  --largura-caixa: var(--largura-anotacao);
-  --largura-caixa-previa: var(--largura-anotacao-previa);
+  --largura-caixa: var(--largura-anotacao-minima);
+  --largura-caixa-previa: var(--largura-anotacao-previa-minima);
+  --largura-caixa-folha: var(--largura-anotacao-folha-minima);
+  text-align: center;
 }
 
 .coluna-anotacao--estreita {
   --largura-caixa: var(--largura-anotacao-estreita);
   --largura-caixa-previa: var(--largura-anotacao-previa-estreita);
+  --largura-caixa-folha: var(--largura-anotacao-folha-estreita);
+}
+
+.coluna-anotacao--media {
+  --largura-caixa: var(--largura-anotacao-media);
+  --largura-caixa-previa: var(--largura-anotacao-previa-media);
+  --largura-caixa-folha: var(--largura-anotacao-folha-media);
 }
 
 .coluna-anotacao--larga {
   --largura-caixa: var(--largura-anotacao-larga);
   --largura-caixa-previa: var(--largura-anotacao-previa-larga);
+  --largura-caixa-folha: var(--largura-anotacao-folha-larga);
 }
 
-/* Coluna estreita: o título quebra em linhas para não alargar a coluna. */
-.tabela th.coluna-anotacao--estreita {
+.tabela th.coluna-anotacao:not(.coluna-anotacao--automatica) {
   white-space: normal;
 }
 
 .tabela--itens .coluna-anotacao {
-  min-width: calc(var(--largura-caixa) + 2 * var(--esp-lado-anotacao));
-  padding-left: var(--esp-lado-anotacao);
-  padding-right: var(--esp-lado-anotacao);
-}
-
-/* Título centralizado sobre a caixa. */
-.tabela--itens th.coluna-anotacao {
-  text-align: center;
+  min-width: calc(var(--largura-caixa) + 2 * var(--esp-2));
 }
 
 .anotacao__campo {
+  display: block;
   width: 100%;
-  padding: var(--esp-1) var(--esp-2);
+  padding: var(--esp-campo-anotacao);
   border: var(--borda-forte) solid var(--cor-destaque);
   border-radius: var(--raio);
   background: var(--ps-branco);
@@ -1282,6 +1301,7 @@ body.pdf-previa #danfe {
 
 .colunas-lista__alca,
 .colunas-lista__remover {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1321,6 +1341,7 @@ body.pdf-previa #danfe {
 }
 
 .colunas-lista__marca {
+  flex: none;
   width: var(--icone);
   height: var(--icone);
   margin: 0;
@@ -1432,8 +1453,10 @@ body.pdf-previa #danfe {
 
 .previa__tabela .coluna-anotacao {
   min-width: calc(var(--largura-caixa-previa) + 2 * var(--esp-2));
-  padding-left: var(--esp-2);
-  padding-right: var(--esp-2);
+}
+
+.previa__tabela .col-descricao {
+  min-width: 0;
 }
 
 /* Caixa de anotação desenhada, sem campo de verdade. */
@@ -1545,4 +1568,289 @@ body.pdf-previa #danfe {
 
 .rolagem__seta--direita {
   right: var(--esp-1);
+}
+
+/* ---------- tabela de itens na folha (PDF e impressão) ---------- */
+
+/* A folha não usa a tabela da tela: antes de salvar o PDF ou imprimir, o
+   renderer monta cópias com a classe tabela--folha (src/folhaTabela.ts),
+   numa ou mais partes. As mesmas regras valem para a cópia escondida que
+   mede as colunas, então a medida bate com o papel. A fonte vem de
+   --fs-tabela-folha, que desce até 7 pt quando a tabela não cabe. */
+.tabela--folha {
+  font-size: var(--fs-tabela-folha);
+}
+
+.tabela--folha th {
+  padding: var(--esp-print-2);
+}
+
+.tabela--folha td {
+  padding: var(--esp-print-1) var(--esp-print-2);
+}
+
+.tabela--folha .item__linha > td:not(.col-descricao, .coluna-anotacao) {
+  white-space: nowrap;
+}
+
+.tabela--folha .col-descricao {
+  width: 100%;
+  min-width: var(--largura-minima-descricao);
+  color: var(--cor-texto-forte);
+}
+
+/* Só a seta da coluna ordenada, no texto. */
+.tabela--folha th[aria-sort='ascending']::after {
+  content: ' \25B2';
+}
+
+.tabela--folha th[aria-sort='descending']::after {
+  content: ' \25BC';
+}
+
+.tabela--folha .coluna-anotacao {
+  min-width: calc(var(--largura-caixa-folha) + 2 * var(--esp-print-2));
+}
+
+/* Anotação: sai o texto; sem texto, sai a caixa vazia com a borda. */
+.tabela--folha .anotacao__impressao {
+  display: block;
+  min-height: var(--altura-anotacao-print);
+  padding: 0 var(--esp-print-2);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--esp-print-1);
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.tabela--folha .item__adicional {
+  font-size: var(--fs-print-xs);
+  white-space: normal;
+}
+
+.tabela--folha > tbody.item > .item__linha:has(+ .item__linha-adicional) td {
+  border-bottom: none;
+}
+
+/* Na tela as cópias da folha não aparecem. */
+.tabela-impressao {
+  display: none;
+}
+
+.tabela-impressao__titulo {
+  margin-bottom: var(--esp-print-2);
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-forte);
+}
+
+/* Cópia escondida que mede as colunas: fora da tela, na largura mínima (o
+   texto das anotações quebra como no papel), e a descrição exatamente no
+   mínimo dela. */
+.medida-folha {
+  position: fixed;
+  top: 0;
+  left: -100000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.medida-folha .tabela--folha {
+  width: min-content;
+}
+
+.medida-folha .col-descricao {
+  width: var(--largura-minima-descricao);
+}
+
+/* ---------- Salvar com a seta (menu Salvar PDF / Salvar cópia) ---------- */
+
+.salvar-grupo {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.salvar-grupo__principal {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* A seta fica colada, separada por um filete claro. */
+.salvar-grupo__seta {
+  min-width: 0;
+  padding-left: var(--esp-2);
+  padding-right: var(--esp-2);
+  border-left-color: var(--botao-pri-texto);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.salvar-grupo > .botao:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.menu-salvar {
+  position: absolute;
+  top: calc(100% + var(--esp-1));
+  right: 0;
+  z-index: 30;
+  min-width: var(--largura-menu-salvar);
+  padding: var(--esp-1) 0;
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  box-shadow: var(--sombra-aviso);
+}
+
+.menu-salvar__opcao {
+  display: block;
+  width: 100%;
+  padding: var(--esp-2) var(--esp-4);
+  border: none;
+  background: none;
+  color: var(--cor-texto-forte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-salvar__opcao:hover,
+.menu-salvar__opcao:focus-visible {
+  outline: none;
+  background: var(--botao-sec-fundo-hover);
+}
+
+/* ---------- caixas de diálogo no visual do app (src/dialogos.ts) ---------- */
+
+.caixa-dialogo {
+  width: min(var(--largura-caixa-dialogo), calc(100vw - 2 * var(--esp-5)));
+  padding: var(--esp-5);
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto);
+  box-shadow: var(--sombra-aviso);
+}
+
+.caixa-dialogo::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.caixa-dialogo__titulo {
+  padding-left: var(--esp-3);
+  border-left: var(--borda-destaque) solid var(--cor-destaque);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-lg);
+  font-weight: var(--peso-forte);
+}
+
+.caixa-dialogo__texto {
+  margin-top: var(--esp-3);
+}
+
+.caixa-dialogo__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin-top: var(--esp-4);
+}
+
+.caixa-dialogo__campo {
+  flex: 1;
+  min-width: 0;
+  padding: var(--esp-2) var(--esp-3);
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  color: var(--cor-texto-forte);
+  font: inherit;
+}
+
+.caixa-dialogo__campo:focus {
+  outline: none;
+  background: var(--cor-destaque-suave);
+  box-shadow: 0 0 0 var(--borda) var(--ps-preto);
+}
+
+.caixa-dialogo__campo[aria-invalid='true'] {
+  border-color: var(--aviso-erro-fundo);
+}
+
+.caixa-dialogo__extensao {
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-medio);
+}
+
+.caixa-dialogo__erro {
+  margin-top: var(--esp-2);
+  color: var(--aviso-erro-fundo);
+  font-size: var(--fs-sm);
+}
+
+.caixa-dialogo__pasta {
+  margin-top: var(--esp-2);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.caixa-dialogo__botoes {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  margin-top: var(--esp-5);
+}
+
+.caixa-dialogo__botoes .botao--principal {
+  min-width: 0;
+}
+
+/* Orientação da folha e indicador de que a tabela cabe, acima da prévia. */
+.painel__folha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--esp-3);
+  margin-bottom: var(--esp-3);
+}
+
+.painel__folha-rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-medio);
+}
+
+.painel__orientacao {
+  padding: var(--esp-1) var(--esp-2);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--raio);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.painel__orientacao:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.painel__indicador {
+  padding: var(--esp-1) var(--esp-3);
+  border-radius: var(--raio);
+  background: var(--cor-destaque-suave);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-forte);
+}
+
+/* Não cabe: em vermelho, com texto branco. */
+.painel__indicador[data-cabe='false'] {
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
 }

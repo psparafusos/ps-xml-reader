@@ -23,6 +23,7 @@
   .vazio,
   .modo,
   .painel,
+  .caixa-dialogo,
   .rolagem__seta {
     display: none !important;
   }
@@ -40,25 +41,6 @@
     position: static;
     width: auto;
     visibility: visible;
-  }
-
-  /* No papel só a seta da coluna ordenada, sem a caixa preta. */
-  .tabela--itens th[data-ordenavel]::after {
-    content: none;
-    min-width: 0;
-    margin-left: 0;
-  }
-
-  .tabela--itens th[aria-sort='ascending']::after {
-    content: ' ▲';
-    background: none;
-    color: inherit;
-  }
-
-  .tabela--itens th[aria-sort='descending']::after {
-    content: ' ▼';
-    background: none;
-    color: inherit;
   }
 
   .nota {
@@ -109,22 +91,27 @@
     font-size: var(--fs-print-xs);
   }
 
-  .tabela-rolagem {
-    overflow: visible;
+  /* A tabela de itens da tela dá lugar às cópias da folha (tabela--folha,
+     em app.css), montadas antes de salvar o PDF ou imprimir. */
+  .secao--itens:has(> .tabela-impressao) > .rolagem {
+    display: none;
   }
 
-  /* No papel a tabela inteira aparece: sem sombra de rolagem. */
-  .rolagem::before,
-  .rolagem::after {
-    content: none;
+  .tabela-impressao {
+    display: block;
+  }
+
+  /* Tabela dividida: cada parte começa numa folha nova. */
+  .tabela-impressao__parte + .tabela-impressao__parte {
+    break-before: page;
   }
 
   .tabela {
     font-size: var(--fs-print-sm);
   }
 
-  .tabela--itens {
-    min-width: 0;
+  .tabela--folha {
+    font-size: var(--fs-tabela-folha);
   }
 
   .tabela th {
@@ -142,44 +129,6 @@
   tr,
   tbody.item {
     break-inside: avoid;
-  }
-
-  .item__adicional {
-    font-size: var(--fs-print-xs);
-  }
-
-  /* Anotação: sai o texto; sem texto, sai a caixa vazia com a borda. */
-  .anotacao__campo {
-    display: none;
-  }
-
-  /* A descrição ocupa 100% da largura; sem min-width a anotação encolhe.
-     A largura de cada caixa (--largura-coluna-print) vem do renderer: o
-     tamanho escolhido no painel, reduzido quando as caixas juntas não cabem
-     no A4 (nfe/colunas.ts). */
-  .tabela--itens .coluna-anotacao {
-    width: calc(
-      var(--largura-coluna-print, var(--largura-anotacao-print)) + 2 *
-        var(--esp-lado-anotacao-print)
-    );
-    min-width: calc(
-      var(--largura-coluna-print, var(--largura-anotacao-print)) + 2 *
-        var(--esp-lado-anotacao-print)
-    );
-    padding-left: var(--esp-lado-anotacao-print);
-    padding-right: var(--esp-lado-anotacao-print);
-  }
-
-  .anotacao__impressao {
-    display: block;
-    min-height: var(--altura-anotacao-print);
-    padding: 0 var(--esp-print-2);
-    border: var(--borda) solid var(--cor-borda);
-    border-radius: var(--esp-print-1);
-    background: var(--ps-branco);
-    color: var(--cor-texto-forte);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
 
   .totais {

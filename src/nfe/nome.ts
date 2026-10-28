@@ -76,3 +76,30 @@ export function nomeBaseArquivo(n: Nota): string | null {
   const sufixoSerie = serie !== '' && serie !== '1' ? `-S${serie}` : '';
   return `${fornecedor}_NF${numero}${sufixoSerie}`;
 }
+
+/** Caracteres que o Windows não aceita em nome de arquivo. */
+// oxlint-disable-next-line no-control-regex -- os caracteres de controle também são proibidos
+const INVALIDOS_WINDOWS = /[<>:"/\\|?*\u0000-\u001F]/;
+/** Nomes reservados do Windows (com ou sem extensão). */
+const RESERVADOS_WINDOWS = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
+export const LIMITE_NOME_ARQUIVO = 150;
+
+/**
+ * Problema com um nome de arquivo digitado (sem a pasta), ou null se o
+ * Windows aceita. Usado no Salvar cópia.
+ */
+export function problemaNomeArquivo(nome: string): string | null {
+  const n = nome.trim();
+  if (!n) return 'Digite o nome da cópia.';
+  const invalido = INVALIDOS_WINDOWS.exec(n);
+  if (invalido)
+    return invalido[0] < ' '
+      ? 'O nome tem um caractere de controle, que o Windows não aceita.'
+      : `O Windows não aceita o caractere ${invalido[0]} em nome de arquivo.`;
+  if (/[. ]$/.test(n)) return 'O nome não pode terminar com ponto ou espaço.';
+  if (RESERVADOS_WINDOWS.test(n))
+    return `${n.split('.')[0]} é um nome reservado do Windows.`;
+  if (n.length > LIMITE_NOME_ARQUIVO)
+    return `O nome pode ter no máximo ${LIMITE_NOME_ARQUIVO} caracteres.`;
+  return null;
+}

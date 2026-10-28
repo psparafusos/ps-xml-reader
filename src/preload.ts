@@ -21,17 +21,25 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('abrir-pasta-destino'),
   salvar: (textoCopia: string, base: string | null): Promise<ResultadoSalvar> =>
     ipcRenderer.invoke('salvar', textoCopia, base),
-  salvarPdfConferencia: (base: string | null): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-pdf-conferencia', base),
+  sugerirCopia: (base: string | null): Promise<SugestaoCopia> =>
+    ipcRenderer.invoke('sugerir-copia', base),
+  salvarCopia: (textoCopia: string, nome: string): Promise<ResultadoSalvar> =>
+    ipcRenderer.invoke('salvar-copia', textoCopia, nome),
+  salvarPdfConferencia: (
+    base: string | null,
+    paisagem: boolean,
+  ): Promise<ResultadoSalvarDanfe> =>
+    ipcRenderer.invoke('salvar-pdf-conferencia', base, paisagem),
   salvarDanfe: (base: string | null): Promise<ResultadoSalvarDanfe> =>
     ipcRenderer.invoke('salvar-danfe', base),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
-  imprimir: (modo: ModoImpressao): Promise<ResultadoImprimir> =>
-    ipcRenderer.invoke('imprimir', modo),
+  imprimir: (
+    modo: ModoImpressao,
+    paisagem: boolean,
+  ): Promise<ResultadoImprimir> =>
+    ipcRenderer.invoke('imprimir', modo, paisagem),
   informarPendentes: (pendentes: boolean): void =>
     ipcRenderer.send('anotacoes-pendentes', pendentes),
-  perguntarAlteracoes: (): Promise<RespostaAlteracoes> =>
-    ipcRenderer.invoke('perguntar-alteracoes'),
   aoPedirFechar: (callback: () => void): void => {
     ipcRenderer.on('pedido-fechar', () => callback());
   },

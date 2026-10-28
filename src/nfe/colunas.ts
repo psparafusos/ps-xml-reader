@@ -169,7 +169,7 @@ export function colunasDaConfig(config: ConfigConferencia): ColunaItem[] {
     colunas.push({
       ...coluna,
       visivel: c.visivel,
-      ...(coluna.anotacao ? { largura: c.largura ?? 'media' } : {}),
+      ...(coluna.anotacao ? { largura: c.largura ?? 'automatica' } : {}),
     });
   }
   return colunas;
@@ -180,37 +180,9 @@ export function classeColuna(c: ColunaItem): string {
   const classes = [`col-${c.id}`];
   if (c.alinhamento === 'direita') classes.push('num');
   if (c.anotacao)
-    classes.push('coluna-anotacao', `coluna-anotacao--${c.largura ?? 'media'}`);
+    classes.push(
+      'coluna-anotacao',
+      `coluna-anotacao--${c.largura ?? 'automatica'}`,
+    );
   return classes.join(' ');
-}
-
-/** Largura da caixa de anotação na folha A4, em mm, por tamanho. */
-const LARGURA_PRINT_MM: Record<LarguraAnotacao, number> = {
-  estreita: 15,
-  media: 30,
-  larga: 45,
-};
-
-/**
- * Espaço máximo das caixas de anotação somadas na folha A4 retrato (190 mm
- * úteis), para sobrar lugar para as outras colunas.
- */
-const ESPACO_ANOTACOES_PRINT_MM = 80;
-
-/**
- * Largura da caixa de cada coluna de anotação visível na folha, em mm: a do
- * tamanho escolhido, reduzida na mesma proporção para todas quando a soma
- * passa do espaço disponível.
- */
-export function largurasAnotacaoPrint(
-  colunas: ColunaItem[],
-): Map<string, number> {
-  const anotacoes = colunas.filter((c) => c.visivel && c.anotacao);
-  const mm = (c: ColunaItem) => LARGURA_PRINT_MM[c.largura ?? 'media'];
-  const soma = anotacoes.reduce((t, c) => t + mm(c), 0);
-  const escala =
-    soma > ESPACO_ANOTACOES_PRINT_MM ? ESPACO_ANOTACOES_PRINT_MM / soma : 1;
-  return new Map(
-    anotacoes.map((c) => [c.id, Math.round(mm(c) * escala * 10) / 10]),
-  );
 }

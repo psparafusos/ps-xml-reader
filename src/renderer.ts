@@ -7,12 +7,16 @@ import {
   classeColuna,
   colunasDaConfig,
   ID_ANOTACAO,
-  largurasAnotacaoPrint,
   type ColunaItem,
 } from './nfe/colunas';
 import { configPadrao } from './nfe/config';
 import { montarCopia } from './nfe/copia';
-import { nomeBaseArquivo } from './nfe/nome';
+import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
+import {
+  ROTULO_ORIENTACAO,
+  type Orientacao,
+  type PlanoFolha,
+} from './nfe/folha';
 import {
   lerArquivo,
   lerDocumento,
@@ -34,6 +38,8 @@ import type { Anotacoes, Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
 import { abrirEditorColunas, editorAberto } from './editorColunas';
 import { comSetasDeRolagem, el, icone, type Filho } from './dom';
+import { perguntar, pedirNomeCopia } from './dialogos';
+import { desmontarFolha, montarFolha, planoDaTabela } from './folhaTabela';
 
 // ---------- utilitários de DOM ----------
 
@@ -260,6 +266,7 @@ function editarColunas(): void {
       if (r.status === 'ok') aplicarConfig(r.config);
       return r;
     },
+    plano: planoComConfig,
   });
 }
 
@@ -582,28 +589,21 @@ function controleOrdenar(miniatura = false): HTMLElement {
 const ITENS_MINIATURA = 40;
 
 /**
- * Tabela de itens. `miniatura`: só os primeiros itens, sem guardar a tabela no
- * estado da tela (a miniatura é uma cópia inerte).
+ * Elemento da tabela de itens com estas colunas e itens. `guardar`: é a
+ * tabela da tela (guarda os tbody para reordenar e a própria tabela); sem
+ * ele, é uma cópia (miniatura ou medida da folha) que não mexe no estado.
  */
-function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
-  if (n.itens.length === 0) return null;
-
-  const colunas = colunasAtuais().filter((c) => c.visivel);
-  // Na folha, cada caixa de anotação tem a largura escolhida, reduzida quando
-  // todas juntas não cabem no A4 (nfe/colunas.ts); vai em cada célula como
-  // --largura-coluna-print, que o print.css usa.
-  const larguraPrint = largurasAnotacaoPrint(colunas);
+function montarTabelaItens(
+  colunasConfig: ColunaItem[],
+  itens: Item[],
+  guardar: boolean,
+): HTMLTableElement {
+  const colunas = colunasConfig.filter((c) => c.visivel);
   const celula = <K extends 'th' | 'td'>(
     tag: K,
     c: ColunaItem,
     ...filhos: Filho[]
-  ) => {
-    const e = el(tag, classeColuna(c), ...filhos);
-    const mm = larguraPrint.get(c.id);
-    if (mm !== undefined)
-      e.style.setProperty('--largura-coluna-print', `${mm}mm`);
-    return e;
-  };
+  ) => el(tag, classeColuna(c), ...filhos);
 
   // Título clicável (e por teclado): alterna crescente, decrescente e ordem
   // da nota. aria-sort mostra o estado, e o CSS desenha a seta.
@@ -634,8 +634,7 @@ function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
 
   // Cada item em seu próprio tbody: a linha de infAdProd fica junto do item
   // (zebra e quebra de página tratam os dois como um bloco).
-  if (!miniatura) corposItens.clear();
-  const itens = miniatura ? n.itens.slice(0, ITENS_MINIATURA) : n.itens;
+  if (guardar) corposItens.clear();
   const corpos = itens.map((i) => {
     const tbody = el(
       'tbody',
@@ -657,12 +656,26 @@ function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
     }
     // A anotação está dentro do tbody: ao reordenar ela vai junto (nItem).
     tbody.dataset.nItem = i.nItem;
-    if (!miniatura) corposItens.set(i.nItem, tbody);
+    if (guardar) corposItens.set(i.nItem, tbody);
     return tbody;
   });
 
   const tabela = el('table', 'tabela tabela--itens', thead, ...corpos);
-  if (!miniatura) tabelaItensEl = tabela;
+  if (guardar) tabelaItensEl = tabela;
+  return tabela;
+}
+
+/**
+ * Seção de itens. `miniatura`: só os primeiros itens, sem guardar a tabela no
+ * estado da tela (a miniatura é uma cópia inerte).
+ */
+function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
+  if (n.itens.length === 0) return null;
+  const tabela = montarTabelaItens(
+    colunasAtuais(),
+    miniatura ? n.itens.slice(0, ITENS_MINIATURA) : n.itens,
+    !miniatura,
+  );
   const titulo = `Itens (${n.itens.length})`;
   return secao(
     titulo,
@@ -674,6 +687,48 @@ function tabelaItens(n: Nota, miniatura = false): HTMLElement | null {
       ? el('div', 'tabela-rolagem', tabela)
       : comSetasDeRolagem(el('div', 'tabela-rolagem', tabela)),
   );
+}
+
+/**
+ * Plano da folha (orientação, fonte, partes) da nota aberta com a
+ * configuração `config`: mede uma tabela montada com todos os itens, na
+ * ordem atual. null sem nota ou sem itens.
+ */
+function planoComConfig(config: ConfigConferencia): PlanoFolha | null {
+  if (!aberto || aberto.lido.nota.itens.length === 0) return null;
+  const tabela = montarTabelaItens(
+    colunasDaConfig(config),
+    aberto.lido.nota.itens,
+    false,
+  );
+  return planoDaTabela(tabela, config.orientacao);
+}
+
+/**
+ * Antes de salvar o PDF ou imprimir a Conferência: monta a tabela da folha
+ * conforme o plano e, se ela precisar ser dividida em partes, pergunta antes.
+ * Devolve a orientação a usar, ou null se a pessoa cancelou. Depois de
+ * gravar ou imprimir, chamar desmontarFolha.
+ */
+async function prepararFolha(): Promise<Orientacao | null> {
+  const secaoItens = notaEl.querySelector<HTMLElement>('.secao--itens');
+  if (!tabelaItensEl || !secaoItens) return 'retrato';
+  const plano = planoDaTabela(tabelaItensEl, configAtual.orientacao);
+  if (plano.partes.length > 1) {
+    const nome = ROTULO_ORIENTACAO[plano.orientacao].toLowerCase();
+    const r = await perguntar({
+      titulo: 'A tabela não cabe numa folha',
+      texto: `A tabela de itens não cabe na largura da folha em ${nome}, nem com a fonte em 7 pt. Ela vai sair dividida em ${plano.partes.length} partes, cada uma numa folha, repetindo Nº, Código e Descrição.`,
+      botoes: [
+        { rotulo: 'Cancelar', valor: 'cancelar' },
+        { rotulo: 'Continuar', valor: 'continuar', principal: true },
+      ],
+      cancelar: 'cancelar',
+    });
+    if (r !== 'continuar') return null;
+  }
+  montarFolha(secaoItens, tabelaItensEl, plano);
+  return plano.orientacao;
 }
 
 const TOTAIS: { rotulo: string; chave: keyof Nota['totais'] }[] = [
@@ -844,6 +899,10 @@ const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
+const btnSalvarMais = $('btn-salvar-mais') as HTMLButtonElement;
+const menuSalvar = $('menu-salvar');
+const btnSalvarPdf = $('btn-salvar-pdf') as HTMLButtonElement;
+const btnSalvarCopia = $('btn-salvar-copia') as HTMLButtonElement;
 const aviso = $('aviso');
 const avisoTexto = $('aviso-texto');
 const avisoArquivo = $('aviso-arquivo');
@@ -1054,7 +1113,11 @@ function preencherBarra(n: Nota): void {
   barraNota.textContent = textoNumeroSerie(n);
   // O aviso de cópia editada fica só na barra, nunca no corpo do DANFE.
   barraCopia.hidden = !aberto?.lido.copiaEditada;
-  document.title = juntar([textoNumeroSerie(n), n.emitente.xNome], ' | ');
+  // O nome do arquivo vem primeiro: depois do Salvar cópia, é o da cópia.
+  document.title = juntar(
+    [aberto?.nome ?? '', textoNumeroSerie(n), n.emitente.xNome],
+    ' | ',
+  );
   atualizarSeletorDanfe();
 }
 
@@ -1441,6 +1504,7 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
   acoesBloqueadas = bloquear;
   for (const b of [
     btnSalvar,
+    btnSalvarMais,
     btnImprimir,
     btnModoConferencia,
     btnModoDanfe,
@@ -1453,9 +1517,17 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
   if (!bloquear) retomarExterno();
 }
 
-/** Salva conforme o modo: conferência (PDF e cópia) ou DANFE (só o PDF). */
+/**
+ * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF.
+ * O PDF da Conferência e a cópia ficam no menu da seta ao lado do botão.
+ */
 function salvar(): Promise<boolean> {
   return modoAtual === 'danfe' ? salvarDanfe() : salvarConferencia();
+}
+
+/** "Salvar PDF" do menu: o PDF do modo em que a tela está. */
+function salvarPdf(): Promise<boolean> {
+  return modoAtual === 'danfe' ? salvarDanfe() : salvarPdfConferencia();
 }
 
 /** Salva só o PDF do DANFE (<base>_DANFE.pdf). true se gravou. */
@@ -1485,58 +1557,54 @@ async function salvarDanfe(): Promise<boolean> {
 }
 
 /**
- * Salva PDF e cópia editada na pasta de destino do botão. true se gravou. Uma
- * cópia editada aberta nessa mesma pasta é substituída (com a pergunta); em
- * outra pasta, o processo principal cria uma cópia nova com o nome padrão.
+ * Texto do .psxml com as anotações de agora, e a cópia delas que vai ser
+ * marcada como salva (não o que for digitado durante a gravação). null se
+ * não deu para montar (a mensagem já foi mostrada).
  */
-async function salvarConferencia(): Promise<boolean> {
-  if (!aberto) return false;
-  esconderMensagem();
-  if (!pastaDestino && !(await escolherPasta())) return false;
-
-  let copia: string;
+function montarTextoCopia(): { texto: string; gravadas: Anotacoes } | null {
+  if (!aberto) return null;
   try {
-    copia = montarCopia(
+    const texto = montarCopia(
       aberto.texto,
       anotacoes,
       titulosParaCopia(),
       ordemAtual,
     );
+    const gravadas: Anotacoes = new Map();
+    copiarAnotacoes(anotacoes, gravadas);
+    return { texto, gravadas };
   } catch (erro) {
     mostrarMensagem('Não foi possível montar a cópia editada.', 'erro');
     console.error(erro);
-    return false;
+    return null;
   }
-  const gravadas: Anotacoes = new Map();
-  copiarAnotacoes(anotacoes, gravadas);
+}
 
-  marcarGeradoEm();
+/**
+ * Salvar da Conferência: grava só o .psxml na pasta de destino do botão.
+ * true se gravou. O .psxml aberto nessa mesma pasta é regravado sem
+ * pergunta; em outra pasta, ou de uma NF-e original, o processo principal
+ * grava <base>_Conferencia.psxml (perguntando se ele já existe).
+ */
+async function salvarConferencia(): Promise<boolean> {
+  if (!aberto) return false;
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return false;
+  const montada = montarTextoCopia();
+  if (!montada) return false;
   bloquearAcoes(true, true);
   try {
     const r = await window.psApi.salvar(
-      copia,
+      montada.texto,
       nomeBaseArquivo(aberto.lido.nota),
     );
     if (r.status === 'salvo') {
-      // Grava como salvo o que foi para o arquivo, não o que foi digitado
-      // enquanto o salvamento acontecia.
-      copiarAnotacoes(gravadas, anotacoesGravadas);
+      copiarAnotacoes(montada.gravadas, anotacoesGravadas);
       atualizarPendentes();
-      // PDF e cópia com o mesmo nome base: mostra o nome uma vez só. Uma cópia
-      // aberta com nome antigo continua com ele: aí vão os dois nomes.
-      const nomePdf = nomeDoCaminho(r.pdf);
-      const nomeCopia = nomeDoCaminho(r.copia);
-      const base = nomePdf.replace(/\.pdf$/i, '');
-      mostrarSucesso(
-        'Salvo',
-        base === nomeCopia.replace(/\.psxml$/i, '')
-          ? { nome: base, tipos: 'PDF e PSXML', pasta: pastaDoCaminho(r.pdf) }
-          : {
-              nome: nomePdf,
-              tipos: `e ${nomeCopia}`,
-              pasta: pastaDoCaminho(r.pdf),
-            },
-      );
+      mostrarSucesso('Salvo', {
+        nome: nomeDoCaminho(r.copia),
+        pasta: pastaDoCaminho(r.copia),
+      });
       return true;
     }
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
@@ -1548,6 +1616,114 @@ async function salvarConferencia(): Promise<boolean> {
   } finally {
     bloquearAcoes(false);
   }
+}
+
+/**
+ * "Salvar PDF" na Conferência: monta a tabela da folha (orientação, fonte e,
+ * se preciso, partes, com a pergunta antes) e grava <base>_Conferencia.pdf.
+ */
+async function salvarPdfConferencia(): Promise<boolean> {
+  if (!aberto) return false;
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return false;
+  const orientacao = await prepararFolha();
+  if (!orientacao) return false;
+  marcarGeradoEm();
+  bloquearAcoes(true, true);
+  try {
+    const r = await window.psApi.salvarPdfConferencia(
+      nomeBaseArquivo(aberto.lido.nota),
+      orientacao === 'paisagem',
+    );
+    if (r.status === 'salvo') {
+      mostrarSucesso('Salvo', {
+        nome: nomeDoCaminho(r.pdf),
+        pasta: pastaDoCaminho(r.pdf),
+      });
+      return true;
+    }
+    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+    return false;
+  } catch (erro) {
+    mostrarMensagem('Não foi possível salvar.', 'erro');
+    console.error(erro);
+    return false;
+  } finally {
+    desmontarFolha();
+    bloquearAcoes(false);
+  }
+}
+
+/**
+ * "Salvar cópia...": pede o nome (sugestão <base>_Conferencia_copiaN, na
+ * pasta de destino em uso) e grava um .psxml novo. O arquivo aberto não
+ * muda; a partir daí a janela trabalha na cópia (título e próximos Salvar).
+ * true se gravou.
+ */
+async function salvarCopia(): Promise<boolean> {
+  if (!aberto) return false;
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return false;
+  const base = nomeBaseArquivo(aberto.lido.nota);
+  let sugestao: SugestaoCopia;
+  try {
+    sugestao = await window.psApi.sugerirCopia(base);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível preparar a cópia.', 'erro');
+    console.error(erro);
+    return false;
+  }
+  if (sugestao.status === 'erro') {
+    mostrarMensagem(sugestao.mensagem, 'erro');
+    return false;
+  }
+  const nome = await pedirNomeCopia({
+    sugestao: sugestao.nome,
+    extensao: '.psxml',
+    pasta: sugestao.pasta,
+    problema: problemaNomeArquivo,
+  });
+  if (nome === null) return false;
+  const montada = montarTextoCopia();
+  if (!montada) return false;
+  bloquearAcoes(true, true);
+  try {
+    const r = await window.psApi.salvarCopia(montada.texto, nome);
+    if (r.status === 'salvo') {
+      copiarAnotacoes(montada.gravadas, anotacoesGravadas);
+      atualizarPendentes();
+      aberto.nome = nomeDoCaminho(r.copia);
+      preencherBarra(aberto.lido.nota);
+      mostrarSucesso('Cópia salva', {
+        nome: nomeDoCaminho(r.copia),
+        pasta: pastaDoCaminho(r.copia),
+      });
+      return true;
+    }
+    if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
+    return false;
+  } catch (erro) {
+    mostrarMensagem('Não foi possível salvar a cópia.', 'erro');
+    console.error(erro);
+    return false;
+  } finally {
+    bloquearAcoes(false);
+  }
+}
+
+// ---------- menu da seta do Salvar ----------
+
+function fecharMenuSalvar(focarSeta = false): void {
+  if (menuSalvar.hidden) return;
+  menuSalvar.hidden = true;
+  btnSalvarMais.setAttribute('aria-expanded', 'false');
+  if (focarSeta) btnSalvarMais.focus();
+}
+
+function abrirMenuSalvar(): void {
+  menuSalvar.hidden = false;
+  btnSalvarMais.setAttribute('aria-expanded', 'true');
+  btnSalvarPdf.focus();
 }
 
 /**
@@ -1608,10 +1784,16 @@ async function salvarPrevia(destino: ModoImpressao): Promise<void> {
       area.hidden = false;
     }
     const nome = nomeBaseArquivo(n);
+    let paisagem = false;
+    if (destino === 'conferencia') {
+      const orientacao = await prepararFolha();
+      if (!orientacao) return;
+      paisagem = orientacao === 'paisagem';
+    }
     const r =
       destino === 'danfe'
         ? await window.psApi.salvarDanfe(nome)
-        : await window.psApi.salvarPdfConferencia(nome);
+        : await window.psApi.salvarPdfConferencia(nome, paisagem);
     if (r.status === 'salvo')
       mostrarSucesso('Salvo', {
         nome: nomeDoCaminho(r.pdf),
@@ -1622,6 +1804,7 @@ async function salvarPrevia(destino: ModoImpressao): Promise<void> {
     mostrarMensagem('Não foi possível salvar.', 'erro');
     console.error(erro);
   } finally {
+    desmontarFolha();
     area.hidden = true;
     area.replaceChildren();
     conferenciaMontada = false;
@@ -1702,35 +1885,46 @@ function retomarExterno(): void {
  */
 async function podeSair(): Promise<boolean> {
   if (!haAlteracoes()) return true;
-  let resposta: RespostaAlteracoes;
-  try {
-    resposta = await window.psApi.perguntarAlteracoes();
-  } catch (erro) {
-    console.error(erro);
-    return false;
-  }
+  const resposta = await perguntar<RespostaAlteracoes>({
+    titulo: 'Anotações não salvas',
+    texto:
+      'Há anotações não salvas nesta nota. O que fazer antes de continuar?',
+    botoes: [
+      { rotulo: 'Cancelar', valor: 'cancelar' },
+      { rotulo: 'Descartar', valor: 'descartar' },
+      { rotulo: 'Salvar cópia...', valor: 'copia' },
+      { rotulo: 'Salvar', valor: 'salvar', principal: true },
+    ],
+    cancelar: 'cancelar',
+  });
   if (resposta === 'descartar') return true;
-  if (resposta === 'salvar') {
-    // As anotações vão para a cópia editada e o PDF da conferência, que sai
-    // da tela: no DANFE, volta para a conferência antes de salvar.
-    if (modoAtual === 'danfe') mostrarConferencia();
-    return salvarConferencia();
-  }
+  // Salvar grava só o .psxml (não depende da tela), então vale também no
+  // DANFE. Salvar cópia abre o pedido de nome; concluída, a ação segue.
+  if (resposta === 'salvar') return salvarConferencia();
+  if (resposta === 'copia') return salvarCopia();
   return false;
 }
 
 async function imprimir(): Promise<void> {
   if (!aberto) return;
   esconderMensagem();
+  // Na Conferência, a tabela da folha (orientação, fonte, partes) antes.
+  let paisagem = false;
+  if (modoAtual === 'conferencia') {
+    const orientacao = await prepararFolha();
+    if (!orientacao) return;
+    paisagem = orientacao === 'paisagem';
+  }
   marcarGeradoEm();
   bloquearAcoes(true);
   try {
-    const r = await window.psApi.imprimir(modoAtual);
+    const r = await window.psApi.imprimir(modoAtual, paisagem);
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
   } catch (erro) {
     mostrarMensagem('Não foi possível imprimir.', 'erro');
     console.error(erro);
   } finally {
+    desmontarFolha();
     bloquearAcoes(false);
   }
 }
@@ -1908,10 +2102,33 @@ document.addEventListener('mousedown', (e) => {
     !botaoOrdenar?.contains(alvo)
   )
     fecharMenuOrdenar();
+  if (!menuSalvar.contains(alvo) && !btnSalvarMais.contains(alvo))
+    fecharMenuSalvar();
 });
 window.addEventListener('contextmenu', (e) => void menuContexto(e));
 btnImprimir.addEventListener('click', () => void imprimir());
 btnSalvar.addEventListener('click', () => void salvar());
+btnSalvarMais.addEventListener('click', () => {
+  if (menuSalvar.hidden) abrirMenuSalvar();
+  else fecharMenuSalvar();
+});
+btnSalvarPdf.addEventListener('click', () => {
+  fecharMenuSalvar();
+  void salvarPdf();
+});
+btnSalvarCopia.addEventListener('click', () => {
+  fecharMenuSalvar();
+  void salvarCopia();
+});
+menuSalvar.addEventListener('keydown', (e) => {
+  const ops = [btnSalvarPdf, btnSalvarCopia];
+  const i = ops.indexOf(document.activeElement as HTMLButtonElement);
+  if (e.key === 'Escape') fecharMenuSalvar(true);
+  else if (e.key === 'ArrowDown') ops[(i + 1) % ops.length].focus();
+  else if (e.key === 'ArrowUp') ops[(i + ops.length - 1) % ops.length].focus();
+  else return;
+  e.preventDefault();
+});
 btnSalvarPreviaConferencia.addEventListener(
   'click',
   () => void salvarPrevia('conferencia'),

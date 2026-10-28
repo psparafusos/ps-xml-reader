@@ -35,6 +35,8 @@ import {
   validarConfig,
   type ConfigConferencia,
 } from './nfe/config';
+import { MARGEM_FOLHA_MM } from './nfe/folha';
+import { problemaNomeArquivo } from './nfe/nome';
 
 // Eventos do Squirrel antes de qualquer outra inicialização: atalhos
 // (electron-squirrel-startup, que sai quando o Update.exe termina) e a
@@ -108,7 +110,7 @@ app.on('second-instance', (_event, argv, pasta, dados) => {
 });
 
 // 10 mm em polegadas. printToPDF recebe margens em polegadas.
-const MARGEM_PDF = 10 / 25.4;
+const MARGEM_PDF = MARGEM_FOLHA_MM / 25.4;
 // 10 mm em pixels (96 por polegada). print recebe margens em pixels.
 const MARGEM_IMPRESSAO = Math.round(MARGEM_PDF * 96);
 
@@ -498,6 +500,10 @@ function encurtarCaminho(caminho: string): string {
   return `${partes[0]}\\…\\${fim}`;
 }
 
+/** true se os dois caminhos são o mesmo (sem diferenciar maiúsculas). */
+const mesmoCaminho = (a: string, b: string) =>
+  path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+
 /** true se as duas pastas são a mesma (sem diferenciar maiúsculas). */
 const mesmaPasta = (a: string, b: string) =>
   path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
@@ -786,6 +792,8 @@ async function gravarSaidas(
   event: Electron.IpcMainInvokeEvent,
   baseDoRenderer: unknown,
   nomes: (pasta: string, base: string) => Saida[],
+  /** Destinos que são o próprio arquivo aberto: substitui sem perguntar. */
+  semPergunta: (destino: string) => boolean = () => false,
 ): Promise<
   | { status: 'salvo'; destinos: string[] }
   | { status: 'cancelado' }
@@ -826,7 +834,8 @@ async function gravarSaidas(
 
   const existentes: string[] = [];
   for (const destino of destinos) {
-    if (await existe(destino)) existentes.push(path.basename(destino));
+    if (!semPergunta(destino) && (await existe(destino)))
+      existentes.push(path.basename(destino));
   }
   if (existentes.length > 0) {
     // A pasta real, encurtada no meio, com o fim inteiro.
@@ -925,6 +934,19 @@ const PDF_DANFE: Electron.PrintToPDFOptions = {
   margins: { top: 0, bottom: 0, left: 0, right: 0 },
 };
 
+/** Opções do PDF da conferência na orientação pedida pelo renderer. */
+const pdfConferencia = (paisagem: unknown): Electron.PrintToPDFOptions => ({
+  ...PDF_CONFERENCIA,
+  landscape: paisagem === true,
+});
+
+/**
+ * Salvar da Conferência: só o .psxml, na pasta de destino que o botão mostra.
+ * Cópia editada aberta que está nessa mesma pasta: grava por cima dela, sem
+ * perguntar (é o próprio arquivo aberto). Em outra pasta, ou NF-e original:
+ * um .psxml com o nome padrão, com a pergunta se ele já existir; o arquivo
+ * aberto fica como está.
+ */
 ipcMain.handle(
   'salvar',
   async (
@@ -935,43 +957,112 @@ ipcMain.handle(
     if (typeof textoCopia !== 'string' || textoCopia === '') {
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
     }
-    // Tudo vai para a pasta de destino que o botão mostra. Cópia editada
-    // aberta que está nessa mesma pasta: grava por cima dela (com a pergunta
-    // de substituir). Em outra pasta, ou NF-e original: um .psxml novo com o
-    // nome padrão, e o arquivo aberto fica como está. A cópia é gravada antes
-    // do PDF, como antes.
     const copiaAberta = abertoEhCopia ? arquivoAberto : null;
-    const r = await gravarSaidas(event, base, (pasta, b) => [
-      {
-        destino:
-          copiaAberta && mesmaPasta(path.dirname(copiaAberta), pasta)
-            ? copiaAberta
-            : path.join(pasta, `${b}_Conferencia.psxml`),
-        texto: textoCopia,
-      },
-      {
-        destino: path.join(pasta, `${b}_Conferencia.pdf`),
-        pdf: PDF_CONFERENCIA,
-      },
-    ]);
+    const r = await gravarSaidas(
+      event,
+      base,
+      (pasta, b) => [
+        {
+          destino:
+            copiaAberta && mesmaPasta(path.dirname(copiaAberta), pasta)
+              ? copiaAberta
+              : path.join(pasta, `${b}_Conferencia.psxml`),
+          texto: textoCopia,
+        },
+      ],
+      (destino) => copiaAberta !== null && mesmoCaminho(destino, copiaAberta),
+    );
     if (r.status !== 'salvo') return r;
-    return { status: 'salvo', pdf: r.destinos[1], copia: r.destinos[0] };
+    return { status: 'salvo', copia: r.destinos[0] };
   },
 );
 
-// Conferência pela tela de escolha: só o PDF, com as mesmas opções de salvar
-// dentro do modo (não há cópia editada para guardar ainda).
+/**
+ * PDF da Conferência (menu do Salvar e tela de escolha), na orientação que o
+ * renderer calculou para a tabela caber.
+ */
 ipcMain.handle(
   'salvar-pdf-conferencia',
-  async (event, base: unknown): Promise<ResultadoSalvarDanfe> => {
+  async (
+    event,
+    base: unknown,
+    paisagem: unknown,
+  ): Promise<ResultadoSalvarDanfe> => {
     const r = await gravarSaidas(event, base, (pasta, b) => [
       {
         destino: path.join(pasta, `${b}_Conferencia.pdf`),
-        pdf: PDF_CONFERENCIA,
+        pdf: pdfConferencia(paisagem),
       },
     ]);
     if (r.status !== 'salvo') return r;
     return { status: 'salvo', pdf: r.destinos[0] };
+  },
+);
+
+/**
+ * Nome sugerido do Salvar cópia: <base>_Conferencia_copia1, ou copia2,
+ * copia3... se já existir na pasta de destino em uso.
+ */
+ipcMain.handle(
+  'sugerir-copia',
+  async (_event, base: unknown): Promise<SugestaoCopia> => {
+    if (!arquivoAberto)
+      return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
+    const efetiva = await pastaEfetiva();
+    const pasta = efetiva.caminho;
+    if (!pasta)
+      return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
+    if (!(await ehPasta(pasta)))
+      return { status: 'erro', mensagem: pastaSumiu(efetiva) };
+    const b = nomeBase(base, arquivoAberto);
+    for (let n = 1; ; n++) {
+      const nome = `${b}_Conferencia_copia${n}`;
+      if (!(await existe(path.join(pasta, `${nome}${EXTENSAO}`))))
+        return { status: 'ok', pasta, nome };
+    }
+  },
+);
+
+/**
+ * Salvar cópia: grava um .psxml novo com o nome digitado na pasta de destino
+ * em uso. O arquivo aberto não muda (gravar sobre ele é recusado). Nome que
+ * já existe: pergunta antes de substituir. Depois de gravar, a janela passa
+ * a trabalhar na cópia: os próximos Salvar vão para ela.
+ */
+ipcMain.handle(
+  'salvar-copia',
+  async (
+    event,
+    textoCopia: unknown,
+    nome: unknown,
+  ): Promise<ResultadoSalvar> => {
+    if (typeof textoCopia !== 'string' || textoCopia === '')
+      return { status: 'erro', mensagem: 'Cópia editada vazia.' };
+    if (typeof nome !== 'string')
+      return { status: 'erro', mensagem: 'Nome da cópia inválido.' };
+    const limpo = nome.trim().replace(/\.psxml$/i, '');
+    const problema = problemaNomeArquivo(limpo);
+    if (problema) return { status: 'erro', mensagem: problema };
+    const aberto = arquivoAberto;
+    const efetiva = await pastaEfetiva();
+    if (
+      aberto &&
+      efetiva.caminho &&
+      mesmoCaminho(path.join(efetiva.caminho, `${limpo}${EXTENSAO}`), aberto)
+    ) {
+      return {
+        status: 'erro',
+        mensagem:
+          'Esse é o próprio arquivo aberto. Para gravar nele use Salvar; para a cópia, escolha outro nome.',
+      };
+    }
+    const r = await gravarSaidas(event, null, (pasta) => [
+      { destino: path.join(pasta, `${limpo}${EXTENSAO}`), texto: textoCopia },
+    ]);
+    if (r.status !== 'salvo') return r;
+    arquivoAberto = r.destinos[0];
+    abertoEhCopia = true;
+    return { status: 'salvo', copia: r.destinos[0] };
   },
 );
 
@@ -995,28 +1086,6 @@ ipcMain.handle(
 ipcMain.on('anotacoes-pendentes', (_event, pendentes: unknown) => {
   anotacoesPendentes = pendentes === true;
 });
-
-ipcMain.handle(
-  'perguntar-alteracoes',
-  async (event): Promise<RespostaAlteracoes> => {
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    const opcoes: Electron.MessageBoxOptions = {
-      type: 'question',
-      title: 'Anotações não salvas',
-      message: 'Há anotações não salvas. Deseja salvar antes de continuar?',
-      buttons: ['Salvar', 'Descartar', 'Cancelar'],
-      defaultId: 0,
-      cancelId: 2,
-      noLink: true,
-    };
-    const { response } = janela
-      ? await dialog.showMessageBox(janela, opcoes)
-      : await dialog.showMessageBox(opcoes);
-    return (
-      (['salvar', 'descartar', 'cancelar'] as const)[response] ?? 'cancelar'
-    );
-  },
-);
 
 ipcMain.handle('fechar-janela', (event) => {
   fechamentoLiberado = true;
@@ -1080,7 +1149,11 @@ const OPCOES_IMPRESSAO: Record<
 
 ipcMain.handle(
   'imprimir',
-  async (event, modo: unknown): Promise<ResultadoImprimir> => {
+  async (
+    event,
+    modo: unknown,
+    paisagem: unknown,
+  ): Promise<ResultadoImprimir> => {
     // Antes do diálogo do Windows: se a padrão é de cupom, avisa. Cancelar
     // não abre o diálogo de impressão.
     const padrao = await impressoraPadrao();
@@ -1102,7 +1175,9 @@ ipcMain.handle(
     }
     return new Promise((resolve) => {
       event.sender.print(
-        OPCOES_IMPRESSAO[modo === 'danfe' ? 'danfe' : 'conferencia'],
+        modo === 'danfe'
+          ? OPCOES_IMPRESSAO.danfe
+          : { ...OPCOES_IMPRESSAO.conferencia, landscape: paisagem === true },
         (sucesso, motivo) => {
           if (sucesso) resolve({ status: 'impresso' });
           else if (motivo === 'Print job canceled')
