@@ -36,11 +36,16 @@
 
   /* PDF gerado pela tela de escolha: o documento fica fora da tela e volta ao
      fluxo normal só no papel. */
-  body.pdf-previa #nota,
-  body.pdf-previa #danfe {
+  body.pdf-previa #pdf-previa {
     position: static;
     width: auto;
     visibility: visible;
+  }
+
+  /* A nota aberta por baixo (escolha por cima dela) não sai nesse PDF. */
+  body.pdf-previa #nota,
+  body.pdf-previa #danfe {
+    display: none !important;
   }
 
   .nota {
@@ -93,7 +98,7 @@
 
   /* A tabela de itens da tela dá lugar às cópias da folha (tabela--folha,
      em app.css), montadas antes de salvar o PDF ou imprimir. */
-  .secao--itens:has(> .tabela-impressao) > .rolagem {
+  .secao--itens:has(> .tabela-impressao) > :is(.rolagem, .tabela-rolagem) {
     display: none;
   }
 

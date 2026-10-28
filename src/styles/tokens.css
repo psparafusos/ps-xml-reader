@@ -133,6 +133,10 @@
   --largura-menu: 300px;
   --largura-menu-salvar: 180px;
   --largura-caixa-dialogo: 520px;
+  /* Escolha por cima da nota: prévia sob os botões Abrir aqui / Nova janela. */
+  --desfoque-previa: 3px;
+  --opacidade-previa: 0.45;
+  --largura-acao-previa: 150px;
   /* Painel Editar colunas */
   --largura-painel: 1040px;
   --largura-lista-colunas: 320px;

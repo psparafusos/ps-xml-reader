@@ -137,7 +137,7 @@ ul {
   text-overflow: ellipsis;
 }
 
-/* Marca "só nesta sessão" da pasta de um .psxml aberto por duplo clique. */
+/* Marca "só nesta janela" da pasta de um .psxml aberto por duplo clique. */
 .botao__sessao {
   align-self: flex-start;
   padding: 0 var(--esp-1);
@@ -349,6 +349,7 @@ ul {
 /* As duas opções com a mesma largura: a da miniatura mais o respiro (o texto
    do motivo, quando o DANFE não é suportado, quebra em linhas). */
 .modo__item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1187,8 +1188,7 @@ ul {
 
 /* PDF gerado pela tela de escolha: o documento do modo é montado aqui, fora da
    área visível, e só aparece na mídia print (print.css). */
-body.pdf-previa #nota,
-body.pdf-previa #danfe {
+body.pdf-previa #pdf-previa {
   position: fixed;
   top: 0;
   left: -100000px;
@@ -1853,4 +1853,80 @@ body.pdf-previa #danfe {
 .painel__indicador[data-cabe='false'] {
   background: var(--aviso-erro-fundo);
   color: var(--aviso-erro-texto);
+}
+
+/* ---------- escolha por cima da nota (Abrir outro XML com nota aberta) ---------- */
+
+/* A tela de escolha cobre a janela, sobre um fundo escuro, e a nota fica
+   por baixo, como estava. */
+.modo--sobreposta {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  overflow: auto;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.modo--sobreposta .modo__caixa {
+  position: relative;
+  padding: var(--esp-6) var(--esp-6) var(--esp-5);
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--cor-fundo);
+  box-shadow: var(--sombra-aviso);
+}
+
+.modo__fechar {
+  display: none;
+}
+
+.modo--sobreposta .modo__fechar {
+  position: absolute;
+  top: var(--esp-3);
+  right: var(--esp-3);
+  display: inline-flex;
+}
+
+/* Abrir aqui e Nova janela: só na escolha por cima da nota, sobre a prévia,
+   quando o mouse passa por ela ou o foco está nela. A prévia fica desfocada
+   e semitransparente por baixo. */
+.modo__acoes {
+  display: none;
+}
+
+.modo--sobreposta .modo__acoes {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--altura-miniatura) + 2 * var(--esp-3));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modo--sobreposta .modo__item:hover .modo__acoes,
+.modo--sobreposta .modo__item:focus-within .modo__acoes {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modo--sobreposta .modo__item:hover .modo__miniatura,
+.modo--sobreposta .modo__item:focus-within .modo__miniatura {
+  filter: blur(var(--desfoque-previa));
+  opacity: var(--opacidade-previa);
+}
+
+.modo__acao {
+  min-width: var(--largura-acao-previa);
+  justify-content: center;
+}
+
+/* DANFE indisponível: os botões não aparecem sobre a prévia. */
+.modo__acao:disabled {
+  display: none;
 }

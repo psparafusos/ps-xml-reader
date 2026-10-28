@@ -2,12 +2,26 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 contextBridge.exposeInMainWorld('psApi', {
-  abrirArquivo: (): Promise<ArquivoAberto | null> =>
+  abrirArquivo: (): Promise<ResultadoAbrir> =>
     ipcRenderer.invoke('abrir-arquivo'),
   // O caminho do arquivo solto só existe aqui (webUtils); o processo
   // principal lê o arquivo e guarda o caminho.
-  abrirSolto: (arquivo: File): Promise<ArquivoAberto> =>
+  abrirSolto: (arquivo: File): Promise<ResultadoAbrir> =>
     ipcRenderer.invoke('abrir-caminho', webUtils.getPathForFile(arquivo)),
+  confirmarAbertura: (
+    destino: 'aqui' | 'nova' | 'cancelar',
+    modo: ModoImpressao | null,
+  ): Promise<ArquivoAberto | null> =>
+    ipcRenderer.invoke('confirmar-abertura', destino, modo),
+  informarSemNota: (): void => ipcRenderer.send('sem-nota'),
+  aoMudarConfig: (callback: (config: ConfigConferencia) => void): void => {
+    ipcRenderer.on('config-mudou', (_e, config: ConfigConferencia) =>
+      callback(config),
+    );
+  },
+  aoMudarPasta: (callback: () => void): void => {
+    ipcRenderer.on('pasta-mudou', () => callback());
+  },
   abrirExterno: (): Promise<ArquivoExterno | null> =>
     ipcRenderer.invoke('abrir-externo'),
   aoArquivoExterno: (callback: () => void): void => {
@@ -28,10 +42,14 @@ contextBridge.exposeInMainWorld('psApi', {
   salvarPdfConferencia: (
     base: string | null,
     paisagem: boolean,
+    daEscolha = false,
   ): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-pdf-conferencia', base, paisagem),
-  salvarDanfe: (base: string | null): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-danfe', base),
+    ipcRenderer.invoke('salvar-pdf-conferencia', base, paisagem, daEscolha),
+  salvarDanfe: (
+    base: string | null,
+    daEscolha = false,
+  ): Promise<ResultadoSalvarDanfe> =>
+    ipcRenderer.invoke('salvar-danfe', base, daEscolha),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
   imprimir: (
     modo: ModoImpressao,
@@ -43,7 +61,8 @@ contextBridge.exposeInMainWorld('psApi', {
   aoPedirFechar: (callback: () => void): void => {
     ipcRenderer.on('pedido-fechar', () => callback());
   },
-  fecharJanela: (): Promise<void> => ipcRenderer.invoke('fechar-janela'),
+  responderFechar: (pode: boolean): void =>
+    ipcRenderer.send('resposta-fechar', pode),
   configConferencia: (): Promise<ConfigConferencia> =>
     ipcRenderer.invoke('config-conferencia'),
   gravarConfigConferencia: (

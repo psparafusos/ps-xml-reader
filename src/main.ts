@@ -77,36 +77,35 @@ function arquivoDosArgumentos(argv: string[], pasta: string): string | null {
   return null;
 }
 
-/** Arquivo pedido e ainda não aberto pelo renderer (ver 'abrir-externo'). */
-let arquivoExterno = started
+/** Arquivo da linha de comando (duplo clique com o app fechado). */
+const arquivoInicial = started
   ? null
   : arquivoDosArgumentos(process.argv, process.cwd());
 
-// Instância única: se o app já está aberto, o arquivo vai para a janela
-// existente (evento second-instance) e esta instância sai. O caminho vai em
-// additionalData, porque o argv que chega lá pode vir reordenado.
+// Instância única: um processo só, com várias janelas. Se o app já está
+// aberto, o arquivo vai para ele (evento second-instance) e esta instância
+// sai. O caminho vai em additionalData, porque o argv que chega lá pode vir
+// reordenado.
 const instanciaPrincipal =
-  !started && app.requestSingleInstanceLock({ arquivo: arquivoExterno });
+  !started && app.requestSingleInstanceLock({ arquivo: arquivoInicial });
 if (!started && !instanciaPrincipal) app.quit();
 
-/** A janela do app (uma só). */
-let janelaPrincipal: BrowserWindow | null = null;
-
+// Duplo clique com o app aberto: o arquivo segue as regras de entregarArquivo
+// (janela que já o tem, janela vazia ou janela nova). Um .psxml aberto assim
+// faz da pasta dele a pasta de destino só daquela janela.
 app.on('second-instance', (_event, argv, pasta, dados) => {
   const pedido = (dados as { arquivo?: unknown } | null)?.arquivo;
   const arquivo =
     typeof pedido === 'string'
       ? arquivoDosArgumentos(['', pedido], pasta)
       : arquivoDosArgumentos(argv, pasta);
-  const janela = janelaPrincipal;
-  if (!janela || janela.isDestroyed()) return;
-  if (janela.isMinimized()) janela.restore();
-  janela.show();
-  janela.focus();
-  if (!arquivo) return;
-  // O renderer pergunta sobre anotações não salvas e só então pede o arquivo.
-  arquivoExterno = arquivo;
-  janela.webContents.send('arquivo-externo');
+  if (arquivo) {
+    entregarArquivo(arquivo, { modo: null, sessao: true });
+    return;
+  }
+  // Sem arquivo: só traz o app para a frente.
+  const j = janelaEmFoco();
+  if (j) trazerParaFrente(j);
 });
 
 // 10 mm em polegadas. printToPDF recebe margens em polegadas.
@@ -200,9 +199,117 @@ function guardarJanela(janela: BrowserWindow): void {
   }
 }
 
-const createWindow = () => {
-  const inicial = posicaoInicial();
-  const mainWindow = new BrowserWindow({
+// ---------- janelas (uma nota por janela) ----------
+
+/** Arquivo que a janela vai abrir assim que o renderer pedir. */
+interface PedidoArquivo {
+  caminho: string;
+  /** Abre direto neste modo (Nova janela pela tela de escolha); null: o normal. */
+  modo: ModoImpressao | null;
+  /** Duplo clique: um .psxml faz da pasta dele a pasta desta janela. */
+  sessao: boolean;
+}
+
+/**
+ * Estado de cada janela. Cada uma tem a sua nota; configuração e pasta de
+ * destino salva são do app inteiro (config.json) e valem para todas.
+ */
+interface Janela {
+  janela: BrowserWindow;
+  /** Ordem de criação: a mais antiga aberta guarda tamanho e posição. */
+  ordem: number;
+  /**
+   * Arquivo aberto na janela; null na tela inicial. Se for uma NF-e original,
+   * o app nunca grava nele: salvar recusa qualquer destino que resolva para
+   * ele. Uma cópia editada pode ser regravada.
+   */
+  arquivoAberto: string | null;
+  abertoEhCopia: boolean;
+  /** O renderer tem anotações alteradas e não salvas. */
+  pendentes: boolean;
+  /** Já perguntou e pode fechar: o próximo close não é barrado. */
+  liberada: boolean;
+  /**
+   * Pasta de destino só desta janela: a de um .psxml aberto nela por duplo
+   * clique. Só em memória, nunca vai para o config.json; some ao fechar a
+   * janela ou ao escolher uma pasta no botão.
+   */
+  pastaSessao: string | null;
+  /** Arquivo a entregar ao renderer (abrir-externo). */
+  pedido: PedidoArquivo | null;
+  /** XML lido para a escolha por cima da nota (Abrir aqui ou Nova janela). */
+  candidato: string | null;
+}
+
+const janelas = new Map<number, Janela>();
+let proximaOrdem = 0;
+
+/** Estado da janela de um evento do renderer. */
+function estadoDe(wc: Electron.WebContents): Janela {
+  const j = janelas.get(wc.id);
+  if (!j) throw new Error('Janela não encontrada.');
+  return j;
+}
+
+const abertas = () =>
+  [...janelas.values()].filter((j) => !j.janela.isDestroyed());
+
+/** A janela em foco, ou a última aberta. */
+function janelaEmFoco(): Janela | null {
+  const foco = BrowserWindow.getFocusedWindow();
+  const lista = abertas();
+  return (
+    lista.find((j) => j.janela === foco) ?? lista[lista.length - 1] ?? null
+  );
+}
+
+function trazerParaFrente(j: Janela): void {
+  if (j.janela.isMinimized()) j.janela.restore();
+  j.janela.show();
+  j.janela.focus();
+}
+
+/** Avisa as outras janelas (configuração ou pasta de destino salva mudou). */
+function avisarOutras(
+  origem: Electron.WebContents,
+  canal: string,
+  ...args: unknown[]
+): void {
+  for (const j of abertas())
+    if (j.janela.webContents !== origem)
+      j.janela.webContents.send(canal, ...args);
+}
+
+/** Deslocamento de uma janela nova em relação à anterior. */
+const DESLOCAMENTO_JANELA = 32;
+
+/**
+ * Posição de uma janela nova: a da janela anterior (tamanho normal, fora do
+ * maximizado), um pouco para a direita e para baixo. Se sair da área de
+ * trabalho daquele monitor, volta para o canto dela.
+ */
+function posicaoPerto(anterior: Janela): EstadoJanela {
+  const b = anterior.janela.getNormalBounds();
+  const a = screen.getDisplayMatching(b).workArea;
+  let x = b.x + DESLOCAMENTO_JANELA;
+  let y = b.y + DESLOCAMENTO_JANELA;
+  if (x + b.width > a.x + a.width) x = a.x;
+  if (y + b.height > a.y + a.height) y = a.y;
+  return { x, y, width: b.width, height: b.height, maximizada: false };
+}
+
+/**
+ * Cria uma janela. A primeira usa o tamanho e a posição lembrados; as outras
+ * abrem deslocadas da anterior (a última aberta). `pedido`: arquivo que ela
+ * abre logo.
+ */
+function criarJanela(pedido: PedidoArquivo | null): Janela {
+  const anterior = abertas().reduce<Janela | null>(
+    (ultima, j) => (!ultima || j.ordem > ultima.ordem ? j : ultima),
+    null,
+  );
+  const inicial = anterior ? posicaoPerto(anterior) : posicaoInicial();
+  const janela = new BrowserWindow({
     x: inicial.x,
     y: inicial.y,
     width: inicial.width,
@@ -226,56 +333,160 @@ const createWindow = () => {
       nodeIntegration: false,
     },
   });
-  janelaPrincipal = mainWindow;
-  mainWindow.on('closed', () => {
-    if (janelaPrincipal === mainWindow) janelaPrincipal = null;
-  });
+  const j: Janela = {
+    janela,
+    ordem: proximaOrdem++,
+    arquivoAberto: null,
+    abertoEhCopia: false,
+    pendentes: false,
+    liberada: false,
+    pastaSessao: null,
+    pedido,
+    candidato: null,
+  };
+  const id = janela.webContents.id;
+  janelas.set(id, j);
+  janela.on('closed', () => janelas.delete(id));
 
-  mainWindow.once('ready-to-show', () => {
+  janela.once('ready-to-show', () => {
     // maximize também mostra a janela.
-    if (inicial.maximizada) mainWindow.maximize();
-    mainWindow.show();
+    if (inicial.maximizada) janela.maximize();
+    janela.show();
   });
 
-  // O app é offline: não abre janelas novas nem navega para fora da página.
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
+  // O app é offline: não abre janelas do navegador nem navega para fora.
+  janela.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  janela.webContents.on('will-navigate', (event) => event.preventDefault());
 
-  // Anotações não salvas: o fechamento espera o renderer perguntar ao usuário.
-  // Se ele seguir (salvou ou descartou), chama fechar-janela, que libera.
-  // Fechamento que segue: guarda tamanho e posição.
-  mainWindow.on('close', (event) => {
-    if (
-      anotacoesPendentes &&
-      !fechamentoLiberado &&
-      !mainWindow.webContents.isCrashed()
-    ) {
+  // Todo pedido de fechar passa pelo lote (pedirFechamento), que pergunta
+  // nas janelas com anotações não salvas e só então libera. A janela mais
+  // antiga aberta guarda tamanho e posição.
+  janela.on('close', (event) => {
+    if (!j.liberada && !janela.webContents.isCrashed()) {
       event.preventDefault();
-      mainWindow.webContents.send('pedido-fechar');
+      pedirFechamento(j);
       return;
     }
-    guardarJanela(mainWindow);
+    if (abertas().every((o) => o.ordem >= j.ordem)) guardarJanela(janela);
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    janela.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(
+    janela.loadFile(
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
-};
+  return j;
+}
 
-// Caminho do arquivo que está aberto na tela. Se for uma NF-e original, o app
-// nunca grava nele: salvar recusa qualquer destino que resolva para ele. Uma
-// cópia editada pode ser substituída (sempre com a pergunta de substituir).
-let arquivoAberto: string | null = null;
-let abertoEhCopia = false;
+/** Janela que já está com este arquivo aberto, se houver. */
+function janelaComArquivo(caminho: string): Janela | null {
+  return (
+    abertas().find(
+      (j) =>
+        (j.arquivoAberto && mesmoCaminho(j.arquivoAberto, caminho)) ||
+        (j.pedido && mesmoCaminho(j.pedido.caminho, caminho)),
+    ) ?? null
+  );
+}
 
-/** true enquanto o renderer tem anotações alteradas e não salvas. */
-let anotacoesPendentes = false;
-/** Liberado pelo renderer depois de perguntar; o próximo close não é barrado. */
-let fechamentoLiberado = false;
+/**
+ * Leva um arquivo pedido de fora (duplo clique, linha de comando) para uma
+ * janela: a que já está com ele vem para a frente; senão, uma janela na tela
+ * inicial é reaproveitada; senão, abre uma janela nova.
+ */
+function entregarArquivo(
+  caminho: string,
+  pedido: Omit<PedidoArquivo, 'caminho'>,
+): void {
+  const ja = janelaComArquivo(caminho);
+  if (ja) {
+    trazerParaFrente(ja);
+    return;
+  }
+  const vazia = abertas().find((j) => !j.arquivoAberto && !j.pedido);
+  if (vazia) {
+    vazia.pedido = { caminho, ...pedido };
+    trazerParaFrente(vazia);
+    vazia.janela.webContents.send('arquivo-externo');
+    return;
+  }
+  criarJanela({ caminho, ...pedido });
+}
+
+// ---------- fechar com anotações não salvas ----------
+
+/** Respostas pendentes do renderer à pergunta de fechar, por janela. */
+const respostasFechar = new Map<number, (pode: boolean) => void>();
+
+/** Pede ao renderer da janela a pergunta de sempre; true = pode fechar. */
+function perguntarFechar(j: Janela): Promise<boolean> {
+  const id = j.janela.webContents.id;
+  return new Promise((resolve) => {
+    respostasFechar.set(id, resolve);
+    j.janela.webContents.send('pedido-fechar');
+  });
+}
+
+ipcMain.on('resposta-fechar', (event, pode: unknown) => {
+  const resolver = respostasFechar.get(event.sender.id);
+  respostasFechar.delete(event.sender.id);
+  resolver?.(pode === true);
+});
+
+/**
+ * Janelas cujo fechamento foi pedido. Fechar o app inteiro (por exemplo
+ * "Fechar todas as janelas" na barra de tarefas) pede o fechamento de todas
+ * quase ao mesmo tempo: elas entram no mesmo lote, e a pergunta é feita uma
+ * janela por vez, só nas que têm anotações não salvas. Cancelar em qualquer
+ * uma interrompe o fechamento: nenhuma janela do lote fecha. Fechar uma
+ * janela só é um lote de uma janela (pergunta só por ela).
+ */
+let loteFechar: Janela[] = [];
+let temporizadorLote: ReturnType<typeof setTimeout> | null = null;
+let perguntandoLote = false;
+/** Tempo para juntar os pedidos de fechar que chegam juntos. */
+const ESPERA_LOTE_MS = 250;
+
+function pedirFechamento(j: Janela): void {
+  if (!loteFechar.includes(j)) loteFechar.push(j);
+  if (!temporizadorLote && !perguntandoLote)
+    temporizadorLote = setTimeout(() => void processarLote(), ESPERA_LOTE_MS);
+}
+
+async function processarLote(): Promise<void> {
+  temporizadorLote = null;
+  perguntandoLote = true;
+  const fila = loteFechar;
+  loteFechar = [];
+  try {
+    for (const j of fila) {
+      if (j.janela.isDestroyed() || !j.pendentes) continue;
+      trazerParaFrente(j);
+      if (!(await perguntarFechar(j))) {
+        // Cancelou: nenhuma janela do lote fecha, nem as que pediram para
+        // fechar enquanto perguntava.
+        loteFechar = [];
+        return;
+      }
+    }
+    for (const j of fila) {
+      if (j.janela.isDestroyed()) continue;
+      j.liberada = true;
+      j.janela.close();
+    }
+  } finally {
+    perguntandoLote = false;
+    if (loteFechar.length > 0 && !temporizadorLote)
+      temporizadorLote = setTimeout(() => void processarLote(), 0);
+  }
+}
+
+ipcMain.on('anotacoes-pendentes', (event, pendentes: unknown) => {
+  const j = janelas.get(event.sender.id);
+  if (j) j.pendentes = pendentes === true;
+});
 
 const EXTENSOES_ABERTURA = ['.xml', '.psxml'];
 
@@ -294,11 +505,17 @@ function nomeRaiz(xml: string): string {
 /** Raízes de um arquivo que o app abre (NF-e ou cópia editada). */
 const RAIZES_ACEITAS = ['nfeProc', 'NFe', 'psCopiaEditada'];
 
-async function lerArquivoAberto(caminho: string): Promise<ArquivoAberto> {
-  const texto = await readFile(caminho, 'utf8');
-  arquivoAberto = caminho;
-  const raiz = nomeRaiz(texto);
-  abertoEhCopia = raiz === 'psCopiaEditada';
+/** Lê um arquivo e o torna o arquivo aberto da janela `j`. */
+async function lerArquivoNaJanela(
+  j: Janela,
+  caminho: string,
+  texto?: string,
+): Promise<ArquivoAberto> {
+  const conteudo = texto ?? (await readFile(caminho, 'utf8'));
+  j.arquivoAberto = caminho;
+  j.candidato = null;
+  const raiz = nomeRaiz(conteudo);
+  j.abertoEhCopia = raiz === 'psCopiaEditada';
   // Aberto com sucesso (é NF-e ou cópia editada): a pasta dele vira o ponto de
   // partida do próximo diálogo de abrir. Falha ao gravar não impede a abertura.
   if (RAIZES_ACEITAS.includes(raiz)) {
@@ -306,7 +523,41 @@ async function lerArquivoAberto(caminho: string): Promise<ArquivoAberto> {
       () => {},
     );
   }
-  return { nome: path.basename(caminho), texto };
+  return { nome: path.basename(caminho), texto: conteudo };
+}
+
+/**
+ * Abrir arquivo pelo botão, Ctrl+O ou arrastando para a janela `j`:
+ * - já aberto em alguma janela: ela vem para a frente;
+ * - `j` na tela inicial: abre nela;
+ * - .psxml com nota aberta: janela nova, direto na Conferência;
+ * - XML com nota aberta: a tela de escolha aparece por cima da nota, com
+ *   Abrir aqui e Nova janela (confirmar-abertura).
+ */
+async function decidirAbertura(
+  j: Janela,
+  caminho: string,
+): Promise<ResultadoAbrir> {
+  const ja = janelaComArquivo(caminho);
+  if (ja) {
+    trazerParaFrente(ja);
+    return { status: ja === j ? 'ja-aberto' : 'outra-janela' };
+  }
+  const texto = await readFile(caminho, 'utf8');
+  if (!j.arquivoAberto)
+    return {
+      status: 'aqui',
+      arquivo: await lerArquivoNaJanela(j, caminho, texto),
+    };
+  if (nomeRaiz(texto) === 'psCopiaEditada') {
+    criarJanela({ caminho, modo: null, sessao: false });
+    return { status: 'nova-janela' };
+  }
+  j.candidato = caminho;
+  return {
+    status: 'escolher',
+    arquivo: { nome: path.basename(caminho), texto },
+  };
 }
 
 /** Tempo máximo para conferir se a última pasta ainda existe (rede fora). */
@@ -332,31 +583,25 @@ async function pastaInicialAbertura(): Promise<string | null> {
   return (await Promise.race([existe, limite])) ? ultimaPastaAbertura : null;
 }
 
-ipcMain.handle(
-  'abrir-arquivo',
-  async (event): Promise<ArquivoAberto | null> => {
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    const inicial = await pastaInicialAbertura();
-    const opcoes: Electron.OpenDialogOptions = {
-      title: 'Abrir XML da NF-e',
-      filters: [
-        { name: 'XML da NF-e ou cópia editada', extensions: ['xml', 'psxml'] },
-      ],
-      properties: ['openFile'],
-      ...(inicial ? { defaultPath: inicial } : {}),
-    };
-    const { canceled, filePaths } = janela
-      ? await dialog.showOpenDialog(janela, opcoes)
-      : await dialog.showOpenDialog(opcoes);
-    if (canceled || filePaths.length === 0) return null;
-    return lerArquivoAberto(filePaths[0]);
-  },
-);
+ipcMain.handle('abrir-arquivo', async (event): Promise<ResultadoAbrir> => {
+  const j = estadoDe(event.sender);
+  const inicial = await pastaInicialAbertura();
+  const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
+    title: 'Abrir XML da NF-e',
+    filters: [
+      { name: 'XML da NF-e ou cópia editada', extensions: ['xml', 'psxml'] },
+    ],
+    properties: ['openFile'],
+    ...(inicial ? { defaultPath: inicial } : {}),
+  });
+  if (canceled || filePaths.length === 0) return { status: 'cancelado' };
+  return decidirAbertura(j, filePaths[0]);
+});
 
 // Arrastar e soltar: o renderer só conhece o caminho do arquivo solto.
 ipcMain.handle(
   'abrir-caminho',
-  async (_event, caminho: unknown): Promise<ArquivoAberto> => {
+  async (event, caminho: unknown): Promise<ResultadoAbrir> => {
     if (
       typeof caminho !== 'string' ||
       !path.isAbsolute(caminho) ||
@@ -364,31 +609,71 @@ ipcMain.handle(
     ) {
       throw new Error('Selecione um arquivo .xml ou .psxml.');
     }
-    return lerArquivoAberto(caminho);
+    return decidirAbertura(estadoDe(event.sender), caminho);
   },
 );
 
 /**
- * Pasta de destino só desta sessão: a de um .psxml aberto por duplo clique no
- * Explorer (linha de comando ou second-instance). Fica só em memória, nunca vai
- * para o config.json, e some ao fechar o app ou ao escolher uma pasta no botão.
+ * Resposta à tela de escolha por cima da nota: Abrir aqui (o renderer já
+ * perguntou sobre anotações não salvas), Nova janela (no modo escolhido) ou
+ * Cancelar.
  */
-let pastaSessao: string | null = null;
+ipcMain.handle(
+  'confirmar-abertura',
+  async (
+    event,
+    destino: unknown,
+    modo: unknown,
+  ): Promise<ArquivoAberto | null> => {
+    const j = estadoDe(event.sender);
+    const caminho = j.candidato;
+    j.candidato = null;
+    if (!caminho || destino === 'cancelar') return null;
+    if (destino === 'aqui') {
+      j.pastaSessao = null;
+      return lerArquivoNaJanela(j, caminho);
+    }
+    criarJanela({
+      caminho,
+      modo: modo === 'danfe' || modo === 'conferencia' ? modo : null,
+      sessao: false,
+    });
+    return null;
+  },
+);
 
-// Duplo clique num .psxml (ou .xml passado na linha de comando): o renderer
-// pede o arquivo na abertura e depois de cada aviso 'arquivo-externo', já
-// tendo perguntado sobre anotações não salvas. null se não há arquivo pedido.
-// Uma cópia editada aberta assim faz da pasta dela a pasta desta sessão.
-ipcMain.handle('abrir-externo', async (): Promise<ArquivoExterno | null> => {
-  const caminho = arquivoExterno;
-  arquivoExterno = null;
-  if (!caminho) return null;
-  const arquivo = await lerArquivoAberto(caminho);
-  const copia =
-    abertoEhCopia && path.extname(caminho).toLowerCase() === EXTENSAO;
-  if (copia) pastaSessao = path.dirname(caminho);
-  return { ...arquivo, pastaSessao: copia ? pastaSessao : null };
+/** A janela voltou para a tela inicial (Início ou arquivo que não abriu). */
+ipcMain.on('sem-nota', (event) => {
+  const j = janelas.get(event.sender.id);
+  if (!j) return;
+  j.arquivoAberto = null;
+  j.abertoEhCopia = false;
 });
+
+// Arquivo pedido de fora para esta janela (duplo clique, linha de comando,
+// Nova janela): o renderer pede ao abrir e depois de cada aviso
+// 'arquivo-externo'. null se não há. Um .psxml aberto por duplo clique faz da
+// pasta dele a pasta de destino só desta janela.
+ipcMain.handle(
+  'abrir-externo',
+  async (event): Promise<ArquivoExterno | null> => {
+    const j = estadoDe(event.sender);
+    const pedido = j.pedido;
+    j.pedido = null;
+    if (!pedido) return null;
+    const arquivo = await lerArquivoNaJanela(j, pedido.caminho);
+    const copia =
+      pedido.sessao &&
+      j.abertoEhCopia &&
+      path.extname(pedido.caminho).toLowerCase() === EXTENSAO;
+    if (copia) j.pastaSessao = path.dirname(pedido.caminho);
+    return {
+      ...arquivo,
+      pastaSessao: copia ? j.pastaSessao : null,
+      modo: pedido.modo,
+    };
+  },
+);
 
 // ---------- config.json em userData (pasta de destino, última pasta, janela, conferência) ----------
 
@@ -468,11 +753,12 @@ async function ehPasta(caminho: string): Promise<boolean> {
 }
 
 /**
- * Pasta onde o Salvar grava, a mesma que o botão mostra: a desta sessão, se
- * houver, senão a pasta salva no config.json.
+ * Pasta onde o Salvar da janela grava, a mesma que o botão dela mostra: a
+ * pasta só desta janela (duplo clique num .psxml), se houver, senão a pasta
+ * salva no config.json.
  */
-async function pastaEfetiva(): Promise<PastaDestino> {
-  if (pastaSessao) return { caminho: pastaSessao, sessao: true };
+async function pastaEfetiva(j: Janela): Promise<PastaDestino> {
+  if (j.pastaSessao) return { caminho: j.pastaSessao, sessao: true };
   return { caminho: await lerPastaDestino(), sessao: false };
 }
 
@@ -508,14 +794,17 @@ const mesmoCaminho = (a: string, b: string) =>
 const mesmaPasta = (a: string, b: string) =>
   path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
-ipcMain.handle('pasta-destino', (): Promise<PastaDestino> => pastaEfetiva());
+ipcMain.handle(
+  'pasta-destino',
+  (event): Promise<PastaDestino> => pastaEfetiva(estadoDe(event.sender)),
+);
 
 // Abre a pasta de destino no Explorer. shell.openPath devolve "" quando abre e
 // a mensagem de erro quando não abre.
 ipcMain.handle(
   'abrir-pasta-destino',
-  async (): Promise<ResultadoAbrirPasta> => {
-    const efetiva = await pastaEfetiva();
+  async (event): Promise<ResultadoAbrirPasta> => {
+    const efetiva = await pastaEfetiva(estadoDe(event.sender));
     const pasta = efetiva.caminho;
     if (!pasta)
       return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
@@ -529,8 +818,9 @@ ipcMain.handle(
 );
 
 ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
-  const janela = BrowserWindow.fromWebContents(event.sender);
-  const atual = (await pastaEfetiva()).caminho;
+  const j = estadoDe(event.sender);
+  const janela = j.janela;
+  const atual = (await pastaEfetiva(j)).caminho;
   const opcoes: Electron.OpenDialogOptions = {
     title: 'Pasta de destino',
     buttonLabel: 'Escolher pasta',
@@ -542,10 +832,13 @@ ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
     : await dialog.showOpenDialog(opcoes);
   if (canceled || filePaths.length === 0) return null;
 
-  // A escolha no botão vence: vira a pasta salva e a desta sessão deixa de valer.
+  // A escolha no botão vence: vira a pasta salva e a pasta só desta janela
+  // deixa de valer. As outras janelas passam a mostrar a pasta nova (as que
+  // têm pasta própria continuam com ela).
   const pasta = filePaths[0];
   await gravarConfig({ pastaDestino: pasta });
-  pastaSessao = null;
+  j.pastaSessao = null;
+  avisarOutras(event.sender, 'pasta-mudou');
   return pasta;
 });
 
@@ -565,12 +858,17 @@ async function lerConferencia(): Promise<ConfigConferencia> {
   }
 }
 
-/** Grava a personalização; erro vira a mensagem para o renderer. */
+/**
+ * Grava a personalização e avisa as outras janelas, que aplicam na hora;
+ * erro vira a mensagem para o renderer.
+ */
 async function gravarConferencia(
   config: ConfigConferencia,
+  origem: Electron.WebContents,
 ): Promise<ResultadoConfig> {
   try {
     await gravarConfig({ conferencia: config });
+    avisarOutras(origem, 'config-mudou', config);
     return { status: 'ok', config };
   } catch (erro) {
     return {
@@ -587,9 +885,9 @@ ipcMain.handle(
 
 ipcMain.handle(
   'gravar-config-conferencia',
-  async (_event, config: unknown): Promise<ResultadoConfig> => {
+  async (event, config: unknown): Promise<ResultadoConfig> => {
     try {
-      return await gravarConferencia(validarConfig(config));
+      return await gravarConferencia(validarConfig(config), event.sender);
     } catch (erro) {
       return { status: 'erro', mensagem: mensagemDe(erro) };
     }
@@ -652,7 +950,7 @@ ipcMain.handle(
         mensagem: `Configuração não importada; nada foi alterado. ${mensagemDe(erro)}`,
       };
     }
-    return gravarConferencia(config);
+    return gravarConferencia(config, event.sender);
   },
 );
 
@@ -675,7 +973,7 @@ ipcMain.handle(
       ? await dialog.showMessageBox(janela, opcoes)
       : await dialog.showMessageBox(opcoes);
     if (response !== 0) return { status: 'cancelado' };
-    return gravarConferencia(configPadrao());
+    return gravarConferencia(configPadrao(), event.sender);
   },
 );
 
@@ -794,18 +1092,25 @@ async function gravarSaidas(
   nomes: (pasta: string, base: string) => Saida[],
   /** Destinos que são o próprio arquivo aberto: substitui sem perguntar. */
   semPergunta: (destino: string) => boolean = () => false,
+  /**
+   * Usa o XML da tela de escolha por cima da nota (Salvar PDF das prévias)
+   * em vez do arquivo aberto na janela.
+   */
+  doCandidato = false,
 ): Promise<
   | { status: 'salvo'; destinos: string[] }
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string }
 > {
-  const janela = BrowserWindow.fromWebContents(event.sender);
-  if (!janela) return { status: 'erro', mensagem: 'Janela não encontrada.' };
+  const j = estadoDe(event.sender);
+  const janela = j.janela;
+  const arquivoAberto = doCandidato ? j.candidato : j.arquivoAberto;
+  const abertoEhCopia = doCandidato ? false : j.abertoEhCopia;
   if (!arquivoAberto) {
     return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
   }
 
-  const efetiva = await pastaEfetiva();
+  const efetiva = await pastaEfetiva(j);
   const pasta = efetiva.caminho;
   if (!pasta) {
     return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
@@ -957,7 +1262,8 @@ ipcMain.handle(
     if (typeof textoCopia !== 'string' || textoCopia === '') {
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
     }
-    const copiaAberta = abertoEhCopia ? arquivoAberto : null;
+    const j = estadoDe(event.sender);
+    const copiaAberta = j.abertoEhCopia ? j.arquivoAberto : null;
     const r = await gravarSaidas(
       event,
       base,
@@ -987,13 +1293,20 @@ ipcMain.handle(
     event,
     base: unknown,
     paisagem: unknown,
+    daEscolha: unknown,
   ): Promise<ResultadoSalvarDanfe> => {
-    const r = await gravarSaidas(event, base, (pasta, b) => [
-      {
-        destino: path.join(pasta, `${b}_Conferencia.pdf`),
-        pdf: pdfConferencia(paisagem),
-      },
-    ]);
+    const r = await gravarSaidas(
+      event,
+      base,
+      (pasta, b) => [
+        {
+          destino: path.join(pasta, `${b}_Conferencia.pdf`),
+          pdf: pdfConferencia(paisagem),
+        },
+      ],
+      undefined,
+      daEscolha === true,
+    );
     if (r.status !== 'salvo') return r;
     return { status: 'salvo', pdf: r.destinos[0] };
   },
@@ -1005,10 +1318,12 @@ ipcMain.handle(
  */
 ipcMain.handle(
   'sugerir-copia',
-  async (_event, base: unknown): Promise<SugestaoCopia> => {
+  async (event, base: unknown): Promise<SugestaoCopia> => {
+    const j = estadoDe(event.sender);
+    const arquivoAberto = j.arquivoAberto;
     if (!arquivoAberto)
       return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
-    const efetiva = await pastaEfetiva();
+    const efetiva = await pastaEfetiva(j);
     const pasta = efetiva.caminho;
     if (!pasta)
       return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
@@ -1043,8 +1358,9 @@ ipcMain.handle(
     const limpo = nome.trim().replace(/\.psxml$/i, '');
     const problema = problemaNomeArquivo(limpo);
     if (problema) return { status: 'erro', mensagem: problema };
-    const aberto = arquivoAberto;
-    const efetiva = await pastaEfetiva();
+    const j = estadoDe(event.sender);
+    const aberto = j.arquivoAberto;
+    const efetiva = await pastaEfetiva(j);
     if (
       aberto &&
       efetiva.caminho &&
@@ -1060,8 +1376,8 @@ ipcMain.handle(
       { destino: path.join(pasta, `${limpo}${EXTENSAO}`), texto: textoCopia },
     ]);
     if (r.status !== 'salvo') return r;
-    arquivoAberto = r.destinos[0];
-    abertoEhCopia = true;
+    j.arquivoAberto = r.destinos[0];
+    j.abertoEhCopia = true;
     return { status: 'salvo', copia: r.destinos[0] };
   },
 );
@@ -1069,28 +1385,27 @@ ipcMain.handle(
 // DANFE: só o PDF (PDF_DANFE: o Electron imprime sem margem).
 ipcMain.handle(
   'salvar-danfe',
-  async (event, base: unknown): Promise<ResultadoSalvarDanfe> => {
-    const r = await gravarSaidas(event, base, (pasta, b) => [
-      {
-        destino: path.join(pasta, `${b}_DANFE.pdf`),
-        pdf: PDF_DANFE,
-      },
-    ]);
+  async (
+    event,
+    base: unknown,
+    daEscolha: unknown,
+  ): Promise<ResultadoSalvarDanfe> => {
+    const r = await gravarSaidas(
+      event,
+      base,
+      (pasta, b) => [
+        {
+          destino: path.join(pasta, `${b}_DANFE.pdf`),
+          pdf: PDF_DANFE,
+        },
+      ],
+      undefined,
+      daEscolha === true,
+    );
     if (r.status !== 'salvo') return r;
     return { status: 'salvo', pdf: r.destinos[0] };
   },
 );
-
-// ---------- anotações não salvas ----------
-
-ipcMain.on('anotacoes-pendentes', (_event, pendentes: unknown) => {
-  anotacoesPendentes = pendentes === true;
-});
-
-ipcMain.handle('fechar-janela', (event) => {
-  fechamentoLiberado = true;
-  BrowserWindow.fromWebContents(event.sender)?.close();
-});
 
 // ---------- imprimir ----------
 
@@ -1312,12 +1627,14 @@ app.whenReady().then(() => {
   if (started || !instanciaPrincipal) return;
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
-  createWindow();
+  criarJanela(
+    arquivoInicial
+      ? { caminho: arquivoInicial, modo: null, sessao: true }
+      : null,
+  );
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (abertas().length === 0) criarJanela(null);
   });
 });
 

@@ -92,7 +92,7 @@
               <span class="botao__textos">
                 <span>Pasta de destino</span>
                 <span class="botao__caminho"></span>
-                <span class="botao__sessao" hidden>só nesta sessão</span>
+                <span class="botao__sessao" hidden>só nesta janela</span>
               </span>
             </button>
             <button
@@ -287,7 +287,7 @@
             <span class="botao__textos">
               <span>Pasta de destino</span>
               <span class="botao__caminho"></span>
-              <span class="botao__sessao" hidden>só nesta sessão</span>
+              <span class="botao__sessao" hidden>só nesta janela</span>
             </span>
           </button>
           <button
@@ -312,6 +312,19 @@
 
     <section id="modo" class="modo" hidden>
       <div class="modo__caixa">
+        <!-- Só na escolha por cima de uma nota aberta: volta para a nota. -->
+        <button
+          id="btn-fechar-escolha"
+          type="button"
+          class="botao botao--claro botao--pequeno modo__fechar"
+          title="Voltar para a nota aberta (Esc)"
+        >
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6L6 18" />
+          </svg>
+          <span>Voltar à nota</span>
+        </button>
         <!-- Dados da nota aberta; campo ausente no XML some. -->
         <header class="modo__nota">
           <h1 class="modo__cabecalho">
@@ -337,6 +350,39 @@
               <span class="modo__nome">Conferência</span>
               <span class="modo__descricao">Itens, totais e anotações</span>
             </button>
+            <!-- Só na escolha por cima de uma nota aberta: aparecem ao passar
+                 o mouse (ou com o foco) sobre a prévia. -->
+            <div
+              class="modo__acoes"
+              role="group"
+              aria-label="Abrir Conferência"
+            >
+              <button
+                type="button"
+                class="botao botao--principal modo__acao"
+                data-destino="aqui"
+                data-modo="conferencia"
+              >
+                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 5h16v14H4z" />
+                  <path d="M8 12h8" />
+                  <path d="M13 9l3 3-3 3" />
+                </svg>
+                <span>Abrir aqui</span>
+              </button>
+              <button
+                type="button"
+                class="botao botao--claro modo__acao"
+                data-destino="nova"
+                data-modo="conferencia"
+              >
+                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 8h12v12H8z" />
+                  <path d="M4 16V4h12" />
+                </svg>
+                <span>Nova janela</span>
+              </button>
+            </div>
             <button
               id="btn-salvar-previa-conferencia"
               type="button"
@@ -362,6 +408,35 @@
                 >Documento auxiliar, A4 retrato</span
               >
             </button>
+            <!-- Só na escolha por cima de uma nota aberta: aparecem ao passar
+                 o mouse (ou com o foco) sobre a prévia. -->
+            <div class="modo__acoes" role="group" aria-label="Abrir DANFE">
+              <button
+                type="button"
+                class="botao botao--principal modo__acao"
+                data-destino="aqui"
+                data-modo="danfe"
+              >
+                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 5h16v14H4z" />
+                  <path d="M8 12h8" />
+                  <path d="M13 9l3 3-3 3" />
+                </svg>
+                <span>Abrir aqui</span>
+              </button>
+              <button
+                type="button"
+                class="botao botao--claro modo__acao"
+                data-destino="nova"
+                data-modo="danfe"
+              >
+                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 8h12v12H8z" />
+                  <path d="M4 16V4h12" />
+                </svg>
+                <span>Nova janela</span>
+              </button>
+            </div>
             <button
               id="btn-salvar-previa-danfe"
               type="button"
@@ -382,6 +457,10 @@
     <main id="nota" class="nota" hidden></main>
 
     <main id="danfe" class="danfe" hidden></main>
+
+    <!-- Documento do "Salvar PDF" da tela de escolha: montado aqui, fora da
+         tela, e só aparece na mídia print. -->
+    <main id="pdf-previa" class="nota" hidden></main>
 
     <footer id="rodape-pdf" class="rodape-pdf">
       <p>

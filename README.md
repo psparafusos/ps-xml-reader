@@ -41,20 +41,55 @@ de destino (`<FORNECEDOR>_NF<número>_Conferencia.pdf` ou `..._DANFE.pdf`), sem
 entrar no modo. Sem pasta escolhida, pede a pasta antes. Se a nota não suporta
 DANFE, o **Salvar PDF** do DANFE fica desabilitado.
 
-Com o app instalado, um duplo clique num `.psxml` no Explorer abre o PS Reader
-direto na **Conferência** daquele arquivo. O app abre uma janela só: se já
-estiver aberto, o arquivo vai para a janela existente, que volta para a frente;
-com anotação não salva, aparece antes a pergunta **Salvar**, **Descartar** ou
-**Cancelar**. O `.xml` continua abrindo com o programa de antes; um `.xml`
+### Várias janelas
+
+Cada janela tem a sua nota. O app continua sendo um processo só (instância
+única), mas um arquivo que chega abre numa janela própria:
+
+- Arquivo que já está aberto em alguma janela: essa janela vem para a frente,
+  em vez de abrir outra.
+- Janela na tela inicial (sem nota): é reaproveitada.
+- Duplo clique num `.psxml` (com o app fechado ou aberto): abre direto na
+  **Conferência**, numa janela vazia ou numa janela nova.
+- `.psxml` pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: janela
+  nova, direto na **Conferência**.
+- XML pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: a tela de
+  escolha aparece por cima da nota, que fica como estava. Ao passar o mouse
+  (ou com o foco) numa prévia, ela fica desfocada e semitransparente, com
+  **Abrir aqui** e **Nova janela**, e abre direto naquele modo. **Abrir aqui**
+  troca a nota desta janela e, com anotação não salva, pergunta antes. Os
+  **Salvar PDF** das prévias continuam e gravam o PDF do XML da escolha, sem
+  mexer na nota de baixo. **Voltar à nota** (ou Esc) fecha a escolha.
+
+Janelas novas abrem deslocadas 32 px da anterior; se passarem da área de
+trabalho do monitor, voltam para o canto dele. O tamanho e a posição lembrados
+valem para a primeira janela, e quem os grava ao fechar é a janela mais antiga
+aberta. Todas usam o mesmo AUMID, então a barra de tarefas junta as janelas
+no ícone fixado.
+
+É de cada janela: o arquivo aberto, as anotações não salvas, a pasta de
+destino do duplo clique e o título. É do app inteiro (processo principal):
+a personalização da conferência e a pasta de destino salva. Quando uma delas
+muda numa janela, as outras atualizam na hora (a tabela de itens é remontada
+com as colunas novas; o botão **Pasta de destino** mostra a pasta nova, menos
+nas janelas que têm a pasta do duplo clique).
+
+Fechar uma janela com anotação não salva pergunta só por ela. Fechar o app
+(por exemplo **Fechar todas as janelas** na barra de tarefas) pergunta por
+cada janela com anotação não salva, uma de cada vez, trazendo-a para a frente;
+**Cancelar** em qualquer uma interrompe o fechamento e nenhuma janela fecha.
+Pedidos de fechar que chegam juntos (em até 250 ms) contam como um só.
+
+O `.xml` continua abrindo com o programa de antes no duplo clique; um `.xml`
 passado na linha de comando (`"PS Reader.exe" nota.xml`) também abre.
 
-Um `.psxml` aberto assim (duplo clique, com o app fechado ou aberto) faz da
-pasta dele a pasta de destino só nesta sessão: o botão **Pasta de destino**
-mostra essa pasta com a marca "só nesta sessão", e um aviso explica que a pasta
-salva volta quando o app fechar. Essa pasta fica só na memória e nunca é
-gravada no `config.json`. Escolher uma pasta no botão durante a sessão vence:
-ela vira a pasta salva e a da sessão deixa de valer. Abrir um `.psxml` pelo
-**Abrir arquivo**, pelo **Abrir outro XML** ou arrastando não muda a pasta.
+Um `.psxml` aberto por duplo clique faz da pasta dele a pasta de destino só
+naquela janela: o botão **Pasta de destino** dela mostra essa pasta com a marca
+"só nesta janela", e um aviso explica que a pasta salva volta quando a janela
+fechar. Essa pasta fica só na memória e nunca é gravada no `config.json`.
+Escolher uma pasta no botão vence: ela vira a pasta salva e a da janela deixa
+de valer. Abrir um `.psxml` pelo **Abrir arquivo**, pelo **Abrir outro XML** ou
+arrastando não muda a pasta.
 
 Na tabela de itens da conferência, a coluna **Anotação** recebe um texto livre
 por item.
@@ -208,7 +243,7 @@ A barra da nota tem três grupos. Quando falta espaço, a saída desce para uma
 segunda linha; o título da nota nunca fica mais estreito que 240 px:
 
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
-  pergunta de sempre) e **Abrir outro XML**.
+  pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
 - Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
   Com um `.psxml` aberto, a opção DANFE fica desabilitada, com a explicação ao
   passar o mouse (e para o leitor de tela): "O DANFE só é gerado a partir do
@@ -433,7 +468,7 @@ não faz chamada de rede.
 
 ```
 src/
-  main.ts            processo principal: janela, diálogos, printToPDF
+  main.ts            processo principal: janelas (estado de cada uma), diálogos, printToPDF
   preload.ts         contextBridge com a API psApi (abrir, pasta, salvar, imprimir, copiar)
   impressoras.ts     lista de nomes de impressora de cupom (aviso antes de imprimir)
   associacao.ts      associação do .psxml no registro do usuário (eventos do Squirrel)

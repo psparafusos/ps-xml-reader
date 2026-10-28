@@ -18,11 +18,27 @@ type ResultadoSalvarDanfe =
   | { status: 'erro'; mensagem: string };
 
 /**
- * Arquivo pedido de fora (duplo clique). `pastaSessao`: a pasta do .psxml
- * aberto assim, que passou a ser a pasta de destino só desta sessão; null se
- * esta abertura não mudou a pasta.
+ * Arquivo pedido de fora para esta janela (duplo clique, Nova janela).
+ * `pastaSessao`: a pasta do .psxml aberto por duplo clique, que passou a ser
+ * a pasta de destino só desta janela; null se esta abertura não mudou a
+ * pasta. `modo`: abrir direto nele (Nova janela pela tela de escolha).
  */
-type ArquivoExterno = ArquivoAberto & { pastaSessao: string | null };
+type ArquivoExterno = ArquivoAberto & {
+  pastaSessao: string | null;
+  modo: ModoImpressao | null;
+};
+
+/**
+ * O que aconteceu ao pedir para abrir um arquivo nesta janela:
+ * - aqui: abriu nesta janela (estava na tela inicial);
+ * - escolher: XML com nota aberta; mostrar a escolha por cima da nota;
+ * - nova-janela: abriu numa janela nova (.psxml com nota aberta);
+ * - outra-janela / ja-aberto: o arquivo já estava aberto (aquela janela veio
+ *   para a frente, ou é esta mesma).
+ */
+type ResultadoAbrir =
+  | { status: 'aqui' | 'escolher'; arquivo: ArquivoAberto }
+  | { status: 'nova-janela' | 'outra-janela' | 'ja-aberto' | 'cancelado' };
 
 /**
  * Pasta onde o Salvar grava. `sessao`: true se é a pasta de um .psxml aberto
@@ -92,10 +108,24 @@ type ResultadoExportarConfig =
   | { status: 'erro'; mensagem: string };
 
 interface PsApi {
-  /** Abre o diálogo de arquivo (.xml ou .psxml), ou null se cancelado. */
-  abrirArquivo(): Promise<ArquivoAberto | null>;
-  /** Lê um arquivo solto na janela (arrastar e soltar). */
-  abrirSolto(arquivo: File): Promise<ArquivoAberto>;
+  /** Abre o diálogo de arquivo (.xml ou .psxml) e decide onde ele abre. */
+  abrirArquivo(): Promise<ResultadoAbrir>;
+  /** Arquivo solto na janela (arrastar e soltar): mesmas regras do botão. */
+  abrirSolto(arquivo: File): Promise<ResultadoAbrir>;
+  /**
+   * Resposta à escolha por cima da nota: abrir aqui (devolve o arquivo), numa
+   * janela nova no modo escolhido, ou cancelar.
+   */
+  confirmarAbertura(
+    destino: 'aqui' | 'nova' | 'cancelar',
+    modo: ModoImpressao | null,
+  ): Promise<ArquivoAberto | null>;
+  /** A janela voltou para a tela inicial (sem nota aberta). */
+  informarSemNota(): void;
+  /** A configuração da conferência mudou em outra janela. */
+  aoMudarConfig(callback: (config: ConfigConferencia) => void): void;
+  /** A pasta de destino salva mudou em outra janela. */
+  aoMudarPasta(callback: () => void): void;
   /**
    * Lê o arquivo pedido de fora (duplo clique num .psxml, linha de comando),
    * ou null se não há. Chamar só depois de perguntar sobre anotações.
@@ -132,9 +162,16 @@ interface PsApi {
   salvarPdfConferencia(
     base: string | null,
     paisagem: boolean,
+    daEscolha?: boolean,
   ): Promise<ResultadoSalvarDanfe>;
-  /** Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de destino. */
-  salvarDanfe(base: string | null): Promise<ResultadoSalvarDanfe>;
+  /**
+   * Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de
+   * destino. `daEscolha`: o PDF é do XML da escolha por cima da nota.
+   */
+  salvarDanfe(
+    base: string | null,
+    daEscolha?: boolean,
+  ): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */
   versao(): Promise<string>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
@@ -143,8 +180,8 @@ interface PsApi {
   informarPendentes(pendentes: boolean): void;
   /** Chamado quando o usuário tenta fechar a janela com anotações pendentes. */
   aoPedirFechar(callback: () => void): void;
-  /** Fecha a janela sem nova pergunta (depois de salvar ou descartar). */
-  fecharJanela(): Promise<void>;
+  /** Resposta ao pedido de fechar: true = pode fechar (salvou ou descartou). */
+  responderFechar(pode: boolean): void;
   /** Personalização da conferência salva (ou a padrão). */
   configConferencia(): Promise<ConfigConferencia>;
   /** Valida e salva a personalização da conferência. */

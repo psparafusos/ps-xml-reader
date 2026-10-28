@@ -11,8 +11,17 @@ export interface BotaoDialogo<T extends string> {
   principal?: boolean;
 }
 
-/** Caixa modal vazia, com título e texto; some ao fechar. */
-function novaCaixa(titulo: string, texto: string): HTMLDialogElement {
+/**
+ * Caixa modal com título e texto. `fim(valor)` fecha, tira do DOM e entrega a
+ * resposta na hora (sem esperar o evento close do <dialog>, que o Chromium
+ * pode atrasar numa janela coberta por outras). Esc vale `aoCancelar`.
+ */
+function novaCaixa<T>(
+  titulo: string,
+  texto: string,
+  aoCancelar: T,
+  resolver: (valor: T) => void,
+): { d: HTMLDialogElement; fim: (valor: T) => void } {
   const t = el('h2', 'caixa-dialogo__titulo', titulo);
   t.id = `caixa-titulo-${Math.random().toString(36).slice(2)}`;
   const d = el(
@@ -22,8 +31,19 @@ function novaCaixa(titulo: string, texto: string): HTMLDialogElement {
     el('p', 'caixa-dialogo__texto', texto),
   );
   d.setAttribute('aria-labelledby', t.id);
-  d.addEventListener('close', () => d.remove());
-  return d;
+  let terminou = false;
+  const fim = (valor: T) => {
+    if (terminou) return;
+    terminou = true;
+    if (d.open) d.close();
+    d.remove();
+    resolver(valor);
+  };
+  d.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    fim(aoCancelar);
+  });
+  return { d, fim };
 }
 
 /** Pergunta com botões. Devolve o valor do botão escolhido (Esc: `cancelar`). */
@@ -34,21 +54,21 @@ export function perguntar<T extends string>(opcoes: {
   cancelar: T;
 }): Promise<T> {
   return new Promise((resolve) => {
-    const d = novaCaixa(opcoes.titulo, opcoes.texto);
-    let resposta = opcoes.cancelar;
+    const { d, fim } = novaCaixa(
+      opcoes.titulo,
+      opcoes.texto,
+      opcoes.cancelar,
+      resolve,
+    );
     const botoes = opcoes.botoes.map((b) => {
       const e = botao(
         b.principal ? 'botao botao--principal' : 'botao botao--claro',
         b.rotulo,
       );
-      e.addEventListener('click', () => {
-        resposta = b.valor;
-        d.close();
-      });
+      e.addEventListener('click', () => fim(b.valor));
       return e;
     });
     d.append(el('div', 'caixa-dialogo__botoes', ...botoes));
-    d.addEventListener('close', () => resolve(resposta));
     document.body.append(d);
     d.showModal();
     const i = opcoes.botoes.findIndex((b) => b.principal);
@@ -69,9 +89,11 @@ export function pedirNomeCopia(opcoes: {
   problema: (nome: string) => string | null;
 }): Promise<string | null> {
   return new Promise((resolve) => {
-    const d = novaCaixa(
+    const { d, fim } = novaCaixa<string | null>(
       'Salvar cópia',
       'A cópia é um .psxml novo com as anotações de agora. O arquivo aberto não muda, e a janela passa a trabalhar na cópia.',
+      null,
+      resolve,
     );
     const campo = el('input', 'caixa-dialogo__campo');
     campo.type = 'text';
@@ -84,7 +106,6 @@ export function pedirNomeCopia(opcoes: {
     campo.setAttribute('aria-describedby', erro.id);
     const salvar = botao('botao botao--principal', 'Salvar');
     const cancelar = botao('botao botao--claro', 'Cancelar');
-    let resposta: string | null = null;
 
     const conferir = (): boolean => {
       const p = opcoes.problema(campo.value);
@@ -97,8 +118,7 @@ export function pedirNomeCopia(opcoes: {
     campo.addEventListener('input', conferir);
     const confirmar = () => {
       if (!conferir()) return;
-      resposta = campo.value.trim();
-      d.close();
+      fim(campo.value.trim());
     };
     campo.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
@@ -106,7 +126,7 @@ export function pedirNomeCopia(opcoes: {
       confirmar();
     });
     salvar.addEventListener('click', confirmar);
-    cancelar.addEventListener('click', () => d.close());
+    cancelar.addEventListener('click', () => fim(null));
 
     d.append(
       el(
@@ -119,7 +139,6 @@ export function pedirNomeCopia(opcoes: {
       el('p', 'caixa-dialogo__pasta', `em ${opcoes.pasta}`),
       el('div', 'caixa-dialogo__botoes', cancelar, salvar),
     );
-    d.addEventListener('close', () => resolve(resposta));
     document.body.append(d);
     d.showModal();
     conferir();
