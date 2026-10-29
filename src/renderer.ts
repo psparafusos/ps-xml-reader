@@ -11,6 +11,7 @@ import {
 } from './nfe/colunas';
 import { configPadrao } from './nfe/config';
 import { montarCopia } from './nfe/copia';
+import { destinoAnotacao, type TeclaAnotacao } from './nfe/navegacao';
 import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
 import {
   ROTULO_ORIENTACAO,
@@ -260,6 +261,7 @@ let perfisAtual: EstadoPerfis | null = null;
 /** Passa a usar estes perfis: a configuração do ativo vale na tela na hora. */
 function aplicarPerfis(estado: EstadoPerfis): void {
   perfisAtual = estado;
+  atualizarSeletorPerfil();
   aplicarConfig(estado.config);
 }
 
@@ -312,26 +314,130 @@ async function importarPerfil(): Promise<
  * Abre o painel Editar colunas com os perfis. Aplicar grava no perfil ativo
  * e avisa "Alterações salvas no perfil <nome>".
  */
-async function editarColunas(): Promise<void> {
+async function editarColunas(nosPerfis = false): Promise<void> {
   const estado = perfisAtual ?? (await window.psApi.perfis());
-  abrirEditorColunas(estado, {
-    aplicar: async (nova) => {
-      const r = aoGravar(await window.psApi.gravarConfigConferencia(nova));
-      if (r.status === 'ok')
-        mostrarSucesso(`Alterações salvas no perfil ${r.estado.nomeAtivo}`);
-      return r;
+  abrirEditorColunas(
+    estado,
+    {
+      aplicar: async (nova) => {
+        const r = aoGravar(await window.psApi.gravarConfigConferencia(nova));
+        if (r.status === 'ok')
+          mostrarSucesso(`Alterações salvas no perfil ${r.estado.nomeAtivo}`);
+        return r;
+      },
+      ativar: async (id) => aoGravar(await window.psApi.ativarPerfil(id)),
+      criar: async (nome) => aoGravar(await window.psApi.criarPerfil(nome)),
+      renomear: async (id, nome) =>
+        aoGravar(await window.psApi.renomearPerfil(id, nome)),
+      excluir: async (id) => aoGravar(await window.psApi.excluirPerfil(id)),
+      exportar: () => window.psApi.exportarPerfil(),
+      importar: importarPerfil,
+      restaurar: async () => aoGravar(await window.psApi.restaurarConfig()),
+      plano: planoComConfig,
     },
-    ativar: async (id) => aoGravar(await window.psApi.ativarPerfil(id)),
-    criar: async (nome) => aoGravar(await window.psApi.criarPerfil(nome)),
-    renomear: async (id, nome) =>
-      aoGravar(await window.psApi.renomearPerfil(id, nome)),
-    excluir: async (id) => aoGravar(await window.psApi.excluirPerfil(id)),
-    exportar: () => window.psApi.exportarPerfil(),
-    importar: importarPerfil,
-    restaurar: async () => aoGravar(await window.psApi.restaurarConfig()),
-    plano: planoComConfig,
-  });
+    nosPerfis,
+  );
 }
+
+// ---------- seletor rápido de perfil (barra amarela) ----------
+
+const btnPerfil = $('btn-perfil') as HTMLButtonElement;
+const perfilNome = $('perfil-nome');
+const menuPerfil = $('menu-perfil');
+
+/** Itens do menu (perfis e Gerenciar perfis...), na ordem da tela. */
+const itensMenuPerfil = (): HTMLButtonElement[] => [
+  ...menuPerfil.querySelectorAll<HTMLButtonElement>('button'),
+];
+
+/** O nome do perfil ativo na etiqueta; com o menu aberto, fecha (a lista mudou). */
+function atualizarSeletorPerfil(): void {
+  if (!perfisAtual) return;
+  perfilNome.textContent = perfisAtual.nomeAtivo;
+  btnPerfil.title = `Perfil de colunas: ${perfisAtual.nomeAtivo}. Clique para trocar`;
+  if (!menuPerfil.hidden) fecharMenuPerfil();
+}
+
+function fecharMenuPerfil(focarBotao = false): void {
+  if (menuPerfil.hidden) return;
+  menuPerfil.hidden = true;
+  btnPerfil.setAttribute('aria-expanded', 'false');
+  if (focarBotao) btnPerfil.focus();
+}
+
+async function abrirMenuPerfil(): Promise<void> {
+  const estado = perfisAtual ?? (await window.psApi.perfis());
+  perfisAtual = estado;
+  const itens = estado.lista.map((p) => {
+    const ativo = p.id === estado.ativo;
+    const b = el(
+      'button',
+      'perfil-rapido__opcao',
+      el('span', 'perfil-rapido__marca', ativo ? '✓' : ''),
+      el('span', 'perfil-rapido__texto', p.nome),
+    );
+    b.type = 'button';
+    b.setAttribute('role', 'menuitemradio');
+    b.setAttribute('aria-checked', String(ativo));
+    b.title = p.nome;
+    b.addEventListener('click', () => void trocarPerfil(p.id, ativo));
+    return b;
+  });
+  const gerenciar = el(
+    'button',
+    'perfil-rapido__opcao perfil-rapido__opcao--gerenciar',
+    el('span', 'perfil-rapido__marca'),
+    el('span', 'perfil-rapido__texto', 'Gerenciar perfis...'),
+  );
+  gerenciar.type = 'button';
+  gerenciar.setAttribute('role', 'menuitem');
+  gerenciar.addEventListener('click', () => {
+    fecharMenuPerfil();
+    void editarColunas(true);
+  });
+  menuPerfil.replaceChildren(
+    ...itens,
+    el('hr', 'perfil-rapido__separador'),
+    gerenciar,
+  );
+  menuPerfil.hidden = false;
+  btnPerfil.setAttribute('aria-expanded', 'true');
+  // O foco começa no perfil ativo; as setas seguem daí.
+  (
+    menuPerfil.querySelector<HTMLElement>('[aria-checked="true"]') ??
+    itensMenuPerfil()[0]
+  )?.focus();
+}
+
+async function trocarPerfil(id: string, jaAtivo: boolean): Promise<void> {
+  fecharMenuPerfil(true);
+  if (jaAtivo) return;
+  const r = aoGravar(await window.psApi.ativarPerfil(id));
+  if (r.status === 'ok') mostrarSucesso(`Perfil ${r.estado.nomeAtivo} ativo`);
+  else mostrarMensagem(r.mensagem, 'erro');
+}
+
+btnPerfil.addEventListener('click', () => {
+  if (menuPerfil.hidden) void abrirMenuPerfil();
+  else fecharMenuPerfil();
+});
+menuPerfil.addEventListener('keydown', (e) => {
+  const ops = itensMenuPerfil();
+  const i = ops.indexOf(document.activeElement as HTMLButtonElement);
+  if (e.key === 'Escape') fecharMenuPerfil(true);
+  else if (e.key === 'ArrowDown') ops[(i + 1) % ops.length]?.focus();
+  else if (e.key === 'ArrowUp') ops[(i - 1 + ops.length) % ops.length]?.focus();
+  else if (e.key === 'Home') ops[0]?.focus();
+  else if (e.key === 'End') ops[ops.length - 1]?.focus();
+  else if (e.key === 'Tab') fecharMenuPerfil();
+  else return;
+  if (e.key !== 'Tab') e.preventDefault();
+});
+document.addEventListener('mousedown', (e) => {
+  const alvo = e.target as Node;
+  if (!menuPerfil.contains(alvo) && !btnPerfil.contains(alvo))
+    fecharMenuPerfil();
+});
 
 /**
  * Anotações digitadas na tela, por coluna e nItem. Texto vazio não fica
@@ -397,6 +503,41 @@ function marcarGravadas(): void {
 }
 
 /**
+ * Enter e Tab nas caixas de anotação da tela (src/nfe/navegacao.ts), na ordem
+ * visual da tabela: lê as linhas do DOM, que já está na ordem escolhida.
+ */
+function navegarAnotacao(e: KeyboardEvent, campo: HTMLInputElement): void {
+  if (e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+  const tecla: TeclaAnotacao | null =
+    e.key === 'Enter'
+      ? e.shiftKey
+        ? 'shift-enter'
+        : 'enter'
+      : e.key === 'Tab'
+        ? e.shiftKey
+          ? 'shift-tab'
+          : 'tab'
+        : null;
+  if (!tecla || !tabelaItensEl) return;
+  const grade = [
+    ...tabelaItensEl.querySelectorAll('tbody.item > tr.item__linha'),
+  ].map((tr) => [
+    ...tr.querySelectorAll<HTMLInputElement>('input.anotacao__campo'),
+  ]);
+  const linha = grade.findIndex((campos) => campos.includes(campo));
+  if (linha < 0) return;
+  const destino = destinoAnotacao(
+    grade.map((campos) => campos.length),
+    linha,
+    grade[linha].indexOf(campo),
+    tecla,
+  );
+  if (destino === 'sair') return;
+  e.preventDefault();
+  if (destino !== 'ficar') grade[destino.linha][destino.coluna].focus();
+}
+
+/**
  * Célula de anotação (a coluna Anotação ou uma extra): na tela é um campo de
  * texto; na impressão o campo some e sai o espelho em texto (campos de
  * formulário nem sempre são impressos).
@@ -418,6 +559,19 @@ function celulaAnotacao(
     td.append(campoTexto, espelho);
     return td;
   }
+  // Ao entrar no campo o texto fica selecionado (o mouse não desfaz a seleção
+  // no clique que deu o foco).
+  let focoPeloMouse = false;
+  campoTexto.addEventListener('mousedown', () => {
+    focoPeloMouse = document.activeElement !== campoTexto;
+  });
+  campoTexto.addEventListener('mouseup', (e) => {
+    if (!focoPeloMouse) return;
+    focoPeloMouse = false;
+    e.preventDefault();
+  });
+  campoTexto.addEventListener('focus', () => campoTexto.select());
+  campoTexto.addEventListener('keydown', (e) => navegarAnotacao(e, campoTexto));
   campoTexto.addEventListener('input', () => {
     let daColuna = anotacoes.get(coluna.id);
     if (!daColuna) anotacoes.set(coluna.id, (daColuna = new Map()));
@@ -1209,6 +1363,7 @@ function mostrarConferencia(): void {
 function preencherBarra(n: Nota): void {
   barraFornecedor.textContent = n.emitente.xNome;
   barraNota.textContent = textoNumeroSerie(n);
+  atualizarSeletorPerfil();
   // O aviso de cópia editada fica só na barra, nunca no corpo do DANFE.
   barraCopia.hidden = !aberto?.lido.copiaEditada;
   // O nome do arquivo vem primeiro: depois do Salvar cópia, é o da cópia.
@@ -2551,6 +2706,7 @@ const configCarregada = window.psApi
   .then((estado) => {
     perfisAtual = estado;
     configAtual = estado.config;
+    atualizarSeletorPerfil();
   })
   .catch((erro: unknown) => console.error(erro));
 

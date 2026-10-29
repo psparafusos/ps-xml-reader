@@ -173,6 +173,8 @@ export function atualizarEditor(estado: EstadoPerfis): void {
 export function abrirEditorColunas(
   estadoInicial: EstadoPerfis,
   acoes: AcoesEditor,
+  /** Abre já com a lista de perfis (Trocar perfil) à mostra. */
+  nosPerfis = false,
 ): void {
   if (editorAberto()) return;
   let estado = estadoInicial;
@@ -1029,5 +1031,6 @@ export function abrirEditorColunas(
   desenhar();
   document.body.append(d);
   d.showModal();
-  lista.querySelector<HTMLElement>('.colunas-lista__marca')?.focus();
+  if (nosPerfis) abrirMenu();
+  else lista.querySelector<HTMLElement>('.colunas-lista__marca')?.focus();
 }

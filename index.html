@@ -20,6 +20,32 @@
       <div class="barra__titulo">
         <strong id="barra-fornecedor" class="barra__fornecedor"></strong>
         <span id="barra-nota" class="barra__nota"></span>
+        <!-- Troca rápida do perfil de colunas; a lista é montada no
+             renderer.ts a cada abertura. -->
+        <div class="perfil-rapido">
+          <button
+            id="btn-perfil"
+            type="button"
+            class="perfil-rapido__botao"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="menu-perfil"
+            title="Trocar o perfil de colunas"
+          >
+            <span class="perfil-rapido__rotulo">Perfil:</span>
+            <span id="perfil-nome" class="perfil-rapido__nome"></span>
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div
+            id="menu-perfil"
+            class="perfil-rapido__menu"
+            role="menu"
+            aria-label="Perfis"
+            hidden
+          ></div>
+        </div>
         <span id="barra-copia" class="barra__copia" hidden
           >Cópia editada, sem validade fiscal</span
         >

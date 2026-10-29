@@ -496,6 +496,110 @@ ul {
   font-weight: var(--peso-forte);
 }
 
+/* Perfil de colunas ativo: etiqueta discreta sob o número da nota, que abre a
+   lista dos perfis. O nome longo corta com reticências. */
+.perfil-rapido {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: var(--esp-1);
+}
+
+.perfil-rapido__botao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
+  max-width: 100%;
+  padding: 0 var(--esp-2);
+  border: var(--borda) solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.perfil-rapido__botao:hover,
+.perfil-rapido__botao[aria-expanded='true'] {
+  border-color: var(--ps-preto);
+}
+
+.perfil-rapido__botao .icone {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.perfil-rapido__nome {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--peso-forte);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perfil-rapido__menu {
+  position: absolute;
+  top: calc(100% + var(--esp-1));
+  left: 0;
+  z-index: 30;
+  width: max-content;
+  min-width: 100%;
+  max-width: var(--largura-menu);
+  max-height: var(--altura-menu);
+  overflow-y: auto;
+  padding: var(--esp-1) 0;
+  border: var(--borda-forte) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  box-shadow: var(--sombra-aviso);
+}
+
+.perfil-rapido__opcao {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: var(--esp-2) var(--esp-4);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.perfil-rapido__opcao:hover,
+.perfil-rapido__opcao:focus-visible {
+  outline: none;
+  background: var(--botao-sec-fundo-hover);
+}
+
+.perfil-rapido__opcao[aria-checked='true'] {
+  font-weight: var(--peso-forte);
+}
+
+.perfil-rapido__marca {
+  flex: none;
+  width: 1ch;
+}
+
+.perfil-rapido__texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perfil-rapido__separador {
+  margin: var(--esp-1) 0;
+  border: none;
+  border-top: var(--borda) solid var(--cor-borda-suave);
+}
+
 /* Ações em três grupos, nesta ordem: navegação, modo, saída. O nav continua
    como marco para o leitor de tela, mas não gera caixa: cada grupo é um item
    da barra e pode descer de linha sozinho. */
@@ -1098,6 +1202,12 @@ ul {
 
 .anotacao__campo:hover {
   border-color: var(--ps-preto);
+}
+
+/* Enter e Tab levam o foco para outra linha: a barra fixa no topo não pode
+   cobrir a caixa. */
+.anotacao__campo {
+  scroll-margin-block: 7rem 3rem;
 }
 
 .anotacao__campo:focus {
@@ -1905,14 +2015,38 @@ body.pdf-previa #pdf-previa {
   pointer-events: none;
 }
 
-.modo__item:hover .modo__acoes,
-.modo__item:focus-within .modo__acoes {
+/* Só o mouse sobre a miniatura (ou sobre os próprios botões, que ficam em cima
+   dela) ou o foco de teclado na opção liga o efeito; o mouse no Salvar PDF
+   embaixo não mexe na prévia. */
+.modo__item:has(
+    .modo__miniatura:hover,
+    .modo__acao:hover,
+    .modo__opcao:focus-visible,
+    .modo__acao:focus-visible
+  )
+  .modo__acoes {
   opacity: 1;
+}
+
+/* O contêiner nunca recebe o mouse (tiraria o hover da miniatura e o efeito
+   piscaria); só os botões, quando aparecem. */
+.modo__item:has(
+    .modo__miniatura:hover,
+    .modo__acao:hover,
+    .modo__opcao:focus-visible,
+    .modo__acao:focus-visible
+  )
+  .modo__acao {
   pointer-events: auto;
 }
 
-.modo__item:hover .modo__miniatura,
-.modo__item:focus-within .modo__miniatura {
+.modo__item:has(
+    .modo__miniatura:hover,
+    .modo__acao:hover,
+    .modo__opcao:focus-visible,
+    .modo__acao:focus-visible
+  )
+  .modo__miniatura {
   filter: blur(var(--desfoque-previa));
   opacity: var(--opacidade-previa);
 }

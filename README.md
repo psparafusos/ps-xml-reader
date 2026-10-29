@@ -9,6 +9,16 @@ chamada de rede.
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
 
+## Versão 1.1.2
+
+- Tela de escolha: o desfoque da prévia com **Abrir aqui** e **Nova janela**
+  só aparece com o mouse sobre a miniatura; sobre **Salvar PDF** a prévia
+  fica normal.
+- **Perfil: <nome>** na barra amarela, abaixo do número da nota: lista rápida
+  para trocar de perfil, com **Gerenciar perfis...** no fim.
+- Anotações da tabela de itens: **Enter** e **Tab** levam o foco de uma caixa
+  para outra, e o texto da caixa que recebe o foco fica selecionado.
+
 ## Versão 1.1.1
 
 - **Abrir aqui** e **Nova janela** sobre as prévias também na tela de escolha
@@ -60,12 +70,14 @@ primeira página, depois que a tela aparece). Se a nota não suporta DANFE, a
 opção aparece desabilitada com o motivo. Um `.psxml` pula essa tela e abre
 direto na **Conferência**.
 
-Ao passar o mouse (ou com o foco) numa prévia, ela fica desfocada e
-semitransparente, com dois botões: **Abrir aqui** (abre nesta janela, naquele
+Ao passar o mouse sobre a miniatura da prévia (ou com o foco de teclado nela),
+ela fica desfocada e semitransparente, com dois botões: **Abrir aqui** (abre nesta janela, naquele
 modo) e **Nova janela** (abre numa janela nova, naquele modo; esta volta para a
 tela inicial). Clicar na própria prévia é o mesmo que **Abrir aqui**. Na tela de
 escolha de uma janela vazia, **Abrir aqui** fica em destaque; na escolha por
-cima de uma nota aberta (ver Várias janelas), **Nova janela**.
+cima de uma nota aberta (ver Várias janelas), **Nova janela**. O mouse sobre
+**Salvar PDF** ou sobre o nome do modo, embaixo da miniatura, não liga o
+efeito.
 
 Embaixo de cada miniatura, **Salvar PDF** grava só o PDF daquele modo na pasta
 de destino (`<FORNECEDOR>_NF<número>_Conferencia.pdf` ou `..._DANFE.pdf`), sem
@@ -125,6 +137,18 @@ arrastando não muda a pasta.
 
 Na tabela de itens da conferência, a coluna **Anotação** recebe um texto livre
 por item.
+
+Teclado nas caixas de anotação (a coluna Anotação e as extras), na ordem em
+que a tabela está na tela, inclusive ordenada:
+
+- **Enter**: a mesma coluna, na linha de baixo. **Shift+Enter**: na linha de
+  cima. Na última linha (ou na primeira, com Shift) o foco fica no campo.
+- **Tab**: a próxima coluna de anotação da mesma linha; na última, a primeira
+  coluna de anotação da linha de baixo. **Shift+Tab** faz o inverso. Depois
+  da última caixa da tabela (ou antes da primeira, com Shift), o Tab segue o
+  caminho normal e sai da tabela.
+- Ao entrar numa caixa, por teclado ou clique, o texto dela fica selecionado:
+  digitar substitui, e uma seta ou um segundo clique põe o cursor.
 
 ### Editar colunas (modo Conferência)
 
@@ -210,6 +234,14 @@ numa linha passa a usar aquele perfil e mostra o aviso "Perfil <nome> ativo".
 Se o painel tem mudanças ainda não aplicadas, uma caixa pergunta antes:
 **Aplicar e trocar** (grava no perfil atual), **Descartar e trocar** ou
 **Cancelar**. Esc ou um clique fora fecham só a lista.
+
+Sem abrir o painel, a barra amarela da nota mostra, abaixo de "NF-e nº ...
+série ...", a etiqueta **Perfil: <nome>** com uma seta. Clicar nela (ou Enter
+ou espaço, com o foco nela) abre a lista dos perfis, com o ativo marcado (✓);
+as setas navegam, Enter escolhe e Esc fecha. Clicar noutro perfil troca na hora,
+em todas as janelas, e mostra o aviso "Perfil <nome> ativo". No fim da lista,
+**Gerenciar perfis...** abre o painel **Editar colunas** com a lista de perfis
+já aberta (novo, renomear, excluir, importar e exportar).
 
 Em cada linha:
 
@@ -589,6 +621,7 @@ src/
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer
   nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível, ordenação)
   nfe/ordem.ts       ordenação dos itens na conferência (critérios, comparação estável)
+  nfe/navegacao.ts   Enter e Tab entre as caixas de anotação (destino do foco)
   nfe/nome.ts        nome dos arquivos salvos a partir dos dados da nota
   nfe/tipos.ts       interfaces Nota, Emitente, Destinatario, Item, Totais, Transporte
   nfe/formato.ts     formatação pt-BR: moeda, quantidade, data, CNPJ, chave de acesso
