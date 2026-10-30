@@ -1,0 +1,169 @@
+Capítulo 32
+Extratos tanantes e tintoriais; taninos e seus derivados;
+pigmentos e outras matérias corantes; tintas e vernizes;
+mástiques; tintas de escrever
+Notas.
+1.- O presente Capítulo não compreende:
+a) Os produtos de constituição química definida, apresentados isoladamente, exceto os que correspondam às 
+especificações das posições 32.03 ou 32.04, os produtos inorgânicos do tipo utilizado como luminóforos (posição 32.06), 
+__________________
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+32.08 Tintas e vernizes, à base de polímeros sintéticos ou de polímeros naturais 
+modificados, dispersos ou dissolvidos em meio não aquoso; soluções definidas na 
+Nota 4 do presente Capítulo.
+3208.10 - À base de poliésteres
+3208.10.10 Tintas 3,25
+3208.10.20 Vernizes 3,25
+3208.10.30 Soluções definidas na Nota 4 do presente Capítulo 3,25
+3208.20 - À base de polímeros acrílicos ou vinílicos
+3208.20.1 Tintas
+3208.20.11 À base de polímeros acrílicos, apresentadas em sortidos definidos na Nota 3 da 
+Seção VI, do tipo utilizado para a fabricação de circuitos impressos
+3,25
+3208.20.19 Outras 3,25
+3208.20.20 Vernizes 3,25
+3208.20.30 Soluções definidas na Nota 4 do presente Capítulo 3,25
+3208.90 - Outros
+3208.90.10 Tintas 3,25
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+3208.90.2 Vernizes
+3208.90.21 À base de derivados de celulose 3,25
+3208.90.29 Outros 3,25
+3208.90.3 Soluções definidas na Nota 4 do presente Capítulo
+3208.90.31 De silicones 6,5
+3208.90.39 Outras 6,5
+32.09 Tintas e vernizes, à base de polímeros sintéticos ou de polímeros naturais 
+modificados, dispersos ou dissolvidos num meio aquoso.
+3209.10 - À base de polímeros acrílicos ou vinílicos
+3209.10.10 Tintas 0
+__________________
+Capítulo 60
+Tecidos de malha
+Notas.
+1.- Exemplo de nota que cita a posição
+60.06 e outras.
+__________________
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+60.06 Outros tecidos de malha.
+6006.10.00 - De lã ou de pelos finos 0
+6006.2 - De algodão:
+6006.21.00 -- Crus ou branqueados 0
+6006.22.00 -- Tintos 0
+6006.23.00 -- De fios de diversas cores 0
+6006.24.00 -- Estampados 0
+6006.3 - De fibras sintéticas:
+6006.31 -- Crus ou branqueados
+6006.31.10 De náilon ou de outras poliamidas 0
+6006.31.20 De poliésteres 0
+6006.31.30 Acrílicos ou modacrílicos 0
+6006.31.90 Outros 0
+6006.32 -- Tintos
+6006.32.10 De náilon ou de outras poliamidas0
+6006.32.20 De poliésteres0
+6006.32.30 Acrílicos ou modacrílicos0
+6006.32.90 Outros0
+6006.90.00- Outros0
+__________________
+Capítulo 73
+Obras de ferro fundido, ferro ou aço
+Notas.
+__________________
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+73.18 Parafusos, pinos ou pernos, roscados, porcas, tira-fundos, ganchos roscados, 
+rebites, chavetas, contrapinos ou troços, arruelas (anilhas) (incluindo as de pressão) 
+e artigos semelhantes, de ferro fundido, ferro ou aço.
+7318.1 - Artigos roscados:
+7318.11.00 -- Tira-fundos 6,5
+7318.12.00 -- Outros parafusos para madeira 6,5
+7318.13.00 -- Ganchos, escápulas e pitões 6,5
+7318.14.00 -- Parafusos autoperfurantes 6,5
+7318.15.00 -- Outros parafusos e pinos ou pernos, mesmo com as porcas e arruelas (anilhas) 6,5
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+7318.16.00 -- Porcas 6,5
+7318.19.00 -- Outros 6,5
+7318.2 - Artigos não roscados:
+7318.21.00 -- Arruelas (anilhas) de pressão e outras arruelas (anilhas) de segurança 6,5
+7318.22.00 -- Outras arruelas (anilhas) 6,5
+7318.23.00 -- Rebites 6,5
+7318.24.00 -- Chavetas e contrapinos ou troços 6,5
+7318.29.00 -- Outros 6,5
+__________________
+Capítulo 87
+Veículos automóveis, tratores, ciclos e outros veículos
+terrestres, suas partes e acessórios
+
+NC (87-6) Ficam fixadas, nos percentuais abaixo indicados, as alíquotas relativas aos automóveis de passageiros e veículos de 
+uso misto, classificados nos códigos a seguir especificados:
+CÓDIGO DA 
+TIPI
+EFICIÊNCIA ENERGÉTICA 
+(EE)
+(MJ/km)
+MASSA EM ORDEM DE MARCHA (MOM) (kg) ALÍQUOTA (%)
+8703.40.00 
+e
+8703.60.00
+EE menor ou igual a 1,10
+MOM menor ou igual a 1400 6,77
+MOM maior que 1400 e menor ou igual a 1700 7,53
+MOM maior que 1700 8,28
+EE maior que 1,10 e menor 
+__________________
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+87.03 Automóveis de passageiros e outros veículos automóveis principalmente 
+concebidos para transporte de pessoas (exceto os da posição 87.02), incluindo os 
+veículos de uso misto (station wagons) e os automóveis de corrida.
+8703.40.00 - Outros veículos, equipados para propulsão, simultaneamente, com motor de pistão de 
+ignição por centelha (faísca) e motor elétrico, exceto os suscetíveis de serem carregados 
+por conexão a uma fonte externa de energia elétrica 18,81
+8703.50.00 - Outros veículos, equipados para propulsão, simultaneamente, com motor de pistão de 
+ignição por compressão (diesel ou semidiesel) e motor elétrico, exceto os suscetíveis de 
+serem carregados por conexão a uma fonte externa de energia elétrica 18,81
+8703.60.00 - Outros veículos, equipados para propulsão, simultaneamente, com motor de pistão de 
+ignição por centelha (faísca) e motor elétrico, suscetíveis de serem carregados por 
+conexão a uma fonte externa de energia elétrica 18,81
+8703.70.00 - Outros veículos, equipados para propulsão, simultaneamente, com motor de pistão de 
+ignição por compressão (diesel ou semidiesel) e motor elétrico, suscetíveis de serem 
+carregados por conexão a uma fonte externa de energia elétrica 18,81
+8703.80.00 - Outros veículos, equipados unicamente com motor elétrico para propulsão 18,81
+8703.90.00 - Outros 18,81
+87.04 Veículos automóveis para transporte de mercadorias.
+__________________
+Capítulo 95
+Brinquedos, jogos, artigos para divertimento ou 
+para esporte; suas partes e acessórios
+__________________
+
+NCM DESCRIÇÃO ALÍQUOTA 
+(%)
+9503.00 Triciclos, patinetes (trotinetas*), carros de pedais e outros brinquedos semelhantes 
+de rodas; carrinhos para bonecos; bonecos; outros brinquedos; modelos reduzidos 
+e modelos semelhantes para divertimento, mesmo animados; quebra-cabeças 
+(puzzles) de qualquer espécie.
+9503.00.10 Triciclos, patinetes, carros de pedais e outros brinquedos semelhantes com rodas; 
+carrinhos para bonecos 6,5
+9503.00.2 Bonecos que representem somente seres humanos
+9503.00.21 Bonecos, mesmo vestidos, com mecanismo a corda ou elétrico 6,5
+9503.00.22 Outros bonecos, mesmo vestidos 6,5
+9503.00.29 Partes e acessórios 6,5
+9503.00.3 Brinquedos que representem animais ou seres não humanos
+9503.00.31 Com enchimento 6,5
+9503.00.39 Outros 6,5
+9503.00.40 Trens elétricos, incluindo os trilhos, sinais e outros acessórios 6,5
+9503.00.50 Modelos reduzidos, mesmo animados, em conjuntos para montagem, exceto os do item 
+9503.00.40
+6,5
+9503.00.60 Outros conjuntos e brinquedos, para construção 6,5
+9503.00.70 Quebra-cabeças (puzzles) 6,5
