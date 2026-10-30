@@ -42,9 +42,14 @@ import {
   atualizarEditor,
   editorAberto,
 } from './editorColunas';
-import { comSetasDeRolagem, el, icone, type Filho } from './dom';
+import { comSetasDeRolagem, el, icone, navegarMenu, type Filho } from './dom';
 import { perguntar, pedirNomeCopia } from './dialogos';
-import { desmontarFolha, montarFolha, planoDaTabela } from './folhaTabela';
+import {
+  copiaParaFolha,
+  desmontarFolha,
+  montarFolha,
+  planoDaTabela,
+} from './folhaTabela';
 
 // ---------- utilitários de DOM ----------
 
@@ -334,6 +339,10 @@ async function editarColunas(nosPerfis = false): Promise<void> {
       importar: importarPerfil,
       restaurar: async () => aoGravar(await window.psApi.restaurarConfig()),
       plano: planoComConfig,
+      tabelaFolha: (config, itens, exemplo) =>
+        copiaParaFolha(
+          montarTabelaItens(colunasDaConfig(config), itens, false, exemplo),
+        ),
     },
     nosPerfis,
   );
@@ -421,18 +430,9 @@ btnPerfil.addEventListener('click', () => {
   if (menuPerfil.hidden) void abrirMenuPerfil();
   else fecharMenuPerfil();
 });
-menuPerfil.addEventListener('keydown', (e) => {
-  const ops = itensMenuPerfil();
-  const i = ops.indexOf(document.activeElement as HTMLButtonElement);
-  if (e.key === 'Escape') fecharMenuPerfil(true);
-  else if (e.key === 'ArrowDown') ops[(i + 1) % ops.length]?.focus();
-  else if (e.key === 'ArrowUp') ops[(i - 1 + ops.length) % ops.length]?.focus();
-  else if (e.key === 'Home') ops[0]?.focus();
-  else if (e.key === 'End') ops[ops.length - 1]?.focus();
-  else if (e.key === 'Tab') fecharMenuPerfil();
-  else return;
-  if (e.key !== 'Tab') e.preventDefault();
-});
+menuPerfil.addEventListener('keydown', (e) =>
+  navegarMenu(e, itensMenuPerfil(), fecharMenuPerfil),
+);
 document.addEventListener('mousedown', (e) => {
   const alvo = e.target as Node;
   if (!menuPerfil.contains(alvo) && !btnPerfil.contains(alvo))
@@ -929,18 +929,23 @@ function tabelaItens(
 }
 
 /**
- * Plano da folha (orientação, fonte, partes) da nota aberta com a
- * configuração `config`: mede uma tabela montada com todos os itens, na
- * ordem atual. null sem nota ou sem itens.
+ * Plano da folha (orientação, fonte, partes) com a configuração `config`:
+ * mede uma tabela montada com todos os itens da nota aberta, na ordem atual.
+ * Sem nota (ou nota sem itens), mede com os itens de exemplo do painel.
  */
-function planoComConfig(config: ConfigConferencia): PlanoFolha | null {
-  if (!aberto || aberto.lido.nota.itens.length === 0) return null;
+function planoComConfig(
+  config: ConfigConferencia,
+  exemplo: Item[],
+  anotacoesExemplo: Anotacoes,
+): { plano: PlanoFolha; daNota: boolean } {
+  const daNota = Boolean(aberto && aberto.lido.nota.itens.length > 0);
   const tabela = montarTabelaItens(
     colunasDaConfig(config),
-    aberto.lido.nota.itens,
+    daNota && aberto ? aberto.lido.nota.itens : exemplo,
     false,
+    daNota ? anotacoes : anotacoesExemplo,
   );
-  return planoDaTabela(tabela, config.orientacao);
+  return { plano: planoDaTabela(tabela, config.orientacao), daNota };
 }
 
 /**

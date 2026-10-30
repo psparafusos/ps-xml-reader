@@ -544,6 +544,10 @@ ul {
   top: calc(100% + var(--esp-1));
   left: 0;
   z-index: 30;
+}
+
+.perfil-rapido__menu,
+.menu-largura {
   width: max-content;
   min-width: 100%;
   max-width: var(--largura-menu);
@@ -1464,17 +1468,41 @@ body.pdf-previa #pdf-previa {
   cursor: pointer;
 }
 
-/* Largura da caixa, só nas colunas de anotação (marca que é anotação). */
+/* Largura da caixa, só nas colunas de anotação (marca que é anotação):
+   botão amarelo de borda preta que abre o menu de larguras. */
 .colunas-lista__largura {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-1);
   margin-left: auto;
-  padding: 0 var(--esp-1);
-  border: var(--borda) solid var(--cor-borda);
+  padding: 0 var(--esp-1) 0 var(--esp-2);
+  border: var(--borda) solid var(--ps-preto);
   border-radius: var(--raio);
   background: var(--cor-destaque-suave);
   color: var(--cor-texto-forte);
   font: inherit;
   font-size: var(--fs-xs);
   cursor: pointer;
+}
+
+.colunas-lista__largura:hover,
+.colunas-lista__largura[aria-expanded='true'] {
+  background: var(--cor-destaque);
+}
+
+.colunas-lista__largura .icone {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+/* Menu de larguras: o mesmo visual do seletor de perfil, na camada de cima
+   (popover), posicionado pelo editorColunas.ts embaixo do botão. */
+.menu-largura {
+  position: fixed;
+  inset: auto;
+  min-width: 0;
+  margin: var(--esp-1) 0 0;
 }
 
 .colunas-lista__largura + .colunas-lista__remover {
@@ -1527,8 +1555,15 @@ body.pdf-previa #pdf-previa {
 
 .painel__previa {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+}
+
+/* Rola a seção inteira; a prévia e a miniatura não encolhem. */
+.painel__previa > * {
+  flex: none;
 }
 
 /* Prévia com dados fictícios: o cabeçalho inteiro e as linhas sumindo para
@@ -1936,18 +1971,128 @@ body.pdf-previa #pdf-previa {
   font-weight: var(--peso-medio);
 }
 
+/* Automática | Retrato | Paisagem, no estilo do seletor Conferência | DANFE. */
 .painel__orientacao {
-  padding: var(--esp-1) var(--esp-2);
-  border: var(--borda) solid var(--cor-borda);
-  border-radius: var(--raio);
-  color: var(--cor-texto-forte);
-  font: inherit;
+  display: inline-flex;
+}
+
+.painel__orientacao .seletor__opcao {
+  padding: var(--esp-1) var(--esp-3);
   font-size: var(--fs-sm);
 }
 
-.painel__orientacao:focus-visible {
-  outline: var(--botao-foco-espessura) solid var(--botao-foco);
-  outline-offset: var(--botao-foco-afastamento);
+/* ---------- miniatura da folha A4 (editor de colunas) ---------- */
+
+/* A folha é desenhada em mm, no tamanho real, e reduzida por
+   --escala-miniatura. O palco tem o tamanho já reduzido (para o layout em
+   volta) e cabe a folha mais o que passar da borda. As medidas em mm vêm do
+   miniaturaFolha.ts como números puros. */
+.painel__miniatura:empty {
+  display: none;
+}
+
+.miniatura {
+  margin-top: var(--esp-4);
+}
+
+.miniatura__rolagem {
+  overflow-x: auto;
+  padding: var(--esp-2) var(--esp-1);
+}
+
+.miniatura__palco {
+  position: relative;
+  width: calc(var(--palco-largura) * 1mm * var(--escala-miniatura));
+  height: calc(var(--folha-altura) * 1mm * var(--escala-miniatura));
+}
+
+.miniatura__folha {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: calc(var(--folha-largura) * 1mm);
+  height: calc(var(--folha-altura) * 1mm);
+  padding: calc(var(--folha-margem) * 1mm);
+  border: calc(var(--borda) / var(--escala-miniatura)) solid var(--cor-borda);
+  background: var(--ps-branco);
+  box-shadow: 0 0 calc(var(--esp-3) / var(--escala-miniatura))
+    var(--cor-borda-suave);
+  transform: scale(var(--escala-miniatura));
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* Corta as linhas no pé da área útil, mas deixa a tabela passar da borda
+   direita. */
+.miniatura__area {
+  height: 100%;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+
+.miniatura__tabela {
+  table-layout: fixed;
+}
+
+.miniatura__tabela th,
+.miniatura__tabela td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.miniatura__tabela .col-descricao {
+  min-width: 0;
+}
+
+/* Colunas que vão para a folha 2 em diante. */
+.miniatura__tabela .miniatura__fora {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--cor-sombra-fora) 0 2mm,
+    transparent 2mm 4mm
+  );
+}
+
+/* Borda da folha quando a tabela não cabe: linha vermelha tracejada, com o
+   aviso de onde a tabela passa para a próxima folha. */
+.miniatura__corte {
+  position: absolute;
+  top: calc(-1 * var(--esp-2));
+  bottom: calc(-1 * var(--esp-2));
+  left: calc(var(--folha-largura) * 1mm * var(--escala-miniatura));
+  border-left: var(--borda-forte) dashed var(--aviso-erro-fundo);
+}
+
+/* No meio da altura, para não cobrir as colunas sombreadas do topo. */
+.miniatura__corte-texto {
+  position: absolute;
+  top: 50%;
+  left: var(--esp-2);
+  width: max-content;
+  max-width: var(--largura-aviso-corte);
+  padding: var(--esp-1) var(--esp-2);
+  border-radius: var(--raio);
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
+}
+
+.miniatura__fonte {
+  display: inline-block;
+  margin-top: var(--esp-2);
+  padding: var(--esp-1) var(--esp-2);
+  border-radius: var(--raio);
+  background: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
+}
+
+.miniatura__legenda {
+  margin-top: var(--esp-2);
+  font-size: var(--fs-xs);
 }
 
 .painel__indicador {

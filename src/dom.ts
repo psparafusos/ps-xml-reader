@@ -92,3 +92,27 @@ export function botao(classe: string, ...filhos: Filho[]): HTMLButtonElement {
   b.type = 'button';
   return b;
 }
+
+/**
+ * Teclado de um menu de opções (seletor de perfil, largura da anotação):
+ * setas para cima e para baixo (dando a volta), Home e End movem o foco;
+ * Esc fecha e volta ao botão; Tab fecha e segue. Esc não chega ao painel.
+ */
+export function navegarMenu(
+  e: KeyboardEvent,
+  opcoes: HTMLElement[],
+  fechar: (focarBotao: boolean) => void,
+): void {
+  const i = opcoes.indexOf(document.activeElement as HTMLElement);
+  const n = opcoes.length;
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    fechar(true);
+  } else if (e.key === 'ArrowDown') opcoes[(i + 1) % n]?.focus();
+  else if (e.key === 'ArrowUp') opcoes[(i - 1 + n) % n]?.focus();
+  else if (e.key === 'Home') opcoes[0]?.focus();
+  else if (e.key === 'End') opcoes[n - 1]?.focus();
+  else if (e.key === 'Tab') fechar(false);
+  else return;
+  if (e.key !== 'Tab') e.preventDefault();
+}

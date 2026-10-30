@@ -63,6 +63,8 @@ export interface PlanoFolha {
    * fixas (Nº, Código, Descrição).
    */
   partes: string[][];
+  /** Largura de cada coluna (mm) na fonte do plano, na ordem da tabela. */
+  larguras: LargurasColunas;
 }
 
 /** Colunas repetidas em todas as partes quando a tabela é dividida. */
@@ -89,18 +91,22 @@ export function planejarFolha(
     for (const fontePt of fontes) {
       const l = medidas.get(fontePt) ?? [];
       if (soma(l) <= util)
-        return { orientacao, fontePt, partes: [l.map((c) => c.id)] };
+        return {
+          orientacao,
+          fontePt,
+          partes: [l.map((c) => c.id)],
+          larguras: l,
+        };
     }
   }
   const orientacao = orientacoes[orientacoes.length - 1];
   const fontePt = FONTE_MINIMA_PT;
+  const larguras = medidas.get(fontePt) ?? [];
   return {
     orientacao,
     fontePt,
-    partes: dividirColunas(
-      medidas.get(fontePt) ?? [],
-      larguraUtilMm(orientacao),
-    ),
+    partes: dividirColunas(larguras, larguraUtilMm(orientacao)),
+    larguras,
   };
 }
 
@@ -137,4 +143,89 @@ export function dividirColunas(
 export function descreverPlano(p: PlanoFolha): string {
   if (p.partes.length > 1) return 'Não cabe numa folha';
   return p.orientacao === 'retrato' ? 'Cabe em retrato' : 'Cabe em paisagem';
+}
+
+/** Uma coluna desenhada na miniatura da folha, em mm a partir da margem. */
+export interface ColunaMiniatura {
+  id: string;
+  x: number;
+  mm: number;
+  /** false: vai para a folha 2 em diante (sombreada na miniatura). */
+  naFolha: boolean;
+}
+
+export interface Miniatura {
+  orientacao: Orientacao;
+  /** Folha inteira, em mm. */
+  folha: { largura: number; altura: number };
+  /** Largura útil (sem as margens), em mm. */
+  util: number;
+  /**
+   * Colunas na ordem da folha 1: primeiro as que ficam nela, depois as que
+   * passam para as próximas folhas (as fixas não se repetem aqui).
+   */
+  colunas: ColunaMiniatura[];
+  /** Folhas que a tabela ocupa (1 se cabe). */
+  folhas: number;
+  /** Fonte reduzida pelo plano, em pt; null se ficou no tamanho normal. */
+  fonteReduzida: number | null;
+}
+
+/**
+ * Como desenhar a folha em escala a partir do plano (a mesma régua do PDF).
+ * Cabe numa folha: a descrição estica até a largura útil, como no papel.
+ * Não cabe: a descrição fica no mínimo medido, e as colunas que não estão na
+ * folha 1 vêm depois, passando da borda.
+ */
+export function miniaturaDoPlano(plano: PlanoFolha): Miniatura {
+  const util = larguraUtilMm(plano.orientacao);
+  const naFolha = new Set(plano.partes[0] ?? []);
+  const primeiras = plano.larguras.filter((c) => naFolha.has(c.id));
+  const demais = plano.larguras.filter((c) => !naFolha.has(c.id));
+  const sobra = util - soma(primeiras);
+  const esticar =
+    plano.partes.length === 1 && sobra > 0
+      ? primeiras.find((c) => c.id === 'descricao')
+      : undefined;
+  let x = 0;
+  const colunas = [...primeiras, ...demais].map((c) => {
+    const mm = c === esticar ? c.mm + sobra : c.mm;
+    const col = { id: c.id, x, mm, naFolha: naFolha.has(c.id) };
+    x += mm;
+    return col;
+  });
+  const retrato = plano.orientacao === 'retrato';
+  return {
+    orientacao: plano.orientacao,
+    folha: {
+      largura: retrato ? A4.largura : A4.altura,
+      altura: retrato ? A4.altura : A4.largura,
+    },
+    util,
+    colunas,
+    folhas: plano.partes.length,
+    fonteReduzida: plano.fontePt < FONTE_TABELA_PT ? plano.fontePt : null,
+  };
+}
+
+/** Número em pt com vírgula: 7.25 vira "7,25". */
+export const formatarPt = (pt: number) => String(pt).replace('.', ',');
+
+/** Avisos escritos na miniatura (letra reduzida, divisão em folhas). */
+export function avisosMiniatura(m: Miniatura): {
+  fonte: string | null;
+  divisao: string | null;
+} {
+  return {
+    fonte:
+      m.fonteReduzida === null
+        ? null
+        : `letra reduzida para ${formatarPt(m.fonteReduzida)} pt`,
+    divisao:
+      m.folhas <= 1
+        ? null
+        : m.folhas === 2
+          ? 'daqui em diante vai para a folha 2'
+          : `daqui em diante vai para as folhas 2 ${m.folhas === 3 ? 'e' : 'a'} ${m.folhas}`,
+  };
 }

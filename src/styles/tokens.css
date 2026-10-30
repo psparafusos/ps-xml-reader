@@ -145,6 +145,15 @@
   --largura-anotacao-previa-estreita: 50px;
   --largura-anotacao-previa-media: 80px;
   --largura-anotacao-previa-larga: 130px;
+  /* Miniatura da folha A4: escala do desenho em mm, sombreado das colunas
+     que vão para a folha 2 e largura do aviso na borda. */
+  --escala-miniatura: 0.36;
+  --cor-sombra-fora: color-mix(
+    in srgb,
+    var(--aviso-erro-fundo) 22%,
+    transparent
+  );
+  --largura-aviso-corte: 180px;
   /* Contorno de foco inteiro dentro de áreas que rolam. */
   --folga-foco: calc(
     var(--botao-foco-espessura) + var(--botao-foco-afastamento)

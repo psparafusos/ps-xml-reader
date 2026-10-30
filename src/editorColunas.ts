@@ -18,15 +18,16 @@ import {
   LIMITE_TITULO,
   type ConfigConferencia,
 } from './nfe/config';
-import type { Item } from './nfe/tipos';
+import type { Anotacoes, Item } from './nfe/tipos';
 import {
   descreverPlano,
+  formatarPt,
   ORIENTACOES_CONFIG,
   ROTULO_ORIENTACAO,
-  type OrientacaoConfig,
   type PlanoFolha,
 } from './nfe/folha';
-import { botao, comSetasDeRolagem, el, icone } from './dom';
+import { botao, comSetasDeRolagem, el, icone, navegarMenu } from './dom';
+import { desenharMiniatura } from './miniaturaFolha';
 import { perguntar, pedirTexto } from './dialogos';
 import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
 
@@ -52,10 +53,21 @@ export interface AcoesEditor {
   >;
   restaurar(): Promise<ResultadoPerfis | { status: 'cancelado' }>;
   /**
-   * Como a tabela da nota aberta iria para a folha com esta configuração
-   * (para o indicador); null sem nota ou sem itens.
+   * Como a tabela iria para a folha com esta configuração (indicador e
+   * miniatura), pela mesma régua do PDF: medida com os itens da nota aberta
+   * ou, sem nota, com os itens e anotações de exemplo.
    */
-  plano(config: ConfigConferencia): PlanoFolha | null;
+  plano(
+    config: ConfigConferencia,
+    exemplo: Item[],
+    anotacoesExemplo: Anotacoes,
+  ): { plano: PlanoFolha; daNota: boolean };
+  /** Cópia da tabela para a folha com estes itens e anotações. */
+  tabelaFolha(
+    config: ConfigConferencia,
+    itens: Item[],
+    anotacoes: Anotacoes,
+  ): HTMLTableElement;
 }
 
 /** Itens fictícios da prévia (nunca vêm de uma nota). */
@@ -116,6 +128,174 @@ const ITENS_PREVIA: Item[] = [
     '3.95',
     '9.48',
   ],
+  [
+    '5',
+    'PAR-0616',
+    '7890000000055',
+    'PARAFUSO ALLEN M6 X 16 INOX',
+    '73181500',
+    '5102',
+    'PC',
+    '200',
+    '0.31',
+    '62.00',
+    '0',
+    '7.44',
+  ],
+  [
+    '6',
+    'BUC-0800',
+    '7890000000062',
+    'BUCHA DE NYLON 8 MM',
+    '39269090',
+    '5102',
+    'PC',
+    '500',
+    '0.04',
+    '20.00',
+    '0',
+    '2.40',
+  ],
+  [
+    '7',
+    'ABR-0350',
+    '',
+    'ABRACADEIRA NYLON 3,5 X 150 MM',
+    '39269090',
+    '5102',
+    'PC',
+    '1000',
+    '0.03',
+    '30.00',
+    '0',
+    '3.60',
+  ],
+  [
+    '8',
+    'DIS-1150',
+    '7890000000086',
+    'DISCO DE CORTE 115 X 1,0 MM',
+    '68042211',
+    '5102',
+    'UN',
+    '25',
+    '3.20',
+    '80.00',
+    '4.00',
+    '9.60',
+  ],
+  [
+    '9',
+    'FIT-1950',
+    '7890000000093',
+    'FITA ISOLANTE 19 MM X 20 M',
+    '39191010',
+    '5102',
+    'UN',
+    '12',
+    '4.50',
+    '54.00',
+    '0',
+    '6.48',
+  ],
+  [
+    '10',
+    'LUV-0009',
+    '7890000000109',
+    'LUVA DE PROTECAO TAMANHO 9',
+    '61161000',
+    '5102',
+    'PR',
+    '30',
+    '6.80',
+    '204.00',
+    '0',
+    '24.48',
+  ],
+  [
+    '11',
+    'OCU-0001',
+    '7890000000116',
+    'OCULOS DE SEGURANCA INCOLOR',
+    '90049020',
+    '5102',
+    'UN',
+    '20',
+    '9.90',
+    '198.00',
+    '0',
+    '23.76',
+  ],
+  [
+    '12',
+    'PAR-1040',
+    '7890000000123',
+    'PARAFUSO SEXTAVADO M10 X 40 ZINCADO',
+    '73181500',
+    '5102',
+    'PC',
+    '100',
+    '0.68',
+    '68.00',
+    '0',
+    '8.16',
+  ],
+  [
+    '13',
+    'POR-1000',
+    '7890000000130',
+    'PORCA SEXTAVADA M10 ZINCADA',
+    '73181600',
+    '5102',
+    'PC',
+    '100',
+    '0.14',
+    '14.00',
+    '0',
+    '1.68',
+  ],
+  [
+    '14',
+    'TRV-0024',
+    '7890000000147',
+    'TRAVA ROSCA MEDIA 10 G',
+    '35069190',
+    '5102',
+    'UN',
+    '6',
+    '18.90',
+    '113.40',
+    '5.67',
+    '13.61',
+  ],
+  [
+    '15',
+    'ROD-0606',
+    '',
+    'RODA DE NYLON 6 POL',
+    '87168000',
+    '5102',
+    'UN',
+    '4',
+    '27.50',
+    '110.00',
+    '0',
+    '13.20',
+  ],
+  [
+    '16',
+    'BRO-1000',
+    '7890000000161',
+    'BROCA ACO RAPIDO 10 MM',
+    '82075011',
+    '5102',
+    'UN',
+    '5',
+    '14.30',
+    '71.50',
+    '3.58',
+    '8.58',
+  ],
 ].map(
   ([
     nItem,
@@ -150,8 +330,26 @@ const ITENS_PREVIA: Item[] = [
   }),
 );
 
+/** Itens da prévia de cima; a miniatura da folha usa todos. */
+const ITENS_TOPO = 4;
+
 /** Texto fictício nas anotações da prévia, só na primeira linha. */
 const TEXTO_PREVIA_ANOTACAO = 'Conferido';
+
+/** Anotações de exemplo: o texto fictício na primeira anotação marcada. */
+function anotacoesExemplo(c: ColunaItem[]): Anotacoes {
+  const primeira = c.find((x) => x.visivel && x.anotacao);
+  return new Map(
+    primeira
+      ? [
+          [
+            primeira.id,
+            new Map([[ITENS_PREVIA[0].nItem, TEXTO_PREVIA_ANOTACAO]]),
+          ],
+        ]
+      : [],
+  );
+}
 
 let dialogo: HTMLDialogElement | null = null;
 /** Atualiza o painel aberto com perfis que mudaram em outra janela. */
@@ -248,21 +446,39 @@ export function abrirEditorColunas(
     el('span', '', 'Criar'),
   );
   const previa = el('div', 'previa');
-  // Orientação da Conferência no PDF e na impressão, e se a tabela da nota
-  // aberta cabe numa folha com o rascunho.
-  const orientacao = el(
-    'select',
-    'painel__orientacao',
-    ...ORIENTACOES_CONFIG.map((o) => {
-      const op = el('option', '', ROTULO_ORIENTACAO[o]);
-      op.value = o;
-      return op;
-    }),
+  const miniatura = el('div', 'painel__miniatura');
+  // Orientação da Conferência no PDF e na impressão (botões lado a lado, como
+  // o seletor Conferência | DANFE), e se a tabela cabe numa folha.
+  const rotuloOrientacao = el(
+    'span',
+    'painel__folha-rotulo',
+    'Orientação da folha',
   );
-  orientacao.addEventListener('change', () => {
-    rascunho.orientacao = orientacao.value as OrientacaoConfig;
-    desenharIndicador();
+  rotuloOrientacao.id = 'rotulo-orientacao';
+  const botoesOrientacao = ORIENTACOES_CONFIG.map((o) => {
+    const b = botao('seletor__opcao', ROTULO_ORIENTACAO[o]);
+    b.dataset.orientacao = o;
+    b.addEventListener('click', () => {
+      if (rascunho.orientacao === o) return;
+      rascunho.orientacao = o;
+      desenharIndicador();
+    });
+    return b;
   });
+  const orientacao = el(
+    'div',
+    'seletor painel__orientacao',
+    ...botoesOrientacao,
+  );
+  orientacao.setAttribute('role', 'group');
+  orientacao.setAttribute('aria-labelledby', rotuloOrientacao.id);
+  // Menu da largura das anotações: um só, aberto junto do botão da coluna.
+  // Fica na camada de cima (popover) para a rolagem da lista não cortar.
+  const menuLargura = el('div', 'menu-largura');
+  menuLargura.id = 'menu-largura';
+  menuLargura.popover = 'manual';
+  menuLargura.setAttribute('role', 'menu');
+  let donoMenuLargura: HTMLButtonElement | null = null;
   const indicador = el('p', 'painel__indicador');
   indicador.setAttribute('role', 'status');
   const status = el('p', 'painel__status');
@@ -330,18 +546,9 @@ export function abrirEditorColunas(
         'section',
         'painel__previa',
         el('h3', 'painel__subtitulo', 'Prévia'),
-        el(
-          'div',
-          'painel__folha',
-          el(
-            'label',
-            'painel__folha-rotulo',
-            'Orientação da folha',
-            orientacao,
-          ),
-          indicador,
-        ),
+        el('div', 'painel__folha', rotuloOrientacao, orientacao, indicador),
         comSetasDeRolagem(previa),
+        miniatura,
       ),
     ),
     erro,
@@ -352,6 +559,7 @@ export function abrirEditorColunas(
       el('div', 'painel__grupo', btnCancelar, btnAplicar),
     ),
     avisoPainel,
+    menuLargura,
   );
   d.setAttribute('aria-labelledby', titulo.id);
   dialogo = d;
@@ -443,29 +651,96 @@ export function abrirEditorColunas(
   }
 
   /**
-   * Largura da caixa de uma coluna de anotação: Estreita, Média ou Larga.
-   * Fica no lugar da marca "anotação" (só as colunas de anotação têm).
+   * Largura da caixa de uma coluna de anotação: Automática, Estreita, Média
+   * ou Larga. Botão que abre o menu de opções (só as colunas de anotação têm).
    */
-  function seletorLargura(c: ColunaItem): HTMLSelectElement {
-    const s = el(
-      'select',
+  function seletorLargura(c: ColunaItem): HTMLButtonElement {
+    const atual = c.largura ?? 'automatica';
+    const b = botao(
       'colunas-lista__largura',
+      el('span', '', ROTULO_LARGURA[atual]),
+      icone('M6 9l6 6 6-6'),
+    );
+    b.setAttribute('aria-haspopup', 'menu');
+    b.setAttribute('aria-expanded', 'false');
+    b.setAttribute('aria-controls', menuLargura.id);
+    b.setAttribute(
+      'aria-label',
+      `Largura da coluna ${c.rotulo}: ${ROTULO_LARGURA[atual]}`,
+    );
+    b.title = 'Largura da caixa de anotação, na tela e na folha';
+    b.addEventListener('click', () => {
+      if (donoMenuLargura === b) fecharMenuLargura();
+      else abrirMenuLargura(b, c);
+    });
+    return b;
+  }
+
+  /** Abre o menu de largura embaixo do botão `b`, com o foco na marcada. */
+  function abrirMenuLargura(b: HTMLButtonElement, c: ColunaItem): void {
+    fecharMenuLargura();
+    const cfg = rascunho.colunas.find((x) => x.id === c.id);
+    const atual = cfg?.largura ?? 'automatica';
+    menuLargura.setAttribute('aria-label', `Largura da coluna ${c.rotulo}`);
+    menuLargura.replaceChildren(
       ...LARGURAS_ANOTACAO.map((l) => {
-        const o = el('option', '', ROTULO_LARGURA[l]);
-        o.value = l;
+        const o = botao(
+          'perfil-rapido__opcao',
+          el('span', 'perfil-rapido__marca', l === atual ? '✓' : ''),
+          el('span', 'perfil-rapido__texto', ROTULO_LARGURA[l]),
+        );
+        o.setAttribute('role', 'menuitemradio');
+        o.setAttribute('aria-checked', String(l === atual));
+        o.addEventListener('click', () => escolherLargura(b, c, l));
         return o;
       }),
     );
-    s.value = c.largura ?? 'automatica';
-    s.setAttribute('aria-label', `Largura da coluna ${c.rotulo}`);
-    s.title = 'Largura da caixa de anotação, na tela e na folha';
-    s.addEventListener('change', () => {
-      const cfg = rascunho.colunas.find((x) => x.id === c.id);
-      if (cfg) cfg.largura = s.value as LarguraAnotacao;
-      desenharPrevia();
-    });
-    return s;
+    donoMenuLargura = b;
+    b.setAttribute('aria-expanded', 'true');
+    menuLargura.showPopover();
+    // Embaixo do botão, alinhado pela direita dele.
+    const r = b.getBoundingClientRect();
+    menuLargura.style.top = `${r.bottom}px`;
+    menuLargura.style.left = `${Math.max(0, r.right - menuLargura.offsetWidth)}px`;
+    (
+      menuLargura.querySelector<HTMLElement>('[aria-checked="true"]') ??
+      menuLargura.querySelector<HTMLElement>('button')
+    )?.focus();
   }
+
+  function escolherLargura(
+    b: HTMLButtonElement,
+    c: ColunaItem,
+    l: LarguraAnotacao,
+  ): void {
+    const cfg = rascunho.colunas.find((x) => x.id === c.id);
+    if (cfg) cfg.largura = l;
+    fecharMenuLargura();
+    // Só o botão é trocado (com o nome novo), para o foco voltar a ele.
+    const novo = seletorLargura({ ...c, largura: l });
+    b.replaceWith(novo);
+    novo.focus();
+    desenharPrevia();
+  }
+
+  function fecharMenuLargura(focarBotao = false): void {
+    const dono = donoMenuLargura;
+    if (!dono) return;
+    donoMenuLargura = null;
+    dono.setAttribute('aria-expanded', 'false');
+    menuLargura.hidePopover();
+    if (focarBotao) dono.focus();
+  }
+
+  // O menu fica no fim do painel: ao fechar (Esc ou Tab) o foco volta ao
+  // botão, e o Tab segue dali.
+  menuLargura.addEventListener('keydown', (e) =>
+    navegarMenu(
+      e,
+      [...menuLargura.querySelectorAll<HTMLElement>('button')],
+      () => fecharMenuLargura(true),
+    ),
+  );
 
   /**
    * Arrastar pela alça: a linha segue o ponteiro na vertical e troca de lugar
@@ -584,7 +859,7 @@ export function abrirEditorColunas(
         '',
         el('tr', '', ...visiveis.map((c) => el('th', classe(c), c.rotulo))),
       ),
-      ...ITENS_PREVIA.map((i, n) =>
+      ...ITENS_PREVIA.slice(0, ITENS_TOPO).map((i, n) =>
         el(
           'tbody',
           'item',
@@ -621,28 +896,41 @@ export function abrirEditorColunas(
   }
 
   /**
-   * "Cabe em retrato", "Cabe em paisagem" ou "Não cabe numa folha", medido
-   * com os itens da nota aberta e o rascunho (colunas, larguras, orientação).
+   * "Cabe em retrato", "Cabe em paisagem" ou "Não cabe numa folha", e a
+   * miniatura da folha, medidos com o rascunho (colunas, larguras,
+   * orientação) e os itens da nota aberta (ou os de exemplo).
    */
   function desenharIndicador(): void {
-    orientacao.value = rascunho.orientacao;
-    let plano: PlanoFolha | null = null;
+    for (const b of botoesOrientacao)
+      b.setAttribute(
+        'aria-pressed',
+        String(b.dataset.orientacao === rascunho.orientacao),
+      );
+    let medida: { plano: PlanoFolha; daNota: boolean } | null = null;
+    let tabelaFolha: HTMLTableElement | null = null;
+    const exemplo = anotacoesExemplo(colunas());
     try {
-      plano = rascunho.colunas.some((c) => c.visivel)
-        ? acoes.plano(rascunho)
-        : null;
+      if (rascunho.colunas.some((c) => c.visivel)) {
+        medida = acoes.plano(rascunho, ITENS_PREVIA, exemplo);
+        tabelaFolha = acoes.tabelaFolha(rascunho, ITENS_PREVIA, exemplo);
+      }
     } catch (e) {
       console.error(e);
     }
-    indicador.hidden = plano === null;
-    if (!plano) return;
-    const texto = descreverPlano(plano);
-    indicador.textContent = texto;
+    indicador.hidden = medida === null;
+    if (!medida || !tabelaFolha) {
+      miniatura.replaceChildren();
+      return;
+    }
+    const { plano, daNota } = medida;
+    indicador.textContent = descreverPlano(plano);
     indicador.dataset.cabe = String(plano.partes.length === 1);
+    const deQuem = daNota ? 'A tabela da nota aberta' : 'A tabela de exemplo';
     indicador.title =
       plano.partes.length > 1
-        ? `Mesmo com a fonte em 7 pt, a tabela sai dividida em ${plano.partes.length} partes, cada uma numa folha.`
-        : `Fonte da tabela na folha: ${String(plano.fontePt).replace('.', ',')} pt.`;
+        ? `${deQuem}, mesmo com a fonte em 7 pt, sai dividida em ${plano.partes.length} partes, cada uma numa folha.`
+        : `${deQuem}: fonte na folha em ${formatarPt(plano.fontePt)} pt.`;
+    miniatura.replaceChildren(desenharMiniatura(tabelaFolha, plano, daNota));
   }
 
   function desenharPerfis(): void {
@@ -825,6 +1113,7 @@ export function abrirEditorColunas(
   }
 
   function desenhar(): void {
+    fecharMenuLargura();
     desenharPerfis();
     lista.replaceChildren(...colunas().map(linha));
     desenharProntas();
@@ -834,6 +1123,7 @@ export function abrirEditorColunas(
   // ---------- ações ----------
 
   function fechar(): void {
+    fecharMenuLargura();
     d.close();
     d.remove();
     if (dialogo === d) {
@@ -940,6 +1230,8 @@ export function abrirEditorColunas(
   d.addEventListener('mousedown', (e) => {
     const alvo = e.target as Node;
     if (!menuPerfis.contains(alvo) && !btnTrocar.contains(alvo)) fecharMenu();
+    if (!menuLargura.contains(alvo) && !donoMenuLargura?.contains(alvo))
+      fecharMenuLargura();
   });
 
   btnNovoPerfil.addEventListener('click', () => {
