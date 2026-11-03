@@ -126,6 +126,14 @@
   --aviso-sucesso-texto: var(--ps-branco);
   --aviso-erro-fundo: #b42318;
   --aviso-erro-texto: var(--ps-branco);
+  /* Avisos da nota: fundo da faixa com avisos e da linha com quantidade
+     divergente (tela, PDF e impressão). */
+  --cor-alerta-suave: color-mix(
+    in srgb,
+    var(--aviso-erro-fundo) 12%,
+    var(--ps-branco)
+  );
+  --largura-detalhe-aviso: 760px;
   --aviso-info-fundo: var(--ps-preto);
   --aviso-info-texto: var(--ps-branco);
   --aviso-duracao: 1500ms;

@@ -143,6 +143,32 @@ export const COLUNAS_ITENS: ColunaItem[] = [
     valor: (i) => i.cEAN,
     ordenacao: 'texto',
   },
+  {
+    id: 'pedido',
+    rotulo: 'Pedido',
+    alinhamento: 'esquerda',
+    visivel: false,
+    valor: (i) => i.xPed,
+    ordenacao: 'texto',
+  },
+  {
+    id: 'ibs',
+    rotulo: 'IBS',
+    alinhamento: 'direita',
+    visivel: false,
+    valor: (i) => f.valor(i.vIBS),
+    ordenacao: 'numero',
+    chave: (i) => i.vIBS,
+  },
+  {
+    id: 'cbs',
+    rotulo: 'CBS',
+    alinhamento: 'direita',
+    visivel: false,
+    valor: (i) => f.valor(i.vCBS),
+    ordenacao: 'numero',
+    chave: (i) => i.vCBS,
+  },
 ];
 
 /**

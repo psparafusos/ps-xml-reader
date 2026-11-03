@@ -1,6 +1,14 @@
 /// <reference types="@electron-forge/plugin-vite/forge-vite-env" />
 declare module '*.css';
 
+/** .psxml com a mesma chave da nota aberta (aviso de nota já conferida). */
+interface ArquivoConferido {
+  caminho: string;
+  nome: string;
+  /** Data de modificação (ISO). */
+  modificado: string;
+}
+
 interface ArquivoAberto {
   /** Nome do arquivo, com extensão. */
   nome: string;
@@ -228,6 +236,12 @@ interface PsApi {
   ): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */
   versao(): Promise<string>;
+  /** CNPJ da empresa (config.json, ou o padrão), só dígitos. */
+  cnpjEmpresa(): Promise<string>;
+  /** .psxml da pasta de destino em uso com a mesma chave (nota já conferida). */
+  buscarConferidos(chave: string, nNF: string): Promise<ArquivoConferido[]>;
+  /** Abre numa janela nova um .psxml achado por buscarConferidos. */
+  abrirConferido(caminho: string): Promise<boolean>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
   imprimir(modo: ModoImpressao, paisagem: boolean): Promise<ResultadoImprimir>;
   /** Avisa o processo principal se há anotações alteradas e não salvas. */

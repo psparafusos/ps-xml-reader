@@ -327,6 +327,9 @@ const ITENS_PREVIA: Item[] = [
     vIPI,
     vICMS,
     cstIcms: '',
+    xPed: `PED-${4500 + Number(nItem)}`,
+    vIBS: '',
+    vCBS: '',
   }),
 );
 

@@ -53,6 +53,11 @@ export interface Item {
   vICMS: string;
   /** Tributação do ICMS: orig + CST (ou orig + CSOSN), como no DANFE. */
   cstIcms: string;
+  /** Número do pedido de compra (xPed). */
+  xPed: string;
+  /** IBS e CBS do item (reforma tributária, grupo IBSCBS). */
+  vIBS: string;
+  vCBS: string;
 }
 
 export interface Totais {

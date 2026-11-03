@@ -38,6 +38,15 @@ import { montarDanfe } from './danfe/danfe';
 import type { Anotacoes, Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
 import {
+  avisosDaNota,
+  CNPJ_EMPRESA_PADRAO,
+  ID_QTD_RECEBIDA,
+  textoAviso,
+  type Aviso,
+  type Conferido,
+} from './nfe/avisos';
+import { desenharFaixa } from './faixaAvisos';
+import {
   abrirEditorColunas,
   atualizarEditor,
   editorAberto,
@@ -253,6 +262,7 @@ function aplicarConfig(nova: ConfigConferencia): void {
   const y = window.scrollY;
   notaEl.replaceChildren(...conteudoNota(aberto.lido.nota));
   aplicarOrdem();
+  atualizarAvisos();
   window.scrollTo(window.scrollX, y);
 }
 
@@ -580,6 +590,7 @@ function celulaAnotacao(
     if (daColuna.size === 0) anotacoes.delete(coluna.id);
     espelho.textContent = campoTexto.value;
     atualizarPendentes();
+    if (coluna.id === ID_QTD_RECEBIDA) atualizarAvisos();
   });
 
   td.append(campoTexto, espelho);
@@ -1129,6 +1140,7 @@ const barraFornecedor = $('barra-fornecedor');
 const barraNota = $('barra-nota');
 const barraCopia = $('barra-copia');
 const notaEl = $('nota');
+const faixaAvisos = $('faixa-avisos');
 /** Documento do "Salvar PDF" da tela de escolha (fora da tela). */
 const previaEl = $('pdf-previa');
 const btnFecharEscolha = $('btn-fechar-escolha') as HTMLButtonElement;
@@ -1277,6 +1289,7 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
   danfeEl.hidden = tela !== 'danfe';
+  faixaAvisos.hidden = tela !== 'nota';
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
     document.body.dataset.modo = modoAtual;
@@ -1289,6 +1302,7 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   }
   window.scrollTo(0, 0);
   aplicarZoom();
+  if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
 }
 
 // ---------- zoom da área de visualização ----------
@@ -1471,6 +1485,117 @@ function conteudoNota(
   ];
 }
 
+// ---------- avisos da nota (faixa, destaque e pop-ups ao abrir) ----------
+
+/** CNPJ da empresa (config.json ou o padrão), lido a cada nota aberta. */
+let cnpjEmpresa = CNPJ_EMPRESA_PADRAO;
+/** .psxml da pasta de destino com a mesma chave da nota aberta. */
+let conferidosAtuais: Conferido[] = [];
+/** CNPJ e conferidos já chegaram para a nota aberta. */
+let avisosProntos = false;
+/** Os pop-ups da nota aberta ainda não apareceram. */
+let popupsPendentes = false;
+/** Descarta respostas atrasadas de uma nota que já foi trocada. */
+let geracaoAvisos = 0;
+
+/** Avisos da nota aberta com o que está na tela agora. */
+function avisosAtuais(): Aviso[] {
+  if (!aberto || !avisosProntos) return [];
+  return avisosDaNota({
+    nota: aberto.lido.nota,
+    anotacoes,
+    comQtdRecebida: colunasAtuais().some(
+      (c) => c.id === ID_QTD_RECEBIDA && c.visivel,
+    ),
+    cnpjEmpresa,
+    conferidos: conferidosAtuais,
+  });
+}
+
+/**
+ * Redesenha a faixa e o destaque vermelho das linhas com quantidade
+ * divergente (a classe vai junto para as cópias do PDF e da impressão).
+ */
+function atualizarAvisos(): void {
+  const avisos = avisosAtuais();
+  if (avisosProntos)
+    desenharFaixa(faixaAvisos, avisos, (c) => void abrirConferido(c));
+  else faixaAvisos.replaceChildren();
+  const divergentes = new Set(
+    avisos.flatMap((a) => (a.tipo === 'qtd' ? [a.nItem] : [])),
+  );
+  for (const [nItem, tbody] of corposItens)
+    tbody.classList.toggle('item--divergente', divergentes.has(nItem));
+}
+
+async function abrirConferido(c: Conferido): Promise<void> {
+  if (!(await window.psApi.abrirConferido(c.caminho)))
+    mostrarMensagem(`Não foi possível abrir ${c.nome}.`, 'erro');
+}
+
+/**
+ * Nota recém-lida: busca o CNPJ da empresa e os .psxml já conferidos da
+ * pasta de destino (sem travar a abertura) e depois mostra a faixa e os
+ * pop-ups.
+ */
+async function prepararAvisos(n: Nota): Promise<void> {
+  const geracao = ++geracaoAvisos;
+  avisosProntos = false;
+  popupsPendentes = true;
+  conferidosAtuais = [];
+  faixaAvisos.dataset.aberta = 'false';
+  atualizarAvisos();
+  const [cnpj, conferidos] = await Promise.all([
+    window.psApi.cnpjEmpresa().catch(() => CNPJ_EMPRESA_PADRAO),
+    window.psApi.buscarConferidos(n.chave, n.ide.nNF).catch((erro: unknown) => {
+      console.error(erro);
+      return [];
+    }),
+  ]);
+  if (geracao !== geracaoAvisos) return;
+  cnpjEmpresa = cnpj;
+  conferidosAtuais = conferidos;
+  avisosProntos = true;
+  atualizarAvisos();
+  await avisarAoAbrir();
+}
+
+/**
+ * Pop-ups da nota de outra empresa e da nota já conferida, uma vez por nota
+ * aberta, quando a Conferência ou o DANFE aparece (não na tela de escolha).
+ */
+async function avisarAoAbrir(): Promise<void> {
+  if (!popupsPendentes || !avisosProntos) return;
+  if (notaEl.hidden && danfeEl.hidden) return;
+  popupsPendentes = false;
+  const geracao = geracaoAvisos;
+  for (const a of avisosAtuais()) {
+    if (geracao !== geracaoAvisos) return;
+    const { titulo, detalhe } = textoAviso(a);
+    if (a.tipo === 'outra-empresa') {
+      await perguntar({
+        titulo,
+        texto: `${detalhe} O CNPJ da empresa é ${f.cnpj(cnpjEmpresa)}.`,
+        botoes: [{ rotulo: 'Entendi', valor: 'ok', principal: true }],
+        cancelar: 'ok',
+      });
+    } else if (a.tipo === 'conferido') {
+      const r = await perguntar({
+        titulo,
+        texto: detalhe,
+        botoes: [
+          { rotulo: 'Abrir em nova janela', valor: 'abrir' },
+          { rotulo: 'Continuar nesta nota', valor: 'ok', principal: true },
+        ],
+        cancelar: 'ok',
+      });
+      if (r === 'abrir') await abrirConferido(a.arquivo);
+      // Só o mais recente vira pop-up; os outros ficam na faixa.
+      break;
+    }
+  }
+}
+
 function exibirNota(): void {
   if (!aberto) return;
   const n = aberto.lido.nota;
@@ -1481,6 +1606,7 @@ function exibirNota(): void {
 
   conferenciaMontada = true;
   aplicarOrdem();
+  atualizarAvisos();
   mostrarTela('nota');
 }
 
@@ -1768,6 +1894,7 @@ function carregar(
     titulosLidos.clear();
     for (const [id, t] of lido.titulosAnotacoes) titulosLidos.set(id, t);
     marcarGravadas();
+    void prepararAvisos(lido.nota);
     // Ordem gravada na cópia editada; cópia antiga (sem <ordem>) ou critério
     // desconhecido (por exemplo, coluna escondida): ordem da nota.
     ordemAtual =
@@ -2435,6 +2562,11 @@ function limparNota(): void {
   fecharSobreposicao();
   escolha = null;
   aberto = null;
+  // Respostas atrasadas da busca de avisos não valem mais.
+  geracaoAvisos++;
+  avisosProntos = false;
+  popupsPendentes = false;
+  faixaAvisos.replaceChildren();
   conferenciaMontada = false;
   danfeMontado = false;
   danfeEl.replaceChildren();

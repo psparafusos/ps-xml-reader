@@ -115,6 +115,8 @@ function lerItem(det: Element): Item {
   // O grupo do ICMS (ICMS00, ICMSSN101...) é o único filho de <ICMS>.
   const grupoIcms = filho(imposto, 'ICMS')?.firstElementChild ?? null;
   const cst = texto(grupoIcms, 'CST') || texto(grupoIcms, 'CSOSN');
+  // IBS e CBS: vIBS (soma de UF e município) e vCBS ficam dentro de IBSCBS.
+  const ibsCbs = filho(imposto, 'IBSCBS');
   return {
     nItem: det.getAttribute('nItem')?.trim() ?? '',
     cProd: texto(prod, 'cProd'),
@@ -132,6 +134,9 @@ function lerItem(det: Element): Item {
     vIPI,
     vICMS,
     cstIcms: cst ? `${texto(grupoIcms, 'orig')}${cst}` : '',
+    xPed: texto(prod, 'xPed'),
+    vIBS: descendente(ibsCbs, 'vIBS')?.textContent?.trim() ?? '',
+    vCBS: descendente(ibsCbs, 'vCBS')?.textContent?.trim() ?? '',
   };
 }
 

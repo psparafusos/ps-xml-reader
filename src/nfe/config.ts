@@ -146,11 +146,14 @@ export function idDaAnotacao(titulo: string): string {
 /**
  * Problema com o título de uma nova anotação extra, ou null se pode criar.
  * Repetido: igual (sem contar acento, maiúscula e pontuação) ao rótulo de
- * outra coluna ou ao título de outra anotação.
+ * outra coluna ou ao título de outra anotação. `comColunas` false: só entre
+ * as anotações (perfil salvo: uma coluna nova do app, como Pedido, não pode
+ * invalidar uma anotação criada antes com o mesmo título).
  */
 export function problemaTitulo(
   titulo: string,
   anotacoes: AnotacaoExtra[],
+  comColunas = true,
 ): string | null {
   const t = titulo.trim();
   if (!t) return 'Digite o título da anotação.';
@@ -159,7 +162,7 @@ export function problemaTitulo(
   const chave = semAcento(t);
   if (!chave) return 'O título precisa ter letras ou números.';
   const existentes = [
-    ...COLUNAS_ITENS.map((c) => c.rotulo),
+    ...(comColunas ? COLUNAS_ITENS.map((c) => c.rotulo) : []),
     ...anotacoes.map((a) => a.titulo),
   ];
   if (existentes.some((e) => semAcento(e) === chave))
@@ -196,7 +199,7 @@ function validarAnotacoes(v: unknown): AnotacaoExtra[] {
     const titulo = a.titulo.trim();
     if (!ID_ANOTACAO_VALIDO.test(a.id) || a.id !== idDaAnotacao(titulo))
       falha(`O id da anotação "${titulo}" não confere com o título.`);
-    const problema = problemaTitulo(titulo, lidas);
+    const problema = problemaTitulo(titulo, lidas, false);
     if (problema) falha(`Anotação "${titulo}": ${problema}`);
     lidas.push({ id: a.id, titulo });
   }

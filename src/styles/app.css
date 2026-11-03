@@ -382,11 +382,16 @@ ul {
   color: var(--cor-texto-sobre-destaque);
 }
 
+/* Sem cor própria de hover: a miniatura fica dentro deste botão e os botões
+   Abrir aqui e Nova janela ficam por cima dela, fora dele. Com hover preto
+   aqui, a cor trocava ao passar da miniatura para os botões (e sobrava a
+   borda preta ao sair). O único estado de destaque é o da prévia
+   desfocada, em .modo__item:has(...) abaixo. */
 .modo__opcao:hover:not(:disabled),
 .modo__opcao:active:not(:disabled) {
-  background: var(--ps-preto);
-  border-color: var(--ps-preto);
-  color: var(--ps-branco);
+  background: var(--cor-destaque);
+  border-color: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
 }
 
 /* DANFE indisponível: fundo de botão secundário e texto legível, para o
@@ -708,6 +713,114 @@ ul {
 }
 
 /* ---------- avisos ---------- */
+
+/* ---------- faixa de avisos da nota (Conferência, só na tela) ---------- */
+
+.faixa-avisos {
+  padding: var(--esp-2) var(--esp-5);
+  border-bottom: var(--borda) solid var(--cor-borda-suave);
+  font-size: var(--fs-sm);
+}
+
+.faixa-avisos[data-estado='avisos'] {
+  border-bottom-color: var(--aviso-erro-fundo);
+  background: var(--cor-alerta-suave);
+}
+
+/* Nada a apontar: discreto, em cinza. */
+.faixa-avisos__ok {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  color: var(--cor-texto);
+  font-size: var(--fs-xs);
+}
+
+.faixa-avisos__marca {
+  font-weight: var(--peso-forte);
+}
+
+.faixa-avisos__contador {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-3);
+  border: var(--borda) solid var(--aviso-erro-fundo);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-weight: var(--peso-forte);
+  cursor: pointer;
+}
+
+.faixa-avisos__contador:hover {
+  background: var(--cor-alerta-suave);
+}
+
+.faixa-avisos__contador:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.faixa-avisos__contador .icone {
+  width: 14px;
+  height: 14px;
+}
+
+.faixa-avisos__icone {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
+  font-size: var(--fs-xs);
+}
+
+.faixa-avisos__lista {
+  display: grid;
+  gap: var(--esp-2);
+  max-width: var(--largura-detalhe-aviso);
+  margin: var(--esp-2) 0 var(--esp-1);
+  padding: 0;
+  list-style: none;
+}
+
+.faixa-avisos__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-1) var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border-left: var(--borda-destaque) solid var(--aviso-erro-fundo);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+}
+
+.faixa-avisos__titulo {
+  color: var(--cor-texto-forte);
+}
+
+.faixa-avisos__detalhe {
+  flex-basis: 100%;
+  color: var(--cor-texto);
+}
+
+.faixa-avisos__abrir {
+  margin-top: var(--esp-1);
+}
+
+/* Linha com a quantidade recebida diferente da nota: em vermelho na tela,
+   no PDF e na impressão (a cópia da folha leva a classe). */
+.tabela > tbody.item--divergente > tr > td {
+  background: var(--cor-alerta-suave);
+}
+
+.tabela > tbody.item--divergente > .item__linha > td:first-child {
+  box-shadow: inset var(--borda-destaque) 0 0 var(--aviso-erro-fundo);
+}
 
 /* Erro: fixo no rodapé da janela, visível em qualquer rolagem, até fechar. */
 .mensagem {

@@ -31,6 +31,9 @@ function item(nItem: string, extra: Partial<Item> = {}): Item {
     vIPI: '',
     vICMS: '',
     cstIcms: '',
+    xPed: '',
+    vIBS: '',
+    vCBS: '',
     ...extra,
   };
 }

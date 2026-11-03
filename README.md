@@ -9,6 +9,23 @@ chamada de rede.
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
 
+## Versão 1.2.0
+
+- **Avisos da nota** na Conferência, numa faixa logo abaixo da barra amarela:
+  quantidade recebida diferente da nota, totais que não fecham, nota de outra
+  empresa e nota já conferida. Sem nada a apontar, a faixa diz só
+  "Nada a apontar nesta nota". A faixa não sai no PDF nem na impressão.
+- **Colunas novas** no Editar colunas, escondidas no começo: **Pedido**
+  (`xPed`), **IBS** e **CBS** (`vIBS` e `vCBS` de cada item).
+- **Prévia em folha** no Editar colunas: uma miniatura da folha A4 em escala,
+  com a mesma régua do PDF (orientação, letra reduzida e divisão em folhas).
+- **Orientação** em botões lado a lado (Automática, Retrato, Paisagem) e
+  **largura das anotações** num menu do próprio app, com a mesma navegação
+  por teclado do seletor de perfil.
+- Tela de escolha: o destaque da prévia é um só (amarelo claro, desfocado),
+  com o mouse na miniatura ou nos botões **Abrir aqui** e **Nova janela**, e
+  some sem deixar borda ao sair.
+
 ## Versão 1.1.2
 
 - Tela de escolha: o desfoque da prévia com **Abrir aqui** e **Nova janela**
@@ -157,6 +174,7 @@ com todas as colunas, inclusive EAN e as anotações extras. Marque ou desmarque
 cada uma e arraste pela alça (ou use as setas do teclado na alça) para mudar a
 ordem. Ao lado, a prévia mostra a tabela com quatro itens fictícios, o
 cabeçalho em destaque e as linhas sumindo para baixo; ela muda a cada clique.
+Embaixo dela fica a miniatura da folha A4 (ver Orientação e folha).
 **Aplicar** salva e remonta a tabela; **Cancelar** (ou Esc) volta ao que era.
 A configuração vale para todas as notas, na tela, na impressão e no PDF. O
 DANFE não muda.
@@ -166,12 +184,14 @@ como a Anotação, e sai no PDF e na impressão do mesmo jeito. Há três pronta
 para adicionar com um clique (**CFOP de entrada**, **Qtd recebida**,
 **Observação**) e a anotação livre, com título obrigatório, de até 40
 caracteres. Título igual ao de outra coluna (sem contar acento, maiúscula e
-pontuação) é recusado. São no máximo 10 anotações extras. O × ao lado de uma
+pontuação) é recusado. Um perfil salvo antes de uma coluna nova do app (por
+exemplo, com uma anotação chamada Pedido) continua valendo como estava. São no máximo 10 anotações extras. O × ao lado de uma
 extra a remove da tabela. A Anotação original pode ser escondida e movida, mas
 não removida.
 
-Cada coluna de anotação (a original e as extras) tem um seletor de largura na
-lista: **Automática** (padrão), **Estreita**, **Média** ou **Larga**.
+Cada coluna de anotação (a original e as extras) tem um botão de largura na
+lista, que abre um menu (setas, Home e End movem; Enter escolhe; Esc fecha):
+**Automática** (padrão), **Estreita**, **Média** ou **Larga**.
 Automática: a coluna fica da largura do título, com um mínimo (64 px na tela,
 10 mm na folha). As outras fixam a caixa: 80, 140 ou 240 px na tela e 14, 24
 ou 36 mm na folha, e o título quebra em linhas se for mais comprido. A caixa
@@ -185,11 +205,20 @@ na tela, ela rola na horizontal.
 
 ### Orientação e folha (modo Conferência)
 
-No painel, acima da prévia, **Orientação da folha**: **Automática** (padrão),
-**Retrato** ou **Paisagem**. Ao lado, um indicador mostra como a tabela da
-nota aberta vai para a folha com as colunas do painel: "Cabe em retrato",
-"Cabe em paisagem" ou "Não cabe numa folha" (o texto de ajuda diz a fonte ou
-em quantas partes ela sai).
+No painel, acima da prévia, **Orientação da folha**, em botões lado a lado:
+**Automática** (padrão), **Retrato** ou **Paisagem**. Ao lado, um indicador
+mostra como a tabela vai para a folha com as colunas do painel: "Cabe em
+retrato", "Cabe em paisagem" ou "Não cabe numa folha" (o texto de ajuda diz a
+fonte ou em quantas partes ela sai).
+
+Embaixo da prévia, a miniatura da folha A4 em escala, com 16 linhas
+fictícias: em pé em retrato, deitada em paisagem, e em Automática a que o app
+escolheria. As larguras das colunas vêm da mesma régua do PDF, medidas com os
+itens da nota aberta (sem nota, com os itens de exemplo; a legenda diz qual).
+Se a letra for reduzida, aparece "Letra reduzida para N pt". Se a tabela não
+couber, uma linha vermelha tracejada marca a borda da folha, as colunas que
+vão para a folha 2 ficam sombreadas depois dela e aparece "daqui em diante
+vai para a folha 2".
 
 Ao salvar o PDF ou imprimir, o app mede a largura de cada coluna da tabela na
 folha e decide:
@@ -501,6 +530,32 @@ Início ou fechar a janela mostra uma caixa no visual do app com **Salvar**,
 caixa do nome; concluída, a ação pedida segue (fechar, abrir o outro arquivo
 etc.). Cancelar, ali ou na caixa do nome, deixa tudo como estava.
 
+### Avisos da nota (modo Conferência)
+
+Logo abaixo da barra amarela, uma faixa mostra o que a nota tem a apontar.
+Sem nada: "✓ Nada a apontar nesta nota", discreto. Com avisos: **N avisos**;
+um clique abre a lista. A faixa é só da tela: não sai no PDF nem na
+impressão, e não aparece no modo DANFE.
+
+- **Quantidade divergente**: com a coluna de anotação **Qtd recebida** na
+  configuração, o número digitado é comparado com a Qtd da nota, na unidade
+  da nota (aceita vírgula, como 2,5 ou 1.000,5). Diferente: a linha fica em
+  vermelho na hora, na tela, no PDF e na impressão, e conta um aviso. Texto
+  que não é número não gera aviso.
+- **Totais**: soma do valor dos itens contra o total dos produtos, e soma das
+  duplicatas contra o valor total da nota (só se houver duplicatas), com
+  tolerância de R$ 0,01. O aviso mostra os dois valores e a diferença.
+- **Nota de outra empresa**: o CNPJ do destinatário não é o da empresa. Avisa
+  na faixa e num pop-up ao abrir. O CNPJ padrão é 09.076.777/0001-04
+  (`CNPJ_EMPRESA_PADRAO` em `src/nfe/avisos.ts`); a chave `cnpjEmpresa` do
+  `config.json` troca esse valor.
+- **Nota já conferida**: há um `.psxml` com a mesma chave de acesso na pasta
+  de destino em uso. Avisa na faixa e num pop-up ao abrir, com o nome do
+  arquivo, a data de modificação e **Abrir em nova janela**. O app lê só os
+  nomes da pasta e abre apenas os `.psxml` com `_NF<número>` no nome (como o
+  Salvar grava); a chave confirma. O próprio arquivo aberto não conta, e uma
+  cópia salva com nome livre, sem `_NF<número>`, não é encontrada.
+
 ## Cópia editada (.psxml)
 
 ```xml
@@ -583,8 +638,8 @@ não faz chamada de rede.
 
 ### Gerar e entregar uma versão nova
 
-1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.1.1 para
-   1.1.2) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
+1. Suba a versão em `package.json` (`"version"`, por exemplo de 1.1.2 para
+   1.2.0) antes do `npm run make`. O Squirrel só atualiza por cima uma versão
    maior que a instalada.
 2. Rode `npm run make`.
 3. Leve só o `out\make\squirrel.windows\x64\PS Reader-<versão> Setup.exe`. Os
@@ -614,8 +669,11 @@ src/
   declarations.d.ts  tipos globais (window.psApi)
   nfe/config.ts      personalização da conferência: tipo, padrão, validação e migração
   nfe/perfis.ts      perfis de configuração: lista, migração, arquivo exportado e importado
-  nfe/folha.ts       folha A4: largura útil por orientação e plano da tabela (fonte, partes)
+  nfe/folha.ts       folha A4: largura útil por orientação, plano da tabela e régua da miniatura
   folhaTabela.ts     cópias da tabela de itens para o papel e medida das colunas
+  miniaturaFolha.ts  miniatura da folha A4 no painel Editar colunas
+  nfe/avisos.ts      avisos da nota: quantidade, totais, outra empresa, já conferida (lógica pura)
+  faixaAvisos.ts     faixa de avisos da Conferência
   dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer

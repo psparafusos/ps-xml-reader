@@ -16,6 +16,7 @@ import {
   copyFile,
   mkdir,
   readFile,
+  readdir,
   realpath,
   rename,
   rm,
@@ -44,6 +45,12 @@ import {
   type Perfis,
 } from './nfe/perfis';
 import { MARGEM_FOLHA_MM } from './nfe/folha';
+import {
+  chaveDoArquivo,
+  cnpjDaConfig,
+  CNPJ_EMPRESA_PADRAO,
+  nomePodeSerConferencia,
+} from './nfe/avisos';
 import { problemaNomeArquivo } from './nfe/nome';
 
 // Eventos do Squirrel antes de qualquer outra inicialização: atalhos
@@ -247,6 +254,8 @@ interface Janela {
   pedido: PedidoArquivo | null;
   /** XML lido para a escolha por cima da nota (Abrir aqui ou Nova janela). */
   candidato: string | null;
+  /** .psxml achados pela busca de nota já conferida: só esses o renderer abre. */
+  conferidos: Set<string>;
 }
 
 const janelas = new Map<number, Janela>();
@@ -351,6 +360,7 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     pastaSessao: null,
     pedido,
     candidato: null,
+    conferidos: new Set(),
   };
   const id = janela.webContents.id;
   janelas.set(id, j);
@@ -703,6 +713,11 @@ interface Config {
   conferencia?: unknown;
   /** Perfis de configuração da conferência (src/nfe/perfis.ts). */
   perfis?: unknown;
+  /**
+   * CNPJ da empresa, o destinatário esperado das notas (aviso de nota de
+   * outra empresa). Sem ele, ou inválido, vale CNPJ_EMPRESA_PADRAO.
+   */
+  cnpjEmpresa?: unknown;
 }
 
 function caminhoConfig(): string {
@@ -745,6 +760,12 @@ async function lerConfig(): Promise<Config> {
 }
 
 ipcMain.handle('versao', (): string => app.getVersion());
+
+ipcMain.handle(
+  'cnpj-empresa',
+  async (): Promise<string> =>
+    cnpjDaConfig((await lerConfig()).cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
+);
 
 /** Grava as chaves de `parcial` mantendo as demais. */
 async function gravarConfig(parcial: Config): Promise<void> {
@@ -799,6 +820,59 @@ ipcMain.handle(
   'pasta-destino',
   (event): Promise<PastaDestino> => pastaEfetiva(estadoDe(event.sender)),
 );
+
+/**
+ * Nota já conferida: os .psxml da pasta de destino em uso com a mesma chave
+ * da nota aberta (fora o próprio arquivo aberto), do mais novo para o mais
+ * antigo. Só lê os nomes da pasta; abre apenas os que têm _NF<número> no
+ * nome. Sem pasta, ou pasta inacessível: lista vazia.
+ */
+ipcMain.handle(
+  'buscar-conferidos',
+  async (event, chave: unknown, nNF: unknown): Promise<ArquivoConferido[]> => {
+    const j = estadoDe(event.sender);
+    j.conferidos.clear();
+    if (typeof chave !== 'string' || !/^\d{44}$/.test(chave)) return [];
+    if (typeof nNF !== 'string') return [];
+    const { caminho: pasta } = await pastaEfetiva(j);
+    if (!pasta) return [];
+    let nomes: string[];
+    try {
+      nomes = await readdir(pasta);
+    } catch {
+      return [];
+    }
+    const achados: ArquivoConferido[] = [];
+    for (const nome of nomes.filter((n) => nomePodeSerConferencia(n, nNF))) {
+      const caminho = path.join(pasta, nome);
+      if (j.arquivoAberto && mesmoCaminho(caminho, j.arquivoAberto)) continue;
+      try {
+        const info = await stat(caminho);
+        if (!info.isFile()) continue;
+        if (chaveDoArquivo(await readFile(caminho, 'utf8')) !== chave) continue;
+        achados.push({ caminho, nome, modificado: info.mtime.toISOString() });
+      } catch {
+        // Ilegível (sem permissão, apagado no meio): não conta.
+      }
+    }
+    achados.sort((a, b) => b.modificado.localeCompare(a.modificado));
+    for (const a of achados) j.conferidos.add(a.caminho);
+    return achados;
+  },
+);
+
+/**
+ * Abre numa janela nova um .psxml achado por buscar-conferidos (direto na
+ * Conferência). Já aberto em alguma janela: ela vem para a frente.
+ */
+ipcMain.handle('abrir-conferido', (event, caminho: unknown): boolean => {
+  const j = estadoDe(event.sender);
+  if (typeof caminho !== 'string' || !j.conferidos.has(caminho)) return false;
+  const ja = janelaComArquivo(caminho);
+  if (ja) trazerParaFrente(ja);
+  else criarJanela({ caminho, modo: 'conferencia', sessao: false });
+  return true;
+});
 
 // Abre a pasta de destino no Explorer. shell.openPath devolve "" quando abre e
 // a mensagem de erro quando não abre.
