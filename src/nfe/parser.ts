@@ -117,6 +117,9 @@ function lerItem(det: Element): Item {
   const cst = texto(grupoIcms, 'CST') || texto(grupoIcms, 'CSOSN');
   // IBS e CBS: vIBS (soma de UF e município) e vCBS ficam dentro de IBSCBS.
   const ibsCbs = filho(imposto, 'IBSCBS');
+  // IPI: CST e pIPI ficam em IPITrib, ou só o CST em IPINT.
+  const ipi = filho(imposto, 'IPI');
+  const grupoIpi = filho(ipi, 'IPITrib') ?? filho(ipi, 'IPINT');
   return {
     nItem: det.getAttribute('nItem')?.trim() ?? '',
     cProd: texto(prod, 'cProd'),
@@ -137,6 +140,12 @@ function lerItem(det: Element): Item {
     xPed: texto(prod, 'xPed'),
     vIBS: descendente(ibsCbs, 'vIBS')?.textContent?.trim() ?? '',
     vCBS: descendente(ibsCbs, 'vCBS')?.textContent?.trim() ?? '',
+    orig: texto(grupoIcms, 'orig'),
+    CST: texto(grupoIcms, 'CST'),
+    CSOSN: texto(grupoIcms, 'CSOSN'),
+    pICMS: texto(grupoIcms, 'pICMS'),
+    cstIPI: texto(grupoIpi, 'CST'),
+    pIPI: texto(grupoIpi, 'pIPI'),
   };
 }
 
