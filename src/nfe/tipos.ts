@@ -58,6 +58,20 @@ export interface Item {
   /** IBS e CBS do item (reforma tributária, grupo IBSCBS). */
   vIBS: string;
   vCBS: string;
+  // Campos para a análise fiscal (src/fiscal/analise.ts). Opcionais porque
+  // só o parser preenche; item montado à mão (modelo de coluna) não tem.
+  /** Origem da mercadoria (orig do grupo ICMS): 0 a 8. */
+  orig?: string;
+  /** CST do ICMS (regime normal). */
+  CST?: string;
+  /** CSOSN do ICMS (Simples Nacional). */
+  CSOSN?: string;
+  /** Alíquota do ICMS próprio (pICMS). */
+  pICMS?: string;
+  /** CST do IPI (IPITrib ou IPINT). */
+  cstIPI?: string;
+  /** Alíquota do IPI (pIPI, em IPITrib). */
+  pIPI?: string;
 }
 
 export interface Totais {
