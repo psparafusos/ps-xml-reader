@@ -39,7 +39,10 @@ export function lerZip(dados: Uint8Array): Map<string, Uint8Array> {
       throw new Error(`zip: cabeçalho local de ${nome} não encontrado`);
     }
     const inicio =
-      posLocal + 30 + buf.readUInt16LE(posLocal + 26) + buf.readUInt16LE(posLocal + 28);
+      posLocal +
+      30 +
+      buf.readUInt16LE(posLocal + 26) +
+      buf.readUInt16LE(posLocal + 28);
     const bruto = buf.subarray(inicio, inicio + tamComprimido);
     if (metodo === 0) arquivos.set(nome, bruto);
     else if (metodo === 8) arquivos.set(nome, inflateRawSync(bruto));
@@ -54,5 +57,7 @@ function acharFimDoDiretorio(buf: Buffer): number {
   for (let i = buf.length - 22; i >= limite; i--) {
     if (buf.readUInt32LE(i) === ASSINATURA_FIM) return i;
   }
-  throw new Error('zip: fim do diretório central não encontrado (não é um .zip?)');
+  throw new Error(
+    'zip: fim do diretório central não encontrado (não é um .zip?)',
+  );
 }

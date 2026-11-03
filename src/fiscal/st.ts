@@ -122,22 +122,43 @@ export function lerTabelaST(abas: Aba[]): TabelaST {
     if (!versao) versao = r.versao;
     if (!vigencia) vigencia = r.vigencia;
     if (r.versao && r.versao !== versao) {
-      problemas.push({ aba: aba.nome, celula: '', valor: r.versao, motivo: `versão diferente da primeira aba (${versao})` });
+      problemas.push({
+        aba: aba.nome,
+        celula: '',
+        valor: r.versao,
+        motivo: `versão diferente da primeira aba (${versao})`,
+      });
     }
   }
   return {
     linhas,
-    relatorio: { versao, vigencia, abas: relatorios, problemas, totalLinhas: linhas.length },
+    relatorio: {
+      versao,
+      vigencia,
+      abas: relatorios,
+      problemas,
+      totalLinhas: linhas.length,
+    },
   };
 }
 
 function lerAba(
   aba: Aba,
   problemas: ProblemaST[],
-): { linhas: LinhaST[]; relatorio: RelatorioAba; versao: string; vigencia: string } {
+): {
+  linhas: LinhaST[];
+  relatorio: RelatorioAba;
+  versao: string;
+  vigencia: string;
+} {
   const notas: string[] = [];
   const problema = (celula: string, valor: unknown, motivo: string): void => {
-    problemas.push({ aba: aba.nome, celula, valor: String(valor ?? ''), motivo });
+    problemas.push({
+      aba: aba.nome,
+      celula,
+      valor: String(valor ?? ''),
+      motivo,
+    });
   };
   const relatorio: RelatorioAba = {
     aba: aba.nome,
@@ -154,11 +175,16 @@ function lerAba(
   let segmentoOficial = '';
   let iCab = -1;
   for (let i = 0; i < aba.linhas.length && iCab < 0; i++) {
-    const textos = aba.linhas[i].filter((v) => v !== undefined).map((v) => String(v).trim());
+    const textos = aba.linhas[i]
+      .filter((v) => v !== undefined)
+      .map((v) => String(v).trim());
     for (const t of textos) {
       const v = /^Vers[ãa]o:\s*(\S+)/i.exec(t);
       if (v) versao = v[1];
-      const d = /produ[çc][ãa]o de efeitos a partir de\s*(\d{2}\/\d{2}\/\d{4})/i.exec(t);
+      const d =
+        /produ[çc][ãa]o de efeitos a partir de\s*(\d{2}\/\d{2}\/\d{4})/i.exec(
+          t,
+        );
       if (d) vigencia = d[1];
       const a = /^ANEXO\s+([IVXLC]+)\s*[–-]\s*SEGMENTO:\s*(.+)$/i.exec(t);
       if (a) {
@@ -170,29 +196,50 @@ function lerAba(
     if (normal.includes('item') && normal.includes('cest')) iCab = i;
   }
   if (iCab < 0) {
-    problema('', '', 'linha de cabeçalho (ITEM e CEST) não encontrada; aba ignorada');
+    problema(
+      '',
+      '',
+      'linha de cabeçalho (ITEM e CEST) não encontrada; aba ignorada',
+    );
     return { linhas: [], relatorio, versao, vigencia };
   }
   relatorio.linhaCabecalho = iCab + 1;
-  if (!anexo) problema('', '', 'título "ANEXO ... – SEGMENTO: ..." não encontrado');
+  if (!anexo)
+    problema('', '', 'título "ANEXO ... – SEGMENTO: ..." não encontrado');
 
   // Cabeçalho em duas linhas (Medicamento): a de baixo traz só as alíquotas.
   const sub = aba.linhas[iCab + 1] ?? [];
   const temSubcabecalho =
     sub.some((v) => v !== undefined) &&
-    sub.every((v) => v === undefined || aliquotaDoTitulo(tituloSub(v)) !== undefined);
-  const colunas = acharColunas(aba, iCab, temSubcabecalho ? sub : [], notas, problema);
+    sub.every(
+      (v) => v === undefined || aliquotaDoTitulo(tituloSub(v)) !== undefined,
+    );
+  const colunas = acharColunas(
+    aba,
+    iCab,
+    temSubcabecalho ? sub : [],
+    notas,
+    problema,
+  );
   if (!colunas) return { linhas: [], relatorio, versao, vigencia };
 
   const linhas: LinhaST[] = [];
   for (let i = iCab + (temSubcabecalho ? 2 : 1); i < aba.linhas.length; i++) {
     const l = aba.linhas[i];
     if (!l.some((v) => v !== undefined)) continue;
-    const ref = (c: number | undefined): string => (c === undefined ? String(i + 1) : `${letraColuna(c)}${i + 1}`);
+    const ref = (c: number | undefined): string =>
+      c === undefined ? String(i + 1) : `${letraColuna(c)}${i + 1}`;
     const cest = texto(l[colunas.cest]);
     if (!RE_CEST.test(cest)) {
-      const conteudo = l.filter((v) => v !== undefined).map(String).join(' | ');
-      problema(ref(colunas.cest), conteudo.slice(0, 160), cest ? 'CEST fora do formato NN.NNN.NN' : 'linha sem CEST');
+      const conteudo = l
+        .filter((v) => v !== undefined)
+        .map(String)
+        .join(' | ');
+      problema(
+        ref(colunas.cest),
+        conteudo.slice(0, 160),
+        cest ? 'CEST fora do formato NN.NNN.NN' : 'linha sem CEST',
+      );
       continue;
     }
     relatorio.linhasProduto++;
@@ -201,36 +248,54 @@ function lerAba(
     for (const m of colunas.mva) {
       const porAliquota = jogos.get(m.jogo) ?? vazio();
       jogos.set(m.jogo, porAliquota);
-      const valor = numeroMva(l[m.coluna], (motivo) => problema(ref(m.coluna), l[m.coluna], motivo));
-      if (m.aliquota === 'unica') for (const a of ALIQUOTAS_MVA) porAliquota[a] = valor;
+      const valor = numeroMva(l[m.coluna], (motivo) =>
+        problema(ref(m.coluna), l[m.coluna], motivo),
+      );
+      if (m.aliquota === 'unica')
+        for (const a of ALIQUOTAS_MVA) porAliquota[a] = valor;
       else porAliquota[m.aliquota] = valor;
     }
-    const jogosMva = [...jogos].map(([rotulo, porAliquota]) => ({ rotulo, porAliquota }));
+    const jogosMva = [...jogos].map(([rotulo, porAliquota]) => ({
+      rotulo,
+      porAliquota,
+    }));
+    // Coluna que a aba não tem: célula vazia (undefined), como antes.
+    const celula = (c: number | undefined) =>
+      c === undefined ? undefined : l[c];
 
     const base = {
       segmento: aba.nome,
       segmentoOficial,
       anexo,
-      item: texto(l[colunas.item]),
+      item: texto(celula(colunas.item)),
       cest,
-      descricao: texto(l[colunas.descricao]).replace(/\s+/g, ' '),
+      descricao: texto(celula(colunas.descricao)).replace(/\s+/g, ' '),
       mvaPorAliquota: jogosMva[0]?.porAliquota ?? vazio(),
       jogosMva,
-      aliquotaInterna: aliquotaInterna(l[colunas.aliquotaInterna], (motivo) =>
-        problema(ref(colunas.aliquotaInterna), l[colunas.aliquotaInterna], motivo),
+      aliquotaInterna: aliquotaInterna(
+        celula(colunas.aliquotaInterna),
+        (motivo) =>
+          problema(
+            ref(colunas.aliquotaInterna),
+            celula(colunas.aliquotaInterna),
+            motivo,
+          ),
       ),
-      inicioValidade: dataTexto(l[colunas.inicioValidade]),
+      inicioValidade: dataTexto(celula(colunas.inicioValidade)),
       versao,
       vigencia,
       linhaPlanilha: i + 1,
     };
 
     const celulaNcm = colunas.ncm === undefined ? undefined : l[colunas.ncm];
-    const ncms = ncmsDaCelula(celulaNcm, (motivo, valor) => problema(ref(colunas.ncm), valor, motivo));
+    const ncms = ncmsDaCelula(celulaNcm, (motivo, valor) =>
+      problema(ref(colunas.ncm), valor, motivo),
+    );
     if (ncms.length === 0) {
       relatorio.linhasSemNcm++;
       if (colunas.ncm !== undefined && celulaNcm !== undefined) continue; // já reportado
-      if (colunas.ncm !== undefined) problema(ref(colunas.ncm), '', 'NCM vazio');
+      if (colunas.ncm !== undefined)
+        problema(ref(colunas.ncm), '', 'NCM vazio');
       continue;
     }
     for (const ncm of ncms) {
@@ -239,7 +304,9 @@ function lerAba(
     }
   }
   if (colunas.ncm === undefined) {
-    notas.push(`aba sem coluna NCM: ${relatorio.linhasProduto} linhas de produto ficam fora da busca por NCM`);
+    notas.push(
+      `aba sem coluna NCM: ${relatorio.linhasProduto} linhas de produto ficam fora da busca por NCM`,
+    );
   }
   return { linhas, relatorio, versao, vigencia };
 }
@@ -253,10 +320,13 @@ function acharColunas(
 ): Colunas | undefined {
   const cab = aba.linhas[iCab];
   const titulos: string[] = [];
-  for (let c = 0; c < Math.max(cab.length, sub.length); c++) titulos[c] = texto(cab[c]).replace(/\s+/g, ' ');
+  for (let c = 0; c < Math.max(cab.length, sub.length); c++)
+    titulos[c] = texto(cab[c]).replace(/\s+/g, ' ');
 
   const achar = (re: RegExp, excluir?: RegExp): number | undefined => {
-    const c = titulos.findIndex((t) => re.test(semAcento(t)) && !(excluir && excluir.test(semAcento(t))));
+    const c = titulos.findIndex(
+      (t) => re.test(semAcento(t)) && !(excluir && excluir.test(semAcento(t))),
+    );
     return c < 0 ? undefined : c;
   };
   const cest = achar(/^cest$/i);
@@ -271,9 +341,13 @@ function acharColunas(
     mva: [],
   };
   if (colunas.aliquotaInterna === undefined) {
-    colunas.aliquotaInterna = achar(/especifica\S*\s+aliq(uota|\.)?\s*interna/i);
+    colunas.aliquotaInterna = achar(
+      /especifica\S*\s+aliq(uota|\.)?\s*interna/i,
+    );
     if (colunas.aliquotaInterna !== undefined) {
-      notas.push(`alíquota interna lida da coluna "${titulos[colunas.aliquotaInterna]}" (não há outra)`);
+      notas.push(
+        `alíquota interna lida da coluna "${titulos[colunas.aliquotaInterna]}" (não há outra)`,
+      );
     }
   }
 
@@ -281,11 +355,18 @@ function acharColunas(
     // HPPC: a coluna do NCM está sem título. Deduz pela cara dos dados.
     for (let c = 0; c < titulos.length; c++) {
       if (titulos[c] || c === cest) continue;
-      const valores = aba.linhas.slice(iCab + 1).map((l) => l[c]).filter((v) => v !== undefined);
-      const parecem = valores.filter((v) => /^[\d.\s]+$/.test(String(v)) && !RE_CEST.test(String(v)));
+      const valores = aba.linhas
+        .slice(iCab + 1)
+        .map((l) => l[c])
+        .filter((v) => v !== undefined);
+      const parecem = valores.filter(
+        (v) => /^[\d.\s]+$/.test(String(v)) && !RE_CEST.test(String(v)),
+      );
       if (valores.length > 0 && parecem.length / valores.length >= 0.8) {
         colunas.ncm = c;
-        notas.push(`coluna ${letraColuna(c)} sem título tratada como NCM (${parecem.length} de ${valores.length} células com cara de NCM)`);
+        notas.push(
+          `coluna ${letraColuna(c)} sem título tratada como NCM (${parecem.length} de ${valores.length} células com cara de NCM)`,
+        );
         break;
       }
     }
@@ -295,8 +376,16 @@ function acharColunas(
   for (let c = 0; c < titulos.length; c++) {
     const t = titulos[c];
     const subTitulo = tituloSub(sub[c]);
-    if (t && /interna|especifica|legisla|vigencia|validade|pfc|pmpf/i.test(semAcento(t))) continue;
-    const ehMva = /mva|aliquota de|\d\s*%/i.test(semAcento(t)) || (!t && subTitulo && c > cest);
+    if (
+      t &&
+      /interna|especifica|legisla|vigencia|validade|pfc|pmpf/i.test(
+        semAcento(t),
+      )
+    )
+      continue;
+    const ehMva =
+      /mva|aliquota de|\d\s*%/i.test(semAcento(t)) ||
+      (!t && subTitulo && c > cest);
     if (!ehMva) continue;
     const rotulo = t ? rotuloJogo(t) : jogoAnterior;
     jogoAnterior = rotulo;
@@ -304,15 +393,23 @@ function acharColunas(
     if (aliquota === undefined) {
       if (/mva/i.test(t)) {
         colunas.mva.push({ coluna: c, jogo: rotulo, aliquota: 'unica' });
-        notas.push(`coluna ${letraColuna(c)} "${t}" sem alíquota no título: a MVA vale para 4, 7, 12 e 19`);
+        notas.push(
+          `coluna ${letraColuna(c)} "${t}" sem alíquota no título: a MVA vale para 4, 7, 12 e 19`,
+        );
       } else {
-        problema(`${letraColuna(c)}${iCab + 1}`, t, 'título de coluna parece MVA mas a alíquota não foi entendida');
+        problema(
+          `${letraColuna(c)}${iCab + 1}`,
+          t,
+          'título de coluna parece MVA mas a alíquota não foi entendida',
+        );
       }
       continue;
     }
     const original = /(\d+(?:\s*a\s*\d+)?)\s*%/.exec(subTitulo || t)?.[1];
     if (original && original.replace(/\s/g, '') !== aliquota) {
-      notas.push(`coluna ${letraColuna(c)} "${subTitulo || t}" lida como MVA de ${aliquota}% (operação interna)`);
+      notas.push(
+        `coluna ${letraColuna(c)} "${subTitulo || t}" lida como MVA de ${aliquota}% (operação interna)`,
+      );
     }
     colunas.mva.push({ coluna: c, jogo: rotulo, aliquota });
   }
@@ -340,7 +437,10 @@ function aliquotaDoTitulo(titulo: string): AliquotaMva | undefined {
   return undefined;
 }
 
-function numeroMva(v: ValorCelula | undefined, problema: (motivo: string) => void): number | null {
+function numeroMva(
+  v: ValorCelula | undefined,
+  problema: (motivo: string) => void,
+): number | null {
   if (v === undefined) return null;
   let n: number;
   if (typeof v === 'number') {
@@ -363,18 +463,26 @@ function numeroMva(v: ValorCelula | undefined, problema: (motivo: string) => voi
   return n;
 }
 
-function aliquotaInterna(v: ValorCelula | undefined, problema: (motivo: string) => void): AliquotaInterna | null {
+function aliquotaInterna(
+  v: ValorCelula | undefined,
+  problema: (motivo: string) => void,
+): AliquotaInterna | null {
   if (v === undefined) return null;
   if (typeof v === 'number') {
     const pct = v < 1 ? arredondar(v * 100) : v;
     return { texto: `${String(pct).replace('.', ',')}%`, numero: pct };
   }
-  const partes = [...v.matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map((m) => Number(m[1].replace(',', '.')));
+  const partes = [...v.matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map((m) =>
+    Number(m[1].replace(',', '.')),
+  );
   if (partes.length === 0) {
     problema('alíquota interna sem percentual');
     return { texto: v, numero: null };
   }
-  return { texto: v.trim(), numero: arredondar(partes.reduce((a, b) => a + b, 0)) };
+  return {
+    texto: v.trim(),
+    numero: arredondar(partes.reduce((a, b) => a + b, 0)),
+  };
 }
 
 /** Separa os NCMs de uma célula ("3208        3209      3210.00") em só dígitos. */
@@ -385,7 +493,10 @@ export function ncmsDaCelula(
   if (v === undefined) return [];
   if (typeof v === 'number') {
     if (!Number.isInteger(v)) {
-      problema('NCM gravado como número com decimais: zeros à direita podem ter se perdido', String(v));
+      problema(
+        'NCM gravado como número com decimais: zeros à direita podem ter se perdido',
+        String(v),
+      );
     }
     v = String(v);
   }
@@ -424,14 +535,22 @@ export interface ResultadoBuscaST {
  * todas as linhas cujo NCM é prefixo do informado; o CEST, se vier, só
  * ordena e marca, não descarta.
  */
-export function buscarST(tabela: TabelaST | LinhaST[], ncm: string, cest?: string): ResultadoBuscaST {
+export function buscarST(
+  tabela: TabelaST | LinhaST[],
+  ncm: string,
+  cest?: string,
+): ResultadoBuscaST {
   const linhas = Array.isArray(tabela) ? tabela : tabela.linhas;
   const alvo = ncm.replace(/\D/g, '');
   if (alvo.length !== 8) throw new Error(`NCM deve ter 8 dígitos: "${ncm}"`);
   const cestAlvo = cest?.trim() ? cest.trim() : null;
   const candidatos: CandidatoST[] = linhas
     .filter((l) => alvo.startsWith(l.ncm))
-    .map((l) => ({ linha: l, digitos: l.ncm.length, cestConfere: cestAlvo === null ? null : l.cest === cestAlvo }));
+    .map((l) => ({
+      linha: l,
+      digitos: l.ncm.length,
+      cestConfere: cestAlvo === null ? null : l.cest === cestAlvo,
+    }));
   candidatos.sort(
     (a, b) =>
       Number(b.cestConfere === true) - Number(a.cestConfere === true) ||

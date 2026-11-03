@@ -26,7 +26,9 @@ export function lerXlsx(dados: Uint8Array): Aba[] {
     : [];
 
   const rels = new Map<string, string>();
-  for (const m of texto('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b[^>]*>/g)) {
+  for (const m of texto('xl/_rels/workbook.xml.rels').matchAll(
+    /<Relationship\b[^>]*>/g,
+  )) {
     const id = atributo(m[0], 'Id');
     const alvo = atributo(m[0], 'Target');
     if (id && alvo) rels.set(id, alvo.replace(/^\/?(xl\/)?/, 'xl/'));
@@ -54,11 +56,15 @@ function lerTextosCompartilhados(xml: string): string[] {
 function juntarTextos(xml: string): string {
   const semFonetica = xml.replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
   let s = '';
-  for (const t of semFonetica.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)) s += t[1];
+  for (const t of semFonetica.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g))
+    s += t[1];
   return desescapar(s);
 }
 
-function lerAba(xml: string, compartilhados: string[]): (ValorCelula | undefined)[][] {
+function lerAba(
+  xml: string,
+  compartilhados: string[],
+): (ValorCelula | undefined)[][] {
   const linhas: (ValorCelula | undefined)[][] = [];
   const reCelula = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
   for (const c of xml.matchAll(reCelula)) {
@@ -111,8 +117,12 @@ function atributo(tag: string, nome: string): string | undefined {
 
 function desescapar(s: string): string {
   return s
-    .replace(/_x([0-9A-Fa-f]{4})_/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
-    .replace(/&#x([0-9A-Fa-f]+);/g, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/_x([0-9A-Fa-f]{4})_/g, (_, h: string) =>
+      String.fromCharCode(parseInt(h, 16)),
+    )
+    .replace(/&#x([0-9A-Fa-f]+);/g, (_, h: string) =>
+      String.fromCodePoint(parseInt(h, 16)),
+    )
     .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

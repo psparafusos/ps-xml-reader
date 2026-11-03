@@ -106,7 +106,8 @@ export function lerTipi(texto: string): TabelaTipi {
     const g = ignoradas.get(motivo) ?? { motivo, total: 0, exemplos: [] };
     ignoradas.set(motivo, g);
     g.total++;
-    if (g.exemplos.length < EXEMPLOS_POR_GRUPO) g.exemplos.push({ linha, texto: t });
+    if (g.exemplos.length < EXEMPLOS_POR_GRUPO)
+      g.exemplos.push({ linha, texto: t });
   };
 
   // Antes do Capítulo 1 só há capa, sumário e regras gerais.
@@ -146,13 +147,16 @@ export function lerTipi(texto: string): TabelaTipi {
       codigo: r.codigo,
       descricao: desc,
       hierarquia,
-      descricaoCompleta: [...hierarquia.map((h) => h.descricao), desc].filter(Boolean).join(' > '),
+      descricaoCompleta: [...hierarquia.map((h) => h.descricao), desc]
+        .filter(Boolean)
+        .join(' > '),
       aliquotaIpi: aliquota,
       linhaTexto: r.linhaTexto,
     });
   };
 
-  const ultimaLinha = (): string => (atual ? atual.linhas[atual.linhas.length - 1] : '');
+  const ultimaLinha = (): string =>
+    atual ? atual.linhas[atual.linhas.length - 1] : '';
 
   for (let i = 0; i < linhas.length; i++) {
     const n = i + 1;
@@ -163,7 +167,11 @@ export function lerTipi(texto: string): TabelaTipi {
     // subposições 2 do presente\nCapítulo 15", com 15 de alíquota). Capítulo
     // de verdade é sempre maior que o atual.
     const cap = RE_CAPITULO.exec(t);
-    if (cap && Number(cap[1]) > Number(capitulo || 0) && !/presente$/i.test(ultimaLinha())) {
+    if (
+      cap &&
+      Number(cap[1]) > Number(capitulo || 0) &&
+      !/presente$/i.test(ultimaLinha())
+    ) {
       fechar();
       emNotas = true;
       emEx = false;
@@ -177,17 +185,22 @@ export function lerTipi(texto: string): TabelaTipi {
       aposCabecalho = true;
       continue;
     }
-    const inicioDePagina = aposCabecalho;
+    const inicioDePagina: boolean = aposCabecalho;
     // Título de subcapítulo no alto da página ("I.- ELEMENTOS QUÍMICOS", às
     // vezes em duas linhas) ainda conta como início da página.
-    aposCabecalho = inicioDePagina && (RE_SUBCAPITULO.test(t) || RE_SO_MAIUSCULAS.test(t));
+    aposCabecalho =
+      inicioDePagina && (RE_SUBCAPITULO.test(t) || RE_SO_MAIUSCULAS.test(t));
 
     const cod = lerCodigo(t);
     if (emNotas) {
       // Sai das notas na primeira entrada do capítulo atual ("32.01 Extratos",
       // "1101.00 Farinhas", "0501.00.00 Cabelo"), que sempre abre página
       // nova. As tabelas das Notas Complementares também têm códigos.
-      if (inicioDePagina && cod?.abreCapitulo && cod.digitos.startsWith(capitulo)) {
+      if (
+        inicioDePagina &&
+        cod?.abreCapitulo &&
+        cod.digitos.startsWith(capitulo)
+      ) {
         emNotas = false;
       } else {
         ignorar('título e notas de capítulo ou seção', n, t);
@@ -226,7 +239,12 @@ export function lerTipi(texto: string): TabelaTipi {
           ignorar('código repetido', n, t);
           continue;
         }
-        atual = { codigo: cod.codigo, digitos: cod.digitos, linhas: [cod.resto], linhaTexto: n };
+        atual = {
+          codigo: cod.codigo,
+          digitos: cod.digitos,
+          linhas: [cod.resto],
+          linhaTexto: n,
+        };
         ultimo = cod.digitos;
         continue;
       }
@@ -280,7 +298,13 @@ function lerCodigo(t: string): LinhaCodigo | null {
   if (pos) {
     const resto = pos[2] ?? '';
     const maiuscula = RE_MAIUSCULA.test(resto);
-    return { codigo: pos[1], digitos: pos[1].replace('.', ''), resto, entrada: maiuscula, abreCapitulo: maiuscula };
+    return {
+      codigo: pos[1],
+      digitos: pos[1].replace('.', ''),
+      resto,
+      entrada: maiuscula,
+      abreCapitulo: maiuscula,
+    };
   }
   const cod = RE_CODIGO.exec(t);
   if (!cod) return null;
@@ -291,7 +315,7 @@ function lerCodigo(t: string): LinhaCodigo | null {
     resto,
     // "6907.30 e 6907.40:" é citação que quebrou a linha.
     entrada: !/^(e|ou|a)\s/.test(resto),
-    abreCapitulo: /^-/.test(resto) || RE_MAIUSCULA.test(resto),
+    abreCapitulo: resto.startsWith('-') || RE_MAIUSCULA.test(resto),
   };
 }
 

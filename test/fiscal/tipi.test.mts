@@ -5,7 +5,10 @@ import { consultarTipi, lerTipi } from '../../src/fiscal/tipi.ts';
 
 // Trecho do texto extraído do PDF da TIPI 2022 (capítulos 32, 60, 73, 87 e
 // 95), com quebras de página, notas e uma tabela de Nota Complementar.
-const trecho = readFileSync(new URL('./fixtures/tipi-trecho.txt', import.meta.url), 'utf8');
+const trecho = readFileSync(
+  new URL('./fixtures/tipi-trecho.txt', import.meta.url),
+  'utf8',
+);
 const tabela = lerTipi(trecho);
 
 describe('tipi: leitura', () => {
@@ -18,11 +21,17 @@ describe('tipi: leitura', () => {
 
   it('a descrição completa traz a posição e a subposição', () => {
     const r = consultarTipi(tabela, '32081020');
-    assert.match(r.descricaoCompleta ?? '', /^Tintas e vernizes, à base de polímeros sintéticos .* > À base de poliésteres > Vernizes$/);
+    assert.match(
+      r.descricaoCompleta ?? '',
+      /^Tintas e vernizes, à base de polímeros sintéticos .* > À base de poliésteres > Vernizes$/,
+    );
   });
 
   it('aceita o NCM com ou sem pontos', () => {
-    assert.deepEqual(consultarTipi(tabela, '7318.15.00'), consultarTipi(tabela, '73181500'));
+    assert.deepEqual(
+      consultarTipi(tabela, '7318.15.00'),
+      consultarTipi(tabela, '73181500'),
+    );
   });
 
   it('NCM que não está na tabela não existe', () => {
@@ -34,7 +43,10 @@ describe('tipi: leitura', () => {
   it('descrição que atravessa a quebra de página e alíquota numa linha só', () => {
     const r = consultarTipi(tabela, '3208.20.11');
     assert.equal(r.aliquotaIpi, 3.25);
-    assert.match(r.descricao ?? '', /Nota 3 da Seção VI, do tipo utilizado para a fabricação de circuitos impressos$/);
+    assert.match(
+      r.descricao ?? '',
+      /Nota 3 da Seção VI, do tipo utilizado para a fabricação de circuitos impressos$/,
+    );
   });
 
   it('o cabeçalho de página no meio da subposição não quebra a hierarquia', () => {
@@ -52,7 +64,9 @@ describe('tipi: leitura', () => {
   });
 
   it('NT vira "NT"', () => {
-    const t = lerTipi('Capítulo 1\r\n(%)\r\n01.01 Cavalos, asininos e muares, vivos.\r\n0101.21.00 -- Reprodutores de raça pura NT\r\n');
+    const t = lerTipi(
+      'Capítulo 1\r\n(%)\r\n01.01 Cavalos, asininos e muares, vivos.\r\n0101.21.00 -- Reprodutores de raça pura NT\r\n',
+    );
     assert.equal(consultarTipi(t, '0101.21.00').aliquotaIpi, 'NT');
   });
 
@@ -60,12 +74,18 @@ describe('tipi: leitura', () => {
     const r = consultarTipi(tabela, '9503.00.50');
     assert.equal(r.aliquotaIpi, 6.5);
     assert.match(r.descricao ?? '', /exceto os do item 9503\.00\.40$/);
-    assert.equal(consultarTipi(tabela, '9503.00.40').descricao, 'Trens elétricos, incluindo os trilhos, sinais e outros acessórios');
+    assert.equal(
+      consultarTipi(tabela, '9503.00.40').descricao,
+      'Trens elétricos, incluindo os trilhos, sinais e outros acessórios',
+    );
   });
 
   it('alíquota e traço colados pelo PDF ("6006.90.00- Outros0")', () => {
     assert.equal(consultarTipi(tabela, '6006.32.20').aliquotaIpi, 0);
-    assert.equal(consultarTipi(tabela, '6006.32.20').descricao, 'De poliésteres');
+    assert.equal(
+      consultarTipi(tabela, '6006.32.20').descricao,
+      'De poliésteres',
+    );
     assert.equal(consultarTipi(tabela, '6006.90.00').descricao, 'Outros');
   });
 
@@ -76,7 +96,10 @@ describe('tipi: leitura', () => {
 
   it('nota que começa com código ("60.06 e outras.") fica nas notas', () => {
     assert.equal(tabela.porNcm.get('60061000')?.aliquotaIpi, 0);
-    assert.equal(tabela.porNcm.get('60061000')?.hierarquia[0].descricao, 'Outros tecidos de malha.');
+    assert.equal(
+      tabela.porNcm.get('60061000')?.hierarquia[0].descricao,
+      'Outros tecidos de malha.',
+    );
   });
 });
 
@@ -90,7 +113,9 @@ describe('tipi: relatório', () => {
   });
 
   it('agrupa as linhas ignoradas por motivo, com exemplos', () => {
-    const motivos = new Map(tabela.relatorio.ignoradas.map((g) => [g.motivo, g]));
+    const motivos = new Map(
+      tabela.relatorio.ignoradas.map((g) => [g.motivo, g]),
+    );
     assert.ok(motivos.get('cabeçalho ou rodapé de página')!.total > 0);
     const notas = motivos.get('título e notas de capítulo ou seção')!;
     assert.ok(notas.total > notas.exemplos.length);

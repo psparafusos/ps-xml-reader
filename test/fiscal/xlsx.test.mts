@@ -72,7 +72,10 @@ describe('xlsx', () => {
   const abas = lerXlsx(xlsx);
 
   it('lê as abas na ordem do workbook, com o nome desescapado', () => {
-    assert.deepEqual(abas.map((a) => a.nome), ['Leiaute', 'Tintas & Vernizes']);
+    assert.deepEqual(
+      abas.map((a) => a.nome),
+      ['Leiaute', 'Tintas & Vernizes'],
+    );
     assert.deepEqual(Array.from(abas[0].linhas[0]), [undefined, 'Versão: XXX']);
   });
 
