@@ -71,7 +71,8 @@ contextBridge.exposeInMainWorld('psApi', {
   ): Promise<ResultadoSalvarDanfe> =>
     ipcRenderer.invoke('salvar-danfe', base, daEscolha, opcoes),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
-  cnpjEmpresa: (): Promise<string> => ipcRenderer.invoke('cnpj-empresa'),
+  configAvisos: (): Promise<ConfigAvisos> =>
+    ipcRenderer.invoke('config-avisos'),
   buscarConferidos: (chave: string, nNF: string): Promise<ArquivoConferido[]> =>
     ipcRenderer.invoke('buscar-conferidos', chave, nNF),
   abrirConferido: (caminho: string): Promise<boolean> =>

@@ -11,10 +11,12 @@ o DANFE.
 
 ## Versão 1.2.0
 
-- **Avisos da nota** na Conferência, numa faixa logo abaixo da barra amarela:
-  quantidade recebida diferente da nota, totais que não fecham, nota de outra
-  empresa e nota já conferida. Sem nada a apontar, a faixa diz só
-  "Nada a apontar nesta nota". A faixa não sai no PDF nem na impressão.
+- **Painel de conferência** à esquerda da nota, na Conferência: o resultado
+  no topo ("Tudo certo" ou "N pontos para olhar"), as verificações
+  automáticas (idade da nota, totais dos itens, duplicatas, vencimentos,
+  destinatário, nota já conferida) e o que precisa de você (Qtd recebida
+  diferente da nota). Recolhe numa barra fina. Não sai no PDF nem na
+  impressão.
 - **Colunas novas** no Editar colunas, escondidas no começo: **Pedido**
   (`xPed`), **IBS** e **CBS** (`vIBS` e `vCBS` de cada item).
 - **Prévia em folha** no Editar colunas: uma miniatura da folha A4 em escala,
@@ -172,9 +174,11 @@ que a tabela está na tela, inclusive ordenada:
 Na barra acima da tabela de itens, à direita, **Editar colunas** abre um painel
 com todas as colunas, inclusive EAN e as anotações extras. Marque ou desmarque
 cada uma e arraste pela alça (ou use as setas do teclado na alça) para mudar a
-ordem. Ao lado, a prévia mostra a tabela com quatro itens fictícios, o
+ordem. Ao lado, a prévia mostra a tabela com oito itens fictícios, o
 cabeçalho em destaque e as linhas sumindo para baixo; ela muda a cada clique.
-Embaixo dela fica a miniatura da folha A4 (ver Orientação e folha).
+À direita dela fica a miniatura da folha A4 (ver Orientação e folha); com o
+painel estreito, a folha vai para baixo da prévia. No topo do painel, o
+**Perfil ativo** em fundo preto, com **Trocar perfil**.
 **Aplicar** salva e remonta a tabela; **Cancelar** (ou Esc) volta ao que era.
 A configuração vale para todas as notas, na tela, na impressão e no PDF. O
 DANFE não muda.
@@ -211,7 +215,7 @@ mostra como a tabela vai para a folha com as colunas do painel: "Cabe em
 retrato", "Cabe em paisagem" ou "Não cabe numa folha" (o texto de ajuda diz a
 fonte ou em quantas partes ela sai).
 
-Embaixo da prévia, a miniatura da folha A4 em escala, com 16 linhas
+Ao lado da prévia, a miniatura da folha A4 em escala, com 16 linhas
 fictícias: em pé em retrato, deitada em paisagem, e em Automática a que o app
 escolheria. As larguras das colunas vêm da mesma régua do PDF, medidas com os
 itens da nota aberta (sem nota, com os itens de exemplo; a legenda diz qual).
@@ -532,25 +536,57 @@ etc.). Cancelar, ali ou na caixa do nome, deixa tudo como estava.
 
 ### Avisos da nota (modo Conferência)
 
-Logo abaixo da barra amarela, uma faixa mostra o que a nota tem a apontar.
-Sem nada: "✓ Nada a apontar nesta nota", discreto. Com avisos: **N avisos**;
-um clique abre a lista. A faixa é só da tela: não sai no PDF nem na
-impressão, e não aparece no modo DANFE.
+À esquerda da nota, o painel de conferência mostra o que a nota tem a
+apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
+"N pontos para olhar" em vermelho. Embaixo:
+
+- **Verificações automáticas**: uma linha por verificação (idade da nota,
+  total dos itens, duplicatas, vencimentos, destinatário, nota já
+  conferida), com ✓ (certo), i (só informa), ! amarelo (aviso leve) ou !
+  vermelho (alerta forte); clicar mostra o detalhe. Aviso leve e alerta
+  forte contam como pontos para olhar. A "já conferida" tem **Abrir em nova
+  janela**.
+- **Precisa de você**: cada item com a Qtd recebida diferente da nota; clicar
+  rola a tabela até a linha, destaca a linha por um instante e põe o foco na
+  caixa Qtd recebida dela.
+- **Ferramentas**: a estrutura existe (`src/nfe/ferramentas.ts`: Rodar,
+  prévia e Aplicar), mas a seção só aparece quando houver alguma ferramenta.
+
+Ações que passam de meio segundo (como procurar a nota na pasta de destino
+pela rede) mostram um círculo girando no painel. O botão no topo recolhe o
+painel numa barra fina, com o ✓ ou o número de pontos. Janela larga (o
+painel cabe na sobra à esquerda da nota, como 1920 a 100%): ele fica aberto
+ao lado, sem empurrar a nota, e a janela lembra se você recolheu. Janela
+estreita (1366, ou 1920 a 125%): começa recolhido e abre por cima da nota;
+Esc, um clique fora ou o Tab para fora fecham. Tudo funciona pelo teclado.
+O painel é só da tela: não sai no PDF nem na impressão, e não aparece no
+modo DANFE.
 
 - **Quantidade divergente**: com a coluna de anotação **Qtd recebida** na
   configuração, o número digitado é comparado com a Qtd da nota, na unidade
   da nota (aceita vírgula, como 2,5 ou 1.000,5). Diferente: a linha fica em
-  vermelho na hora, na tela, no PDF e na impressão, e conta um aviso. Texto
+  vermelho na hora, na tela, no PDF e na impressão, e conta um ponto. Texto
   que não é número não gera aviso.
 - **Totais**: soma do valor dos itens contra o total dos produtos, e soma das
   duplicatas contra o valor total da nota (só se houver duplicatas), com
   tolerância de R$ 0,01. O aviso mostra os dois valores e a diferença.
+- **Idade da nota**: sempre uma linha "Emitida há X dias (dd/mm/aaaa)",
+  contada a partir de hoje ("Emitida hoje", "Emitida ontem"). Até 30 dias só
+  informa; acima disso vira aviso leve: "Emitida há X dias: confira
+  vencimentos e pedido". Os 30 dias vêm da chave `diasNotaAntiga` do
+  `config.json`.
+- **Vencimentos**: cada duplicata comparada com a data de hoje (não com a
+  emissão), com a distância até hoje ("venceu há 20 dias", "vence hoje",
+  "vence em 10 dias"). Parcela vencida: alerta forte, com número, data, valor
+  e há quantos dias venceu, e "Falar com o fornecedor para prorrogar"; o
+  detalhe já abre à mostra. Parcela que vence em até 15 dias: aviso leve. Os
+  15 dias vêm da chave `diasAvisoVencimento` do `config.json`.
 - **Nota de outra empresa**: o CNPJ do destinatário não é o da empresa. Avisa
-  na faixa e num pop-up ao abrir. O CNPJ padrão é 09.076.777/0001-04
+  no painel e num pop-up ao abrir. O CNPJ padrão é 09.076.777/0001-04
   (`CNPJ_EMPRESA_PADRAO` em `src/nfe/avisos.ts`); a chave `cnpjEmpresa` do
   `config.json` troca esse valor.
 - **Nota já conferida**: há um `.psxml` com a mesma chave de acesso na pasta
-  de destino em uso. Avisa na faixa e num pop-up ao abrir, com o nome do
+  de destino em uso. Avisa no painel e num pop-up ao abrir, com o nome do
   arquivo, a data de modificação e **Abrir em nova janela**. O app lê só os
   nomes da pasta e abre apenas os `.psxml` com `_NF<número>` no nome (como o
   Salvar grava); a chave confirma. O próprio arquivo aberto não conta, e uma
@@ -673,7 +709,10 @@ src/
   folhaTabela.ts     cópias da tabela de itens para o papel e medida das colunas
   miniaturaFolha.ts  miniatura da folha A4 no painel Editar colunas
   nfe/avisos.ts      avisos da nota: quantidade, totais, outra empresa, já conferida (lógica pura)
-  faixaAvisos.ts     faixa de avisos da Conferência
+  nfe/conferencia.ts resumo do painel de conferência (verificações e pendências, lógica pura)
+  nfe/ferramentas.ts ferramentas do painel (Rodar, prévia, Aplicar; ainda nenhuma)
+  painelConferencia.ts painel de conferência à esquerda da nota
+  indicador.ts       indicador de processando (só depois de 500 ms)
   dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer

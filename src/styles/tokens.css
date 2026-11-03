@@ -133,7 +133,13 @@
     var(--aviso-erro-fundo) 12%,
     var(--ps-branco)
   );
-  --largura-detalhe-aviso: 760px;
+  /* Painel de conferência, à esquerda da nota: aberto, recolhido (barra
+     fina) e a folga até a nota. Verde do "Tudo certo". */
+  --largura-painel-conferencia: 300px;
+  --largura-trilho-conferencia: 48px;
+  --folga-painel-conferencia: 16px;
+  --cor-ok: rgb(22 128 61);
+  --cor-texto-sobre-ok: var(--ps-branco);
   --aviso-info-fundo: var(--ps-preto);
   --aviso-info-texto: var(--ps-branco);
   --aviso-duracao: 1500ms;
@@ -147,7 +153,7 @@
   --opacidade-previa: 0.45;
   --largura-acao-previa: 150px;
   /* Painel Editar colunas */
-  --largura-painel: 1040px;
+  --largura-painel: 1280px;
   --largura-lista-colunas: 320px;
   --largura-anotacao-previa-minima: 40px;
   --largura-anotacao-previa-estreita: 50px;

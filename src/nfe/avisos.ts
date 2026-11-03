@@ -74,7 +74,8 @@ export function divergenciasQtd(
 }
 
 /** Centavos de um valor do XML ("123.45" -> 12345); vazio conta zero. */
-const centavos = (bruto: string) => Math.round((Number(bruto) || 0) * 100);
+export const centavos = (bruto: string) =>
+  Math.round((Number(bruto) || 0) * 100);
 
 export interface DiferencaTotal {
   /** Itens contra o total dos produtos, ou duplicatas contra o da nota. */
@@ -174,7 +175,8 @@ export function avisosDaNota(dados: {
   return avisos;
 }
 
-const reais = (c: number) => f.moeda((c / 100).toFixed(2));
+/** Centavos em reais na tela ("R$ 1.234,56"). */
+export const reais = (c: number) => f.moeda((c / 100).toFixed(2));
 
 /** Data e hora no formato da tela ("28/10/2026 14:05"). */
 export function dataHoraArquivo(iso: string): string {
@@ -221,4 +223,129 @@ export function textoAviso(a: Aviso): { titulo: string; detalhe: string } {
         detalhe: `Já existe ${a.arquivo.nome} na pasta de destino, modificado em ${dataHoraArquivo(a.arquivo.modificado)}.`,
       };
   }
+}
+
+// ---------- datas: vencimento das duplicatas e idade da nota ----------
+
+/** Parcela que vence em até tantos dias: aviso leve (config.json). */
+export const DIAS_AVISO_VENCIMENTO_PADRAO = 15;
+/** Nota emitida há mais que tantos dias: aviso leve (config.json). */
+export const DIAS_NOTA_ANTIGA_PADRAO = 30;
+
+/** Número de dias da configuração (inteiro de 0 a 3650), ou `padrao`. */
+export function diasDaConfig(v: unknown, padrao: number): number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 3650
+    ? v
+    : padrao;
+}
+
+/**
+ * Dias de `hoje` até a data `bruto` do XML ("2026-11-13" ou o começo de
+ * "2026-10-28T10:00:00-03:00"): negativo se já passou. Conta datas do
+ * calendário (a hora não importa); a data é a escrita no XML, sem fuso.
+ * null se não for data.
+ */
+export function diasAte(bruto: string, hoje: Date): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(bruto);
+  if (!m) return null;
+  const alvo = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const base = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  return Math.round((alvo - base) / 86_400_000);
+}
+
+const dias = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`;
+
+/** "venceu há 20 dias", "vence hoje", "vence em 10 dias". */
+export function distanciaVencimento(d: number): string {
+  if (d < 0) return `venceu há ${dias(-d)}`;
+  if (d === 0) return 'vence hoje';
+  return `vence em ${dias(d)}`;
+}
+
+export type NivelParcela = 'vencida' | 'proxima' | 'ok';
+
+export interface SituacaoParcela {
+  nDup: string;
+  dVenc: string;
+  vDup: string;
+  /** Dias até o vencimento (negativo: vencida); null sem data. */
+  dias: number | null;
+  nivel: NivelParcela;
+  /** "Parcela 001, 13/10/2026, R$ 100,00: venceu há 20 dias." */
+  texto: string;
+}
+
+/**
+ * Cada duplicata comparada com a data de hoje (não com a emissão): vencida
+ * antes de hoje; próxima se vence de hoje até `diasAviso` dias.
+ */
+export function situacaoParcelas(
+  n: Nota,
+  hoje: Date,
+  diasAviso: number,
+): SituacaoParcela[] {
+  return n.duplicatas.map((d) => {
+    const ate = diasAte(d.dVenc, hoje);
+    const nivel: NivelParcela =
+      ate === null
+        ? 'ok'
+        : ate < 0
+          ? 'vencida'
+          : ate <= diasAviso
+            ? 'proxima'
+            : 'ok';
+    const valor = reais(centavos(d.vDup));
+    const data = f.data(d.dVenc) || 'sem data';
+    const distancia =
+      ate === null ? 'sem data de vencimento' : distanciaVencimento(ate);
+    const nome = d.nDup ? `Parcela ${d.nDup}` : 'Parcela';
+    return {
+      nDup: d.nDup,
+      dVenc: d.dVenc,
+      vDup: d.vDup,
+      dias: ate,
+      nivel,
+      texto:
+        nivel === 'vencida'
+          ? `${nome}, ${data}, ${valor}: ${distancia}. Falar com o fornecedor para prorrogar.`
+          : `${nome}, ${data}, ${valor}: ${distancia}.`,
+    };
+  });
+}
+
+export interface IdadeNota {
+  /** Dias desde a emissão (0 = hoje); null sem data de emissão. */
+  dias: number | null;
+  /** Mais antiga que `diasNotaAntiga`: aviso leve. */
+  antiga: boolean;
+  /** "Emitida há 75 dias (20/08/2026)", "Emitida hoje (03/11/2026)". */
+  texto: string;
+}
+
+/** Idade da nota contada a partir de hoje, pela data de emissão (dhEmi). */
+export function idadeNota(
+  n: Nota,
+  hoje: Date,
+  diasNotaAntiga: number,
+): IdadeNota {
+  const ate = diasAte(n.ide.dhEmi, hoje);
+  if (ate === null)
+    return { dias: null, antiga: false, texto: 'Sem data de emissão' };
+  // Emissão com data futura (relógio errado): conta como hoje.
+  const idade = Math.max(0, -ate);
+  const data = f.data(n.ide.dhEmi);
+  const antiga = idade > diasNotaAntiga;
+  const quando =
+    idade === 0
+      ? 'Emitida hoje'
+      : idade === 1
+        ? 'Emitida ontem'
+        : `Emitida há ${dias(idade)}`;
+  return {
+    dias: idade,
+    antiga,
+    texto: antiga
+      ? `${quando}: confira vencimentos e pedido`
+      : `${quando} (${data})`,
+  };
 }

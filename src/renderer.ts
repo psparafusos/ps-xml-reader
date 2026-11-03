@@ -40,12 +40,15 @@ import * as f from './nfe/formato';
 import {
   avisosDaNota,
   CNPJ_EMPRESA_PADRAO,
+  DIAS_AVISO_VENCIMENTO_PADRAO,
+  DIAS_NOTA_ANTIGA_PADRAO,
   ID_QTD_RECEBIDA,
   textoAviso,
   type Aviso,
   type Conferido,
 } from './nfe/avisos';
-import { desenharFaixa } from './faixaAvisos';
+import { resumoConferencia } from './nfe/conferencia';
+import { criarPainel } from './painelConferencia';
 import {
   abrirEditorColunas,
   atualizarEditor,
@@ -1140,7 +1143,21 @@ const barraFornecedor = $('barra-fornecedor');
 const barraNota = $('barra-nota');
 const barraCopia = $('barra-copia');
 const notaEl = $('nota');
-const faixaAvisos = $('faixa-avisos');
+const painelEl = $('painel-conferencia');
+const painel = criarPainel(painelEl, notaEl, {
+  abrirConferido: (c) => void abrirConferido(c),
+  irParaItem,
+  contexto: () => (aberto ? { nota: aberto.lido.nota, anotacoes } : null),
+  aplicado: () => aplicarConfig(configAtual),
+});
+// O painel fica logo abaixo da barra amarela, que muda de altura quando os
+// botões descem para uma segunda linha.
+new ResizeObserver(() =>
+  document.documentElement.style.setProperty(
+    '--altura-barra',
+    `${barra.getBoundingClientRect().height}px`,
+  ),
+).observe(barra);
 /** Documento do "Salvar PDF" da tela de escolha (fora da tela). */
 const previaEl = $('pdf-previa');
 const btnFecharEscolha = $('btn-fechar-escolha') as HTMLButtonElement;
@@ -1289,7 +1306,7 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
   danfeEl.hidden = tela !== 'danfe';
-  faixaAvisos.hidden = tela !== 'nota';
+  painelEl.hidden = tela !== 'nota';
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
     document.body.dataset.modo = modoAtual;
@@ -1302,6 +1319,7 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   }
   window.scrollTo(0, 0);
   aplicarZoom();
+  painel.ajustarLayout();
   if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
 }
 
@@ -1336,6 +1354,8 @@ function aplicarZoom(): void {
   btnZoomValor.textContent = pct;
   btnZoom.setAttribute('aria-label', `Zoom em ${pct}. Restaurar 100%`);
   btnZoom.title = 'Restaurar o tamanho normal (Ctrl+0)';
+  // O zoom muda a largura da nota: o painel pode deixar de caber ao lado.
+  painel.ajustarLayout();
 }
 
 /** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
@@ -1485,10 +1505,14 @@ function conteudoNota(
   ];
 }
 
-// ---------- avisos da nota (faixa, destaque e pop-ups ao abrir) ----------
+// ---------- avisos da nota (painel de conferência, destaque e pop-ups) ----------
 
-/** CNPJ da empresa (config.json ou o padrão), lido a cada nota aberta. */
-let cnpjEmpresa = CNPJ_EMPRESA_PADRAO;
+/** Ajustes dos avisos (config.json ou os padrões), lidos a cada nota aberta. */
+let configAvisos: ConfigAvisos = {
+  cnpjEmpresa: CNPJ_EMPRESA_PADRAO,
+  diasAvisoVencimento: DIAS_AVISO_VENCIMENTO_PADRAO,
+  diasNotaAntiga: DIAS_NOTA_ANTIGA_PADRAO,
+};
 /** .psxml da pasta de destino com a mesma chave da nota aberta. */
 let conferidosAtuais: Conferido[] = [];
 /** CNPJ e conferidos já chegaram para a nota aberta. */
@@ -1507,25 +1531,62 @@ function avisosAtuais(): Aviso[] {
     comQtdRecebida: colunasAtuais().some(
       (c) => c.id === ID_QTD_RECEBIDA && c.visivel,
     ),
-    cnpjEmpresa,
+    cnpjEmpresa: configAvisos.cnpjEmpresa,
     conferidos: conferidosAtuais,
   });
 }
 
 /**
- * Redesenha a faixa e o destaque vermelho das linhas com quantidade
- * divergente (a classe vai junto para as cópias do PDF e da impressão).
+ * Redesenha o painel de conferência e o destaque vermelho das linhas com
+ * quantidade divergente (a classe vai junto para as cópias do PDF e da
+ * impressão).
  */
 function atualizarAvisos(): void {
-  const avisos = avisosAtuais();
-  if (avisosProntos)
-    desenharFaixa(faixaAvisos, avisos, (c) => void abrirConferido(c));
-  else faixaAvisos.replaceChildren();
-  const divergentes = new Set(
-    avisos.flatMap((a) => (a.tipo === 'qtd' ? [a.nItem] : [])),
-  );
+  const resumo =
+    aberto && avisosProntos
+      ? resumoConferencia({
+          nota: aberto.lido.nota,
+          anotacoes,
+          comQtdRecebida: colunasAtuais().some(
+            (c) => c.id === ID_QTD_RECEBIDA && c.visivel,
+          ),
+          cnpjEmpresa: configAvisos.cnpjEmpresa,
+          conferidos: conferidosAtuais,
+          temPastaDestino: pastaDestino !== null,
+          hoje: new Date(),
+          diasAvisoVencimento: configAvisos.diasAvisoVencimento,
+          diasNotaAntiga: configAvisos.diasNotaAntiga,
+        })
+      : null;
+  painel.desenhar(resumo);
+  const divergentes = new Set(resumo?.pendencias.map((p) => p.nItem));
   for (const [nItem, tbody] of corposItens)
     tbody.classList.toggle('item--divergente', divergentes.has(nItem));
+}
+
+/** Tempo do destaque da linha ao ir para ela pelo painel. */
+const DURACAO_DESTAQUE_MS = 1600;
+
+/**
+ * Pendência clicada no painel: rola a tabela até o item, destaca a linha por
+ * um instante e põe o foco na caixa Qtd recebida dele.
+ */
+function irParaItem(nItem: string): void {
+  const tbody = corposItens.get(nItem);
+  if (!tbody) return;
+  tbody.scrollIntoView({ block: 'center', inline: 'nearest' });
+  tbody.classList.remove('item--destaque');
+  void tbody.offsetWidth;
+  tbody.classList.add('item--destaque');
+  window.setTimeout(
+    () => tbody.classList.remove('item--destaque'),
+    DURACAO_DESTAQUE_MS,
+  );
+  tbody
+    .querySelector<HTMLInputElement>(
+      `td.col-${CSS.escape(ID_QTD_RECEBIDA)} input`,
+    )
+    ?.focus({ preventScroll: true });
 }
 
 async function abrirConferido(c: Conferido): Promise<void> {
@@ -1535,7 +1596,7 @@ async function abrirConferido(c: Conferido): Promise<void> {
 
 /**
  * Nota recém-lida: busca o CNPJ da empresa e os .psxml já conferidos da
- * pasta de destino (sem travar a abertura) e depois mostra a faixa e os
+ * pasta de destino (sem travar a abertura) e depois mostra o painel e os
  * pop-ups.
  */
 async function prepararAvisos(n: Nota): Promise<void> {
@@ -1543,17 +1604,23 @@ async function prepararAvisos(n: Nota): Promise<void> {
   avisosProntos = false;
   popupsPendentes = true;
   conferidosAtuais = [];
-  faixaAvisos.dataset.aberta = 'false';
+  painel.novaNota();
   atualizarAvisos();
-  const [cnpj, conferidos] = await Promise.all([
-    window.psApi.cnpjEmpresa().catch(() => CNPJ_EMPRESA_PADRAO),
-    window.psApi.buscarConferidos(n.chave, n.ide.nNF).catch((erro: unknown) => {
-      console.error(erro);
-      return [];
-    }),
-  ]);
+  // Pasta de destino na rede pode demorar: o painel mostra que está
+  // processando se passar de meio segundo.
+  const [config, conferidos] = await painel.indicador.rodar(() =>
+    Promise.all([
+      window.psApi.configAvisos().catch(() => configAvisos),
+      window.psApi
+        .buscarConferidos(n.chave, n.ide.nNF)
+        .catch((erro: unknown) => {
+          console.error(erro);
+          return [];
+        }),
+    ]),
+  );
   if (geracao !== geracaoAvisos) return;
-  cnpjEmpresa = cnpj;
+  configAvisos = config;
   conferidosAtuais = conferidos;
   avisosProntos = true;
   atualizarAvisos();
@@ -1575,7 +1642,7 @@ async function avisarAoAbrir(): Promise<void> {
     if (a.tipo === 'outra-empresa') {
       await perguntar({
         titulo,
-        texto: `${detalhe} O CNPJ da empresa é ${f.cnpj(cnpjEmpresa)}.`,
+        texto: `${detalhe} O CNPJ da empresa é ${f.cnpj(configAvisos.cnpjEmpresa)}.`,
         botoes: [{ rotulo: 'Entendi', valor: 'ok', principal: true }],
         cancelar: 'ok',
       });
@@ -1590,7 +1657,7 @@ async function avisarAoAbrir(): Promise<void> {
         cancelar: 'ok',
       });
       if (r === 'abrir') await abrirConferido(a.arquivo);
-      // Só o mais recente vira pop-up; os outros ficam na faixa.
+      // Só o mais recente vira pop-up; os outros ficam no painel.
       break;
     }
   }
@@ -2566,7 +2633,7 @@ function limparNota(): void {
   geracaoAvisos++;
   avisosProntos = false;
   popupsPendentes = false;
-  faixaAvisos.replaceChildren();
+  painel.novaNota();
   conferenciaMontada = false;
   danfeMontado = false;
   danfeEl.replaceChildren();

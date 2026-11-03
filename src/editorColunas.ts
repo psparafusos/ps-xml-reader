@@ -334,7 +334,7 @@ const ITENS_PREVIA: Item[] = [
 );
 
 /** Itens da prévia de cima; a miniatura da folha usa todos. */
-const ITENS_TOPO = 4;
+const ITENS_TOPO = 8;
 
 /** Texto fictício nas anotações da prévia, só na primeira linha. */
 const TEXTO_PREVIA_ANOTACAO = 'Conferido';
@@ -550,8 +550,9 @@ export function abrirEditorColunas(
         'painel__previa',
         el('h3', 'painel__subtitulo', 'Prévia'),
         el('div', 'painel__folha', rotuloOrientacao, orientacao, indicador),
-        comSetasDeRolagem(previa),
-        miniatura,
+        // Prévia das colunas e folha lado a lado; com o painel estreito, uma
+        // embaixo da outra (app.css, container query).
+        el('div', 'painel__visoes', comSetasDeRolagem(previa), miniatura),
       ),
     ),
     erro,

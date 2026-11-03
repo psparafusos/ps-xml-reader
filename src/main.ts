@@ -49,6 +49,9 @@ import {
   chaveDoArquivo,
   cnpjDaConfig,
   CNPJ_EMPRESA_PADRAO,
+  DIAS_AVISO_VENCIMENTO_PADRAO,
+  DIAS_NOTA_ANTIGA_PADRAO,
+  diasDaConfig,
   nomePodeSerConferencia,
 } from './nfe/avisos';
 import { problemaNomeArquivo } from './nfe/nome';
@@ -718,6 +721,10 @@ interface Config {
    * outra empresa). Sem ele, ou inválido, vale CNPJ_EMPRESA_PADRAO.
    */
   cnpjEmpresa?: unknown;
+  /** Parcela que vence em até tantos dias: aviso leve (padrão 15). */
+  diasAvisoVencimento?: unknown;
+  /** Nota emitida há mais que tantos dias: aviso leve (padrão 30). */
+  diasNotaAntiga?: unknown;
 }
 
 function caminhoConfig(): string {
@@ -761,11 +768,18 @@ async function lerConfig(): Promise<Config> {
 
 ipcMain.handle('versao', (): string => app.getVersion());
 
-ipcMain.handle(
-  'cnpj-empresa',
-  async (): Promise<string> =>
-    cnpjDaConfig((await lerConfig()).cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
-);
+/** Ajustes dos avisos da nota no config.json, com os padrões. */
+ipcMain.handle('config-avisos', async (): Promise<ConfigAvisos> => {
+  const c = await lerConfig();
+  return {
+    cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
+    diasAvisoVencimento: diasDaConfig(
+      c.diasAvisoVencimento,
+      DIAS_AVISO_VENCIMENTO_PADRAO,
+    ),
+    diasNotaAntiga: diasDaConfig(c.diasNotaAntiga, DIAS_NOTA_ANTIGA_PADRAO),
+  };
+});
 
 /** Grava as chaves de `parcial` mantendo as demais. */
 async function gravarConfig(parcial: Config): Promise<void> {

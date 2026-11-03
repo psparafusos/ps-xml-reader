@@ -214,14 +214,9 @@
       </nav>
     </header>
 
-    <!-- Avisos da nota (só na Conferência e só na tela): montada no
-         renderer.ts (faixaAvisos.ts). -->
-    <section
-      id="faixa-avisos"
-      class="faixa-avisos"
-      aria-label="Avisos da nota"
-      hidden
-    ></section>
+    <!-- Painel de conferência, à esquerda da nota (só na Conferência e só
+         na tela): montado no renderer.ts (painelConferencia.ts). -->
+    <aside id="painel-conferencia" class="conferencia" hidden></aside>
 
     <!-- Erro: fica visível em qualquer posição de rolagem até a pessoa fechar. -->
     <div id="mensagem" class="mensagem" role="alert" hidden>

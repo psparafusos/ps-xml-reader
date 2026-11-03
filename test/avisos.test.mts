@@ -13,6 +13,11 @@ import {
   nomePodeSerConferencia,
   numeroDigitado,
   textoAviso,
+  diasAte,
+  diasDaConfig,
+  distanciaVencimento,
+  idadeNota,
+  situacaoParcelas,
 } from '../src/nfe/avisos.ts';
 import {
   idDaAnotacao,
@@ -297,5 +302,70 @@ describe('perfil salvo com anotação de título igual a uma coluna nova', () =>
     c.anotacoes.push({ id: idDaAnotacao('Pedido'), titulo: 'Pedido' });
     c.colunas.push({ id: idDaAnotacao('Pedido'), visivel: true });
     assert.doesNotThrow(() => validarConfig(JSON.parse(JSON.stringify(c))));
+  });
+});
+
+describe('datas: vencimentos e idade', () => {
+  const hoje = new Date(2026, 10, 3, 23, 50);
+
+  it('diasAte conta datas do calendário, sem hora nem fuso', () => {
+    assert.equal(diasAte('2026-11-03', hoje), 0);
+    assert.equal(diasAte('2026-11-04T00:10:00-03:00', hoje), 1);
+    assert.equal(diasAte('2026-10-14', hoje), -20);
+    assert.equal(diasAte('2027-01-01', hoje), 59);
+    assert.equal(diasAte('', hoje), null);
+  });
+
+  it('distância até hoje em cada parcela', () => {
+    assert.equal(distanciaVencimento(-20), 'venceu há 20 dias');
+    assert.equal(distanciaVencimento(-1), 'venceu há 1 dia');
+    assert.equal(distanciaVencimento(0), 'vence hoje');
+    assert.equal(distanciaVencimento(1), 'vence em 1 dia');
+    assert.equal(distanciaVencimento(10), 'vence em 10 dias');
+  });
+
+  it('parcela que vence hoje é próxima, não vencida', () => {
+    const n = nota({
+      duplicatas: [
+        { nDup: '001', dVenc: '2026-11-03', vDup: '10.00' },
+        { nDup: '002', dVenc: '2026-11-02', vDup: '10.00' },
+        { nDup: '003', dVenc: '2026-11-19', vDup: '10.00' },
+      ],
+    });
+    assert.deepEqual(
+      situacaoParcelas(n, hoje, 15).map((p) => [p.nivel, p.dias]),
+      [
+        ['proxima', 0],
+        ['vencida', -1],
+        ['ok', 16],
+      ],
+    );
+  });
+
+  it('idade da nota: hoje, ontem, há N dias', () => {
+    const com = (dhEmi: string) => {
+      const n = nota();
+      n.ide.dhEmi = dhEmi;
+      return idadeNota(n, hoje, 30).texto;
+    };
+    assert.equal(com('2026-11-03T08:00:00-03:00'), 'Emitida hoje (03/11/2026)');
+    assert.equal(
+      com('2026-11-02T08:00:00-03:00'),
+      'Emitida ontem (02/11/2026)',
+    );
+    assert.equal(
+      com('2026-10-24T08:00:00-03:00'),
+      'Emitida há 10 dias (24/10/2026)',
+    );
+    assert.equal(com(''), 'Sem data de emissão');
+  });
+
+  it('dias da configuração: inteiro de 0 a 3650, senão o padrão', () => {
+    assert.equal(diasDaConfig(20, 15), 20);
+    assert.equal(diasDaConfig(0, 15), 0);
+    assert.equal(diasDaConfig(-1, 15), 15);
+    assert.equal(diasDaConfig(2.5, 15), 15);
+    assert.equal(diasDaConfig('20', 15), 15);
+    assert.equal(diasDaConfig(undefined, 30), 30);
   });
 });

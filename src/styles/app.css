@@ -714,102 +714,381 @@ ul {
 
 /* ---------- avisos ---------- */
 
-/* ---------- faixa de avisos da nota (Conferência, só na tela) ---------- */
+/* ---------- painel de conferência (Conferência, só na tela) ---------- */
 
-.faixa-avisos {
-  padding: var(--esp-2) var(--esp-5);
-  border-bottom: var(--borda) solid var(--cor-borda-suave);
+/* Fixo à esquerda, logo abaixo da barra amarela (--altura-barra vem do
+   renderer.ts). Aberto: --largura-painel-conferencia; recolhido: a barra
+   fina de ícones. "lado": cabe na sobra à esquerda da nota, sem empurrá-la.
+   "sobre": janela estreita, abre por cima da nota, com sombra. */
+.conferencia {
+  position: fixed;
+  top: var(--altura-barra, 0px);
+  bottom: 0;
+  left: 0;
+  z-index: 9;
+  display: flex;
+  width: var(--largura-painel-conferencia);
+  border-right: var(--borda) solid var(--cor-borda-suave);
+  background: var(--ps-branco);
+  color: var(--cor-texto);
   font-size: var(--fs-sm);
 }
 
-.faixa-avisos[data-estado='avisos'] {
-  border-bottom-color: var(--aviso-erro-fundo);
-  background: var(--cor-alerta-suave);
+.conferencia[data-estado='recolhido'] {
+  width: var(--largura-trilho-conferencia);
 }
 
-/* Nada a apontar: discreto, em cinza. */
-.faixa-avisos__ok {
+.conferencia[data-layout='sobre'][data-estado='aberto'] {
+  box-shadow: var(--sombra-aviso);
+}
+
+/* Recuo da nota quando nem a barra fina cabe na sobra à esquerda. Só na
+   tela: o PDF e a impressão não têm painel. */
+@media screen {
+  body.com-recuo-conferencia #nota {
+    padding-left: calc(
+      var(--largura-trilho-conferencia) + var(--folga-painel-conferencia)
+    );
+  }
+}
+
+.conferencia__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-4);
+  width: 100%;
+  padding: var(--esp-4);
+  overflow-y: auto;
+}
+
+.conferencia__cabecalho {
   display: flex;
   align-items: center;
   gap: var(--esp-2);
-  color: var(--cor-texto);
-  font-size: var(--fs-xs);
 }
 
-.faixa-avisos__marca {
+.conferencia__titulo {
+  flex: 1;
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-md);
   font-weight: var(--peso-forte);
+  letter-spacing: var(--espaco-letras-rotulo);
+  text-transform: uppercase;
 }
 
-.faixa-avisos__contador {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--esp-2);
-  padding: var(--esp-1) var(--esp-3);
-  border: var(--borda) solid var(--aviso-erro-fundo);
+.conferencia__recolher,
+.conferencia__expandir,
+.conferencia__icone-trilho {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: var(--borda) solid var(--cor-borda);
   border-radius: var(--raio);
   background: var(--ps-branco);
   color: var(--cor-texto-forte);
-  font: inherit;
-  font-weight: var(--peso-forte);
   cursor: pointer;
 }
 
-.faixa-avisos__contador:hover {
-  background: var(--cor-alerta-suave);
+.conferencia__recolher:hover,
+.conferencia__expandir:hover,
+.conferencia__icone-trilho:hover {
+  border-color: var(--ps-preto);
+  background: var(--cor-destaque-suave);
 }
 
-.faixa-avisos__contador:focus-visible {
+.conferencia button:focus-visible {
   outline: var(--botao-foco-espessura) solid var(--botao-foco);
   outline-offset: var(--botao-foco-afastamento);
 }
 
-.faixa-avisos__contador .icone {
-  width: 14px;
-  height: 14px;
+/* Resultado em destaque: verde quando está tudo certo, alerta quando não. */
+.conferencia__resultado {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  padding: var(--esp-3);
+  border-radius: var(--raio);
+  font-size: var(--fs-md);
+  font-weight: var(--peso-forte);
 }
 
-.faixa-avisos__icone {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+.conferencia__resultado--ok {
+  background: var(--cor-ok);
+  color: var(--cor-texto-sobre-ok);
+}
+
+.conferencia__resultado--alerta {
   background: var(--aviso-erro-fundo);
   color: var(--aviso-erro-texto);
-  font-size: var(--fs-xs);
 }
 
-.faixa-avisos__lista {
+.conferencia__resultado--carregando {
+  background: var(--cor-zebra);
+  color: var(--cor-texto);
+}
+
+.conferencia__resultado-sinal .icone {
+  width: 20px;
+  height: 20px;
+}
+
+.conferencia__subtitulo {
+  margin-bottom: var(--esp-2);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
+  letter-spacing: var(--espaco-letras-rotulo);
+  text-transform: uppercase;
+}
+
+.conferencia__lista {
   display: grid;
-  gap: var(--esp-2);
-  max-width: var(--largura-detalhe-aviso);
-  margin: var(--esp-2) 0 var(--esp-1);
+  gap: var(--esp-1);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.faixa-avisos__item {
+.conferencia__linha,
+.conferencia__pendencia {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--esp-1) var(--esp-3);
-  padding: var(--esp-2) var(--esp-3);
-  border-left: var(--borda-destaque) solid var(--aviso-erro-fundo);
+  gap: var(--esp-2);
+  width: 100%;
+  padding: var(--esp-2);
+  border: var(--borda) solid var(--cor-borda-suave);
   border-radius: var(--raio);
   background: var(--ps-branco);
-}
-
-.faixa-avisos__titulo {
   color: var(--cor-texto-forte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.faixa-avisos__detalhe {
-  flex-basis: 100%;
+.conferencia__linha:hover,
+.conferencia__pendencia:hover {
+  border-color: var(--ps-preto);
+  background: var(--cor-destaque-suave);
+}
+
+.conferencia__verificacao--forte .conferencia__linha,
+.conferencia__pendencia {
+  border-color: var(--aviso-erro-fundo);
+  background: var(--cor-alerta-suave);
+}
+
+.conferencia__linha .icone:last-child {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+}
+
+.conferencia__linha-titulo {
+  font-weight: var(--peso-medio);
+}
+
+/* ✓ verde ou ! no círculo de alerta. */
+.conferencia__sinal {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--ps-branco);
+}
+
+.conferencia__sinal .icone {
+  width: 14px;
+  height: 14px;
+}
+
+.conferencia__sinal--ok {
+  background: var(--cor-ok);
+}
+
+.conferencia__sinal--alerta,
+.conferencia__sinal--forte {
+  background: var(--aviso-erro-fundo);
+}
+
+/* Aviso leve: amarelo com o ! preto; informativo: cinza. */
+.conferencia__sinal--leve {
+  background: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+}
+
+.conferencia__sinal--info {
+  background: var(--cor-icone);
+}
+
+.conferencia__verificacao--leve .conferencia__linha {
+  border-color: var(--cor-destaque);
+  background: var(--cor-destaque-suave);
+}
+
+/* Parcelas no detalhe de Vencimentos: uma por linha, com o sinal do nível;
+   a vencida em negrito. */
+.conferencia__parcelas {
+  display: grid;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conferencia__parcela {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+}
+
+.conferencia__parcela--forte {
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-medio);
+}
+
+.conferencia__detalhe {
+  display: grid;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-2) var(--esp-2) calc(20px + 2 * var(--esp-2));
   color: var(--cor-texto);
 }
 
-.faixa-avisos__abrir {
-  margin-top: var(--esp-1);
+.conferencia__detalhe[hidden] {
+  display: none;
+}
+
+.conferencia__pendencia-textos {
+  display: flex;
+  flex-direction: column;
+}
+
+.conferencia__pendencia-detalhe,
+.conferencia__vazio {
+  color: var(--cor-texto);
+  font-size: var(--fs-xs);
+}
+
+.conferencia__ferramenta {
+  display: grid;
+  gap: var(--esp-1);
+  padding: var(--esp-2);
+  border: var(--borda) solid var(--cor-borda-suave);
+  border-radius: var(--raio);
+}
+
+.conferencia__previa {
+  padding: var(--esp-2);
+  border-radius: var(--raio);
+  background: var(--cor-destaque-suave);
+}
+
+.conferencia__acoes {
+  display: flex;
+  gap: var(--esp-2);
+}
+
+/* Barra fina do painel recolhido: abrir, a situação (✓ ou o número de
+   pontos) e o indicador de processando. */
+.conferencia__trilho {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: var(--esp-3) 0;
+}
+
+.conferencia__trilho[hidden],
+.conferencia__corpo[hidden] {
+  display: none;
+}
+
+.conferencia__icone-trilho--ok {
+  border-color: var(--cor-ok);
+  background: var(--cor-ok);
+  color: var(--cor-texto-sobre-ok);
+}
+
+.conferencia__icone-trilho--alerta {
+  border-color: var(--aviso-erro-fundo);
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
+}
+
+/* No hover, o ✓ e o número mantêm o fundo verde ou vermelho (o amarelo
+   claro dos outros botões apagava o ícone branco): só a borda preta e um
+   leve escurecimento. */
+.conferencia__icone-trilho--ok:hover {
+  border-color: var(--ps-preto);
+  background: var(--cor-ok);
+  filter: brightness(0.9);
+}
+
+.conferencia__icone-trilho--alerta:hover {
+  border-color: var(--ps-preto);
+  background: var(--aviso-erro-fundo);
+  filter: brightness(0.9);
+}
+
+.conferencia__contagem {
+  font-weight: var(--peso-forte);
+}
+
+/* Processando: só aparece quando uma ação passa de 500 ms (indicador.ts). */
+.conferencia__processando {
+  display: none;
+}
+
+.conferencia[data-processando='true'] .conferencia__processando {
+  display: inline-grid;
+  place-items: center;
+}
+
+.conferencia__giro {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: var(--borda-forte) solid var(--cor-borda-suave);
+  border-top-color: var(--ps-preto);
+  border-radius: 50%;
+  animation: conferencia-giro 0.8s linear infinite;
+}
+
+@keyframes conferencia-giro {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conferencia__giro {
+    animation-duration: 2.4s;
+  }
+}
+
+.conferencia__so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Linha escolhida no painel: pisca em amarelo por um instante. */
+.tabela > tbody.item--destaque > tr > td {
+  animation: item-destaque 1.6s ease-out;
+}
+
+@keyframes item-destaque {
+  0%,
+  40% {
+    background: var(--cor-destaque);
+  }
 }
 
 /* Linha com a quantidade recebida diferente da nota: em vermelho na tela,
@@ -1692,8 +1971,8 @@ body.pdf-previa #pdf-previa {
 .previa__conteudo {
   width: max-content;
   min-width: 100%;
-  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
 }
 
 .previa__tabela {
@@ -2104,8 +2383,30 @@ body.pdf-previa #pdf-previa {
   display: none;
 }
 
-.miniatura {
-  margin-top: var(--esp-4);
+/* Prévia das colunas e miniatura da folha lado a lado (a folha à direita,
+   na largura dela); com a seção estreita, a prévia em cima e a folha
+   embaixo. */
+.painel__previa {
+  container-type: inline-size;
+}
+
+.painel__visoes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--esp-4);
+}
+
+@container (max-width: 760px) {
+  .painel__visoes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A legenda acompanha a largura da folha (não alarga a coluna). */
+.miniatura__legenda,
+.miniatura__fonte {
+  contain: inline-size;
 }
 
 .miniatura__rolagem {
@@ -2323,6 +2624,8 @@ body.pdf-previa #pdf-previa {
 
 /* Bloco "Perfil ativo": o nome em destaque e o botão Trocar perfil, que abre
    a lista dos perfis logo abaixo dele. */
+/* Fundo preto com texto branco; o Trocar perfil fica amarelo, como os
+   botões preenchidos do app. */
 .perfil-ativo {
   display: flex;
   align-items: center;
@@ -2332,7 +2635,29 @@ body.pdf-previa #pdf-previa {
   padding: var(--esp-2) var(--esp-3);
   border-left: var(--borda-destaque) solid var(--cor-destaque);
   border-radius: var(--raio);
+  background: var(--ps-preto);
+  color: var(--ps-branco);
+}
+
+.perfil-ativo .perfil-ativo__trocar {
+  border-color: var(--cor-destaque);
+  background: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+}
+
+.perfil-ativo .perfil-ativo__trocar:hover:not(:disabled),
+.perfil-ativo .perfil-ativo__trocar[aria-expanded='true'] {
+  border-color: var(--ps-branco);
+  background: var(--ps-branco);
+}
+
+.perfil-ativo .perfil-ativo__trocar:active:not(:disabled) {
+  border-color: var(--cor-destaque-suave);
   background: var(--cor-destaque-suave);
+}
+
+.perfil-ativo .perfil-ativo__trocar:focus-visible {
+  outline-color: var(--cor-destaque);
 }
 
 .perfil-ativo__textos {
@@ -2349,7 +2674,7 @@ body.pdf-previa #pdf-previa {
 }
 
 .perfil-ativo__nome {
-  color: var(--cor-texto-forte);
+  color: var(--ps-branco);
   font-size: var(--fs-xl);
   font-weight: var(--peso-forte);
   overflow-wrap: anywhere;

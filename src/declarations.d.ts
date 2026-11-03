@@ -1,6 +1,14 @@
 /// <reference types="@electron-forge/plugin-vite/forge-vite-env" />
 declare module '*.css';
 
+/** Ajustes dos avisos da nota lidos do config.json. */
+interface ConfigAvisos {
+  /** CNPJ da empresa, só dígitos. */
+  cnpjEmpresa: string;
+  diasAvisoVencimento: number;
+  diasNotaAntiga: number;
+}
+
 /** .psxml com a mesma chave da nota aberta (aviso de nota já conferida). */
 interface ArquivoConferido {
   caminho: string;
@@ -236,8 +244,8 @@ interface PsApi {
   ): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */
   versao(): Promise<string>;
-  /** CNPJ da empresa (config.json, ou o padrão), só dígitos. */
-  cnpjEmpresa(): Promise<string>;
+  /** Ajustes dos avisos da nota (config.json, ou os padrões). */
+  configAvisos(): Promise<ConfigAvisos>;
   /** .psxml da pasta de destino em uso com a mesma chave (nota já conferida). */
   buscarConferidos(chave: string, nNF: string): Promise<ArquivoConferido[]>;
   /** Abre numa janela nova um .psxml achado por buscarConferidos. */
