@@ -9,7 +9,14 @@ import {
   ID_ANOTACAO,
   type ColunaItem,
 } from './nfe/colunas';
-import { configPadrao } from './nfe/config';
+import { configPadrao, idDaAnotacao, problemaTitulo } from './nfe/config';
+import type { FerramentaJanela } from './nfe/ferramentas';
+import {
+  abrirFerramentaST,
+  DESCRICAO_FERRAMENTA_ST,
+  itensParaAnalise,
+  TITULO_FERRAMENTA_ST,
+} from './ferramentaST';
 import { montarCopia } from './nfe/copia';
 import { destinoAnotacao, type TeclaAnotacao } from './nfe/navegacao';
 import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
@@ -49,6 +56,8 @@ import {
 } from './nfe/avisos';
 import { resumoConferencia } from './nfe/conferencia';
 import { criarPainel } from './painelConferencia';
+import { abrirAreaDocumentos, atualizarAreaDocumentos } from './areaDocumentos';
+import { textoRodapeBase } from './fiscal/documentos';
 import {
   abrirEditorColunas,
   atualizarEditor,
@@ -1148,7 +1157,12 @@ const painel = criarPainel(painelEl, notaEl, {
   abrirConferido: (c) => void abrirConferido(c),
   irParaItem,
   contexto: () => (aberto ? { nota: aberto.lido.nota, anotacoes } : null),
-  aplicado: () => aplicarConfig(configAtual),
+  aplicado: () => {
+    aplicarConfig(configAtual);
+    atualizarPendentes();
+  },
+  abrirDocumentos: () => abrirAreaDocumentos(),
+  ferramentasJanela: () => [ferramentaST],
 });
 // O painel fica logo abaixo da barra amarela, que muda de altura quando os
 // botões descem para uma segunda linha.
@@ -2883,6 +2897,94 @@ window.psApi.aoMudarPasta(() => {
     .then((p) => atualizarPasta(p.caminho, p.sessao))
     .catch((erro: unknown) => console.error(erro));
 });
+// ---------- ferramenta ST, MVA e CFOP ----------
+
+/** Situação dos documentos (a ferramenta precisa da planilha de ST). */
+let estadoDocumentos: EstadoDocumentos | null = null;
+
+/** Cria uma coluna de anotação no perfil ativo (Aplicar da ferramenta). */
+async function criarColunaAnotacao(
+  titulo: string,
+): Promise<{ id: string } | { erro: string }> {
+  const problema = problemaTitulo(titulo, configAtual.anotacoes);
+  if (problema) return { erro: problema };
+  const id = idDaAnotacao(titulo);
+  const nova = structuredClone(configAtual);
+  nova.anotacoes.push({ id, titulo });
+  nova.colunas.push({ id, visivel: true });
+  const r = aoGravar(await window.psApi.gravarConfigConferencia(nova));
+  return r.status === 'ok' ? { id } : { erro: r.mensagem };
+}
+
+const ferramentaST: FerramentaJanela = {
+  id: 'st-mva-cfop',
+  titulo: TITULO_FERRAMENTA_ST,
+  descricao: DESCRICAO_FERRAMENTA_ST,
+  aviso: () => {
+    const atalho = {
+      rotulo: 'Documentos de referência',
+      executar: abrirAreaDocumentos,
+    };
+    if (!estadoDocumentos?.st)
+      return {
+        texto:
+          'Carregue a planilha de ST de Sergipe para usar esta ferramenta.',
+        acao: atalho,
+      };
+    if (!estadoDocumentos.tipi)
+      return {
+        texto: 'TIPI não carregada: roda sem conferir NCM e IPI.',
+        acao: atalho,
+      };
+    return null;
+  },
+  podeRodar: () => aberto !== null && estadoDocumentos?.st != null,
+  rodar: async () => {
+    if (!aberto) return;
+    const nota = aberto.lido.nota;
+    const r = await window.psApi.analisarST({
+      itens: itensParaAnalise(nota.itens),
+      uf: nota.emitente.endereco.UF,
+      cnpj: nota.emitente.CNPJ,
+    });
+    if (r.status === 'sem-st') {
+      atualizarDocumentos();
+      return;
+    }
+    abrirFerramentaST({
+      nota,
+      anotacoes,
+      resultado: r,
+      colunasAnotacao: colunasAtuais().filter((c) => c.anotacao),
+      criarColuna: criarColunaAnotacao,
+      aplicado: (mensagem) => {
+        aplicarConfig(configAtual);
+        atualizarPendentes();
+        mostrarSucesso(mensagem);
+      },
+    });
+  },
+};
+
+// Documentos de referência: situação no rodapé do painel e na tela inicial;
+// mudou (importação em outra janela, verificação ao abrir), atualiza tudo.
+const btnDocumentos = $('btn-documentos') as HTMLButtonElement;
+const documentosSituacao = $('documentos-situacao');
+function atualizarDocumentos(): void {
+  window.psApi
+    .documentos()
+    .then((e) => {
+      estadoDocumentos = e;
+      const texto = textoRodapeBase(e.st, e.tipi);
+      painel.definirBase(texto, e.st !== null && e.tipi !== null);
+      documentosSituacao.textContent = texto.replace(/^Base: /, '');
+      atualizarAreaDocumentos(e);
+    })
+    .catch((erro: unknown) => console.error(erro));
+}
+btnDocumentos.addEventListener('click', () => abrirAreaDocumentos());
+window.psApi.aoMudarDocumentos(atualizarDocumentos);
+atualizarDocumentos();
 // Uma página recarregada começa sem pendências.
 window.psApi.informarPendentes(false);
 // Duplo clique num .psxml: com o app fechado, o arquivo vem na abertura; com

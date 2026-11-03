@@ -28,6 +28,7 @@ import { userInfo } from 'node:os';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { EXTENSAO, tratarEventoSquirrel } from './associacao';
+import { registrarDocumentos, verificarAoAbrir } from './documentos';
 import { ehImpressoraCupom } from './impressoras';
 import { configPadrao, validarConfig } from './nfe/config';
 import {
@@ -767,6 +768,8 @@ async function lerConfig(): Promise<Config> {
 }
 
 ipcMain.handle('versao', (): string => app.getVersion());
+
+registrarDocumentos();
 
 /** Ajustes dos avisos da nota no config.json, com os padrões. */
 ipcMain.handle('config-avisos', async (): Promise<ConfigAvisos> => {
@@ -1899,6 +1902,8 @@ app.whenReady().then(() => {
       ? { caminho: arquivoInicial, modo: null, sessao: true }
       : null,
   );
+  // Só se a pessoa ligou a verificação online e o "verificar ao abrir".
+  void verificarAoAbrir();
 
   app.on('activate', () => {
     if (abertas().length === 0) criarJanela(null);

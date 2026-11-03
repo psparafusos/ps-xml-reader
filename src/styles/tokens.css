@@ -154,6 +154,10 @@
   --largura-acao-previa: 150px;
   /* Painel Editar colunas */
   --largura-painel: 1280px;
+  /* Área Documentos de referência. */
+  --largura-painel-documentos: 860px;
+  /* Janela da ferramenta ST, MVA e CFOP. */
+  --largura-painel-st: 1240px;
   --largura-lista-colunas: 320px;
   --largura-anotacao-previa-minima: 40px;
   --largura-anotacao-previa-estreita: 50px;

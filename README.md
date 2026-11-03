@@ -3,14 +3,24 @@
 Aplicativo Windows de uso interno da PS Parafusos e Segurança LTDA. Lê o XML de
 uma NF-e (layout 4.00), mostra a nota em tela e salva em PDF, em dois modos:
 **Conferência** (itens, totais e anotações) e **DANFE** (A4 retrato, conforme o
-Manual de Orientação do Contribuinte). Funciona 100% offline: não faz nenhuma
-chamada de rede.
+Manual de Orientação do Contribuinte). Funciona offline: a única chamada de
+rede é a verificação online dos documentos de referência, que vem desligada e
+só roda quando a pessoa liga e pede (veja Documentos de referência).
 
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
 
 ## Versão 1.2.0
 
+- **Documentos de referência**: a planilha de ST de Sergipe (CONFAZ) e a TIPI
+  (o `tipi.xlsx` oficial ou o texto do PDF), que a pessoa carrega. O app vem
+  sem nenhum. Cada documento é conferido antes de trocar o anterior, e o
+  relatório da leitura lista o que não foi entendido. Verificação online
+  opcional, desligada por padrão.
+- **Ferramenta "ST, MVA e CFOP"** no painel de conferência: diz se cada item
+  tem ST em Sergipe, a MVA e o CFOP de entrada pela finalidade, lembra as
+  decisões por fornecedor e produto e grava o CFOP (e, se quiser, a MVA)
+  numa coluna de anotação.
 - **Painel de conferência** à esquerda da nota, na Conferência: o resultado
   no topo ("Tudo certo" ou "N pontos para olhar"), as verificações
   automáticas (idade da nota, totais dos itens, duplicatas, vencimentos,
@@ -549,8 +559,10 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
 - **Precisa de você**: cada item com a Qtd recebida diferente da nota; clicar
   rola a tabela até a linha, destaca a linha por um instante e põe o foco na
   caixa Qtd recebida dela.
-- **Ferramentas**: a estrutura existe (`src/nfe/ferramentas.ts`: Rodar,
-  prévia e Aplicar), mas a seção só aparece quando houver alguma ferramenta.
+- **Ferramentas**: ações sobre a nota aberta, que mostram a prévia antes de
+  mudar alguma coisa. A primeira é **ST, MVA e CFOP** (veja abaixo).
+- **Rodapé**: a situação dos documentos de referência ("Base: ST ✓ · TIPI
+  ✓", ou "ST faltando"); clicar abre a área deles.
 
 Ações que passam de meio segundo (como procurar a nota na pasta de destino
 pela rede) mostram um círculo girando no painel. O botão no topo recolhe o
@@ -591,6 +603,101 @@ modo DANFE.
   nomes da pasta e abre apenas os `.psxml` com `_NF<número>` no nome (como o
   Salvar grava); a chave confirma. O próprio arquivo aberto não conta, e uma
   cópia salva com nome livre, sem `_NF<número>`, não é encontrada.
+
+### Documentos de referência
+
+A área **Documentos de referência** abre pelo rodapé do painel de conferência
+e pelo botão da tela inicial. O app vem sem documentos; na primeira vez a área
+explica o que carregar e para quê. Um cartão por documento:
+
+- **Planilha de ST de Sergipe**: o `.xlsx` da página de Sergipe do Portal
+  Nacional da Substituição Tributária (CONFAZ). Necessária para a ferramenta
+  ST, MVA e CFOP.
+- **TIPI**: o `tipi.xlsx` da página da TIPI no site da Receita Federal, ou o
+  texto `.txt` extraído do PDF. Sem ela, a ferramenta roda sem conferir NCM
+  e IPI.
+- **Planilha de derivados de petróleo**: opcional, ainda não usada pelo app;
+  por enquanto não há importação.
+
+Cada cartão mostra a situação (carregado, faltando, ou carregado com pontos
+não entendidos), a versão e a vigência, a data da importação, as quantidades
+lidas e os botões **Atualizar** e **Ver relatório da leitura**. O relatório
+lista os pontos não entendidos (aba, célula, motivo e conteúdo) e as
+observações da leitura (por exemplo, MVA escrita em percentual e convertida).
+
+Ao importar, o arquivo é lido e conferido antes de trocar o anterior. Com
+pontos não entendidos, carrega o que leu e mostra a lista. Formato não
+reconhecido (cabeçalho não encontrado, planilha de outro assunto): avisa e
+o documento anterior continua carregado.
+
+A base já lida fica na pasta de dados do app
+(`%APPDATA%\PS Reader\documentos`), nunca no repositório: `st.json` e
+`tipi.json`, com os metadados de cada um em `st-info.json` e
+`tipi-info.json` (versão, vigência, data da importação e, para arquivo
+baixado pelo app, a data e o tamanho do servidor).
+
+**Verificação online** (embaixo, na mesma área): o interruptor vem desligado e,
+com ele desligado, o app nunca acessa a internet. Ligado, aparecem **Verificar
+agora** e a opção **Verificar ao abrir o app** (também desligada). Nada roda em
+segundo plano fora disso. A rede fica só no processo principal, com tempo
+limite e uma requisição por documento:
+
+- Planilha de ST: lê a página do CONFAZ de Sergipe, acha a maior "Versão 00XX"
+  e compara pelo número (a 0018 e a 0019 têm a mesma vigência). Com versão
+  nova, oferece **Baixar e importar**, que passa pela mesma conferência da
+  importação.
+- TIPI: pede só o primeiro byte do `tipi.xlsx` (o site da Receita recusa o
+  pedido só de cabeçalhos) e compara o tamanho, e a data quando o servidor
+  informa, com o guardado na importação. Sem como comparar (TIPI carregada do
+  texto do PDF, por exemplo): "Não consegui verificar a TIPI", com **Abrir no
+  navegador**.
+
+O resultado de cada documento é "atualizado", "versão nova disponível", "sem
+conexão" ou "não consegui verificar". Falha de rede nunca interrompe o app.
+
+### Ferramenta ST, MVA e CFOP
+
+Primeira ferramenta do painel de conferência. Precisa da planilha de ST
+carregada; sem ela, mostra "Carregue a planilha de ST de Sergipe" com atalho
+para os documentos. **Rodar** analisa os itens (o círculo de processando só
+aparece se passar de meio segundo) e abre a prévia numa janela própria, porque
+a tabela não cabe no painel.
+
+A prévia tem uma linha por item: descrição, NCM, **ST em Sergipe** (sim, não
+ou confirmar), segmento e CEST, MVA, CFOP sugerido, finalidade e motivo. O
+filtro **Só os que precisam de mim** deixa só o que pede decisão. O que vem da
+TIPI (NCM que não existe, IPI diferente: "conferir exceções") aparece como
+observação, não como erro.
+
+- **Confirmar**: quando mais de uma linha da planilha serve, a pessoa escolhe
+  entre os candidatos ou marca **Sem ST**, com os motivos à vista.
+- **Finalidade** por item (padrão revenda), de um item ou de vários marcados
+  de uma vez. CFOP pela tabela da loja (1 = fornecedor de Sergipe, 2 = de
+  fora):
+
+  | Finalidade        | Sem ST    | Com ST    |
+  | ----------------- | --------- | --------- |
+  | Revenda           | 1102/2102 | 1403/2403 |
+  | Uso e consumo     | 1556/2556 | 1407/2407 |
+  | Bonificação       | 1910/2910 | 1910/2910 |
+  | Ativo imobilizado | 1551/2551 | 1551/2551 |
+  | Outras entradas   | 1949/2949 | 1949/2949 |
+
+  A MVA só é calculada na revenda; nas outras finalidades com ST aparece
+  "confirmar com a contabilidade".
+
+- **Decisões lembradas**: cada escolha (linha da planilha, sem ST,
+  finalidade) fica guardada por raiz do CNPJ do fornecedor (8 dígitos) e
+  código do produto, em `decisoes.json` na mesma pasta dos documentos. Na
+  próxima nota o item já vem resolvido, marcado **lembrado**, com
+  **desfazer**. Vale para o mesmo NCM e enquanto a linha escolhida existir na
+  planilha. A área de documentos lista as decisões, com **Apagar**.
+- **Aplicar**: grava o CFOP numa coluna de anotação, por padrão **CFOP de
+  entrada**; se ela não existir no perfil, o app oferece criar na hora. Sem
+  coluna de destino, não aplica. Opcional: gravar a MVA em outra coluna.
+  Célula já preenchida com outro valor: o app pergunta antes (padrão: não
+  substituir). Item sem CFOP definido fica como está. Grava só nas anotações
+  (o `.psxml` ao salvar); o XML original nunca muda.
 
 ## Cópia editada (.psxml)
 
@@ -690,6 +797,7 @@ não faz chamada de rede.
 | ------------------- | ---------------------------------- |
 | `npm run typecheck` | Verifica os tipos TypeScript       |
 | `npm run lint`      | Roda oxlint e confere a formatação |
+| `npm test`          | Roda os testes automáticos         |
 
 ## Estrutura
 
@@ -710,8 +818,19 @@ src/
   miniaturaFolha.ts  miniatura da folha A4 no painel Editar colunas
   nfe/avisos.ts      avisos da nota: quantidade, totais, outra empresa, já conferida (lógica pura)
   nfe/conferencia.ts resumo do painel de conferência (verificações e pendências, lógica pura)
-  nfe/ferramentas.ts ferramentas do painel (Rodar, prévia, Aplicar; ainda nenhuma)
+  nfe/ferramentas.ts ferramentas do painel (Rodar, prévia, Aplicar; e as de janela própria)
   painelConferencia.ts painel de conferência à esquerda da nota
+  ferramentaST.ts    janela da ferramenta ST, MVA e CFOP (prévia, decisões, Aplicar)
+  areaDocumentos.ts  área Documentos de referência (cartões, relatório, verificação online)
+  documentos.ts      documentos no processo principal: importação, rede, análise, decisões
+  fiscal/xlsx.ts     leitor mínimo de .xlsx (com fiscal/zip.ts)
+  fiscal/st.ts       planilha de ST de Sergipe (Portal ST do CONFAZ)
+  fiscal/tipi.ts     TIPI: texto do PDF e tipi.xlsx
+  fiscal/analise.ts  análise fiscal por item (ST, MVA, CFOP de revenda, TIPI)
+  fiscal/base.ts     base normalizada: importar, validar, gravar e carregar cada documento
+  fiscal/documentos.ts situação, resumo e pontos não entendidos de cada documento
+  fiscal/online.ts   verificação online (página do CONFAZ, cabeçalhos da TIPI)
+  fiscal/entrada.ts  finalidade, CFOP de entrada, decisões lembradas e Aplicar
   indicador.ts       indicador de processando (só depois de 500 ms)
   dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)

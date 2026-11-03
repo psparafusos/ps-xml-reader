@@ -160,7 +160,99 @@ type ResultadoExportarConfig =
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
+/** Documentos de referência (src/fiscal/documentos.ts e src/documentos.ts). */
+type TipoDocumento = import('./fiscal/documentos').TipoDocumento;
+type InfoDocumento = import('./fiscal/documentos').InfoDocumento;
+type ResultadoVerificacao = import('./fiscal/online').ResultadoVerificacao;
+
+/** Verificação online: desligada por padrão; nada roda sem a pessoa ligar. */
+interface PreferenciasDocumentos {
+  verificacaoOnline: boolean;
+  verificarAoAbrir: boolean;
+}
+
+interface EstadoDocumentos {
+  st: InfoDocumento | null;
+  tipi: InfoDocumento | null;
+  preferencias: PreferenciasDocumentos;
+  /** Última verificação de cada um (enquanto o app está aberto). */
+  verificacao: {
+    st: ResultadoVerificacao | null;
+    tipi: ResultadoVerificacao | null;
+  };
+  verificando: boolean;
+  /** Decisões lembradas da ferramenta ST, MVA e CFOP. */
+  decisoes: DecisaoLembrada[];
+}
+
+type AnaliseItem = import('./fiscal/analise').AnaliseItem;
+type DecisaoLembrada = import('./fiscal/entrada').DecisaoLembrada;
+
+/** Item como vai para a análise: os campos fiscais e o código do produto. */
+interface ItemParaAnalise {
+  nItem: string;
+  cProd: string;
+  xProd: string;
+  NCM: string;
+  CEST: string;
+  orig: string;
+  CST: string;
+  CSOSN: string;
+  pICMS: string;
+  CFOP: string;
+  cstIPI: string;
+  pIPI: string;
+}
+
+/** sem-st: a planilha de ST não foi carregada (a ferramenta não roda). */
+type ResultadoAnaliseST =
+  | { status: 'sem-st' }
+  | {
+      status: 'ok';
+      itens: { analise: AnaliseItem; lembrada: DecisaoLembrada | null }[];
+      /** TIPI não carregada: a análise roda sem a parte da TIPI. */
+      semTipi: boolean;
+    };
+
+/**
+ * Importar ou baixar um documento. `formato`: arquivo não reconhecido (o
+ * documento anterior ficou como estava).
+ */
+type ResultadoImportarDocumento =
+  | { status: 'ok'; info: InfoDocumento; estado: EstadoDocumentos }
+  | {
+      status: 'erro';
+      formato: boolean;
+      mensagem: string;
+      estado: EstadoDocumentos;
+    }
+  | { status: 'cancelado' };
+
 interface PsApi {
+  /** Situação dos documentos de referência e da verificação online. */
+  documentos(): Promise<EstadoDocumentos>;
+  /** Escolhe o arquivo, valida e importa no lugar do anterior. */
+  importarDocumento(tipo: TipoDocumento): Promise<ResultadoImportarDocumento>;
+  gravarPreferenciasDocumentos(
+    p: Partial<PreferenciasDocumentos>,
+  ): Promise<EstadoDocumentos>;
+  /** Só com a verificação online ligada. */
+  verificarDocumentos(): Promise<EstadoDocumentos>;
+  /** Baixa a versão nova achada na verificação e importa (mesma validação). */
+  baixarDocumento(tipo: TipoDocumento): Promise<ResultadoImportarDocumento>;
+  /** Abre no navegador a página oficial do documento. */
+  abrirPaginaDocumento(tipo: TipoDocumento): Promise<void>;
+  aoMudarDocumentos(callback: () => void): void;
+  /** Ferramenta ST, MVA e CFOP: analisa os itens com a base carregada. */
+  analisarST(pedido: {
+    itens: ItemParaAnalise[];
+    uf: string;
+    cnpj: string;
+  }): Promise<ResultadoAnaliseST>;
+  /** Guarda (ou troca) a decisão do produto deste fornecedor. */
+  lembrarDecisao(d: DecisaoLembrada): Promise<boolean>;
+  /** Apaga a decisão lembrada (chave: raiz do CNPJ + "|" + código do produto). */
+  esquecerDecisao(chave: string): Promise<boolean>;
   /** Abre o diálogo de arquivo (.xml ou .psxml) e decide onde ele abre. */
   abrirArquivo(): Promise<ResultadoAbrir>;
   /** Arquivo solto na janela (arrastar e soltar): mesmas regras do botão. */

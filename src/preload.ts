@@ -2,6 +2,33 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 contextBridge.exposeInMainWorld('psApi', {
+  documentos: (): Promise<EstadoDocumentos> => ipcRenderer.invoke('documentos'),
+  importarDocumento: (
+    tipo: TipoDocumento,
+  ): Promise<ResultadoImportarDocumento> =>
+    ipcRenderer.invoke('importar-documento', tipo),
+  gravarPreferenciasDocumentos: (
+    p: Partial<PreferenciasDocumentos>,
+  ): Promise<EstadoDocumentos> =>
+    ipcRenderer.invoke('preferencias-documentos', p),
+  verificarDocumentos: (): Promise<EstadoDocumentos> =>
+    ipcRenderer.invoke('verificar-documentos'),
+  baixarDocumento: (tipo: TipoDocumento): Promise<ResultadoImportarDocumento> =>
+    ipcRenderer.invoke('baixar-documento', tipo),
+  abrirPaginaDocumento: (tipo: TipoDocumento): Promise<void> =>
+    ipcRenderer.invoke('abrir-pagina-documento', tipo),
+  analisarST: (pedido: {
+    itens: ItemParaAnalise[];
+    uf: string;
+    cnpj: string;
+  }): Promise<ResultadoAnaliseST> => ipcRenderer.invoke('analisar-st', pedido),
+  lembrarDecisao: (d: DecisaoLembrada): Promise<boolean> =>
+    ipcRenderer.invoke('lembrar-decisao', d),
+  esquecerDecisao: (chave: string): Promise<boolean> =>
+    ipcRenderer.invoke('esquecer-decisao', chave),
+  aoMudarDocumentos: (callback: () => void): void => {
+    ipcRenderer.on('documentos-mudou', () => callback());
+  },
   abrirArquivo: (): Promise<ResultadoAbrir> =>
     ipcRenderer.invoke('abrir-arquivo'),
   // O caminho do arquivo solto só existe aqui (webUtils); o processo

@@ -14,6 +14,12 @@
 // só na última, e atravessar a quebra de página ("NCM DESCRIÇÃO ALÍQUOTA").
 // As notas de cada capítulo (e as Notas Complementares, que têm tabelas com
 // códigos) ficam entre "Capítulo N" e a primeira posição desse capítulo.
+//
+// A TIPI também sai em planilha (tipi.xlsx, lerTipiPlanilha), com colunas
+// NCM, EX, DESCRIÇÃO e ALÍQUOTA. Lá o código às vezes perde zeros, como
+// número formatado: "103.9" é 0103.9, "02.1" é 02.10 e "3208.1" é 3208.10.
+
+import { letraColuna, type Aba, type ValorCelula } from './xlsx';
 
 export type AliquotaIpi = number | 'NT';
 
@@ -43,6 +49,8 @@ export interface NcmTipi {
 export interface LinhaIgnorada {
   linha: number;
   texto: string;
+  /** Célula de origem ("A123"), quando a TIPI veio da planilha. */
+  celula?: string;
 }
 
 export interface GrupoIgnorado {
@@ -52,6 +60,10 @@ export interface GrupoIgnorado {
 }
 
 export interface RelatorioTipi {
+  /** Ano da TIPI na capa ("2022"); vazio quando não achou. */
+  versao?: string;
+  /** Último ato da lista de atualizações da capa. */
+  atualizacao?: string;
   totalNcm: number;
   totalLinhas: number;
   /** NCMs sem alíquota no fim da descrição. */
@@ -271,6 +283,7 @@ export function lerTipi(texto: string): TabelaTipi {
   return {
     porNcm,
     relatorio: {
+      ...capaTipi(linhas.slice(0, 60).join('\n')),
       totalNcm: porNcm.size,
       totalLinhas: linhas.length,
       semAliquota,
@@ -343,4 +356,239 @@ export function consultarTipi(tabela: TabelaTipi, ncm: string): ConsultaTipi {
     descricaoCompleta: r?.descricaoCompleta ?? null,
     aliquotaIpi: r?.aliquotaIpi ?? null,
   };
+}
+
+/** Ano e último ato de atualização, da capa da TIPI (texto do PDF ou da planilha). */
+function capaTipi(capa: string): { versao: string; atualizacao: string } {
+  const ano = /\(TIPI\)\s*(\d(?:\s?\d){3})(?!\d)/.exec(capa);
+  let atualizacao = '';
+  const i = capa.search(/Atualiza[çc][õo]es:/);
+  if (i >= 0) {
+    for (const l of capa.slice(i).split(/\r?\n/).slice(1)) {
+      const t = l.trim();
+      if (!t) {
+        if (atualizacao) break;
+        continue;
+      }
+      if (
+        !/^(Decreto|Ato|Lei|Instru[çc][ãa]o|Portaria|Resolu[çc][ãa]o)\b/.test(t)
+      )
+        break;
+      atualizacao = t;
+    }
+  }
+  return { versao: ano ? ano[1].replace(/\s/g, '') : '', atualizacao };
+}
+
+/** Linha da planilha já entendida, antes de montar a hierarquia. */
+interface EntradaPlanilha {
+  digitos: string;
+  descricao: string;
+  aliquota: AliquotaIpi | null;
+  linha: number;
+}
+
+/**
+ * Lê a TIPI da planilha oficial (tipi.xlsx). Lança erro quando não acha o
+ * cabeçalho NCM / DESCRIÇÃO / ALÍQUOTA: não é a TIPI, ou mudou o leiaute.
+ */
+export function lerTipiPlanilha(abas: Aba[]): TabelaTipi {
+  let aba: Aba | undefined;
+  let iCab = -1;
+  let col = { ncm: 0, ex: -1, descricao: -1, aliquota: -1 };
+  for (const a of abas) {
+    for (let i = 0; i < Math.min(a.linhas.length, 40) && iCab < 0; i++) {
+      const t = a.linhas[i].map((v) => normal(v));
+      const ncm = t.indexOf('ncm');
+      const descricao = t.findIndex((v) => v.startsWith('descri'));
+      const aliquota = t.findIndex((v) => v.startsWith('aliquota'));
+      if (ncm >= 0 && descricao >= 0 && aliquota >= 0) {
+        iCab = i;
+        col = { ncm, ex: t.indexOf('ex'), descricao, aliquota };
+      }
+    }
+    if (iCab >= 0) {
+      aba = a;
+      break;
+    }
+  }
+  if (!aba)
+    throw new Error(
+      'cabeçalho da TIPI (colunas NCM, DESCRIÇÃO e ALÍQUOTA) não encontrado',
+    );
+
+  const ignoradas = new Map<string, GrupoIgnorado>();
+  const ignorar = (motivo: string, linha: number, c: number, v: unknown) => {
+    const g = ignoradas.get(motivo) ?? { motivo, total: 0, exemplos: [] };
+    ignoradas.set(motivo, g);
+    g.total++;
+    if (g.exemplos.length < EXEMPLOS_POR_GRUPO)
+      g.exemplos.push({
+        linha,
+        texto: String(v ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 160),
+        celula: `${letraColuna(c)}${linha}`,
+      });
+  };
+
+  const entradas: EntradaPlanilha[] = [];
+  const vistos = new Set<string>();
+  for (let i = iCab + 1; i < aba.linhas.length; i++) {
+    const l = aba.linhas[i];
+    const n = i + 1;
+    const codigo = l[col.ncm];
+    const ex = col.ex >= 0 ? l[col.ex] : undefined;
+    const descricao = l[col.descricao];
+    if (codigo === undefined && ex === undefined && descricao === undefined)
+      continue;
+    if (ex !== undefined) {
+      ignorar(
+        'exceção tarifária (Ex)',
+        n,
+        col.ex,
+        `Ex ${ex}: ${descricao ?? ''}`,
+      );
+      continue;
+    }
+    if (codigo === undefined) {
+      ignorar('texto solto fora de um código', n, col.descricao, descricao);
+      continue;
+    }
+    const digitos = digitosPlanilha(codigo);
+    if (!digitos) {
+      ignorar('código não reconhecido', n, col.ncm, codigo);
+      continue;
+    }
+    if (vistos.has(digitos)) {
+      ignorar('código repetido', n, col.ncm, codigo);
+      continue;
+    }
+    vistos.add(digitos);
+    entradas.push({
+      digitos,
+      descricao: String(descricao ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/^-+\s*/, ''),
+      aliquota: aliquotaPlanilha(l[col.aliquota]),
+      linha: n,
+    });
+  }
+
+  // "3208.1" com todos os filhos em 3208.10.xx é a subposição 3208.10 que
+  // perdeu o zero; "0101.2" com filhos 0101.21 e 0101.29 fica como está.
+  const sextos = new Map<string, Set<string>>();
+  for (const e of entradas)
+    if (e.digitos.length >= 6) {
+      const p = e.digitos.slice(0, 5);
+      sextos.set(p, (sextos.get(p) ?? new Set()).add(e.digitos[5]));
+    }
+  for (const e of entradas) {
+    const s = sextos.get(e.digitos);
+    if (e.digitos.length === 5 && s?.size === 1 && s.has('0')) e.digitos += '0';
+  }
+  // "9403.20.00" sem alíquota e com 9403.20.10 abaixo é a subposição 9403.20.
+  const comFilhos = new Set(
+    entradas
+      .filter((e) => e.digitos.length === 8 && !e.digitos.endsWith('00'))
+      .map((e) => e.digitos.slice(0, 6)),
+  );
+  for (const e of entradas)
+    if (
+      e.digitos.length === 8 &&
+      e.digitos.endsWith('00') &&
+      e.aliquota === null &&
+      comFilhos.has(e.digitos.slice(0, 6))
+    )
+      e.digitos = e.digitos.slice(0, 6);
+
+  const niveis = new Map<string, NivelTipi>();
+  const porNcm = new Map<string, NcmTipi>();
+  const semAliquota: string[] = [];
+  for (const e of entradas) {
+    const codigo = formatarCodigo(e.digitos);
+    if (e.digitos.length < 8) {
+      niveis.set(e.digitos, { codigo, descricao: e.descricao });
+      continue;
+    }
+    const hierarquia: NivelTipi[] = [];
+    for (let k = 4; k < 8; k++) {
+      const nivel = niveis.get(e.digitos.slice(0, k));
+      if (nivel) hierarquia.push(nivel);
+    }
+    if (e.aliquota === null) semAliquota.push(codigo);
+    porNcm.set(e.digitos, {
+      ncm: e.digitos,
+      codigo,
+      descricao: e.descricao,
+      hierarquia,
+      descricaoCompleta: [...hierarquia.map((h) => h.descricao), e.descricao]
+        .filter(Boolean)
+        .join(' > '),
+      aliquotaIpi: e.aliquota,
+      linhaTexto: e.linha,
+    });
+  }
+
+  const capa = aba.linhas
+    .slice(0, iCab)
+    .flatMap((l) => l.filter((v) => v !== undefined).map(String))
+    .join('\n');
+  return {
+    porNcm,
+    relatorio: {
+      ...capaTipi(capa),
+      totalNcm: porNcm.size,
+      totalLinhas: aba.linhas.length,
+      semAliquota,
+      ignoradas: [...ignoradas.values()],
+    },
+  };
+}
+
+/** Título de coluna sem acento, sem parênteses e em minúsculas ("ALÍQUOTA (%)" = "aliquota"). */
+function normal(v: ValorCelula | undefined): string {
+  return String(v ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\(.*\)/, '')
+    .trim()
+    .toLowerCase();
+}
+
+/** Dígitos do código da planilha, repondo os zeros perdidos; null se não for código. */
+export function digitosPlanilha(v: ValorCelula): string | null {
+  const m = /^(\d{1,4})(?:\.(\d{1,2}))?(?:\.(\d{1,2}))?$/.exec(
+    String(v).trim(),
+  );
+  if (!m) return null;
+  const [, a, b, c] = m;
+  if (c !== undefined) {
+    if (a.length < 3 || b.length !== 2) return null;
+    return a.padStart(4, '0') + b + c;
+  }
+  // "32.08", "3.03", "02.1": posição (4 dígitos). "103.9", "0302.42": subposição.
+  if (b !== undefined)
+    return a.length <= 2
+      ? a.padStart(2, '0') + b.padEnd(2, '0')
+      : a.padStart(4, '0') + b;
+  // "1101": posição sem subposições, que o PDF escreve "1101.00".
+  return a.length >= 3 ? a.padStart(4, '0') + '00' : null;
+}
+
+/** Código como na TIPI: "32.08", "0101.2", "3208.10", "3208.20.1", "3208.10.20". */
+function formatarCodigo(d: string): string {
+  if (d.length === 4) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 6) return `${d.slice(0, 4)}.${d.slice(4)}`;
+  return `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`;
+}
+
+function aliquotaPlanilha(v: ValorCelula | undefined): AliquotaIpi | null {
+  // 11.700000000000001 é 11,7; 3.256 fica 3,256 (é o que a planilha traz).
+  if (typeof v === 'number') return Math.round(v * 10000) / 10000;
+  const t = String(v ?? '').trim();
+  if (/^NT$/i.test(t)) return 'NT';
+  return /^\d+(,\d+)?$/.test(t) ? Number(t.replace(',', '.')) : null;
 }

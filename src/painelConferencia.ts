@@ -1,8 +1,9 @@
 // Painel de conferência, à esquerda da nota (só no modo Conferência, só na
 // tela): o resultado no topo, as verificações automáticas (✓ ou !, com o
 // detalhe ao clicar), o que precisa da pessoa (Qtd recebida diferente, que
-// leva à linha) e as ferramentas (seção escondida enquanto não houver
-// nenhuma). Recolhe numa barra fina de ícones. Janela larga: fica aberto ao
+// leva à linha), as ferramentas (seção escondida enquanto não houver
+// nenhuma) e, no rodapé, a situação dos documentos de referência ("Base:
+// ST ✓ · TIPI ✓"), que abre a área deles. Recolhe numa barra fina de ícones. Janela larga: fica aberto ao
 // lado da nota, sem empurrá-la, e lembra se a pessoa recolheu. Janela
 // estreita: começa recolhido e abre por cima da nota.
 
@@ -19,6 +20,7 @@ import {
   FERRAMENTAS,
   type ContextoFerramenta,
   type Ferramenta,
+  type FerramentaJanela,
   type PreviaFerramenta,
 } from './nfe/ferramentas';
 
@@ -30,6 +32,10 @@ export interface AcoesPainel {
   contexto(): ContextoFerramenta | null;
   /** Ferramenta aplicou mudanças: a tela redesenha o que mudou. */
   aplicado(): void;
+  /** Abre a área Documentos de referência (rodapé do painel). */
+  abrirDocumentos(): void;
+  /** Ferramentas com janela própria, antes das de prévia simples. */
+  ferramentasJanela(): readonly FerramentaJanela[];
 }
 
 export interface PainelConferencia {
@@ -39,6 +45,11 @@ export interface PainelConferencia {
   novaNota(): void;
   /** Recalcula se cabe ao lado (tamanho da janela, zoom, tela trocada). */
   ajustarLayout(): void;
+  /**
+   * Situação dos documentos de referência, no rodapé ("Base: ST ✓ · TIPI ✓");
+   * completa: false quando falta algum (o rodapé fica em destaque).
+   */
+  definirBase(texto: string, completa: boolean): void;
   indicador: Indicador;
 }
 
@@ -82,6 +93,7 @@ export function criarPainel(
   const abertas = new Set<string>();
   /** A nota aberta ainda não foi desenhada com o resumo. */
   let primeiroResumo = true;
+  let base: { texto: string; completa: boolean } | null = null;
 
   const corpo = el('div', 'conferencia__corpo');
   corpo.id = 'conferencia-corpo';
@@ -268,7 +280,7 @@ export function criarPainel(
     );
 
     if (r === null) {
-      corpo.replaceChildren(cabecalho, resultado);
+      corpo.replaceChildren(cabecalho, resultado, rodapeBase());
       return;
     }
 
@@ -310,22 +322,69 @@ export function criarPainel(
         el('ul', 'conferencia__lista', ...r.verificacoes.map(linhaVerificacao)),
       ),
       secao('Precisa de você', pendencias),
-      ...(FERRAMENTAS.length > 0
+      ...(FERRAMENTAS.length + acoes.ferramentasJanela().length > 0
         ? [
             secao(
               'Ferramentas',
               el(
                 'ul',
                 'conferencia__lista',
+                ...acoes.ferramentasJanela().map(linhaFerramentaJanela),
                 ...FERRAMENTAS.map(linhaFerramenta),
               ),
             ),
           ]
         : []),
+      rodapeBase(),
     );
   }
 
+  /** Rodapé com a situação dos documentos; abre a área de documentos. */
+  function rodapeBase(): HTMLElement {
+    const b = botao(
+      base && !base.completa
+        ? 'conferencia__base conferencia__base--faltando'
+        : 'conferencia__base',
+      icone('M6 3h9l4 4v14H6z', 'M14 3v5h5', 'M9 13h7', 'M9 17h7'),
+      el('span', '', base?.texto ?? 'Documentos de referência'),
+    );
+    b.title = 'Documentos de referência';
+    b.addEventListener('click', () => acoes.abrirDocumentos());
+    return el('footer', 'conferencia__rodape', b);
+  }
+
   // ---------- ferramentas (Rodar, prévia e Aplicar) ----------
+
+  /** Ferramenta com janela própria: Rodar mostra o processando (passando de 500 ms) e abre a janela. */
+  function linhaFerramentaJanela(fe: FerramentaJanela): HTMLLIElement {
+    const rodar = botao(
+      'botao botao--principal botao--pequeno',
+      el('span', '', 'Rodar'),
+    );
+    rodar.disabled = !fe.podeRodar();
+    rodar.addEventListener('click', () => {
+      if (!fe.podeRodar()) return;
+      void indicador.rodar(() => fe.rodar());
+    });
+    const aviso = fe.aviso();
+    let atalho: HTMLButtonElement | null = null;
+    if (aviso?.acao) {
+      const acao = aviso.acao;
+      atalho = botao(
+        'botao botao--claro botao--pequeno',
+        el('span', '', acao.rotulo),
+      );
+      atalho.addEventListener('click', () => acao.executar());
+    }
+    return el(
+      'li',
+      'conferencia__ferramenta',
+      el('span', 'conferencia__linha-titulo', fe.titulo),
+      el('p', 'conferencia__pendencia-detalhe', fe.descricao),
+      aviso && el('p', 'conferencia__aviso-ferramenta', aviso.texto),
+      el('div', 'conferencia__acoes', rodar, atalho),
+    );
+  }
 
   /** Prévia de cada ferramenta já rodada (até aplicar ou trocar de nota). */
   const previas = new Map<string, PreviaFerramenta>();
@@ -448,6 +507,10 @@ export function criarPainel(
       previas.clear();
     },
     ajustarLayout,
+    definirBase(texto, completa) {
+      base = { texto, completa };
+      desenharCorpo(resumoAtual);
+    },
     indicador,
   };
 }
