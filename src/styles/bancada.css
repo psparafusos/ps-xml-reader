@@ -1,0 +1,625 @@
+/* Visual "Bancada": fundo bege, cartões brancos de borda clara, pastilhas
+   arredondadas, títulos de seção pequenos em caixa alta e botões das janelas
+   (primário amarelo com borda preta, secundário branco, perigo vermelho).
+   Tudo só na tela: o PDF e a impressão seguem app.css e print.css como
+   antes. Cores e medidas vêm de tokens.css. */
+
+@media screen {
+  body {
+    background: var(--bancada-fundo);
+  }
+
+  /* ---------- peças comuns ---------- */
+
+  .cartao {
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+  }
+
+  .cartao--grande {
+    border-radius: var(--cartao-raio-grande);
+  }
+
+  .titulo-secao {
+    color: var(--titulo-secao-cor);
+    font-size: var(--titulo-secao-tamanho);
+    font-weight: var(--peso-forte);
+    letter-spacing: var(--titulo-secao-espaco);
+    text-transform: uppercase;
+  }
+
+  .pastilha {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-2);
+    min-height: 30px;
+    padding: 0 var(--esp-3);
+    border: var(--borda) solid var(--pastilha-escura-borda);
+    border-radius: var(--pastilha-raio);
+    background: var(--pastilha-escura-fundo);
+    color: var(--ps-branco);
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-medio);
+    white-space: nowrap;
+  }
+
+  .pastilha .semaforo__texto {
+    color: inherit;
+    font-size: var(--fs-sm);
+  }
+
+  .pastilha:empty {
+    display: none;
+  }
+
+  /* Link de ação nos cartões (Trocar, Gerenciar, Limpar). */
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--cor-texto-forte);
+    font: inherit;
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-medio);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .link:hover:not(:disabled) {
+    text-decoration-color: var(--ps-amarelo);
+    text-decoration-thickness: 2px;
+  }
+
+  .link:disabled {
+    color: var(--cor-icone);
+    text-decoration: none;
+    cursor: not-allowed;
+  }
+
+  .link:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .link--pequeno {
+    font-size: var(--fs-xs);
+  }
+
+  /* Botão amarelo com borda preta (tela inicial e janelas). */
+  .botao--amarelo,
+  :is(.painel, .caixa-dialogo) .botao:not(.botao--claro, .botao--perigo) {
+    border-color: var(--ps-preto);
+    background: var(--ps-amarelo);
+    color: var(--cor-texto-sobre-destaque);
+  }
+
+  .botao--amarelo:hover:not(:disabled),
+  :is(.painel, .caixa-dialogo)
+    .botao:not(.botao--claro, .botao--perigo):hover:not(:disabled) {
+    border-color: var(--ps-preto);
+    background: var(--botao-amarelo-hover);
+    color: var(--cor-texto-sobre-destaque);
+  }
+
+  .botao--amarelo:active:not(:disabled),
+  :is(.painel, .caixa-dialogo)
+    .botao:not(.botao--claro, .botao--perigo):active:not(:disabled) {
+    border-color: var(--ps-preto);
+    background: var(--botao-amarelo-hover);
+  }
+
+  .botao--perigo,
+  .botao--perigo:hover:not(:disabled),
+  .botao--perigo:active:not(:disabled) {
+    border-color: var(--ps-preto);
+    background: var(--botao-perigo-fundo);
+    color: var(--ps-branco);
+  }
+
+  .botao--perigo:hover:not(:disabled) {
+    background: var(--botao-perigo-hover);
+  }
+
+  /* ---------- tela inicial ---------- */
+
+  .vazio.inicio {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    place-items: stretch;
+    min-height: 100vh;
+    padding: 0;
+    background: var(--bancada-fundo);
+  }
+
+  .inicio__faixa {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--esp-4);
+    min-height: var(--bancada-faixa-altura);
+    padding: 0 var(--bancada-margem);
+    border-bottom: var(--bancada-faixa-linha) solid var(--ps-amarelo);
+    background: var(--bancada-faixa);
+    color: var(--ps-branco);
+  }
+
+  .inicio__marca {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-3);
+    min-width: 0;
+  }
+
+  .inicio__logo {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+  }
+
+  .inicio__titulo {
+    color: var(--ps-branco);
+    font-size: var(--fs-xl);
+    font-weight: var(--peso-forte);
+    line-height: var(--altura-linha-titulo);
+  }
+
+  .inicio__subtitulo {
+    color: color-mix(in srgb, var(--ps-branco) 70%, transparent);
+    font-size: var(--fs-sm);
+  }
+
+  .inicio__pastilhas {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--esp-2);
+  }
+
+  /* O seletor de perfil, aqui, é uma pastilha amarela. */
+  .inicio__perfil .perfil-rapido {
+    margin: 0;
+  }
+
+  .inicio__perfil .perfil-rapido__botao {
+    min-height: 30px;
+    padding: 0 var(--esp-3);
+    border: var(--borda) solid var(--ps-amarelo);
+    border-radius: var(--pastilha-raio);
+    background: var(--ps-amarelo);
+    color: var(--cor-texto-sobre-destaque);
+    font-size: var(--fs-sm);
+  }
+
+  .inicio__perfil .perfil-rapido__botao:hover,
+  .inicio__perfil .perfil-rapido__botao[aria-expanded='true'] {
+    border-color: var(--ps-branco);
+    background: var(--botao-amarelo-hover);
+  }
+
+  .inicio__perfil .perfil-rapido__botao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .inicio__perfil .perfil-rapido__menu {
+    right: 0;
+    left: auto;
+  }
+
+  .inicio__grade {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--bancada-grade-espaco);
+    width: 100%;
+    margin: 0 auto;
+    padding: var(--bancada-margem);
+  }
+
+  .inicio__principal {
+    grid-column: span 2;
+    display: grid;
+    gap: var(--bancada-grade-espaco);
+    min-width: 0;
+  }
+
+  .inicio__soltar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--esp-3);
+    min-height: 300px;
+    padding: var(--esp-7) var(--esp-6);
+    border: var(--borda-forte) dashed var(--soltar-borda);
+    border-radius: var(--cartao-raio-grande);
+    background: var(--soltar-fundo);
+    text-align: center;
+    transition:
+      background var(--transicao),
+      border-color var(--transicao);
+  }
+
+  /* Arquivo arrastado sobre a janela: a zona inteira em destaque. */
+  .inicio__soltar--ativa {
+    border-style: solid;
+    border-color: var(--ps-amarelo);
+    background: var(--soltar-fundo-ativo);
+  }
+
+  .inicio__icone {
+    width: 56px;
+    height: 56px;
+    fill: none;
+    stroke: var(--cor-texto-forte);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .inicio__soltar-titulo {
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-destaque);
+    font-weight: var(--peso-forte);
+    line-height: var(--altura-linha-titulo);
+  }
+
+  .inicio__soltar-texto {
+    max-width: 46ch;
+    color: var(--cor-texto);
+    font-size: var(--fs-md);
+  }
+
+  .inicio__soltar .botao {
+    margin-top: var(--esp-2);
+  }
+
+  .inicio__cartoes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--bancada-grade-espaco);
+  }
+
+  .inicio__cartao {
+    display: flex;
+    flex-direction: column;
+    gap: var(--esp-2);
+    padding: var(--esp-4) var(--esp-5);
+  }
+
+  .inicio__valor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2);
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-md);
+    font-weight: var(--peso-medio);
+    overflow-wrap: anywhere;
+  }
+
+  .inicio__links {
+    display: flex;
+    gap: var(--esp-4);
+    margin-top: auto;
+  }
+
+  .inicio__recentes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--esp-3);
+    min-width: 0;
+    padding: var(--esp-4) var(--esp-5);
+  }
+
+  .inicio__recentes-cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--esp-2);
+  }
+
+  .inicio__rodape {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--esp-2);
+    padding-top: var(--esp-3);
+    border-top: var(--borda) solid var(--cartao-borda);
+    color: var(--titulo-secao-cor);
+    font-size: var(--fs-xs);
+  }
+
+  .recentes {
+    display: grid;
+    gap: var(--esp-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .recentes__vazio {
+    padding: var(--esp-4) 0;
+    color: var(--titulo-secao-cor);
+    font-size: var(--fs-sm);
+  }
+
+  .recentes__item {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-2);
+  }
+
+  .recentes__abrir {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--esp-2);
+    min-width: 0;
+    padding: var(--esp-2);
+    border: var(--borda) solid transparent;
+    border-radius: var(--cartao-raio);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  button.recentes__abrir {
+    cursor: pointer;
+  }
+
+  button.recentes__abrir:hover {
+    border-color: var(--cartao-borda);
+    background: var(--bancada-fundo);
+  }
+
+  button.recentes__abrir:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: 1px;
+  }
+
+  .recentes__textos {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .recentes__fornecedor {
+    overflow: hidden;
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-forte);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recentes__detalhe {
+    color: var(--titulo-secao-cor);
+    font-size: var(--fs-xs);
+  }
+
+  .recentes__situacao {
+    flex: none;
+    padding: 2px var(--esp-2);
+    border-radius: var(--pastilha-raio);
+    font-size: var(--fs-xs);
+    font-weight: var(--peso-medio);
+    white-space: nowrap;
+  }
+
+  .recentes__situacao--em-conferencia {
+    background: var(--soltar-fundo);
+    color: var(--cor-texto-forte);
+    box-shadow: inset 0 0 0 1px var(--soltar-borda);
+  }
+
+  .recentes__situacao--conferida {
+    background: color-mix(in srgb, var(--semaforo-verde) 18%, white);
+    color: var(--cor-texto-forte);
+    box-shadow: inset 0 0 0 1px var(--semaforo-verde);
+  }
+
+  .recentes__situacao--alerta {
+    background: color-mix(in srgb, var(--semaforo-vermelho) 12%, white);
+    color: var(--semaforo-vermelho);
+    box-shadow: inset 0 0 0 1px var(--semaforo-vermelho);
+  }
+
+  .recentes__situacao--movido {
+    background: var(--bancada-fundo);
+    color: var(--titulo-secao-cor);
+  }
+
+  /* Arquivo que não existe mais: esmaecido, com Limpar ao lado. */
+  .recentes__item--movido .recentes__textos {
+    opacity: 0.55;
+  }
+
+  /* Telas médias (1366 a 125%): duas colunas, as notas recentes embaixo. */
+  @media (max-width: 1180px) {
+    .inicio__grade {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .inicio__principal,
+    .inicio__recentes {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .inicio__cartoes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* ---------- tela da nota ---------- */
+
+  #nota .secao,
+  #nota .cabecalho__partes > .secao {
+    border-color: var(--cartao-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+  }
+
+  #nota .secao__titulo {
+    border-bottom-color: var(--cartao-borda);
+    color: var(--titulo-secao-cor);
+    font-size: var(--titulo-secao-tamanho);
+    letter-spacing: var(--titulo-secao-espaco);
+  }
+
+  /* A tela de escolha do modo também no fundo bege. */
+  .modo:not(.modo--sobreposta) {
+    background: var(--bancada-fundo);
+  }
+
+  /* ---------- painel de conferência ---------- */
+
+  .conferencia {
+    border-right-color: var(--cartao-borda);
+  }
+
+  .conferencia__subtitulo {
+    color: var(--titulo-secao-cor);
+    font-size: var(--titulo-secao-tamanho);
+    letter-spacing: var(--titulo-secao-espaco);
+  }
+
+  .conferencia__linha,
+  .conferencia__pendencia,
+  .conferencia__ferramenta,
+  .conferencia__resumo-cfop {
+    border-color: var(--cartao-borda);
+    border-radius: var(--cartao-raio);
+  }
+
+  /* Rodapé: as pastilhas dos documentos, iguais às da tela inicial. */
+  .conferencia__base {
+    gap: var(--esp-1);
+    padding: var(--esp-1);
+    border-radius: var(--cartao-raio);
+  }
+
+  .conferencia__base .semaforo {
+    min-height: 26px;
+    padding: 0 var(--esp-2);
+    border: var(--borda) solid var(--pastilha-escura-borda);
+    border-radius: var(--pastilha-raio);
+    background: var(--pastilha-escura-fundo);
+  }
+
+  .conferencia__base .semaforo__texto {
+    color: var(--ps-branco);
+  }
+
+  .conferencia__base-sep {
+    display: none;
+  }
+
+  .conferencia__cfop {
+    border-radius: var(--pastilha-raio);
+  }
+
+  /* ---------- janelas: documentos, editor de colunas, ferramenta ---------- */
+
+  .painel {
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--cartao-raio-grande);
+    background: var(--bancada-fundo);
+  }
+
+  .painel__cabecalho,
+  .painel__rodape {
+    background: var(--cartao-fundo);
+    border-color: var(--cartao-borda);
+  }
+
+  .painel__cabecalho {
+    border-radius: var(--cartao-raio-grande) var(--cartao-raio-grande) 0 0;
+  }
+
+  .painel__rodape {
+    border-radius: 0 0 var(--cartao-raio-grande) var(--cartao-raio-grande);
+  }
+
+  .painel__subtitulo,
+  .documento__subtitulo {
+    color: var(--titulo-secao-cor);
+    font-size: var(--titulo-secao-tamanho);
+    letter-spacing: var(--titulo-secao-espaco);
+  }
+
+  /* Cartões dentro das janelas. */
+  .documento,
+  .documentos__online,
+  .painel__anotacoes,
+  .painel__previa,
+  .colunas-lista,
+  .st__rolagem {
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+  }
+
+  .documento--vermelha,
+  .documento--opcional {
+    border-style: dashed;
+  }
+
+  .documentos__online,
+  .painel__anotacoes,
+  .painel__previa {
+    padding: var(--esp-4);
+  }
+
+  .documentos__primeira {
+    border-radius: var(--cartao-raio);
+  }
+
+  /* Pastilhas: situação do documento e semáforo do cartão. */
+  .documento__situacao {
+    padding: 3px var(--esp-3);
+    border-radius: var(--pastilha-raio);
+  }
+
+  .documento__nome .semaforo {
+    min-height: 26px;
+    padding: 0 var(--esp-2);
+    border: var(--borda) solid var(--pastilha-escura-borda);
+    border-radius: var(--pastilha-raio);
+    background: var(--pastilha-escura-fundo);
+  }
+
+  .documento__nome .semaforo__texto {
+    color: var(--ps-branco);
+  }
+
+  .documento__erro,
+  .documento__parcial,
+  .documento__verificacao,
+  .documento__tabela,
+  .st__escolha {
+    border-radius: var(--cartao-raio);
+  }
+
+  .st__situacao,
+  .st__etiqueta {
+    border-radius: var(--pastilha-raio);
+  }
+
+  /* Caixas de pergunta (substituir, cópia, alterações não salvas). */
+  .caixa-dialogo {
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--cartao-raio-grande);
+  }
+}

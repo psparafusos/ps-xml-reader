@@ -154,7 +154,7 @@ ul {
   font-size: var(--fs-sm);
 }
 
-/* ---------- estado vazio ---------- */
+/* ---------- tela inicial (o visual fica em bancada.css) ---------- */
 
 .vazio {
   position: relative;
@@ -162,49 +162,6 @@ ul {
   display: grid;
   place-items: center;
   padding: var(--esp-6);
-}
-
-.vazio__caixa {
-  width: min(100%, var(--largura-vazio));
-  min-height: var(--altura-vazio);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--esp-4);
-  padding: var(--esp-7) var(--esp-6);
-  border: var(--borda-forte) dashed var(--cor-borda);
-  border-top: var(--borda-destaque) solid var(--cor-destaque);
-  border-radius: var(--raio);
-  text-align: center;
-  transition:
-    background var(--transicao),
-    border-color var(--transicao);
-}
-
-.vazio__caixa--ativa {
-  background: var(--cor-destaque-suave);
-  border-color: var(--ps-preto);
-  border-top-color: var(--cor-destaque);
-}
-
-.vazio__titulo {
-  color: var(--cor-texto-forte);
-  font-size: var(--fs-xxl);
-  font-weight: var(--peso-forte);
-  line-height: var(--altura-linha-titulo);
-}
-
-.vazio__texto {
-  font-size: var(--fs-lg);
-}
-
-/* Versão do app, discreta no canto da tela inicial. */
-.vazio__versao {
-  position: absolute;
-  right: var(--esp-5);
-  bottom: var(--esp-4);
-  font-size: var(--fs-xs);
 }
 
 /* Zoom fora de 100%: botão fixo no canto, que volta ao tamanho normal. */
@@ -219,15 +176,6 @@ ul {
 .zoom__valor {
   font-weight: var(--peso-forte);
   font-variant-numeric: tabular-nums;
-}
-
-.vazio__formatos {
-  margin-top: calc(-1 * var(--esp-2));
-  font-size: var(--fs-sm);
-}
-
-.vazio__dica {
-  font-size: var(--fs-sm);
 }
 
 /* Pasta de destino e Abrir pasta, colados. */
@@ -1726,7 +1674,7 @@ body.pdf-previa #pdf-previa {
 }
 
 .painel::backdrop {
-  background: rgb(0 0 0 / 0.35);
+  background: var(--fundo-modal);
 }
 
 .painel__cabecalho {
@@ -2274,7 +2222,7 @@ body.pdf-previa #pdf-previa {
 }
 
 .caixa-dialogo::backdrop {
-  background: rgb(0 0 0 / 0.35);
+  background: var(--fundo-modal);
 }
 
 .caixa-dialogo__titulo {
@@ -2533,7 +2481,7 @@ body.pdf-previa #pdf-previa {
   inset: 0;
   z-index: 35;
   overflow: auto;
-  background: rgb(0 0 0 / 0.45);
+  background: var(--fundo-modal-forte);
 }
 
 .modo--sobreposta .modo__caixa {
@@ -3477,15 +3425,15 @@ body.pdf-previa #pdf-previa {
 }
 
 .semaforo--verde .semaforo__bolinha {
-  background: var(--cor-ok);
+  background: var(--semaforo-verde);
 }
 
 .semaforo--amarela .semaforo__bolinha {
-  background: var(--cor-destaque);
+  background: var(--semaforo-amarelo);
 }
 
 .semaforo--vermelha .semaforo__bolinha {
-  background: var(--aviso-erro-fundo);
+  background: var(--semaforo-vermelho);
 }
 
 .semaforo__texto {

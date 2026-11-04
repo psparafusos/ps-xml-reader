@@ -651,7 +651,7 @@ export function abrirFerramentaST(c: ContextoST): void {
             texto: `${preenchidas} ${preenchidas === 1 ? 'célula já tem' : 'células já têm'} um valor diferente do sugerido. Substituir?`,
             botoes: [
               { rotulo: 'Não substituir', valor: 'manter', principal: true },
-              { rotulo: 'Substituir', valor: 'substituir' },
+              { rotulo: 'Substituir', valor: 'substituir', perigo: true },
               { rotulo: 'Cancelar', valor: 'cancelar' },
             ],
             cancelar: 'cancelar',

@@ -517,7 +517,7 @@ export function abrirAreaDocumentos(): void {
                   : `${info.arquivo} sai da base. A análise passa a rodar sem conferir NCM e IPI até você carregar outra.`,
               botoes: [
                 { rotulo: 'Cancelar', valor: 'cancelar', principal: true },
-                { rotulo: 'Remover', valor: 'remover' },
+                { rotulo: 'Remover', valor: 'remover', perigo: true },
               ],
               cancelar: 'cancelar',
             });

@@ -1068,7 +1068,7 @@ export function abrirEditorColunas(
       texto: `Excluir o perfil ${p.nome}? As colunas, anotações extras e orientação dele se perdem; o texto já salvo nos arquivos .psxml não.`,
       botoes: [
         { rotulo: 'Cancelar', valor: 'cancelar' },
-        { rotulo: 'Excluir', valor: 'excluir', principal: true },
+        { rotulo: 'Excluir', valor: 'excluir', principal: true, perigo: true },
       ],
       cancelar: 'cancelar',
     });

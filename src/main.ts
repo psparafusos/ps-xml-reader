@@ -56,6 +56,13 @@ import {
   nomePodeSerConferencia,
 } from './nfe/avisos';
 import { problemaNomeArquivo } from './nfe/nome';
+import {
+  estaNaLista,
+  lerRecentes,
+  registrarRecente,
+  removerRecente,
+  type NotaRecente,
+} from './nfe/recentes';
 
 // Eventos do Squirrel antes de qualquer outra inicialização: atalhos
 // (electron-squirrel-startup, que sai quando o Update.exe termina) e a
@@ -260,6 +267,8 @@ interface Janela {
   candidato: string | null;
   /** .psxml achados pela busca de nota já conferida: só esses o renderer abre. */
   conferidos: Set<string>;
+  /** Último .psxml salvo por esta janela (vai para as notas recentes). */
+  ultimoSalvo: string | null;
 }
 
 const janelas = new Map<number, Janela>();
@@ -365,6 +374,7 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     pedido,
     candidato: null,
     conferidos: new Set(),
+    ultimoSalvo: null,
   };
   const id = janela.webContents.id;
   janelas.set(id, j);
@@ -726,6 +736,8 @@ interface Config {
   diasAvisoVencimento?: unknown;
   /** Nota emitida há mais que tantos dias: aviso leve (padrão 30). */
   diasNotaAntiga?: unknown;
+  /** Notas recentes da tela inicial (src/nfe/recentes.ts), no máximo 8. */
+  notasRecentes?: unknown;
 }
 
 function caminhoConfig(): string {
@@ -770,6 +782,81 @@ async function lerConfig(): Promise<Config> {
 ipcMain.handle('versao', (): string => app.getVersion());
 
 registrarDocumentos();
+
+// ---------- notas recentes (tela inicial) ----------
+
+/** Notas recentes com a marca de quais arquivos ainda existem. */
+async function listaRecentes(): Promise<NotaRecenteTela[]> {
+  const lista = lerRecentes((await lerConfig()).notasRecentes);
+  return Promise.all(
+    lista.map(async (r) => ({ ...r, existe: await existe(r.caminho) })),
+  );
+}
+
+/** Fila de gravação: duas janelas registrando ao mesmo tempo não se atropelam. */
+let filaRecentes: Promise<unknown> = Promise.resolve();
+function mudarRecentes(
+  mudar: (lista: NotaRecente[]) => NotaRecente[],
+): Promise<void> {
+  const r = filaRecentes.then(async () => {
+    const lista = lerRecentes((await lerConfig()).notasRecentes);
+    await gravarConfig({ notasRecentes: mudar(lista) });
+  });
+  filaRecentes = r.catch(() => undefined);
+  return r.then(() => {
+    for (const j of abertas()) j.janela.webContents.send('recentes-mudou');
+  });
+}
+
+ipcMain.handle('recentes', () => listaRecentes());
+
+// A nota aberta (ou o .psxml que esta janela acabou de salvar) entra no topo.
+ipcMain.handle('registrar-recente', async (event, dados: unknown) => {
+  const j = estadoDe(event.sender);
+  const d = (typeof dados === 'object' && dados !== null ? dados : {}) as {
+    [k: string]: unknown;
+  };
+  const salvo =
+    typeof d.salvo === 'string' &&
+    j.ultimoSalvo !== null &&
+    mesmoCaminho(d.salvo, j.ultimoSalvo)
+      ? j.ultimoSalvo
+      : null;
+  const caminho = salvo ?? j.arquivoAberto;
+  if (!caminho) return;
+  const [nota] = lerRecentes([
+    {
+      caminho,
+      chave: texto(d.chave),
+      fornecedor: texto(d.fornecedor),
+      numero: texto(d.numero),
+      itens: typeof d.itens === 'number' ? d.itens : 0,
+      acesso: new Date().toISOString(),
+      situacao: d.situacao,
+      alerta: texto(d.alerta),
+    },
+  ]);
+  if (nota) await mudarRecentes((lista) => registrarRecente(lista, nota));
+});
+
+// Só abre o que está na lista (o caminho não vem livre da tela).
+ipcMain.handle(
+  'abrir-recente',
+  async (event, caminho: unknown): Promise<ResultadoAbrir> => {
+    const lista = lerRecentes((await lerConfig()).notasRecentes);
+    if (typeof caminho !== 'string' || !estaNaLista(lista, caminho))
+      return { status: 'cancelado' };
+    return decidirAbertura(estadoDe(event.sender), caminho);
+  },
+);
+
+// Sem caminho: limpa a lista toda. Com caminho: tira só aquela entrada.
+ipcMain.handle('limpar-recentes', async (_event, caminho: unknown) => {
+  await mudarRecentes((lista) =>
+    typeof caminho === 'string' ? removerRecente(lista, caminho) : [],
+  );
+  return listaRecentes();
+});
 
 /** Ajustes dos avisos da nota no config.json, com os padrões. */
 ipcMain.handle('config-avisos', async (): Promise<ConfigAvisos> => {
@@ -1521,6 +1608,7 @@ ipcMain.handle(
       },
     );
     if (r.status !== 'salvo') return r;
+    j.ultimoSalvo = r.destinos[0];
     return { status: 'salvo', copia: r.destinos[0] };
   },
 );
@@ -1673,6 +1761,7 @@ ipcMain.handle(
     if (r.status !== 'salvo') return r;
     j.arquivoAberto = r.destinos[0];
     j.abertoEhCopia = true;
+    j.ultimoSalvo = r.destinos[0];
     return { status: 'salvo', copia: r.destinos[0] };
   },
 );

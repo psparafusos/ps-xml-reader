@@ -2,6 +2,16 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 contextBridge.exposeInMainWorld('psApi', {
+  recentes: (): Promise<NotaRecenteTela[]> => ipcRenderer.invoke('recentes'),
+  registrarRecente: (dados: DadosRecente): Promise<void> =>
+    ipcRenderer.invoke('registrar-recente', dados),
+  abrirRecente: (caminho: string): Promise<ResultadoAbrir> =>
+    ipcRenderer.invoke('abrir-recente', caminho),
+  limparRecentes: (caminho?: string): Promise<NotaRecenteTela[]> =>
+    ipcRenderer.invoke('limpar-recentes', caminho),
+  aoMudarRecentes: (callback: () => void): void => {
+    ipcRenderer.on('recentes-mudou', () => callback());
+  },
   documentos: (): Promise<EstadoDocumentos> => ipcRenderer.invoke('documentos'),
   importarDocumento: (
     tipo: TipoDocumento,

@@ -13,6 +13,11 @@ import { configPadrao, idDaAnotacao, problemaTitulo } from './nfe/config';
 import type { FerramentaJanela } from './nfe/ferramentas';
 import { resumoCfops, TITULO_COLUNA_CFOP } from './nfe/resumoCfop';
 import {
+  ROTULO_SITUACAO as ROTULO_SITUACAO_RECENTE,
+  situacaoNota,
+  textoAcesso,
+} from './nfe/recentes';
+import {
   abrirFerramentaST,
   DESCRICAO_FERRAMENTA_ST,
   itensParaAnalise,
@@ -55,7 +60,11 @@ import {
   type Aviso,
   type Conferido,
 } from './nfe/avisos';
-import { expansaoLateral, resumoConferencia } from './nfe/conferencia';
+import {
+  expansaoLateral,
+  resumoConferencia,
+  type ResumoConferencia,
+} from './nfe/conferencia';
 import { criarPainel } from './painelConferencia';
 import { abrirAreaDocumentos, atualizarAreaDocumentos } from './areaDocumentos';
 import { semaforoDocumento } from './leituraDocumentos';
@@ -326,7 +335,12 @@ async function importarPerfil(): Promise<
       botoes: [
         { rotulo: 'Cancelar', valor: 'cancelar' },
         { rotulo: 'Manter os dois', valor: 'manter' },
-        { rotulo: 'Substituir', valor: 'substituir', principal: true },
+        {
+          rotulo: 'Substituir',
+          valor: 'substituir',
+          principal: true,
+          perigo: true,
+        },
       ],
       cancelar: 'cancelar',
     });
@@ -1147,6 +1161,14 @@ function blocoDadosAdicionais(n: Nota): HTMLElement | null {
 // ---------- estado da tela ----------
 
 const vazio = $('vazio');
+const inicioPerfil = $('inicio-perfil');
+const inicioPastaCaminho = $('inicio-pasta-caminho');
+const inicioPastaSessao = $('inicio-pasta-sessao');
+const recentesLista = $('recentes-lista');
+const btnLimparRecentes = $('btn-limpar-recentes') as HTMLButtonElement;
+/** Bloco do seletor de perfil (botão e menu): na barra ou na faixa da tela inicial. */
+const perfilRapido = btnPerfil.closest<HTMLElement>('.perfil-rapido')!;
+const barraTitulo = perfilRapido.parentElement!;
 const areaSoltar = $('area-soltar');
 const modo = $('modo');
 const modoArquivo = $('modo-arquivo');
@@ -1387,6 +1409,11 @@ let danfeMontado = false;
 /** Mostra só uma das telas: inicial, escolha de modo, conferência ou DANFE. */
 function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   vazio.hidden = tela !== 'vazio';
+  if (tela === 'vazio') {
+    inicioPerfil.append(perfilRapido);
+    void atualizarRecentes();
+  } else if (perfilRapido.parentElement !== barraTitulo)
+    barraTitulo.insertBefore(perfilRapido, barraCopia);
   modo.hidden = tela !== 'modo';
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
@@ -1644,6 +1671,7 @@ function atualizarAvisos(): void {
         })
       : null;
   painel.desenhar(resumo);
+  if (resumo) registrarRecente(resumo);
   const divergentes = new Set(resumo?.pendencias.map((p) => p.nItem));
   for (const [nItem, tbody] of corposItens)
     tbody.classList.toggle('item--divergente', divergentes.has(nItem));
@@ -2037,6 +2065,8 @@ function carregar(
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
+    salvoAgora = null;
+    ultimoRecente = '';
     conferenciaMontada = false;
     danfeMontado = false;
     danfeEl.replaceChildren();
@@ -2096,6 +2126,144 @@ async function abrir(): Promise<void> {
   }
 }
 
+// ---------- notas recentes (tela inicial) ----------
+
+/** .psxml salvo nesta abertura (a entrada da nota passa a apontar para ele). */
+let salvoAgora: string | null = null;
+/** O último registro mandado, para só mandar de novo quando muda. */
+let ultimoRecente = '';
+
+/** Registra a nota aberta nas recentes, com a situação do painel. */
+function registrarRecente(resumo: ResumoConferencia): void {
+  if (!aberto) return;
+  const n = aberto.lido.nota;
+  const { situacao, alerta } = situacaoNota(
+    aberto.lido.copiaEditada || salvoAgora !== null,
+    resumo,
+  );
+  const dados: DadosRecente = {
+    chave: n.chave,
+    fornecedor: n.emitente.xFant || n.emitente.xNome,
+    numero: n.ide.nNF,
+    itens: n.itens.length,
+    situacao,
+    alerta,
+    ...(salvoAgora ? { salvo: salvoAgora } : {}),
+  };
+  const assinatura = JSON.stringify(dados);
+  if (assinatura === ultimoRecente) return;
+  ultimoRecente = assinatura;
+  window.psApi.registrarRecente(dados).catch((erro: unknown) => {
+    console.error(erro);
+  });
+}
+
+async function atualizarRecentes(): Promise<void> {
+  let lista: NotaRecenteTela[];
+  try {
+    lista = await window.psApi.recentes();
+  } catch (erro) {
+    console.error(erro);
+    return;
+  }
+  desenharRecentes(lista);
+}
+
+function desenharRecentes(lista: NotaRecenteTela[]): void {
+  btnLimparRecentes.hidden = lista.length === 0;
+  if (lista.length === 0) {
+    recentesLista.replaceChildren(
+      el(
+        'li',
+        'recentes__vazio',
+        'As notas que você abrir ou salvar aparecem aqui.',
+      ),
+    );
+    return;
+  }
+  recentesLista.replaceChildren(
+    ...lista.map((r) => {
+      const situacao = el(
+        'span',
+        `recentes__situacao recentes__situacao--${r.existe ? r.situacao : 'movido'}`,
+        r.existe
+          ? r.situacao === 'alerta' && r.alerta
+            ? r.alerta
+            : ROTULO_SITUACAO_RECENTE[r.situacao]
+          : 'arquivo movido',
+      );
+      const conteudo = el(
+        'span',
+        'recentes__textos',
+        el(
+          'span',
+          'recentes__fornecedor',
+          r.fornecedor || 'Fornecedor sem nome',
+        ),
+        el(
+          'span',
+          'recentes__detalhe',
+          [
+            r.numero && `NF ${r.numero}`,
+            `${r.itens} ${r.itens === 1 ? 'item' : 'itens'}`,
+            textoAcesso(r.acesso),
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        ),
+      );
+      if (!r.existe) {
+        const limpar = el('button', 'link link--pequeno', 'Limpar');
+        limpar.type = 'button';
+        limpar.title = `Tirar ${r.caminho} da lista`;
+        limpar.addEventListener('click', () => {
+          void window.psApi
+            .limparRecentes(r.caminho)
+            .then(desenharRecentes)
+            .catch((erro: unknown) => console.error(erro));
+        });
+        return el(
+          'li',
+          'recentes__item recentes__item--movido',
+          el('span', 'recentes__abrir', conteudo, situacao),
+          limpar,
+        );
+      }
+      const abrirBtn = el('button', 'recentes__abrir', conteudo, situacao);
+      abrirBtn.type = 'button';
+      abrirBtn.title = r.caminho;
+      abrirBtn.addEventListener('click', () => void abrirRecente(r.caminho));
+      return el('li', 'recentes__item', abrirBtn);
+    }),
+  );
+}
+
+async function abrirRecente(caminho: string): Promise<void> {
+  esconderMensagem();
+  try {
+    tratarAbertura(await window.psApi.abrirRecente(caminho));
+  } catch (erro) {
+    mostrarMensagem('Não foi possível abrir o arquivo.', 'erro');
+    console.error(erro);
+    void atualizarRecentes();
+  }
+}
+
+btnLimparRecentes.addEventListener('click', () => {
+  void window.psApi
+    .limparRecentes()
+    .then(desenharRecentes)
+    .catch((erro: unknown) => console.error(erro));
+});
+// Abertura do app na tela inicial: o seletor de perfil vai para a faixa.
+if (!vazio.hidden) {
+  inicioPerfil.append(perfilRapido);
+  void atualizarRecentes();
+}
+window.psApi.aoMudarRecentes(() => {
+  if (!vazio.hidden) void atualizarRecentes();
+});
+
 // ---------- pasta de destino ----------
 
 const LIMITE_CAMINHO = 40;
@@ -2118,6 +2286,9 @@ function abreviarCaminho(caminho: string): string {
  */
 function atualizarPasta(caminho: string | null, sessao = false): void {
   pastaDestino = caminho;
+  inicioPastaCaminho.textContent = caminho ?? 'Nenhuma pasta escolhida';
+  inicioPastaCaminho.title = caminho ?? '';
+  inicioPastaSessao.hidden = !(caminho && sessao);
   for (const b of botoesPasta) {
     const rotulo = b.querySelector('.botao__caminho');
     if (rotulo) {
@@ -2259,7 +2430,12 @@ async function gravarCopia<R extends { status: string }>(
       texto: `O arquivo ${existente.nome} já existe em ${abreviarCaminho(existente.pasta)}. Deseja substituir?`,
       botoes: [
         { rotulo: 'Cancelar', valor: 'cancelar' },
-        { rotulo: 'Substituir', valor: 'substituir', principal: true },
+        {
+          rotulo: 'Substituir',
+          valor: 'substituir',
+          principal: true,
+          perigo: true,
+        },
       ],
       cancelar: 'cancelar',
     });
@@ -2291,7 +2467,12 @@ async function gravarComPergunta<R extends { status: string }>(
     botoes: [
       { rotulo: 'Cancelar', valor: 'cancelar' },
       { rotulo: 'Salvar cópia...', valor: 'copia' },
-      { rotulo: 'Substituir', valor: 'substituir', principal: true },
+      {
+        rotulo: 'Substituir',
+        valor: 'substituir',
+        principal: true,
+        perigo: true,
+      },
     ],
     cancelar: 'cancelar',
   });
@@ -2380,6 +2561,10 @@ function concluirPsxml(
   if (r.status === 'salvo') {
     copiarAnotacoes(gravadas, anotacoesGravadas);
     atualizarPendentes();
+    // O .psxml salvo passa a ser o arquivo da nota nas recentes.
+    salvoAgora = r.copia;
+    ultimoRecente = '';
+    atualizarAvisos();
     if (copia && aberto) {
       aberto.nome = nomeDoCaminho(r.copia);
       preencherBarra(aberto.lido.nota);
@@ -2657,7 +2842,7 @@ async function podeSair(): Promise<boolean> {
       'Há anotações não salvas nesta nota. O que fazer antes de continuar?',
     botoes: [
       { rotulo: 'Cancelar', valor: 'cancelar' },
-      { rotulo: 'Descartar', valor: 'descartar' },
+      { rotulo: 'Descartar', valor: 'descartar', perigo: true },
       { rotulo: 'Salvar cópia...', valor: 'copia' },
       { rotulo: 'Salvar', valor: 'salvar', principal: true },
     ],
@@ -3046,6 +3231,8 @@ const ferramentaST: FerramentaJanela = {
 // mudou (importação em outra janela, verificação ao abrir), atualiza tudo.
 const btnDocumentos = $('btn-documentos') as HTMLButtonElement;
 const documentosSituacao = $('documentos-situacao');
+const inicioST = $('inicio-st');
+const inicioTipi = $('inicio-tipi');
 function atualizarDocumentos(): void {
   window.psApi
     .documentos()
@@ -3061,12 +3248,17 @@ function atualizarDocumentos(): void {
         ),
       }));
       painel.definirBase(sinais);
-      documentosSituacao.replaceChildren(
-        ...sinais.flatMap((x, i) => [
-          ...(i > 0 ? [' · '] : []),
-          semaforo(x.cor, `${x.sigla} ${x.texto}`),
-        ]),
-      );
+      for (const [x, pastilha] of [
+        [sinais[0], inicioST],
+        [sinais[1], inicioTipi],
+      ] as const)
+        pastilha.replaceChildren(semaforo(x.cor, `${x.sigla} ${x.texto}`));
+      documentosSituacao.textContent = [
+        e.st
+          ? `ST ${e.st.versao ? `v${e.st.versao}` : 'carregada'}`
+          : 'ST falta',
+        e.tipi ? `TIPI ${e.tipi.versao || 'carregada'}` : 'TIPI falta',
+      ].join(' · ');
       atualizarAreaDocumentos(e);
     })
     .catch((erro: unknown) => console.error(erro));
@@ -3125,7 +3317,7 @@ let contadorArraste = 0;
 window.addEventListener('dragenter', (e) => {
   e.preventDefault();
   contadorArraste++;
-  areaSoltar.classList.add('vazio__caixa--ativa');
+  areaSoltar.classList.add('inicio__soltar--ativa');
 });
 
 window.addEventListener('dragover', (e) => {
@@ -3135,13 +3327,14 @@ window.addEventListener('dragover', (e) => {
 
 window.addEventListener('dragleave', () => {
   contadorArraste = Math.max(0, contadorArraste - 1);
-  if (contadorArraste === 0) areaSoltar.classList.remove('vazio__caixa--ativa');
+  if (contadorArraste === 0)
+    areaSoltar.classList.remove('inicio__soltar--ativa');
 });
 
 window.addEventListener('drop', (e) => {
   e.preventDefault();
   contadorArraste = 0;
-  areaSoltar.classList.remove('vazio__caixa--ativa');
+  areaSoltar.classList.remove('inicio__soltar--ativa');
   const arquivo = e.dataTransfer?.files[0];
   if (!arquivo || editorAberto()) return;
   const nome = arquivo.name.toLowerCase();

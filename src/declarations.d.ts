@@ -244,7 +244,30 @@ type ResultadoImportarDocumento =
     }
   | { status: 'cancelado' };
 
+/** Nota recente da tela inicial (src/nfe/recentes.ts) e se o arquivo ainda existe. */
+type NotaRecenteTela = import('./nfe/recentes').NotaRecente & {
+  existe: boolean;
+};
+
+/** O que a tela manda ao registrar a nota aberta nas recentes. */
+interface DadosRecente {
+  chave: string;
+  fornecedor: string;
+  numero: string;
+  itens: number;
+  situacao: import('./nfe/recentes').SituacaoRecente;
+  alerta: string;
+  /** Logo depois de salvar: o .psxml salvo passa a ser o arquivo da entrada. */
+  salvo?: string;
+}
+
 interface PsApi {
+  recentes(): Promise<NotaRecenteTela[]>;
+  registrarRecente(dados: DadosRecente): Promise<void>;
+  abrirRecente(caminho: string): Promise<ResultadoAbrir>;
+  /** Sem caminho: limpa a lista. Com caminho: tira só aquela entrada. */
+  limparRecentes(caminho?: string): Promise<NotaRecenteTela[]>;
+  aoMudarRecentes(callback: () => void): void;
   /** Situação dos documentos de referência e da verificação online. */
   documentos(): Promise<EstadoDocumentos>;
   /** Escolhe o arquivo, valida e importa no lugar do anterior. */

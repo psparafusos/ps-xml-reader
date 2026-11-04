@@ -11,6 +11,7 @@
          só faz o primeiro desenho depois que estes arquivos chegam. -->
     <link rel="stylesheet" href="/src/styles/tokens.css" />
     <link rel="stylesheet" href="/src/styles/app.css" />
+    <link rel="stylesheet" href="/src/styles/bancada.css" />
     <link rel="stylesheet" href="/src/styles/print.css" />
     <link rel="stylesheet" href="/src/danfe/danfe.css" />
     <script type="module" src="/src/renderer.ts"></script>
@@ -274,87 +275,123 @@
       <span>Restaurar 100%</span>
     </button>
 
-    <section id="vazio" class="vazio">
-      <div id="area-soltar" class="vazio__caixa">
-        <h1 class="vazio__titulo">PS Parafusos</h1>
-        <p class="vazio__texto">
-          Leitor de XML de NF-e para conferência interna
-        </p>
-        <button
-          id="btn-abrir"
-          type="button"
-          class="botao botao--grande"
-          aria-describedby="vazio-formatos"
-          title="Abrir arquivo (Ctrl+O)"
-          aria-keyshortcuts="Control+O"
-        >
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-            />
-          </svg>
-          <span>Abrir arquivo</span>
-        </button>
-        <p id="vazio-formatos" class="vazio__formatos">
-          XML da NF-e ou cópia editada (.psxml)
-        </p>
-        <p class="vazio__dica">
-          ou arraste e solte um arquivo .xml ou .psxml aqui
-        </p>
-        <div class="par-pasta">
-          <button
-            id="btn-pasta"
-            type="button"
-            class="botao botao--claro botao--pasta"
-          >
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-              />
-              <path d="M12 11v5" />
-              <path d="M9.5 13.5h5" />
-            </svg>
-            <span class="botao__textos">
-              <span>Pasta de destino</span>
-              <span class="botao__caminho"></span>
-              <span class="botao__sessao" hidden>só nesta janela</span>
-            </span>
-          </button>
-          <button
-            id="btn-abrir-pasta"
-            type="button"
-            class="botao botao--claro"
-            disabled
-          >
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-              />
-              <path d="M10 15l5-5" />
-              <path d="M11 10h4v4" />
-            </svg>
-            <span>Abrir pasta</span>
-          </button>
+    <!-- Tela inicial no visual "Bancada" (bancada.css): faixa preta com a
+         logo e as pastilhas (documentos e perfil), a zona de soltar, os
+         cartões da pasta de destino e dos documentos e as notas recentes. -->
+    <section id="vazio" class="vazio inicio">
+      <header class="inicio__faixa">
+        <div class="inicio__marca">
+          <img class="inicio__logo" src="/assets/ps-logo.svg" alt="" />
+          <div class="inicio__nome">
+            <h1 class="inicio__titulo">PS Reader</h1>
+            <p class="inicio__subtitulo">Conferência de notas fiscais</p>
+          </div>
         </div>
-        <!-- Planilha de ST e TIPI que a pessoa carrega (areaDocumentos.ts). -->
-        <button
-          id="btn-documentos"
-          type="button"
-          class="botao botao--claro botao--pasta"
+        <div class="inicio__pastilhas">
+          <span id="inicio-st" class="pastilha"></span>
+          <span id="inicio-tipi" class="pastilha"></span>
+          <!-- O seletor de perfil da barra amarela vem para cá enquanto a
+               tela inicial está à mostra (renderer.ts, mostrarTela). -->
+          <div id="inicio-perfil" class="inicio__perfil"></div>
+        </div>
+      </header>
+
+      <div class="inicio__grade">
+        <div class="inicio__principal">
+          <div id="area-soltar" class="inicio__soltar">
+            <svg class="inicio__icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 3h9l4 4v14H6z" />
+              <path d="M14 3v5h5" />
+              <path d="M12 11v6" />
+              <path d="M9.5 14.5L12 17l2.5-2.5" />
+            </svg>
+            <h2 class="inicio__soltar-titulo">Solte aqui o XML da nota</h2>
+            <p id="vazio-formatos" class="inicio__soltar-texto">
+              XML da NF-e ou cópia editada (.psxml). Também abre com Ctrl+O, ou
+              com duplo clique no arquivo.
+            </p>
+            <button
+              id="btn-abrir"
+              type="button"
+              class="botao botao--amarelo botao--grande"
+              aria-describedby="vazio-formatos"
+              title="Abrir arquivo (Ctrl+O)"
+              aria-keyshortcuts="Control+O"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                />
+              </svg>
+              <span>Abrir arquivo</span>
+            </button>
+          </div>
+
+          <div class="inicio__cartoes">
+            <section
+              class="cartao inicio__cartao"
+              aria-labelledby="titulo-pasta"
+            >
+              <h2 id="titulo-pasta" class="titulo-secao">Pasta de destino</h2>
+              <p class="inicio__valor">
+                <span id="inicio-pasta-caminho">Nenhuma pasta escolhida</span>
+                <span id="inicio-pasta-sessao" class="botao__sessao" hidden
+                  >só nesta janela</span
+                >
+              </p>
+              <div class="inicio__links">
+                <button id="btn-pasta" type="button" class="link">
+                  Trocar
+                </button>
+                <button
+                  id="btn-abrir-pasta"
+                  type="button"
+                  class="link"
+                  disabled
+                >
+                  Abrir pasta
+                </button>
+              </div>
+            </section>
+            <section
+              class="cartao inicio__cartao"
+              aria-labelledby="titulo-documentos"
+            >
+              <h2 id="titulo-documentos" class="titulo-secao">
+                Documentos de referência
+              </h2>
+              <p id="documentos-situacao" class="inicio__valor"></p>
+              <div class="inicio__links">
+                <button id="btn-documentos" type="button" class="link">
+                  Gerenciar
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <section
+          class="cartao cartao--grande inicio__recentes"
+          aria-labelledby="titulo-recentes"
         >
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 3h9l4 4v14H6z" />
-            <path d="M14 3v5h5" />
-            <path d="M9 13h7" />
-            <path d="M9 17h7" />
-          </svg>
-          <span class="botao__textos">
-            <span>Documentos de referência</span>
-            <span id="documentos-situacao" class="botao__caminho"></span>
-          </span>
-        </button>
+          <header class="inicio__recentes-cabecalho">
+            <h2 id="titulo-recentes" class="titulo-secao">Notas recentes</h2>
+            <button
+              id="btn-limpar-recentes"
+              type="button"
+              class="link link--pequeno"
+              hidden
+            >
+              Limpar lista
+            </button>
+          </header>
+          <ul id="recentes-lista" class="recentes"></ul>
+          <footer class="inicio__rodape">
+            <span id="versao"></span>
+            <span>Ctrl+O abrir · Ctrl+S salvar</span>
+          </footer>
+        </section>
       </div>
-      <p id="versao" class="vazio__versao"></p>
     </section>
 
     <section id="modo" class="modo" hidden>

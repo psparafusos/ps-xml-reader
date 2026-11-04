@@ -31,6 +31,40 @@
     var(--ps-branco)
   );
 
+  /* Visual "Bancada" (só na tela; bancada.css). Fundo bege, cartões brancos
+     com borda clara, pastilhas arredondadas e títulos de seção pequenos em
+     caixa alta. O PDF e a impressão não usam. */
+  --bancada-fundo: #f3f1ec;
+  --bancada-faixa: #161616;
+  --bancada-faixa-altura: 72px;
+  --bancada-faixa-linha: 5px;
+  --bancada-grade-espaco: 28px;
+  --bancada-margem: 36px;
+  --cartao-fundo: var(--ps-branco);
+  --cartao-borda: #e2ded5;
+  --cartao-raio: 12px;
+  --cartao-raio-grande: 16px;
+  --pastilha-raio: 999px;
+  --pastilha-escura-fundo: #2a2a2a;
+  --pastilha-escura-borda: #3d3d3d;
+  --titulo-secao-tamanho: 11px;
+  --titulo-secao-espaco: 0.6px;
+  --titulo-secao-cor: #6b6b6b;
+  --soltar-fundo: #fff8dc;
+  --soltar-fundo-ativo: #ffefb3;
+  --soltar-borda: #c9a200;
+  /* Semáforo dos documentos de referência e das notas recentes. */
+  --semaforo-verde: #3cb371;
+  --semaforo-amarelo: var(--ps-amarelo);
+  --semaforo-vermelho: #b42318;
+  /* Botões das janelas: primário amarelo, perigo vermelho. */
+  --botao-amarelo-hover: #e6b000;
+  --botao-perigo-fundo: var(--semaforo-vermelho);
+  --botao-perigo-hover: #8f1c13;
+  /* Fundo escurecido atrás das janelas (dialog). */
+  --fundo-modal: rgb(0 0 0 / 0.35);
+  --fundo-modal-forte: rgb(0 0 0 / 0.45);
+
   /* Tipografia */
   --fonte:
     'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
@@ -65,8 +99,6 @@
   --icone: 18px;
   --icone-traco: 2;
   --largura-conteudo: 1200px;
-  --largura-vazio: 520px;
-  --altura-vazio: 320px;
   --largura-rotulo-total: 180px;
   --largura-minima-campo: 200px;
   --largura-minima-tabela: 1000px;
@@ -124,7 +156,7 @@
   /* Avisos */
   --aviso-sucesso-fundo: rgb(22 128 61 / 0.88);
   --aviso-sucesso-texto: var(--ps-branco);
-  --aviso-erro-fundo: #b42318;
+  --aviso-erro-fundo: var(--semaforo-vermelho);
   --aviso-erro-texto: var(--ps-branco);
   /* Avisos da nota: fundo da faixa com avisos e da linha com quantidade
      divergente (tela, PDF e impressão). */

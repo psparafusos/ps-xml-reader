@@ -9,6 +9,8 @@ export interface BotaoDialogo<T extends string> {
   valor: T;
   /** O botão preenchido (a ação sugerida); recebe o foco. */
   principal?: boolean;
+  /** Ação que apaga ou substitui algo: botão vermelho. */
+  perigo?: boolean;
 }
 
 /**
@@ -62,7 +64,11 @@ export function perguntar<T extends string>(opcoes: {
     );
     const botoes = opcoes.botoes.map((b) => {
       const e = botao(
-        b.principal ? 'botao botao--principal' : 'botao botao--claro',
+        b.perigo
+          ? 'botao botao--perigo'
+          : b.principal
+            ? 'botao botao--principal'
+            : 'botao botao--claro',
         b.rotulo,
       );
       e.addEventListener('click', () => fim(b.valor));
