@@ -9,6 +9,8 @@
 //   tipi-info.json  data da importação, quantidades, pontos não entendidos)
 //   st.json         linhas da planilha de ST (uma por NCM)
 //   tipi.json       registros da TIPI (um por NCM de 8 dígitos)
+//   st-leitura.json segmentos da planilha de ST lidos com problemas
+//                   (LeituraST; gravado por quem importa, opcional)
 //
 // A importação valida antes de trocar: arquivo em formato não reconhecido
 // lança ErroFormato e o documento anterior fica como estava. A TIPI pode vir
@@ -48,7 +50,17 @@ export interface BaseFiscal {
   st: TabelaST | null;
   tipi: TabelaTipi | null;
   info: Documentos;
+  /** Do st-leitura.json; vazio quando o arquivo não existe. Vai para a análise. */
+  segmentosIncompletos: string[];
 }
+
+/** Conteúdo do st-leitura.json. */
+export interface LeituraST {
+  /** Nome da aba de cada segmento lido com problemas ("Autopecas"). */
+  segmentosIncompletos: string[];
+}
+
+export const ARQUIVO_LEITURA_ST = 'st-leitura.json';
 
 export interface Documentos {
   st: InfoDocumento | null;
@@ -136,6 +148,7 @@ export function importarDocumento(
 export function removerDocumento(tipo: TipoDocumento, pasta: string): void {
   rmSync(join(pasta, arqInfo(tipo)), { force: true });
   rmSync(join(pasta, arqDados(tipo)), { force: true });
+  if (tipo === 'st') rmSync(join(pasta, ARQUIVO_LEITURA_ST), { force: true });
 }
 
 function lerJson(pasta: string, arq: string): unknown {
@@ -161,6 +174,23 @@ export function lerDocumentos(pasta: string): Documentos {
     st: lerInfoDocumento('st', pasta),
     tipi: lerInfoDocumento('tipi', pasta),
   };
+}
+
+/**
+ * Segmentos lidos com problemas, do st-leitura.json da pasta. Arquivo
+ * ausente, ilegível ou sem a lista = nenhum.
+ */
+export function lerSegmentosIncompletos(pasta: string): string[] {
+  let d: unknown;
+  try {
+    d = lerJson(pasta, ARQUIVO_LEITURA_ST);
+  } catch {
+    return [];
+  }
+  const lista = (d as Partial<LeituraST> | null)?.segmentosIncompletos;
+  return Array.isArray(lista)
+    ? lista.filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+    : [];
 }
 
 /** Carrega o que houver na pasta; documento que falta (ou ilegível) vem null. */
@@ -192,5 +222,10 @@ export function carregarBaseFiscal(pasta: string): BaseFiscal {
       info.tipi = null;
     }
   }
-  return { st, tipi, info };
+  return {
+    st,
+    tipi,
+    info,
+    segmentosIncompletos: st ? lerSegmentosIncompletos(pasta) : [],
+  };
 }

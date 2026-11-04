@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { analisarItem } from '../../src/fiscal/analise.ts';
 import {
+  ARQUIVO_LEITURA_ST,
   carregarBaseFiscal,
   importarDocumento,
   lerDocumentos,
+  lerSegmentosIncompletos,
   removerDocumento,
 } from '../../src/fiscal/base.ts';
 import { ErroFormato } from '../../src/fiscal/documentos.ts';
@@ -181,5 +189,50 @@ describe('base fiscal: importação', () => {
     removerDocumento('tipi', destino);
     assert.equal(lerDocumentos(destino).tipi, null);
     assert.equal(carregarBaseFiscal(destino).tipi, null);
+  });
+});
+
+describe('base fiscal: segmentos lidos com problemas (st-leitura.json)', () => {
+  const destino = join(pasta, 'leitura');
+
+  it('sem o arquivo: lista vazia', () => {
+    importarDocumento(
+      'st',
+      planilhaST('0019', [linhaTintas]),
+      'st.xlsx',
+      destino,
+      agora,
+    );
+    assert.deepEqual(lerSegmentosIncompletos(destino), []);
+    assert.deepEqual(carregarBaseFiscal(destino).segmentosIncompletos, []);
+  });
+
+  it('com o arquivo: a lista vai para a base e para a análise', () => {
+    writeFileSync(
+      join(destino, ARQUIVO_LEITURA_ST),
+      JSON.stringify({ segmentosIncompletos: ['Tintas', 3, ''] }),
+    );
+    const b = carregarBaseFiscal(destino);
+    assert.deepEqual(b.segmentosIncompletos, ['Tintas']);
+    const r = analisarItem({ NCM: '32081020', orig: '0', pICMS: '7' }, 'SP', {
+      st: b.st!,
+      segmentosIncompletos: b.segmentosIncompletos,
+    });
+    assert.equal(r.stSergipe, 'confirmar');
+    assert.ok(r.pendencias.includes('segmento Tintas lido com problemas'));
+  });
+
+  it('arquivo ilegível conta como ausente', () => {
+    writeFileSync(join(destino, ARQUIVO_LEITURA_ST), '{ quebrado');
+    assert.deepEqual(lerSegmentosIncompletos(destino), []);
+  });
+
+  it('remover a planilha de ST apaga o st-leitura.json', () => {
+    writeFileSync(
+      join(destino, ARQUIVO_LEITURA_ST),
+      JSON.stringify({ segmentosIncompletos: ['Tintas'] }),
+    );
+    removerDocumento('st', destino);
+    assert.ok(!readdirSync(destino).includes(ARQUIVO_LEITURA_ST));
   });
 });

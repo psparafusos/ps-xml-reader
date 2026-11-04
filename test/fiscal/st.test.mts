@@ -545,6 +545,37 @@ describe('st: normalização', () => {
       numero: 19,
     });
   });
+
+  it('colunas de estados: UFs do título e acordo da célula', () => {
+    const auto = tabela.linhas.find((x) => x.segmento === 'Autopecas')!;
+    assert.deepEqual(auto.protocolos, [
+      { acordo: 'PT 97/10', ufs: ['AC', 'AL', 'AM', 'BA'] },
+    ]);
+    // HPPC tem duas colunas de estados; a primeira está vazia na linha.
+    const hppc = tabela.linhas.find((x) => x.segmento === 'HPPC')!;
+    assert.deepEqual(hppc.protocolos, [
+      { acordo: 'PT 58/18', ufs: ['AC', 'AL', 'AP'] },
+    ]);
+    // As colunas de estados não viram MVA.
+    assert.deepEqual(
+      auto.jogosMva.map((j) => j.rotulo),
+      ['MVA-ST 1', 'MVA-ST 2'],
+    );
+  });
+
+  it('aba sem coluna de estados: protocolos null', () => {
+    const outra = lerTabelaST([
+      {
+        nome: 'Tintas',
+        linhas: [
+          ...topo('ANEXO XXIII – SEGMENTO: TINTAS E VERNIZES'),
+          [undefined, 'ITEM', 'CEST', 'NCM/SH', 'Descrição'],
+          [undefined, 1, '24.001.00', '3208', 'Tintas'],
+        ],
+      },
+    ]);
+    assert.equal(outra.linhas[0].protocolos, null);
+  });
 });
 
 describe('st: relatório', () => {

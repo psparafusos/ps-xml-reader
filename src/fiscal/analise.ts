@@ -12,13 +12,21 @@
 // - Origem (orig): 1, 2, 3 e 8 = importado (4%); 0, 4, 5, 6 e 7 = nacional.
 // - Com ST: CFOP 1403 (fornecedor de SE) ou 2403 (de fora), mesmo sem
 //   retenção pelo fornecedor. Sem ST: 1102 ou 2102.
+// - Autopeças: vale a MVA-ST 1 (regra geral). A MVA-ST 2 (índice de
+//   fidelização) é só para venda com fidelização a montadora, que não é o
+//   caso da loja; fica à parte (mvaAlternativa) para troca manual.
+// - A alíquota interna varia por produto: vem sempre da linha da planilha.
+// - Estados com protocolo/convênio com SE: a nota deveria trazer o ST
+//   retido. É só observação; não muda a ST nem o CFOP.
 
 import type { Item } from '../nfe/tipos';
 import {
   buscarST,
+  type AliquotaInterna,
   type AliquotaMva,
   type CandidatoST,
   type LinhaST,
+  type ProtocoloST,
   type TabelaST,
 } from './st';
 import { consultarTipi, type AliquotaIpi, type TabelaTipi } from './tipi';
@@ -34,6 +42,9 @@ export interface ItemFiscal {
   CST?: string;
   CSOSN?: string;
   pICMS?: string;
+  /** ICMS-ST retido pelo fornecedor: base e valor. */
+  vBCST?: string;
+  vST?: string;
   /** CFOP que o fornecedor usou na saída. */
   CFOP?: string;
   cstIPI?: string;
@@ -44,6 +55,12 @@ export interface BaseAnalise {
   st: TabelaST | LinhaST[];
   /** Sem TIPI, a parte de IPI fica em branco (existe = null). */
   tipi?: TabelaTipi | null;
+  /**
+   * Segmentos (nome da aba, como "Autopecas") que a importação da planilha
+   * de ST leu com problemas. Vem do st-leitura.json (fiscal/base.ts,
+   * lerSegmentosIncompletos). Ausente = nenhum.
+   */
+  segmentosIncompletos?: string[];
 }
 
 export type StSergipe = 'sim' | 'nao' | 'confirmar';
@@ -54,6 +71,24 @@ export interface MvaJogo {
   rotulo: string;
   /** MVA em fração na coluna da alíquota da nota; null se a coluna não é conhecida ou a célula está vazia. */
   valor: number | null;
+}
+
+export interface AliquotaInternaItem {
+  /** Texto da coluna "Alíquota interna" da linha, como na planilha. */
+  texto: string;
+  /** ICMS interno em percentual (19 em "19% + 1% (FECOEP)"); null se não deu para separar. */
+  aliquota: number | null;
+  /** FECOEP em percentual; 0 quando a linha não tem; null se não deu para separar. */
+  fecoep: number | null;
+}
+
+export interface ProtocoloItem {
+  /** Acordos da linha escolhida ("PT 97/10" com as UFs). */
+  acordos: ProtocoloST[];
+  /** Acordo que inclui a UF do fornecedor; null quando a UF não está em nenhum. */
+  acordo: string | null;
+  /** A nota traz ST retido: vST ou vBCST e CST 10, 30, 70 (CSOSN 201, 202, 203). */
+  stRetidoNaNota: boolean;
 }
 
 export interface CandidatoAnalise {
@@ -70,6 +105,12 @@ export interface CandidatoAnalise {
   /** Todos os jogos de MVA da linha, na coluna da alíquota da nota. */
   mvas: MvaJogo[];
   linhaPlanilha: number;
+  /** Alíquota interna da linha; null quando a linha não tem a coluna. */
+  aliquotaInterna: AliquotaInternaItem | null;
+  /** Acordos com SE da linha; null quando a aba não tem as colunas de estados. */
+  protocolos: ProtocoloST[] | null;
+  /** O segmento foi lido com problemas na importação. */
+  segmentoIncompleto: boolean;
 }
 
 export interface AnaliseTipi {
@@ -99,12 +140,22 @@ export interface AnaliseItem {
   origem: { codigo: string; tipo: TipoOrigem | null };
   /** Coluna de MVA = alíquota de ICMS da nota, quando é 4, 7 ou 12. */
   colunaMva: AliquotaMva | null;
-  /** MVA em fração, só quando há uma linha e um jogo de MVA. */
+  /** MVA em fração, só quando há uma linha e um jogo de MVA (ou o padrão de Autopeças). */
   mva: number | null;
+  /** Rótulo do jogo de onde veio a mva ("MVA-ST", "MVA-ST 1"). */
+  mvaRotulo: string | null;
+  /** Outro jogo disponível para troca manual (Autopeças: MVA-ST 2). */
+  mvaAlternativa: MvaJogo | null;
+  /** Alíquota interna da linha escolhida (só com um candidato). */
+  aliquotaInterna: AliquotaInternaItem | null;
+  /** Acordos com SE e a UF do fornecedor (só com um candidato, fornecedor de fora). */
+  protocolo: ProtocoloItem | null;
   /** CFOP de entrada para revenda; null quando depende de confirmação. */
   cfopSugerido: string | null;
   motivos: string[];
   pendencias: string[];
+  /** Informação para quem confere; não muda a análise. */
+  observacoes: string[];
   tipi: AnaliseTipi;
 }
 
@@ -133,6 +184,8 @@ const CST_COM_ST = new Set([
   '203',
   '500',
 ]);
+/** CST e CSOSN com o ST retido pelo fornecedor. */
+const CST_ST_RETIDO = new Set(['10', '30', '70', '201', '202', '203']);
 /**
  * Descrição que restringe o NCM: com prefixo curto, só parte dos produtos do
  * NCM entra na linha.
@@ -147,6 +200,7 @@ export function analisarItem(
 ): AnaliseItem {
   const motivos: string[] = [];
   const pendencias: string[] = [];
+  const observacoes: string[] = [];
   const ncm = item.NCM.replace(/\D/g, '');
   const cestNota = formatarCest(item.CEST);
   const uf = ufEmitente.trim().toUpperCase();
@@ -186,9 +240,14 @@ export function analisarItem(
     origem,
     colunaMva,
     mva: null,
+    mvaRotulo: null,
+    mvaAlternativa: null,
+    aliquotaInterna: null,
+    protocolo: null,
     cfopSugerido: null,
     motivos,
     pendencias,
+    observacoes,
     tipi,
     ...extra,
   });
@@ -199,7 +258,12 @@ export function analisarItem(
   }
 
   const busca = buscarST(base.st, ncm, cestNota ?? undefined);
-  const candidatos = busca.candidatos.map((c) => candidato(c, colunaMva));
+  const incompletos = new Set(
+    (base.segmentosIncompletos ?? []).map(chaveSegmento),
+  );
+  const candidatos = busca.candidatos.map((c) =>
+    candidato(c, colunaMva, incompletos),
+  );
   const indicioST = indicioDeST(item);
 
   if (candidatos.length === 0) {
@@ -277,7 +341,14 @@ export function analisarItem(
   }
 
   for (const c of candidatos) {
-    if (c.mvas.length > 1) {
+    if (c.segmentoIncompleto) {
+      duvidaST = true;
+      pendencias.push(`segmento ${c.segmento} lido com problemas`);
+    }
+  }
+
+  for (const c of candidatos) {
+    if (c.mvas.length > 1 && !jogosAutopecas(c)) {
       duvidaMva = true;
       pendencias.push(
         `${c.segmento} tem ${c.mvas.length} jogos de MVA: ${c.mvas.map((m) => `${m.rotulo} = ${fmtMva(m.valor)}`).join('; ')}`,
@@ -295,8 +366,19 @@ export function analisarItem(
 
   const unico = candidatos.length === 1 ? candidatos[0] : null;
   let mva: number | null = null;
+  let mvaRotulo: string | null = null;
+  let mvaAlternativa: MvaJogo | null = null;
   if (unico && !duvidaMva) {
-    mva = unico.mvas[0]?.valor ?? null;
+    const autopecas = jogosAutopecas(unico);
+    const jogo = autopecas?.padrao ?? unico.mvas[0];
+    mva = jogo?.valor ?? null;
+    mvaRotulo = jogo?.rotulo ?? null;
+    if (autopecas) {
+      mvaAlternativa = autopecas.alternativa;
+      motivos.push(
+        `Autopeças: ${autopecas.padrao.rotulo} (regra geral); ${autopecas.alternativa.rotulo} = ${fmtMva(autopecas.alternativa.valor)} é para fidelização com montadora, não usada pela loja`,
+      );
+    }
     if (mva === null) {
       duvidaMva = true;
       pendencias.push(
@@ -307,10 +389,37 @@ export function analisarItem(
     }
   }
 
+  let aliquotaInterna: AliquotaInternaItem | null = null;
+  let protocolo: ProtocoloItem | null = null;
+  if (unico) {
+    aliquotaInterna = unico.aliquotaInterna;
+    if (aliquotaInterna?.aliquota == null) {
+      pendencias.push('alíquota interna: confirmar com a contabilidade');
+    } else {
+      motivos.push(
+        `alíquota interna ${fmt(aliquotaInterna.aliquota)}%${aliquotaInterna.fecoep ? ` + ${fmt(aliquotaInterna.fecoep)}% FECOEP` : ' sem FECOEP'} (${aliquotaInterna.texto})`,
+      );
+    }
+    if (uf && !deSergipe && unico.protocolos) {
+      protocolo = analisarProtocolo(unico.protocolos, uf, item);
+      if (protocolo.acordo === null) {
+        observacoes.push('sem protocolo com SE: a loja recolhe');
+      } else if (!protocolo.stRetidoNaNota) {
+        observacoes.push(
+          `fornecedor de estado com protocolo (${uf}, ${protocolo.acordo}): a nota deveria trazer ST retido; confira`,
+        );
+      }
+    }
+  }
+
   return resultado(duvidaST || duvidaMva ? 'confirmar' : 'sim', candidatos, {
     segmento: segmentos.length === 1 ? segmentos[0] : null,
     cest: unico?.cest ?? null,
     mva,
+    mvaRotulo,
+    mvaAlternativa,
+    aliquotaInterna,
+    protocolo,
     // Com a ST certa e só a MVA em dúvida, o CFOP já está decidido.
     cfopSugerido: duvidaST ? null : cfop(uf, true),
   });
@@ -335,6 +444,8 @@ export function itemFiscalDe(i: Item): ItemFiscal {
     CST: i.CST,
     CSOSN: i.CSOSN,
     pICMS: i.pICMS,
+    vBCST: i.vBCST,
+    vST: i.vST,
     CFOP: i.CFOP,
     cstIPI: i.cstIPI,
     pIPI: i.pIPI,
@@ -344,6 +455,7 @@ export function itemFiscalDe(i: Item): ItemFiscal {
 function candidato(
   c: CandidatoST,
   coluna: AliquotaMva | null,
+  incompletos: Set<string>,
 ): CandidatoAnalise {
   const l = c.linha;
   return {
@@ -359,6 +471,68 @@ function candidato(
       valor: coluna === null ? null : j.porAliquota[coluna],
     })),
     linhaPlanilha: l.linhaPlanilha,
+    aliquotaInterna: separarAliquotaInterna(l.aliquotaInterna),
+    protocolos: l.protocolos ?? null,
+    segmentoIncompleto:
+      incompletos.has(chaveSegmento(l.segmento)) ||
+      incompletos.has(chaveSegmento(l.segmentoOficial)),
+  };
+}
+
+function chaveSegmento(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/** Autopeças com MVA-ST 1 e MVA-ST 2: a 1 é a padrão. */
+function jogosAutopecas(
+  c: CandidatoAnalise,
+): { padrao: MvaJogo; alternativa: MvaJogo } | null {
+  if (!/autope/.test(chaveSegmento(`${c.segmento} ${c.segmentoOficial}`)))
+    return null;
+  if (c.mvas.length !== 2) return null;
+  const padrao = c.mvas.find((m) => /^MVA-ST\s*1$/i.test(m.rotulo));
+  const alternativa = c.mvas.find((m) => /^MVA-ST\s*2$/i.test(m.rotulo));
+  return padrao && alternativa ? { padrao, alternativa } : null;
+}
+
+/**
+ * "19% + 1% (FECOEP)" -> 19 e 1; "19%" -> 19 e 0. Texto que não segue esse
+ * jeito (ou que fala de FECOEP sem separar) fica com os números null.
+ */
+function separarAliquotaInterna(
+  a: AliquotaInterna | null,
+): AliquotaInternaItem | null {
+  if (!a) return null;
+  const m =
+    /^(\d+(?:[.,]\d+)?)\s*%\s*(?:\+\s*(\d+(?:[.,]\d+)?)\s*%?\s*(?:\(?\s*FECOE?P\s*\)?)?)?$/i.exec(
+      a.texto.trim(),
+    );
+  if (!m) return { texto: a.texto, aliquota: null, fecoep: null };
+  const n = (t: string) => Number(t.replace(',', '.'));
+  return {
+    texto: a.texto,
+    aliquota: n(m[1]),
+    fecoep: m[2] === undefined ? 0 : n(m[2]),
+  };
+}
+
+function analisarProtocolo(
+  acordos: ProtocoloST[],
+  uf: string,
+  item: ItemFiscal,
+): ProtocoloItem {
+  const doFornecedor = acordos.find((a) => a.ufs.includes(uf));
+  const cst = (item.CSOSN?.trim() || item.CST?.trim()) ?? '';
+  const valorST = Math.max(numero(item.vST) ?? 0, numero(item.vBCST) ?? 0);
+  return {
+    acordos,
+    acordo: doFornecedor?.acordo ?? null,
+    stRetidoNaNota: valorST > 0 && CST_ST_RETIDO.has(cst),
   };
 }
 

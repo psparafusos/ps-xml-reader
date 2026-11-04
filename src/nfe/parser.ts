@@ -144,6 +144,8 @@ function lerItem(det: Element): Item {
     CST: texto(grupoIcms, 'CST'),
     CSOSN: texto(grupoIcms, 'CSOSN'),
     pICMS: texto(grupoIcms, 'pICMS'),
+    vBCST: texto(grupoIcms, 'vBCST'),
+    vST: texto(grupoIcms, 'vST'),
     cstIPI: texto(grupoIpi, 'CST'),
     pIPI: texto(grupoIpi, 'pIPI'),
   };

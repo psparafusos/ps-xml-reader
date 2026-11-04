@@ -68,6 +68,10 @@ export interface Item {
   CSOSN?: string;
   /** Alíquota do ICMS próprio (pICMS). */
   pICMS?: string;
+  /** Base do ICMS-ST retido pelo fornecedor (vBCST). */
+  vBCST?: string;
+  /** Valor do ICMS-ST retido pelo fornecedor (vST). */
+  vST?: string;
   /** CST do IPI (IPITrib ou IPINT). */
   cstIPI?: string;
   /** Alíquota do IPI (pIPI, em IPITrib). */

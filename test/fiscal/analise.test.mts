@@ -248,23 +248,23 @@ describe('analise: casos da contabilidade', () => {
     );
   });
 
-  it('Autopeças: confirmar, com MVA-ST 1 e 2', () => {
+  it('Autopeças: MVA-ST 1 é a padrão, MVA-ST 2 fica à parte, sem confirmar', () => {
     const r = analisarItem(
       { NCM: '39173100', CEST: '01.002.00', orig: '0', pICMS: '12' },
       'SP',
       base,
     );
-    assert.equal(r.stSergipe, 'confirmar');
+    assert.equal(r.stSergipe, 'sim');
     assert.equal(r.candidatos.length, 1);
     assert.deepEqual(r.candidatos[0].mvas, [
       { rotulo: 'MVA-ST 1', valor: 0.8896 },
       { rotulo: 'MVA-ST 2', valor: 0.5022 },
     ]);
-    assert.equal(r.mva, null);
-    assert.ok(
-      r.pendencias.some((p) => /MVA-ST 1 = 0,8896; MVA-ST 2 = 0,5022/.test(p)),
-    );
-    // A linha é uma só: a ST é certa, só a MVA fica para confirmar.
+    assert.equal(r.mva, 0.8896);
+    assert.equal(r.mvaRotulo, 'MVA-ST 1');
+    assert.deepEqual(r.mvaAlternativa, { rotulo: 'MVA-ST 2', valor: 0.5022 });
+    assert.ok(!r.pendencias.some((p) => /jogos de MVA/.test(p)));
+    assert.ok(r.motivos.some((m) => /fidelização com montadora/.test(m)));
     assert.equal(r.cfopSugerido, '2403');
   });
 
@@ -417,5 +417,216 @@ describe('analise: nota inteira', () => {
     assert.equal(r.nItem, '3');
     assert.equal(r.stSergipe, 'sim');
     assert.equal(r.mva, 0.5694);
+  });
+});
+
+// Aba inventada com a coluna de estados do Portal ST: o título é a lista de
+// UFs e a célula, o acordo com SE.
+const stEstados = lerTabelaST([
+  {
+    nome: 'Ferramentas',
+    linhas: [
+      ...topo('ANEXO XI – SEGMENTO: FERRAMENTAS'),
+      [
+        'ITEM',
+        'CEST',
+        'NCM/SH',
+        'Descrição',
+        'AL, BA, MG, SP',
+        'Legislação interna',
+        'MVA-ST Alíquota de 4%',
+        'MVA-ST Alíquota de 7%',
+        'MVA-ST Alíquota de 12%',
+        'MVA-ST Alíquota de 19%',
+        'Alíquota interna',
+      ],
+      [
+        1,
+        '08.001.00',
+        '8205.10.00',
+        'Ferramenta A',
+        'PT 97/10',
+        'Art. 1',
+        0.5,
+        0.45,
+        0.4,
+        0.3,
+        '25% + 1% (FECOEP)',
+      ],
+      [
+        2,
+        '08.002.00',
+        '8205.20.00',
+        'Ferramenta B',
+        undefined,
+        'Art. 2',
+        0.5,
+        0.45,
+        0.4,
+        0.3,
+        '19%',
+      ],
+      [
+        3,
+        '08.003.00',
+        '8205.30.00',
+        'Ferramenta C',
+        'CV 118/17',
+        'Art. 3',
+        0.5,
+        0.45,
+        0.4,
+        0.3,
+        'conforme legislação',
+      ],
+      [4, '08.004.00', '8205.40.00', 'Ferramenta D', 'PT 97/10', 'Art. 4'],
+    ],
+  },
+]);
+const baseEstados = { st: stEstados };
+const itemFerramenta = (NCM: string, extra = {}) => ({
+  NCM,
+  orig: '0',
+  pICMS: '12',
+  ...extra,
+});
+
+describe('analise: alíquota interna da linha', () => {
+  it('25% + 1% (FECOEP): texto original e números separados', () => {
+    const r = analisarItem(itemFerramenta('82051000'), 'SP', baseEstados);
+    assert.equal(r.stSergipe, 'sim');
+    assert.deepEqual(r.aliquotaInterna, {
+      texto: '25% + 1% (FECOEP)',
+      aliquota: 25,
+      fecoep: 1,
+    });
+    assert.deepEqual(r.candidatos[0].aliquotaInterna, r.aliquotaInterna);
+    assert.ok(!r.pendencias.some((p) => /alíquota interna/.test(p)));
+  });
+
+  it('linha sem FECOEP: fecoep 0', () => {
+    const r = analisarItem(itemFerramenta('82052000'), 'SP', baseEstados);
+    assert.deepEqual(r.aliquotaInterna, {
+      texto: '19%',
+      aliquota: 19,
+      fecoep: 0,
+    });
+    assert.ok(r.motivos.some((m) => /alíquota interna 19% sem FECOEP/.test(m)));
+  });
+
+  it('texto que não dá para interpretar: pendência, texto guardado', () => {
+    const r = analisarItem(itemFerramenta('82053000'), 'SP', baseEstados);
+    assert.deepEqual(r.aliquotaInterna, {
+      texto: 'conforme legislação',
+      aliquota: null,
+      fecoep: null,
+    });
+    assert.ok(
+      r.pendencias.includes('alíquota interna: confirmar com a contabilidade'),
+    );
+  });
+
+  it('linha sem a coluna preenchida: pendência', () => {
+    const r = analisarItem(itemFerramenta('82054000'), 'SP', baseEstados);
+    assert.equal(r.aliquotaInterna, null);
+    assert.ok(
+      r.pendencias.includes('alíquota interna: confirmar com a contabilidade'),
+    );
+  });
+
+  it('sem ST não há alíquota interna nem pendência dela', () => {
+    const r = analisarItem(itemFerramenta('73181500'), 'SP', base);
+    assert.equal(r.aliquotaInterna, null);
+    assert.ok(!r.pendencias.some((p) => /alíquota interna/.test(p)));
+  });
+});
+
+describe('analise: estados e protocolos', () => {
+  it('UF com protocolo e nota sem ST retido: observação, ST e CFOP iguais', () => {
+    const r = analisarItem(
+      itemFerramenta('82051000', { CST: '00' }),
+      'BA',
+      baseEstados,
+    );
+    assert.equal(r.stSergipe, 'sim');
+    assert.equal(r.cfopSugerido, '2403');
+    assert.deepEqual(r.protocolo, {
+      acordos: [{ acordo: 'PT 97/10', ufs: ['AL', 'BA', 'MG', 'SP'] }],
+      acordo: 'PT 97/10',
+      stRetidoNaNota: false,
+    });
+    assert.deepEqual(r.observacoes, [
+      'fornecedor de estado com protocolo (BA, PT 97/10): a nota deveria trazer ST retido; confira',
+    ]);
+  });
+
+  it('CST 10 sem vST nem vBCST também não conta como retido', () => {
+    const r = analisarItem(
+      itemFerramenta('82051000', { CST: '10' }),
+      'SP',
+      baseEstados,
+    );
+    assert.equal(r.protocolo?.stRetidoNaNota, false);
+    assert.equal(r.observacoes.length, 1);
+  });
+
+  it('UF com protocolo e ST retido na nota: sem observação', () => {
+    const r = analisarItem(
+      itemFerramenta('82051000', { CST: '10', vBCST: '150.00', vST: '9.60' }),
+      'SP',
+      baseEstados,
+    );
+    assert.equal(r.protocolo?.stRetidoNaNota, true);
+    assert.deepEqual(r.observacoes, []);
+  });
+
+  it('UF fora da lista: "sem protocolo com SE: a loja recolhe"', () => {
+    const r = analisarItem(itemFerramenta('82051000'), 'RS', baseEstados);
+    assert.equal(r.stSergipe, 'sim');
+    assert.equal(r.cfopSugerido, '2403');
+    assert.equal(r.protocolo?.acordo, null);
+    assert.deepEqual(r.observacoes, ['sem protocolo com SE: a loja recolhe']);
+  });
+
+  it('linha sem acordo na coluna de estados: sem protocolo', () => {
+    const r = analisarItem(itemFerramenta('82052000'), 'SP', baseEstados);
+    assert.deepEqual(r.protocolo?.acordos, []);
+    assert.deepEqual(r.observacoes, ['sem protocolo com SE: a loja recolhe']);
+  });
+
+  it('fornecedor de SE ou aba sem coluna de estados: nada a dizer', () => {
+    const se = analisarItem(itemFerramenta('82051000'), 'SE', baseEstados);
+    assert.equal(se.protocolo, null);
+    assert.deepEqual(se.observacoes, []);
+    const tintas = analisarItem(
+      { NCM: '32081020', orig: '0', pICMS: '7' },
+      'SP',
+      base,
+    );
+    assert.equal(tintas.candidatos[0].protocolos, null);
+    assert.equal(tintas.protocolo, null);
+    assert.deepEqual(tintas.observacoes, []);
+  });
+});
+
+describe('analise: segmento lido com problemas', () => {
+  it('candidato de segmento incompleto vira confirmar', () => {
+    const r = analisarItem(itemFerramenta('82051000'), 'SP', {
+      ...baseEstados,
+      segmentosIncompletos: ['ferramentas'],
+    });
+    assert.equal(r.stSergipe, 'confirmar');
+    assert.equal(r.candidatos[0].segmentoIncompleto, true);
+    assert.equal(r.cfopSugerido, null);
+    assert.ok(r.pendencias.includes('segmento Ferramentas lido com problemas'));
+  });
+
+  it('outro segmento incompleto não afeta', () => {
+    const r = analisarItem(itemFerramenta('82051000'), 'SP', {
+      ...baseEstados,
+      segmentosIncompletos: ['Autopecas'],
+    });
+    assert.equal(r.stSergipe, 'sim');
+    assert.equal(r.candidatos[0].segmentoIncompleto, false);
   });
 });
