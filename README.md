@@ -14,17 +14,22 @@ o DANFE.
 
 - **Documentos de referência**: a planilha de ST de Sergipe (CONFAZ) e a TIPI
   (o `tipi.xlsx` oficial ou o texto do PDF), que a pessoa carrega. O app vem
-  sem nenhum. Cada documento é conferido antes de trocar o anterior, e o
-  relatório da leitura lista o que não foi entendido. Verificação online
-  opcional, desligada por padrão.
+  sem nenhum. Cada documento é conferido antes de trocar o anterior; arquivo
+  errado é reconhecido e recusado com o que fazer. O relatório da leitura
+  separa o ignorado de propósito dos problemas de leitura, e um semáforo
+  (verde, amarelo, vermelho, sempre com texto) mostra a situação. Verificação
+  online opcional, desligada por padrão.
 - **Ferramenta "ST, MVA e CFOP"** no painel de conferência: diz se cada item
   tem ST em Sergipe, a MVA e o CFOP de entrada pela finalidade, lembra as
   decisões por fornecedor e produto e grava o CFOP (e, se quiser, a MVA)
-  numa coluna de anotação.
+  numa coluna de anotação. O painel resume os CFOPs de entrada da nota.
+- **Tabela de itens** usa a largura da janela antes de mostrar as setas de
+  rolagem lateral.
 - **Painel de conferência** à esquerda da nota, na Conferência: o resultado
   no topo ("Tudo certo" ou "N pontos para olhar"), as verificações
   automáticas (idade da nota, totais dos itens, duplicatas, vencimentos,
-  destinatário, nota já conferida) e o que precisa de você (Qtd recebida
+  destinatário, nota já conferida), com títulos que dizem o resultado, e o
+  que precisa de você (Qtd recebida
   diferente da nota). Recolhe numa barra fina. Não sai no PDF nem na
   impressão.
 - **Colunas novas** no Editar colunas, escondidas no começo: **Pedido**
@@ -215,7 +220,10 @@ a escolha.
 Na tabela de itens, todas as células têm o mesmo espaçamento e ficam
 alinhadas ao meio, inclusive as de anotação. A Descrição fica com o espaço
 que sobra, mas nunca abaixo de cerca de 30 caracteres; se a tabela não couber
-na tela, ela rola na horizontal.
+na largura do conteúdo, o quadro de itens cresce para os lados, até a margem
+da janela e sem passar por cima do painel de conferência; só o que ainda não
+couber rola na horizontal, com as setas nas laterais. No PDF e na impressão a
+tabela segue a folha.
 
 ### Orientação e folha (modo Conferência)
 
@@ -553,7 +561,11 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
 - **Verificações automáticas**: uma linha por verificação (idade da nota,
   total dos itens, duplicatas, vencimentos, destinatário, nota já
   conferida), com ✓ (certo), i (só informa), ! amarelo (aviso leve) ou !
-  vermelho (alerta forte); clicar mostra o detalhe. Aviso leve e alerta
+  vermelho (alerta forte); clicar mostra o detalhe. O título diz o
+  resultado, não a pergunta: "Totais conferem" ou "Total dos itens difere em
+  R$ 2,10"; "Parcelas em dia" ou "Parcela 001 vencida há 20 dias";
+  "Destinatário: P S Parafusos"; "Primeira conferência desta nota" ou "Já
+  conferida em 28/10". Aviso leve e alerta
   forte contam como pontos para olhar. A "já conferida" tem **Abrir em nova
   janela**.
 - **Precisa de você**: cada item com a Qtd recebida diferente da nota; clicar
@@ -561,8 +573,15 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
   caixa Qtd recebida dela.
 - **Ferramentas**: ações sobre a nota aberta, que mostram a prévia antes de
   mudar alguma coisa. A primeira é **ST, MVA e CFOP** (veja abaixo).
-- **Rodapé**: a situação dos documentos de referência ("Base: ST ✓ · TIPI
-  ✓", ou "ST faltando"); clicar abre a área deles.
+  Embaixo, **CFOPs de entrada**: a contagem por valor da coluna de anotação
+  "CFOP de entrada" ("2102: 194 itens · 2403: 2 itens"), do que a ferramenta
+  gravou e do que foi digitado, atualizada enquanto se digita. Clicar num
+  valor lista os itens (número e descrição); clicar num item rola a tabela
+  até a linha, destaca a linha e põe o foco na caixa CFOP de entrada dela.
+  Valores com poucos itens (até 10% dos preenchidos, no mínimo 1, havendo
+  outro valor) ficam em destaque.
+- **Rodapé**: o semáforo dos documentos de referência ("● ST ok · ● TIPI
+  falta"); clicar abre a área deles.
 
 Ações que passam de meio segundo (como procurar a nota na pasta de destino
 pela rede) mostram um círculo girando no painel. O botão no topo recolhe o
@@ -619,22 +638,46 @@ explica o que carregar e para quê. Um cartão por documento:
 - **Planilha de derivados de petróleo**: opcional, ainda não usada pelo app;
   por enquanto não há importação.
 
-Cada cartão mostra a situação (carregado, faltando, ou carregado com pontos
-não entendidos), a versão e a vigência, a data da importação, as quantidades
-lidas e os botões **Atualizar** e **Ver relatório da leitura**. O relatório
-lista os pontos não entendidos (aba, célula, motivo e conteúdo) e as
-observações da leitura (por exemplo, MVA escrita em percentual e convertida).
+Cada cartão mostra o semáforo e o rótulo da situação, o nome do arquivo em
+uso com um **X** para remover o documento (com confirmação; sem a planilha de
+ST, a ferramenta volta a pedir o arquivo), a versão e a vigência, a data da
+importação, as quantidades lidas e os botões **Atualizar** e **Ver relatório
+da leitura**.
 
-Ao importar, o arquivo é lido e conferido antes de trocar o anterior. Com
-pontos não entendidos, carrega o que leu e mostra a lista. Formato não
-reconhecido (cabeçalho não encontrado, planilha de outro assunto): avisa e
-o documento anterior continua carregado.
+O relatório separa duas coisas:
+
+- **Ignorado de propósito**: o que o documento traz e não entra na busca, de
+  propósito: abas sem coluna NCM ou sem MVA (Água mineral, Bebidas frias),
+  linhas sem NCM ou sem CEST, exceções "Ex", notas e cabeçalhos da TIPI.
+- **Problemas de leitura**: célula que não deu para converter (MVA ilegível,
+  CEST fora do formato, NCM sem alíquota), listados por aba ou segmento, com
+  célula, motivo e conteúdo.
+
+Com só ignorados, o rótulo é verde "Carregado"; com problema de verdade,
+amarelo "Carregado com N problemas". O semáforo do cartão, do rodapé do
+painel e da tela inicial é verde (ok), amarelo (problemas de leitura,
+segmentos incompletos ou versão nova disponível) ou vermelho (faltando, ou
+arquivo incompatível sem nenhum documento carregado), sempre com o texto ao
+lado.
+
+Ao importar, o arquivo é lido e conferido antes de trocar o anterior:
+
+- **Arquivo errado**: o app diz o que ele parece ("Este arquivo parece a
+  planilha de combustíveis (Ato COTEPE), não a de ST de Sergipe"; "parece a
+  TIPI: carregue no cartão da TIPI") e o que fazer, em destaque. Nenhum dado
+  é usado e o documento anterior continua carregado.
+- **Planilha de ST com segmento não lido** (aba de segmento sem o cabeçalho
+  ITEM e CEST): o app lista os segmentos afetados e só ativa a planilha com
+  a confirmação "Os segmentos com problema não afetam meu trabalho. Usar o
+  resto." marcada. Sem confirmar, o documento anterior continua valendo.
 
 A base já lida fica na pasta de dados do app
 (`%APPDATA%\PS Reader\documentos`), nunca no repositório: `st.json` e
 `tipi.json`, com os metadados de cada um em `st-info.json` e
 `tipi-info.json` (versão, vigência, data da importação e, para arquivo
-baixado pelo app, a data e o tamanho do servidor).
+baixado pelo app, a data e o tamanho do servidor). O resumo da leitura
+(ignorados, problemas e os segmentos incompletos da planilha de ST) fica em
+`st-leitura.json` e `tipi-leitura.json`, na mesma pasta.
 
 **Verificação online** (embaixo, na mesma área): o interruptor vem desligado e,
 com ele desligado, o app nunca acessa a internet. Ligado, aparecem **Verificar
@@ -818,6 +861,7 @@ src/
   miniaturaFolha.ts  miniatura da folha A4 no painel Editar colunas
   nfe/avisos.ts      avisos da nota: quantidade, totais, outra empresa, já conferida (lógica pura)
   nfe/conferencia.ts resumo do painel de conferência (verificações e pendências, lógica pura)
+  nfe/resumoCfop.ts  contagem dos CFOPs de entrada por valor, para o painel
   nfe/ferramentas.ts ferramentas do painel (Rodar, prévia, Aplicar; e as de janela própria)
   painelConferencia.ts painel de conferência à esquerda da nota
   ferramentaST.ts    janela da ferramenta ST, MVA e CFOP (prévia, decisões, Aplicar)
@@ -831,6 +875,7 @@ src/
   fiscal/documentos.ts situação, resumo e pontos não entendidos de cada documento
   fiscal/online.ts   verificação online (página do CONFAZ, cabeçalhos da TIPI)
   fiscal/entrada.ts  finalidade, CFOP de entrada, decisões lembradas e Aplicar
+  leituraDocumentos.ts ignorado e problemas de leitura, reconhecer arquivo errado, semáforo
   indicador.ts       indicador de processando (só depois de 500 ms)
   dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
