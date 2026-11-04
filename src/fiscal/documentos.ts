@@ -4,15 +4,23 @@
 // principal (fiscal/base.ts grava e lê) e à tela (área de documentos e
 // rodapé do painel de conferência).
 
+import type { TabelaCombustiveis } from './combustiveis';
 import type { RelatorioST, TabelaST } from './st';
 import type { RelatorioTipi, TabelaTipi } from './tipi';
 
-export type TipoDocumento = 'st' | 'tipi';
+export type TipoDocumento = 'st' | 'tipi' | 'combustiveis';
+/** Documentos com verificação online (página oficial conhecida). */
+export type TipoOnline = Exclude<TipoDocumento, 'combustiveis'>;
 
 export const NOME_DOCUMENTO: Record<TipoDocumento, string> = {
   st: 'Planilha de ST de Sergipe',
   tipi: 'TIPI',
+  combustiveis: 'Combustíveis e lubrificantes (Apêndice XIV)',
 };
+
+/** Arquivo sem a aba do Apêndice XIV (planilha de combustíveis). */
+export const MENSAGEM_SEM_APENDICE =
+  'Este arquivo não parece a planilha de combustíveis: não tem a aba do Apêndice XIV (lubrificantes derivados de petróleo).';
 
 /** Algo do arquivo que o leitor não entendeu e deixou de fora. */
 export interface PontoNaoEntendido {
@@ -139,6 +147,23 @@ export function resumoST(t: TabelaST): Resumo {
     })),
     totalNaoEntendidos: pontos.length,
     observacoes,
+  };
+}
+
+/** Valida e resume o Apêndice XIV lido. Lança ErroFormato se nenhuma linha foi lida. */
+export function resumoCombustiveis(t: TabelaCombustiveis): Resumo {
+  const r = t.relatorio;
+  if (t.linhas.length === 0)
+    throw new ErroFormato(
+      `A aba "${r.aba}" do Apêndice XIV não tem nenhuma linha de lubrificante com descrição: não parece a planilha de combustíveis.`,
+    );
+  return {
+    versao: '',
+    vigencia: '',
+    quantidades: [{ rotulo: 'linhas do Apêndice XIV', valor: t.linhas.length }],
+    naoEntendidos: r.problemas.slice(0, LIMITE_PONTOS).map((p) => ({ ...p })),
+    totalNaoEntendidos: r.problemas.length,
+    observacoes: r.notas.map((n) => `${r.aba}: ${n}.`),
   };
 }
 

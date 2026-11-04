@@ -176,10 +176,12 @@ type LeituraDocumento = import('./leituraDocumentos').LeituraDocumento;
 interface EstadoDocumentos {
   st: InfoDocumento | null;
   tipi: InfoDocumento | null;
+  /** Apêndice XIV (lubrificantes): opcional. */
+  combustiveis: InfoDocumento | null;
   /** Ignorado de propósito, problemas e segmentos incompletos (<tipo>-leitura.json). */
-  leitura: { st: LeituraDocumento | null; tipi: LeituraDocumento | null };
+  leitura: Record<TipoDocumento, LeituraDocumento | null>;
   /** Última tentativa recusada e nenhum documento carregado (vermelho "incompatível"). */
-  recusado: { st: boolean; tipi: boolean };
+  recusado: Record<TipoDocumento, boolean>;
   preferencias: PreferenciasDocumentos;
   /** Última verificação de cada um (enquanto o app está aberto). */
   verificacao: {

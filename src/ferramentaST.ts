@@ -442,6 +442,43 @@ export function abrirFerramentaST(c: ContextoST): void {
       });
       celulaSt.append(b);
     }
+    // NCM 2710/3403 fora da planilha, com o Apêndice XIV carregado: a pessoa
+    // diz se é lubrificante. "Sim" abre a lista das linhas do apêndice;
+    // "Não" é sem ST.
+    if (!podeEscolher && a.apendiceXIV && a.apendiceXIV.length > 0) {
+      const esc = l.decisao.escolha;
+      const selAp = menus.seletor({
+        rotulo: `Apêndice XIV do item ${n}`,
+        opcoes: [
+          { valor: 'sim', texto: 'Apêndice XIV: Sim' },
+          { valor: 'nao', texto: 'Apêndice XIV: Não' },
+        ],
+        valor:
+          confirmando === n || esc?.tipo === 'apendice-xiv'
+            ? 'sim'
+            : esc?.tipo === 'sem-st'
+              ? 'nao'
+              : '',
+        vazio: 'Apêndice XIV: Sim / Não',
+        classe: 'seletor-menu--pequeno st__apendice',
+        aoMudar: (v) => {
+          if (v === 'nao') {
+            confirmando = null;
+            void acao(`apendice-${n}`, () =>
+              decidir(l, { ...l.decisao, escolha: { tipo: 'sem-st' } }),
+            );
+            return;
+          }
+          confirmando = n;
+          desenhar();
+          d.querySelector<HTMLElement>(`[data-foco="escolha-${n}"]`)?.focus();
+        },
+      });
+      selAp.botao.dataset.foco = `apendice-${n}`;
+      selAp.botao.title =
+        'Sim: escolha a linha do Apêndice XIV (MVA e alíquota dela). Não: sem ST.';
+      celulaSt.append(selAp.botao);
+    }
 
     const selFin = menus.seletor({
       rotulo: `Finalidade do item ${n}`,
@@ -500,7 +537,12 @@ export function abrirFerramentaST(c: ContextoST): void {
       el(
         'td',
         '',
-        r.segmento ?? (r.st === 'nao' ? '-' : `${a.candidatos.length} opções`),
+        r.segmento ??
+          (r.st === 'nao'
+            ? '-'
+            : a.candidatos.length === 0 && a.apendiceXIV
+              ? `${a.apendiceXIV.length} ${a.apendiceXIV.length === 1 ? 'linha' : 'linhas'} do Apêndice XIV`
+              : `${a.candidatos.length} opções`),
         r.cest && el('span', 'st__cest', `CEST ${r.cest}`),
       ),
       celulaMva(l, r),
@@ -524,48 +566,73 @@ export function abrirFerramentaST(c: ContextoST): void {
     const a = analises.get(n)!;
     const nome = `st-escolha-${n}`;
     const atual = l.decisao.escolha;
-    const opcoes: { valor: EscolhaST; rotulo: HTMLElement }[] = [
-      ...a.candidatos.map((cand) => ({
-        valor: {
-          tipo: 'candidato' as const,
-          segmento: cand.segmento,
-          linhaPlanilha: cand.linhaPlanilha,
-          cest: cand.cest,
-        },
-        rotulo: el(
-          'span',
-          'st__opcao-texto',
-          el('strong', '', `${cand.segmento}, CEST ${cand.cest}`),
-          ` NCM ${cand.ncmPlanilha} na planilha (linha ${cand.linhaPlanilha}): ${cand.descricao}`,
-          el(
+    const apendice = a.candidatos.length === 0 ? (a.apendiceXIV ?? []) : [];
+    const pct = (v: number | null) =>
+      v === null
+        ? '-'
+        : `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+    const opcoes: { valor: EscolhaST; rotulo: HTMLElement }[] = apendice.length
+      ? apendice.map((cand) => ({
+          valor: {
+            tipo: 'apendice-xiv' as const,
+            linhaPlanilha: cand.linhaPlanilha,
+            descricao: cand.descricao,
+          },
+          rotulo: el(
             'span',
-            'st__cest',
-            ` MVA: ${cand.mvas.map((m) => (m.valor === null ? '-' : `${(m.valor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`)).join(' / ')}${cand.cestConfere ? ' · CEST da nota confere' : ''}`,
+            'st__opcao-texto',
+            el('strong', '', cand.descricao),
+            ` (linha ${cand.linhaPlanilha} do apêndice)`,
+            el(
+              'span',
+              'st__cest',
+              ` MVA: ${pct(cand.mvas[0]?.valor ?? null)} · Alíquota: ${cand.aliquotaInterna?.texto ?? '-'}`,
+            ),
           ),
-        ),
-      })),
-      {
-        valor: { tipo: 'sem-st' },
-        rotulo: el(
-          'span',
-          'st__opcao-texto',
-          el('strong', '', 'Sem ST'),
-          ' O produto não é nenhuma das linhas acima.',
-        ),
-      },
-    ];
+        }))
+      : [
+          ...a.candidatos.map((cand) => ({
+            valor: {
+              tipo: 'candidato' as const,
+              segmento: cand.segmento,
+              linhaPlanilha: cand.linhaPlanilha,
+              cest: cand.cest,
+            },
+            rotulo: el(
+              'span',
+              'st__opcao-texto',
+              el('strong', '', `${cand.segmento}, CEST ${cand.cest}`),
+              ` NCM ${cand.ncmPlanilha} na planilha (linha ${cand.linhaPlanilha}): ${cand.descricao}`,
+              el(
+                'span',
+                'st__cest',
+                ` MVA: ${cand.mvas.map((m) => (m.valor === null ? '-' : `${(m.valor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`)).join(' / ')}${cand.cestConfere ? ' · CEST da nota confere' : ''}`,
+              ),
+            ),
+          })),
+          {
+            valor: { tipo: 'sem-st' },
+            rotulo: el(
+              'span',
+              'st__opcao-texto',
+              el('strong', '', 'Sem ST'),
+              ' O produto não é nenhuma das linhas acima.',
+            ),
+          },
+        ];
+    const igual = (x: EscolhaST, y: EscolhaST) =>
+      x.tipo === y.tipo &&
+      (x.tipo === 'sem-st' ||
+        (x.linhaPlanilha === (y as typeof x).linhaPlanilha &&
+          (x.tipo === 'candidato'
+            ? x.segmento === (y as typeof x).segmento
+            : x.descricao === (y as typeof x).descricao)));
     const radios = opcoes.map((o, i) => {
       const r2 = el('input', '');
       r2.type = 'radio';
       r2.name = nome;
       r2.id = `${nome}-${i}`;
-      r2.checked =
-        atual !== null &&
-        (atual.tipo === 'sem-st'
-          ? o.valor.tipo === 'sem-st'
-          : o.valor.tipo === 'candidato' &&
-            o.valor.linhaPlanilha === atual.linhaPlanilha &&
-            o.valor.segmento === atual.segmento);
+      r2.checked = atual !== null && igual(o.valor, atual);
       if (i === 0) r2.dataset.foco = `escolha-${n}`;
       const lbl = el('label', 'st__opcao', r2, o.rotulo);
       lbl.htmlFor = r2.id;
@@ -582,7 +649,11 @@ export function abrirFerramentaST(c: ContextoST): void {
     usar.addEventListener('click', () => {
       const marcada = radios.find((x) => x.r2.checked);
       if (!marcada) {
-        mostrarErro('Escolha uma linha da planilha ou "Sem ST".');
+        mostrarErro(
+          apendice.length
+            ? 'Escolha uma linha do Apêndice XIV.'
+            : 'Escolha uma linha da planilha ou "Sem ST".',
+        );
         return;
       }
       mostrarErro(null);
@@ -594,12 +665,20 @@ export function abrirFerramentaST(c: ContextoST): void {
     voltar.addEventListener('click', () => {
       confirmando = null;
       desenhar();
-      d.querySelector<HTMLElement>(`[data-foco="confirmar-${n}"]`)?.focus();
+      d.querySelector<HTMLElement>(
+        `[data-foco="${apendice.length ? 'apendice' : 'confirmar'}-${n}"]`,
+      )?.focus();
     });
     const grupo = el(
       'fieldset',
       'st__escolha',
-      el('legend', '', `Item ${n}: qual linha da planilha vale?`),
+      el(
+        'legend',
+        '',
+        apendice.length
+          ? `Item ${n}: qual lubrificante do Apêndice XIV é este produto?`
+          : `Item ${n}: qual linha da planilha vale?`,
+      ),
       el('ul', 'st__motivos', ...r.detalhes.map((m) => el('li', '', m))),
       ...radios.map((x) => x.lbl),
       el('div', 'documento__acoes', usar, voltar),

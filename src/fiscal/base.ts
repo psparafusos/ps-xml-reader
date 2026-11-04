@@ -9,6 +9,8 @@
 //   tipi-info.json  data da importação, quantidades, pontos não entendidos)
 //   st.json         linhas da planilha de ST (uma por NCM)
 //   tipi.json       registros da TIPI (um por NCM de 8 dígitos)
+//   combustiveis.json      linhas do Apêndice XIV (lubrificantes), opcional
+//   combustiveis-info.json metadados do Apêndice XIV
 //   st-leitura.json segmentos da planilha de ST lidos com problemas
 //                   (LeituraST; gravado por quem importa, opcional)
 //
@@ -25,7 +27,13 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import {
+  lerCombustiveis,
+  type LinhaCombustivel,
+  type TabelaCombustiveis,
+} from './combustiveis';
+import {
   ErroFormato,
+  resumoCombustiveis,
   resumoST,
   resumoTipi,
   type InfoDocumento,
@@ -49,6 +57,8 @@ const arqDados = (tipo: TipoDocumento) => `${tipo}.json`;
 export interface BaseFiscal {
   st: TabelaST | null;
   tipi: TabelaTipi | null;
+  /** Apêndice XIV (lubrificantes); opcional: sem ele, nada muda na análise. */
+  combustiveis: TabelaCombustiveis | null;
   info: Documentos;
   /** Do st-leitura.json; vazio quando o arquivo não existe. Vai para a análise. */
   segmentosIncompletos: string[];
@@ -65,6 +75,7 @@ export const ARQUIVO_LEITURA_ST = 'st-leitura.json';
 export interface Documentos {
   st: InfoDocumento | null;
   tipi: InfoDocumento | null;
+  combustiveis: InfoDocumento | null;
 }
 
 /** .xlsx é um zip: começa com "PK". */
@@ -104,6 +115,15 @@ export function importarDocumento(
     const st = lerTabelaST(abasXlsx(dados));
     resumo = resumoST(st);
     gravar = { relatorio: st.relatorio, linhas: st.linhas };
+  } else if (tipo === 'combustiveis') {
+    if (!ehZip(dados))
+      throw new ErroFormato(
+        'A planilha de combustíveis precisa ser o arquivo .xlsx do CONFAZ (Ato COTEPE/ICMS 61/19).',
+      );
+    tipoArquivo = 'xlsx';
+    const c = lerCombustiveis(abasXlsx(dados));
+    resumo = resumoCombustiveis(c);
+    gravar = { relatorio: c.relatorio, linhas: c.linhas };
   } else {
     let tipi: TabelaTipi;
     if (ehZip(dados)) {
@@ -173,6 +193,7 @@ export function lerDocumentos(pasta: string): Documentos {
   return {
     st: lerInfoDocumento('st', pasta),
     tipi: lerInfoDocumento('tipi', pasta),
+    combustiveis: lerInfoDocumento('combustiveis', pasta),
   };
 }
 
@@ -198,6 +219,17 @@ export function carregarBaseFiscal(pasta: string): BaseFiscal {
   const info = lerDocumentos(pasta);
   let st: TabelaST | null = null;
   let tipi: TabelaTipi | null = null;
+  let combustiveis: TabelaCombustiveis | null = null;
+  if (info.combustiveis) {
+    try {
+      combustiveis = lerJson(pasta, arqDados('combustiveis')) as {
+        relatorio: TabelaCombustiveis['relatorio'];
+        linhas: LinhaCombustivel[];
+      };
+    } catch {
+      info.combustiveis = null;
+    }
+  }
   if (info.st) {
     try {
       st = lerJson(pasta, arqDados('st')) as {
@@ -225,6 +257,7 @@ export function carregarBaseFiscal(pasta: string): BaseFiscal {
   return {
     st,
     tipi,
+    combustiveis,
     info,
     segmentosIncompletos: st ? lerSegmentosIncompletos(pasta) : [],
   };

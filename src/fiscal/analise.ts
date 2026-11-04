@@ -18,8 +18,17 @@
 // - A alíquota interna varia por produto: vem sempre da linha da planilha.
 // - Estados com protocolo/convênio com SE: a nota deveria trazer o ST
 //   retido. É só observação; não muda a ST nem o CFOP.
+// - Lubrificantes (Apêndice XIV do Ato COTEPE/ICMS 61/19): NCM que começa
+//   em 2710 ou 3403 e não está na planilha de Sergipe fica "confirmar" se
+//   o Apêndice XIV foi carregado. A pessoa diz se é lubrificante e escolhe
+//   a linha do apêndice (apendiceXIV traz as opções). Sem o apêndice
+//   carregado, segue a regra geral (sem ST).
 
 import type { Item } from '../nfe/tipos';
+import type { LinhaCombustivel, TabelaCombustiveis } from './combustiveis';
+import { MOTIVO_APENDICE_XIV } from './entrada';
+
+export { MOTIVO_APENDICE_XIV };
 import {
   buscarST,
   type AliquotaInterna,
@@ -61,7 +70,14 @@ export interface BaseAnalise {
    * lerSegmentosIncompletos). Ausente = nenhum.
    */
   segmentosIncompletos?: string[];
+  /** Apêndice XIV (lubrificantes); ausente ou null = não carregado. */
+  combustiveis?: TabelaCombustiveis | LinhaCombustivel[] | null;
 }
+
+/** Segmento das opções do Apêndice XIV (vai na escolha e na prévia). */
+export const SEGMENTO_APENDICE_XIV = 'Apêndice XIV';
+/** Prefixos de NCM de óleos e preparações lubrificantes. */
+const PREFIXOS_LUBRIFICANTE = ['2710', '3403'];
 
 export type StSergipe = 'sim' | 'nao' | 'confirmar';
 export type TipoOrigem = 'importado' | 'nacional';
@@ -157,6 +173,12 @@ export interface AnaliseItem {
   /** Informação para quem confere; não muda a análise. */
   observacoes: string[];
   tipi: AnaliseTipi;
+  /**
+   * Linhas do Apêndice XIV para a pessoa escolher, no formato de candidato
+   * (segmento "Apêndice XIV", MVA na coluna da nota). Só quando o NCM pode
+   * ser lubrificante e o apêndice foi carregado; senão, null.
+   */
+  apendiceXIV: CandidatoAnalise[] | null;
 }
 
 const ORIGEM_IMPORTADO = new Set(['1', '2', '3', '8']);
@@ -249,6 +271,7 @@ export function analisarItem(
     pendencias,
     observacoes,
     tipi,
+    apendiceXIV: null,
     ...extra,
   });
 
@@ -265,6 +288,21 @@ export function analisarItem(
     candidato(c, colunaMva, incompletos),
   );
   const indicioST = indicioDeST(item);
+
+  const lubrificantes = Array.isArray(base.combustiveis)
+    ? base.combustiveis
+    : (base.combustiveis?.linhas ?? []);
+  if (
+    candidatos.length === 0 &&
+    lubrificantes.length > 0 &&
+    PREFIXOS_LUBRIFICANTE.some((p) => ncm.startsWith(p))
+  ) {
+    motivos.push(MOTIVO_APENDICE_XIV);
+    if (indicioST) motivos.push(`fornecedor tratou como ST (${indicioST})`);
+    return resultado('confirmar', [], {
+      apendiceXIV: lubrificantes.map((l) => candidatoApendice(l, colunaMva)),
+    });
+  }
 
   if (candidatos.length === 0) {
     motivos.push('NCM fora da planilha de ST de Sergipe: sem ST');
@@ -476,6 +514,36 @@ function candidato(
     segmentoIncompleto:
       incompletos.has(chaveSegmento(l.segmento)) ||
       incompletos.has(chaveSegmento(l.segmentoOficial)),
+  };
+}
+
+/** Linha do Apêndice XIV no formato de candidato da planilha. */
+export function candidatoApendice(
+  l: LinhaCombustivel,
+  coluna: AliquotaMva | null,
+): CandidatoAnalise {
+  return {
+    segmento: SEGMENTO_APENDICE_XIV,
+    segmentoOficial: 'Lubrificantes derivados de petróleo',
+    cest: '',
+    ncmPlanilha: '',
+    descricao: l.descricao,
+    digitos: 0,
+    cestConfere: null,
+    mvas: [
+      {
+        rotulo: 'MVA Apêndice XIV',
+        valor: coluna === null ? null : l.mvaPorAliquota[coluna],
+      },
+    ],
+    linhaPlanilha: l.linhaPlanilha,
+    aliquotaInterna: separarAliquotaInterna(
+      l.aliquotaTexto === null
+        ? null
+        : { texto: l.aliquotaTexto, numero: l.aliquota },
+    ),
+    protocolos: null,
+    segmentoIncompleto: false,
   };
 }
 

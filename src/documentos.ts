@@ -45,7 +45,9 @@ import {
   NOME_DOCUMENTO,
   type InfoDocumento,
   type TipoDocumento,
+  type TipoOnline,
 } from './fiscal/documentos';
+import { lerCombustiveis } from './fiscal/combustiveis';
 import {
   PAGINA,
   urlPermitida,
@@ -57,6 +59,7 @@ import { lerTabelaST } from './fiscal/st';
 import { lerTipi, lerTipiPlanilha } from './fiscal/tipi';
 import { lerXlsx, type Aba } from './fiscal/xlsx';
 import {
+  leituraCombustiveis,
   leituraST,
   leituraTipi,
   lerLeitura,
@@ -73,9 +76,12 @@ const LIMITE_DOWNLOAD = 30 * 1024 * 1024;
 const ARQ_PREFERENCIAS = 'preferencias.json';
 const ARQ_DECISOES = 'decisoes.json';
 
-const TIPOS: readonly TipoDocumento[] = ['st', 'tipi'];
+const TIPOS: readonly TipoDocumento[] = ['st', 'tipi', 'combustiveis'];
 const ehTipo = (v: unknown): v is TipoDocumento =>
   TIPOS.includes(v as TipoDocumento);
+/** Só a planilha de ST e a TIPI têm página oficial para a verificação online. */
+const ehTipoOnline = (v: unknown): v is TipoOnline =>
+  v === 'st' || v === 'tipi';
 
 export function pastaDocumentos(): string {
   return path.join(app.getPath('userData'), 'documentos');
@@ -110,7 +116,7 @@ async function gravarPreferencias(p: PreferenciasDocumentos): Promise<void> {
 }
 
 /** Resultado da última verificação de cada documento (só enquanto o app está aberto). */
-const verificacao = new Map<TipoDocumento, ResultadoVerificacao>();
+const verificacao = new Map<TipoOnline, ResultadoVerificacao>();
 let verificando: Promise<void> | null = null;
 
 async function estado(): Promise<EstadoDocumentos> {
@@ -118,13 +124,16 @@ async function estado(): Promise<EstadoDocumentos> {
   return {
     st: docs.st,
     tipi: docs.tipi,
+    combustiveis: docs.combustiveis,
     leitura: {
       st: await lerArquivoLeitura('st', docs.st),
       tipi: await lerArquivoLeitura('tipi', docs.tipi),
+      combustiveis: await lerArquivoLeitura('combustiveis', docs.combustiveis),
     },
     recusado: {
       st: !docs.st && recusado.has('st'),
       tipi: !docs.tipi && recusado.has('tipi'),
+      combustiveis: !docs.combustiveis && recusado.has('combustiveis'),
     },
     preferencias: await lerPreferencias(),
     verificacao: {
@@ -190,7 +199,7 @@ let baseEmUso: { chave: string; base: BaseFiscal } | null = null;
 /** Base carregada, reaproveitada enquanto os documentos não mudam. */
 function baseFiscal(): BaseFiscal {
   const docs = lerDocumentos(pastaDocumentos());
-  const chave = `${docs.st?.importadoEm ?? ''}|${docs.tipi?.importadoEm ?? ''}`;
+  const chave = `${docs.st?.importadoEm ?? ''}|${docs.tipi?.importadoEm ?? ''}|${docs.combustiveis?.importadoEm ?? ''}`;
   if (baseEmUso?.chave !== chave)
     baseEmUso = { chave, base: carregarBaseFiscal(pastaDocumentos()) };
   return baseEmUso.base;
@@ -242,6 +251,7 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
         st: base.st!,
         tipi: base.tipi,
         segmentosIncompletos,
+        combustiveis: base.combustiveis,
       }),
       lembrada: decisoes[chaveDecisao(cnpj, textoDe(i.cProd))] ?? null,
     };
@@ -293,6 +303,22 @@ function lerSemGravar(
     }
   }
   const reconhecido = reconhecerArquivo(dados, abas);
+  if (tipo === 'combustiveis') {
+    if (!abas)
+      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+    try {
+      const c = lerCombustiveis(abas);
+      if (c.linhas.length === 0)
+        return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+      return {
+        reconhecido,
+        relatorio: () => leituraCombustiveis(c.relatorio, '', ''),
+        segmentosIncompletos: [],
+      };
+    } catch {
+      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+    }
+  }
   if (tipo === 'st') {
     if (!abas)
       return { reconhecido, relatorio: null, segmentosIncompletos: [] };
@@ -431,8 +457,15 @@ async function lerArquivoLeitura(
   const relatorio =
     tipo === 'st'
       ? base.st && leituraST(base.st.relatorio, info.arquivo, info.importadoEm)
-      : base.tipi &&
-        leituraTipi(base.tipi.relatorio, info.arquivo, info.importadoEm);
+      : tipo === 'combustiveis'
+        ? base.combustiveis &&
+          leituraCombustiveis(
+            base.combustiveis.relatorio,
+            info.arquivo,
+            info.importadoEm,
+          )
+        : base.tipi &&
+          leituraTipi(base.tipi.relatorio, info.arquivo, info.importadoEm);
   if (!relatorio) return null;
   await writeFile(caminho, `${JSON.stringify(relatorio, null, 2)}\n`, 'utf8');
   return relatorio;
@@ -465,9 +498,7 @@ async function verificarAgora(): Promise<void> {
   avisarJanelas();
 }
 
-async function baixar(
-  tipo: TipoDocumento,
-): Promise<ResultadoImportarDocumento> {
+async function baixar(tipo: TipoOnline): Promise<ResultadoImportarDocumento> {
   const r = verificacao.get(tipo);
   const url = r?.disponivel?.url;
   if (!r || r.estado !== 'nova' || !url || !urlPermitida(tipo, url))
@@ -523,6 +554,9 @@ async function baixar(
 const FILTROS: Record<TipoDocumento, Electron.FileFilter[]> = {
   st: [{ name: 'Planilha de ST (.xlsx)', extensions: ['xlsx'] }],
   tipi: [{ name: 'TIPI (.xlsx ou texto .txt)', extensions: ['xlsx', 'txt'] }],
+  combustiveis: [
+    { name: 'Planilha de combustíveis (.xlsx)', extensions: ['xlsx'] },
+  ],
 };
 
 export function registrarDocumentos(): void {
@@ -585,8 +619,13 @@ export function registrarDocumentos(): void {
       if (!p) return { status: 'cancelado' };
       pendentes.delete(token as string);
       const r = await importar(p.tipo, p.dados, p.nome, p.servidor, true);
-      const v = verificacao.get(p.tipo);
-      if (r.status === 'ok' && p.servidor && v?.estado === 'nova') {
+      const v = ehTipoOnline(p.tipo) ? verificacao.get(p.tipo) : undefined;
+      if (
+        r.status === 'ok' &&
+        p.servidor &&
+        v?.estado === 'nova' &&
+        ehTipoOnline(p.tipo)
+      ) {
         verificacao.set(p.tipo, {
           ...v,
           estado: 'atualizado',
@@ -612,7 +651,7 @@ export function registrarDocumentos(): void {
         await rm(path.join(pastaDocumentos(), arqLeitura(tipo)), {
           force: true,
         });
-        verificacao.delete(tipo);
+        if (ehTipoOnline(tipo)) verificacao.delete(tipo);
         recusado.delete(tipo);
         avisarJanelas();
       }
@@ -657,7 +696,7 @@ export function registrarDocumentos(): void {
   ipcMain.handle(
     'baixar-documento',
     async (_event, tipo: unknown): Promise<ResultadoImportarDocumento> => {
-      if (!ehTipo(tipo) || !(await lerPreferencias()).verificacaoOnline)
+      if (!ehTipoOnline(tipo) || !(await lerPreferencias()).verificacaoOnline)
         return { status: 'cancelado' };
       return baixar(tipo);
     },
@@ -665,7 +704,7 @@ export function registrarDocumentos(): void {
 
   // Só as páginas oficiais conhecidas; nada vindo da tela.
   ipcMain.handle('abrir-pagina-documento', async (_event, tipo: unknown) => {
-    if (ehTipo(tipo)) await shell.openExternal(PAGINA[tipo]);
+    if (ehTipoOnline(tipo)) await shell.openExternal(PAGINA[tipo]);
   });
 }
 
