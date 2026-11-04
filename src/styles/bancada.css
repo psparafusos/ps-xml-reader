@@ -63,13 +63,14 @@
     font-size: var(--fs-sm);
     font-weight: var(--peso-medio);
     text-decoration: underline;
+    text-decoration-color: var(--ps-amarelo);
+    text-decoration-thickness: 2px;
     text-underline-offset: 3px;
     cursor: pointer;
   }
 
   .link:hover:not(:disabled) {
-    text-decoration-color: var(--ps-amarelo);
-    text-decoration-thickness: 2px;
+    text-decoration-color: var(--ps-preto);
   }
 
   .link:disabled {
@@ -216,7 +217,7 @@
     flex: 1;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: start;
+    align-items: stretch;
     gap: var(--bancada-grade-espaco);
     width: 100%;
     margin: 0 auto;
@@ -226,6 +227,7 @@
   .inicio__principal {
     grid-column: span 2;
     display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
     gap: var(--bancada-grade-espaco);
     min-width: 0;
   }
@@ -327,6 +329,7 @@
   }
 
   .inicio__rodape {
+    margin-top: auto;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
@@ -448,6 +451,11 @@
   @media (max-width: 1180px) {
     .inicio__grade {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+
+    .inicio__principal {
+      grid-template-rows: auto;
     }
 
     .inicio__principal,
@@ -586,22 +594,18 @@
     border-radius: var(--cartao-raio);
   }
 
-  /* Pastilhas: situação do documento e semáforo do cartão. */
-  .documento__situacao {
-    padding: 3px var(--esp-3);
-    border-radius: var(--pastilha-raio);
-  }
-
-  .documento__nome .semaforo {
-    min-height: 26px;
-    padding: 0 var(--esp-2);
+  /* Selo único do cartão: bolinha do semáforo e o texto da situação. */
+  .documento__selo .semaforo {
+    min-height: 28px;
+    padding: 0 var(--esp-3);
     border: var(--borda) solid var(--pastilha-escura-borda);
     border-radius: var(--pastilha-raio);
     background: var(--pastilha-escura-fundo);
   }
 
-  .documento__nome .semaforo__texto {
+  .documento__selo .semaforo__texto {
     color: var(--ps-branco);
+    font-size: var(--fs-sm);
   }
 
   .documento__erro,
@@ -621,5 +625,122 @@
   .caixa-dialogo {
     border: var(--borda) solid var(--cartao-borda);
     border-radius: var(--cartao-raio-grande);
+  }
+}
+
+@media screen {
+  /* ---------- barra da nota: o perfil como pastilha ---------- */
+
+  /* Fornecedor em cima; número da nota e a pastilha do perfil lado a lado. */
+  .barra__titulo {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--esp-3);
+    align-content: center;
+  }
+
+  .barra__fornecedor,
+  .barra__copia {
+    grid-column: 1 / -1;
+  }
+
+  .barra__copia {
+    justify-self: start;
+  }
+
+  .barra .perfil-rapido {
+    justify-self: start;
+    margin: 0;
+  }
+
+  .barra .perfil-rapido__botao {
+    min-height: 22px;
+    padding: 0 var(--esp-3);
+    border: var(--borda) solid var(--bancada-faixa);
+    border-radius: var(--pastilha-raio);
+    background: var(--bancada-faixa);
+    color: var(--ps-branco);
+    font-size: var(--fs-sm);
+  }
+
+  .barra .perfil-rapido__botao:hover,
+  .barra .perfil-rapido__botao[aria-expanded='true'] {
+    border-color: var(--ps-branco);
+    background: var(--pastilha-escura-fundo);
+  }
+
+  .barra .perfil-rapido__botao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-preto);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .barra .perfil-rapido__rotulo {
+    color: color-mix(in srgb, var(--ps-branco) 75%, transparent);
+  }
+
+  /* ---------- seletores no visual do app (menuEscolha.ts) ---------- */
+
+  .seletor-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--esp-2);
+    min-height: 32px;
+    max-width: 100%;
+    padding: 2px var(--esp-2) 2px var(--esp-3);
+    border: var(--borda) solid var(--cor-borda);
+    border-radius: var(--raio);
+    background: var(--ps-branco);
+    color: var(--cor-texto-forte);
+    font: inherit;
+    font-size: var(--fs-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .seletor-menu .icone {
+    flex: none;
+    width: 14px;
+    height: 14px;
+  }
+
+  .seletor-menu__texto {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .seletor-menu:hover:not(:disabled),
+  .seletor-menu[aria-expanded='true'] {
+    border-color: var(--ps-preto);
+    background: var(--cor-destaque-suave);
+  }
+
+  .seletor-menu:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .seletor-menu:disabled {
+    cursor: not-allowed;
+    opacity: var(--botao-desabilitado-opacidade);
+  }
+
+  .seletor-menu--pequeno {
+    min-height: 28px;
+    font-size: var(--fs-xs);
+  }
+
+  .menu-escolha {
+    max-width: 360px;
+  }
+
+  /* ---------- prévia da ferramenta: cabeçalho como as outras tabelas ---------- */
+
+  .st__tabela th {
+    background: var(--cor-destaque);
+    color: var(--cor-texto-sobre-destaque);
   }
 }

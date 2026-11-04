@@ -12,6 +12,7 @@ import {
   problemasPorAba,
   reconhecerArquivo,
   rotuloDocumento,
+  seloDocumento,
   semaforoDocumento,
   type LeituraDocumento,
 } from '../src/leituraDocumentos.ts';
@@ -283,5 +284,55 @@ describe('reconhecer arquivo errado', () => {
     );
     assert.equal(reconhecerArquivo(texto(linhas.join('\n')), null), 'tipi');
     assert.equal(reconhecerArquivo(texto('lista de compras'), null), 'texto');
+  });
+});
+
+describe('selo único do cartão', () => {
+  const base: LeituraDocumento = {
+    versao: 1,
+    tipo: 'st',
+    arquivo: 'x',
+    importadoEm: 'x',
+    segmentosIncompletos: [],
+    problemas: [],
+    totalProblemas: 0,
+    ignorados: [],
+    observacoes: [],
+  };
+  it('carregado, problemas de leitura, faltando e versão nova', () => {
+    assert.deepEqual(seloDocumento(info(), base, null), {
+      cor: 'verde',
+      texto: 'Carregado',
+    });
+    assert.deepEqual(
+      seloDocumento(info(), { ...base, totalProblemas: 3 }, null),
+      {
+        cor: 'amarela',
+        texto: '3 problemas de leitura',
+      },
+    );
+    assert.deepEqual(
+      seloDocumento(
+        info(),
+        { ...base, totalProblemas: 1, segmentosIncompletos: ['Tintas'] },
+        null,
+      ),
+      {
+        cor: 'amarela',
+        texto: '1 problema de leitura e 1 segmento incompleto',
+      },
+    );
+    assert.deepEqual(seloDocumento(null, null, null), {
+      cor: 'vermelha',
+      texto: 'Faltando',
+    });
+    assert.deepEqual(seloDocumento(null, null, null, true), {
+      cor: 'vermelha',
+      texto: 'Arquivo incompatível',
+    });
+    assert.deepEqual(seloDocumento(info(), base, { estado: 'nova' } as never), {
+      cor: 'amarela',
+      texto: 'Versão nova disponível',
+    });
   });
 });

@@ -2918,21 +2918,6 @@ body.pdf-previa #pdf-previa {
   font-weight: var(--peso-forte);
 }
 
-.documento__situacao--verde {
-  background: var(--cor-ok);
-  color: var(--cor-texto-sobre-ok);
-}
-
-.documento__situacao--amarela {
-  background: var(--cor-destaque);
-  color: var(--cor-texto-sobre-destaque);
-}
-
-.documento__situacao--vermelha {
-  background: var(--cor-alerta-suave);
-  color: var(--aviso-erro-fundo);
-}
-
 .documento__situacao--opcional {
   background: var(--cor-zebra);
   color: var(--cor-texto);
@@ -3450,12 +3435,6 @@ body.pdf-previa #pdf-previa {
   color: var(--cor-texto);
 }
 
-.documento__nome {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-3);
-}
-
 .documento__arquivo {
   display: flex;
   align-items: center;
@@ -3609,4 +3588,32 @@ body.pdf-previa #pdf-previa {
 
 .conferencia__cfop-itens[hidden] {
   display: none;
+}
+
+/* ---------- prévia ST, MVA e CFOP: campos do motor ---------- */
+
+/* "segmento X lido com problemas": a mesma cor do "Confirmar". */
+.st__motivo-confirmar {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px var(--esp-2);
+  border-radius: var(--raio);
+  background: var(--aviso-erro-fundo);
+  color: var(--aviso-erro-texto);
+  font-weight: var(--peso-forte);
+}
+
+.st__aliq {
+  white-space: nowrap;
+}
+
+/* Sem alíquota interna na linha: "confirmar" em destaque leve. */
+.st__aliq--confirmar {
+  background: var(--cor-alerta-suave);
+  color: var(--aviso-erro-fundo);
+  font-weight: var(--peso-forte);
+}
+
+.st__mva-jogo {
+  max-width: 150px;
 }

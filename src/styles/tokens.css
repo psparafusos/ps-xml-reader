@@ -6,7 +6,7 @@
 :root {
   /* Paleta PS */
   --ps-amarelo: #ffc400;
-  --ps-preto: #1a1a1a;
+  --ps-preto: #161616;
   --ps-cinza-escuro: #555555;
   --ps-cinza-medio: #8a8a8a;
   --ps-branco: #ffffff;
@@ -35,7 +35,7 @@
      com borda clara, pastilhas arredondadas e títulos de seção pequenos em
      caixa alta. O PDF e a impressão não usam. */
   --bancada-fundo: #f3f1ec;
-  --bancada-faixa: #161616;
+  --bancada-faixa: var(--ps-preto);
   --bancada-faixa-altura: 72px;
   --bancada-faixa-linha: 5px;
   --bancada-grade-espaco: 28px;

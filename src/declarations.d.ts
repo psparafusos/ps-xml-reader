@@ -187,6 +187,8 @@ interface EstadoDocumentos {
     tipi: ResultadoVerificacao | null;
   };
   verificando: boolean;
+  /** Planilha de ST importada antes da leitura das colunas de estados (protocolos). */
+  stSemProtocolos: boolean;
   /** Decisões lembradas da ferramenta ST, MVA e CFOP. */
   decisoes: DecisaoLembrada[];
 }
@@ -205,6 +207,9 @@ interface ItemParaAnalise {
   CST: string;
   CSOSN: string;
   pICMS: string;
+  /** ICMS-ST retido pelo fornecedor: base e valor. */
+  vBCST: string;
+  vST: string;
   CFOP: string;
   cstIPI: string;
   pIPI: string;

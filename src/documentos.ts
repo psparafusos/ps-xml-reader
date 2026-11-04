@@ -30,8 +30,10 @@ import {
   importarDocumento,
   removerDocumento,
   lerDocumentos,
+  lerSegmentosIncompletos,
   type BaseFiscal,
 } from './fiscal/base';
+import { baseSemProtocolos } from './previaST';
 import {
   chaveDecisao,
   decisaoValida,
@@ -130,6 +132,8 @@ async function estado(): Promise<EstadoDocumentos> {
       tipi: verificacao.get('tipi') ?? null,
     },
     verificando: verificando !== null,
+    // Base gravada antes da leitura das colunas de estados: pede reimportar.
+    stSemProtocolos: docs.st !== null && stSemProtocolos(),
     decisoes: Object.values(await lerArquivoDecisoes()).sort((a, b) =>
       `${a.fornecedor} ${a.xProd}`.localeCompare(`${b.fornecedor} ${b.xProd}`),
     ),
@@ -194,6 +198,15 @@ function baseFiscal(): BaseFiscal {
 
 const textoDe = (v: unknown) => (typeof v === 'string' ? v : '');
 
+function stSemProtocolos(): boolean {
+  try {
+    const st = baseFiscal().st;
+    return st !== null && baseSemProtocolos(st.linhas);
+  } catch {
+    return false;
+  }
+}
+
 async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
   const p = (typeof pedido === 'object' && pedido !== null ? pedido : {}) as {
     itens?: unknown;
@@ -205,6 +218,9 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
   const itens = Array.isArray(p.itens) ? p.itens : [];
   const cnpj = textoDe(p.cnpj);
   const decisoes = await lerArquivoDecisoes();
+  // Lido a cada análise (não vem do cache da base): confirmar a planilha
+  // parcial muda a lista sem trocar a base.
+  const segmentosIncompletos = lerSegmentosIncompletos(pastaDocumentos());
   const analises = itens.map((i: Record<string, unknown>) => {
     const item: ItemFiscal = {
       nItem: textoDe(i.nItem),
@@ -215,6 +231,8 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
       CST: textoDe(i.CST),
       CSOSN: textoDe(i.CSOSN),
       pICMS: textoDe(i.pICMS),
+      vBCST: textoDe(i.vBCST),
+      vST: textoDe(i.vST),
       CFOP: textoDe(i.CFOP),
       cstIPI: textoDe(i.cstIPI),
       pIPI: textoDe(i.pIPI),
@@ -223,6 +241,7 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
       analise: analisarItem(item, textoDe(p.uf), {
         st: base.st!,
         tipi: base.tipi,
+        segmentosIncompletos,
       }),
       lembrada: decisoes[chaveDecisao(cnpj, textoDe(i.cProd))] ?? null,
     };

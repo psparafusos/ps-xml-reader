@@ -2,14 +2,18 @@
 // item (ST em Sergipe, segmento e CEST, MVA, CFOP sugerido e o motivo), a
 // finalidade de cada item, a escolha da linha da planilha quando é preciso
 // confirmar, as decisões lembradas e o Aplicar, que grava o CFOP (e, se a
-// pessoa quiser, a MVA) nas anotações. O XML original nunca muda.
+// pessoa quiser, a MVA e a alíquota interna) nas anotações. O XML original
+// nunca muda.
 //
 // A tabela não cabe no painel (300 px): abre numa janela própria, por cima
-// da nota. A análise roda no processo principal (src/documentos.ts) e a
-// lógica de cada item é de src/fiscal/entrada.ts.
+// da nota. A análise roda no processo principal (src/documentos.ts); a
+// lógica de cada item é de src/fiscal/entrada.ts, com os campos novos do
+// motor (rótulo e troca da MVA, alíquota interna, observações) em
+// src/previaST.ts.
 
 import { perguntar } from './dialogos';
 import { botao, el } from './dom';
+import { criarMenuEscolha, type OpcaoMenu, type Seletor } from './menuEscolha';
 import {
   chaveDecisao,
   decisaoAplicavel,
@@ -18,14 +22,18 @@ import {
   FINALIDADES,
   planoAplicar,
   raizCnpj,
-  resolverItem,
   ROTULO_FINALIDADE,
-  type Decisao,
-  type DecisaoLembrada,
+  textoMva,
   type EscolhaST,
   type Finalidade,
-  type ItemResolvido,
 } from './fiscal/entrada';
+import {
+  gravacoesAliquota,
+  previaItem,
+  type DecisaoLembradaST,
+  type DecisaoST,
+  type LinhaPrevia,
+} from './previaST';
 import type { ColunaItem } from './nfe/colunas';
 import type { Anotacoes, Item, Nota } from './nfe/tipos';
 
@@ -36,6 +44,7 @@ export const DESCRICAO_FERRAMENTA_ST =
 /** Coluna sugerida para o CFOP; se não existir no perfil, dá para criar na hora. */
 export const COLUNA_CFOP_PADRAO = 'CFOP de entrada';
 const COLUNA_MVA_PADRAO = 'MVA';
+const COLUNA_ALIQ_PADRAO = 'Alíquota interna';
 
 export interface ContextoST {
   nota: Nota;
@@ -54,7 +63,7 @@ const CRIAR = '__criar__';
 
 interface Linha {
   item: Item;
-  decisao: Decisao;
+  decisao: DecisaoST;
   /** Decisão vinda do arquivo (abertura da nota). */
   lembrada: boolean;
   /** Decisão guardada agora, nesta prévia. */
@@ -79,8 +88,12 @@ export function abrirFerramentaST(c: ContextoST): void {
     linhas.push({
       item,
       decisao: vale
-        ? { escolha: lembrada.escolha, finalidade: lembrada.finalidade }
-        : { escolha: null, finalidade: FINALIDADE_PADRAO },
+        ? {
+            escolha: lembrada.escolha,
+            finalidade: lembrada.finalidade,
+            mvaJogo: (lembrada as DecisaoLembradaST).mvaJogo ?? null,
+          }
+        : { escolha: null, finalidade: FINALIDADE_PADRAO, mvaJogo: null },
       lembrada: vale,
       guardada: false,
     });
@@ -92,8 +105,8 @@ export function abrirFerramentaST(c: ContextoST): void {
   let confirmando: string | null = null;
   let ocupado = false;
 
-  const resolver = (l: Linha): ItemResolvido =>
-    resolverItem(analises.get(l.item.nItem)!, uf, l.decisao, l.lembrada);
+  const resolver = (l: Linha): LinhaPrevia =>
+    previaItem(analises.get(l.item.nItem)!, uf, l.decisao, l.lembrada);
 
   // ---------- estrutura da janela ----------
   const titulo = el('h2', 'painel__titulo', TITULO_FERRAMENTA_ST);
@@ -113,18 +126,21 @@ export function abrirFerramentaST(c: ContextoST): void {
   rotuloFiltro.htmlFor = filtro.id;
   const textoFiltro = el('span', '');
   rotuloFiltro.append(textoFiltro);
-  const finalidadeLote = el('select', 'st__select');
-  finalidadeLote.append(
-    el('option', '', 'Mudar a finalidade dos marcados...'),
-    ...FINALIDADES.map((f) => {
-      const o = el('option', '', ROTULO_FINALIDADE[f]);
-      o.value = f;
-      return o;
-    }),
-  );
-  finalidadeLote.options[0].value = '';
-  finalidadeLote.setAttribute('aria-label', 'Finalidade dos itens marcados');
-  const barra = el('div', 'st__barra', rotuloFiltro, finalidadeLote);
+  // Menus no visual do app (no lugar dos <select>): um só, na camada de cima.
+  const camadaMenus = el('div', 'st__menus');
+  const menus = criarMenuEscolha(camadaMenus);
+  const OPCOES_FINALIDADE: OpcaoMenu[] = FINALIDADES.map((f) => ({
+    valor: f,
+    texto: ROTULO_FINALIDADE[f],
+  }));
+  const finalidadeLote = menus.seletor({
+    rotulo: 'Finalidade dos itens marcados',
+    opcoes: OPCOES_FINALIDADE,
+    valor: '',
+    vazio: 'Mudar a finalidade dos marcados...',
+    aoMudar: (f) => mudarFinalidadeLote(f as Finalidade),
+  });
+  const barra = el('div', 'st__barra', rotuloFiltro, finalidadeLote.botao);
 
   const tabela = el('table', 'st__tabela');
   const corpoTabela = el('tbody', '');
@@ -145,6 +161,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         el('th', '', 'ST em SE'),
         el('th', '', 'Segmento e CEST'),
         el('th', 'num', 'MVA'),
+        el('th', '', 'Alíq. interna'),
         el('th', '', 'CFOP'),
         el('th', '', 'Finalidade'),
         el('th', '', 'Motivo'),
@@ -154,10 +171,19 @@ export function abrirFerramentaST(c: ContextoST): void {
   );
 
   // Aplicar: coluna do CFOP (padrão "CFOP de entrada") e, se quiser, da MVA.
-  const selCfop = el('select', 'st__select');
-  selCfop.id = 'st-coluna-cfop';
+  const selCfop = menus.seletor({
+    rotulo: 'Gravar o CFOP em',
+    opcoes: [],
+    valor: '',
+    aoMudar: () => {
+      opcaoColunas(selMva, COLUNA_MVA_PADRAO, selCfop.valor);
+      opcaoColunas(selAliq, COLUNA_ALIQ_PADRAO, selCfop.valor);
+      desenharResumo();
+    },
+  });
+  selCfop.botao.id = 'st-coluna-cfop';
   const rotCfop = el('label', 'st__rotulo', 'Gravar o CFOP em');
-  rotCfop.htmlFor = selCfop.id;
+  rotCfop.htmlFor = selCfop.botao.id;
   const comMva = el('input', '');
   comMva.type = 'checkbox';
   comMva.id = 'st-com-mva';
@@ -168,8 +194,28 @@ export function abrirFerramentaST(c: ContextoST): void {
     el('span', '', 'Gravar a MVA em'),
   );
   rotMva.htmlFor = comMva.id;
-  const selMva = el('select', 'st__select');
-  selMva.setAttribute('aria-label', 'Coluna da MVA');
+  const selMva = menus.seletor({
+    rotulo: 'Coluna da MVA',
+    opcoes: [],
+    valor: '',
+    aoMudar: () => desenharResumo(),
+  });
+  const comAliq = el('input', '');
+  comAliq.type = 'checkbox';
+  comAliq.id = 'st-com-aliq';
+  const rotAliq = el(
+    'label',
+    'documentos__opcao',
+    comAliq,
+    el('span', '', 'Gravar a alíquota interna em'),
+  );
+  rotAliq.htmlFor = comAliq.id;
+  const selAliq = menus.seletor({
+    rotulo: 'Coluna da alíquota interna',
+    opcoes: [],
+    valor: '',
+    aoMudar: () => desenharResumo(),
+  });
   const resumoAplicar = el('p', 'st__resumo');
   resumoAplicar.setAttribute('role', 'status');
   const erro = el('p', 'painel__erro');
@@ -197,16 +243,19 @@ export function abrirFerramentaST(c: ContextoST): void {
       el(
         'div',
         'st__destino',
-        el('div', 'st__campo', rotCfop, selCfop),
-        el('div', 'st__campo', rotMva, selMva),
+        el('div', 'st__campo', rotCfop, selCfop.botao),
+        el('div', 'st__campo', rotMva, selMva.botao),
+        el('div', 'st__campo', rotAliq, selAliq.botao),
         resumoAplicar,
       ),
       el('div', 'painel__grupo', btnCancelar, btnAplicar),
     ),
+    camadaMenus,
   );
   d.setAttribute('aria-labelledby', titulo.id);
 
   const fechar = () => {
+    menus.fechar();
     if (d.open) d.close();
     d.remove();
   };
@@ -217,56 +266,47 @@ export function abrirFerramentaST(c: ContextoST): void {
   });
 
   // ---------- colunas de destino ----------
-  const opcaoColunas = (
-    sel: HTMLSelectElement,
-    padrao: string,
-    excluir?: string,
-  ) => {
-    const atual = sel.value;
+  function opcaoColunas(sel: Seletor, padrao: string, excluir?: string): void {
+    const atual = sel.valor;
     const temPadrao = c.colunasAnotacao.some(
       (col) => col.rotulo.toLowerCase() === padrao.toLowerCase(),
     );
-    sel.replaceChildren(
+    const opcoes: OpcaoMenu[] = [
+      ...(temPadrao
+        ? []
+        : [{ valor: CRIAR, texto: `Criar a coluna "${padrao}" agora` }]),
       ...c.colunasAnotacao
         .filter((col) => col.id !== excluir)
-        .map((col) => {
-          const o = el(
-            'option',
-            '',
-            col.visivel ? col.rotulo : `${col.rotulo} (coluna escondida)`,
-          );
-          o.value = col.id;
-          return o;
-        }),
-    );
-    if (!temPadrao) {
-      const o = el('option', '', `Criar a coluna "${padrao}" agora`);
-      o.value = CRIAR;
-      sel.prepend(o);
-    }
+        .map((col) => ({
+          valor: col.id,
+          texto: col.visivel ? col.rotulo : `${col.rotulo} (coluna escondida)`,
+        })),
+    ];
     const preferida =
       c.colunasAnotacao.find(
         (col) => col.rotulo.toLowerCase() === padrao.toLowerCase(),
       )?.id ?? CRIAR;
-    sel.value = [...sel.options].some((o) => o.value === atual)
-      ? atual
-      : preferida;
-  };
+    sel.definirOpcoes(
+      opcoes,
+      opcoes.some((o) => o.valor === atual) ? atual : preferida,
+    );
+  }
   opcaoColunas(selCfop, COLUNA_CFOP_PADRAO);
-  opcaoColunas(selMva, COLUNA_MVA_PADRAO, selCfop.value);
-  selMva.disabled = true;
+  opcaoColunas(selMva, COLUNA_MVA_PADRAO, selCfop.valor);
+  opcaoColunas(selAliq, COLUNA_ALIQ_PADRAO, selCfop.valor);
+  selMva.desabilitado = true;
+  selAliq.desabilitado = true;
+  comAliq.addEventListener('change', () => {
+    selAliq.desabilitado = !comAliq.checked;
+    desenharResumo();
+  });
   comMva.addEventListener('change', () => {
-    selMva.disabled = !comMva.checked;
+    selMva.desabilitado = !comMva.checked;
     desenharResumo();
   });
-  selCfop.addEventListener('change', () => {
-    opcaoColunas(selMva, COLUNA_MVA_PADRAO, selCfop.value);
-    desenharResumo();
-  });
-  selMva.addEventListener('change', desenharResumo);
 
   // ---------- decisões ----------
-  async function decidir(l: Linha, decisao: Decisao): Promise<void> {
+  async function decidir(l: Linha, decisao: DecisaoST): Promise<void> {
     l.decisao = decisao;
     l.lembrada = false;
     const a = analises.get(l.item.nItem)!;
@@ -275,13 +315,14 @@ export function abrirFerramentaST(c: ContextoST): void {
       l.guardada = false;
     } else if (
       decisao.escolha === null &&
-      decisao.finalidade === FINALIDADE_PADRAO
+      decisao.finalidade === FINALIDADE_PADRAO &&
+      !decisao.mvaJogo
     ) {
       // Voltou ao automático: nada a lembrar.
       await window.psApi.esquecerDecisao(chave);
       l.guardada = false;
     } else {
-      const lembrada: DecisaoLembrada = {
+      const lembrada: DecisaoLembradaST = {
         ...decisao,
         raizCnpj: raizCnpj(cnpj),
         fornecedor: nota.emitente.xNome,
@@ -296,7 +337,7 @@ export function abrirFerramentaST(c: ContextoST): void {
 
   async function desfazer(l: Linha): Promise<void> {
     await window.psApi.esquecerDecisao(chaveDecisao(cnpj, l.item.cProd));
-    l.decisao = { escolha: null, finalidade: FINALIDADE_PADRAO };
+    l.decisao = { escolha: null, finalidade: FINALIDADE_PADRAO, mvaJogo: null };
     l.lembrada = false;
     l.guardada = false;
   }
@@ -323,13 +364,47 @@ export function abrirFerramentaST(c: ContextoST): void {
   }
 
   // ---------- tabela ----------
-  const ROTULO_ST: Record<ItemResolvido['st'], string> = {
+  const ROTULO_ST: Record<LinhaPrevia['st'], string> = {
     sim: 'Sim',
     nao: 'Não',
     confirmar: 'Confirmar',
   };
 
-  function linhaTabela(l: Linha, r: ItemResolvido): HTMLTableRowElement[] {
+  /** MVA com o rótulo; em Autopeças, um seletor para trocar o jogo. */
+  function celulaMva(l: Linha, r: LinhaPrevia): HTMLTableCellElement {
+    const n = l.item.nItem;
+    const textual = r.mva === null && r.mvaTexto !== '-';
+    const td = el('td', `num st__mva${textual ? ' st__mva--texto' : ''}`);
+    if (r.mvaOpcoes.length > 1) {
+      const sel = menus.seletor({
+        rotulo: `Jogo de MVA do item ${n}`,
+        opcoes: r.mvaOpcoes.map((m) => ({
+          valor: m.rotulo,
+          texto: `${m.rotulo}: ${m.valor === null ? '-' : textoMva(m.valor)}`,
+        })),
+        valor: r.mvaRotulo ?? r.mvaOpcoes[0].rotulo,
+        classe: 'seletor-menu--pequeno st__mva-jogo',
+        aoMudar: (v) =>
+          void acao(`mva-${n}`, () =>
+            decidir(l, {
+              ...l.decisao,
+              // O padrão do motor não precisa ser lembrado.
+              mvaJogo: v === r.mvaOpcoes[0].rotulo ? null : v,
+            }),
+          ),
+      });
+      sel.botao.dataset.foco = `mva-${n}`;
+      sel.botao.title =
+        'MVA-ST 1 é a regra geral; MVA-ST 2 é para fidelização com montadora';
+      td.append(sel.botao);
+      return td;
+    }
+    td.append(r.mvaTexto);
+    if (r.mvaRotulo) td.append(el('span', 'st__cest', r.mvaRotulo));
+    return td;
+  }
+
+  function linhaTabela(l: Linha, r: LinhaPrevia): HTMLTableRowElement[] {
     const n = l.item.nItem;
     const marca = el('input', '');
     marca.type = 'checkbox';
@@ -368,22 +443,17 @@ export function abrirFerramentaST(c: ContextoST): void {
       celulaSt.append(b);
     }
 
-    const selFin = el('select', 'st__select st__select--pequeno');
-    selFin.setAttribute('aria-label', `Finalidade do item ${n}`);
-    selFin.dataset.foco = `finalidade-${n}`;
-    for (const f of FINALIDADES) {
-      const o = el('option', '', ROTULO_FINALIDADE[f]);
-      o.value = f;
-      selFin.append(o);
-    }
-    selFin.value = l.decisao.finalidade;
-    selFin.addEventListener(
-      'change',
-      () =>
+    const selFin = menus.seletor({
+      rotulo: `Finalidade do item ${n}`,
+      opcoes: OPCOES_FINALIDADE,
+      valor: l.decisao.finalidade,
+      classe: 'seletor-menu--pequeno',
+      aoMudar: (f) =>
         void acao(`finalidade-${n}`, () =>
-          decidir(l, { ...l.decisao, finalidade: selFin.value as Finalidade }),
+          decidir(l, { ...l.decisao, finalidade: f as Finalidade }),
         ),
-    );
+    });
+    selFin.botao.dataset.foco = `finalidade-${n}`;
 
     const marcaDecisao =
       (l.lembrada || l.guardada) &&
@@ -403,12 +473,19 @@ export function abrirFerramentaST(c: ContextoST): void {
         })(),
       );
 
+    // "segmento X lido com problemas" na cor do "confirmar"; observações em
+    // itálico (protocolo, alíquota a confirmar), sem mudar o CFOP.
+    const motivoEhSegmento = r.segmentoProblema === r.motivo;
     const motivo = el(
       'td',
       'st__motivo',
-      el('span', '', r.motivo),
+      el('span', motivoEhSegmento ? 'st__motivo-confirmar' : '', r.motivo),
+      !motivoEhSegmento &&
+        r.segmentoProblema &&
+        el('span', 'st__motivo-confirmar', r.segmentoProblema),
       marcaDecisao,
       ...r.observacoesTipi.map((o) => el('span', 'st__obs', `TIPI: ${o}`)),
+      ...r.observacoes.map((o) => el('span', 'st__obs', o)),
     );
     motivo.title = r.detalhes.join('\n');
 
@@ -426,13 +503,14 @@ export function abrirFerramentaST(c: ContextoST): void {
         r.segmento ?? (r.st === 'nao' ? '-' : `${a.candidatos.length} opções`),
         r.cest && el('span', 'st__cest', `CEST ${r.cest}`),
       ),
+      celulaMva(l, r),
       el(
         'td',
-        `num st__mva${r.mva === null && r.mvaTexto !== '-' ? ' st__mva--texto' : ''}`,
-        r.mvaTexto,
+        `st__aliq${r.aliquotaConfirmar ? ' st__aliq--confirmar' : ''}`,
+        r.aliquotaTexto,
       ),
       el('td', 'st__cfop', r.cfop ?? '-'),
-      el('td', '', selFin),
+      el('td', '', selFin.botao),
       motivo,
     );
     const filas = [tr];
@@ -441,7 +519,7 @@ export function abrirFerramentaST(c: ContextoST): void {
   }
 
   /** Lista de candidatos (e "sem ST") para a pessoa escolher, com o motivo à vista. */
-  function escolhaCandidatos(l: Linha, r: ItemResolvido): HTMLTableRowElement {
+  function escolhaCandidatos(l: Linha, r: LinhaPrevia): HTMLTableRowElement {
     const n = l.item.nItem;
     const a = analises.get(n)!;
     const nome = `st-escolha-${n}`;
@@ -532,15 +610,16 @@ export function abrirFerramentaST(c: ContextoST): void {
       el('td', '', ''),
       (() => {
         const td = el('td', '', grupo);
-        td.colSpan = 9;
+        td.colSpan = 10;
         return td;
       })(),
     );
   }
 
   function desenharBarra(): void {
-    finalidadeLote.disabled = marcados.size === 0;
-    finalidadeLote.options[0].textContent =
+    finalidadeLote.desabilitado = marcados.size === 0;
+    finalidadeLote.definirOpcoes(OPCOES_FINALIDADE, '');
+    finalidadeLote.botao.querySelector('.seletor-menu__texto')!.textContent =
       marcados.size === 0
         ? 'Marque itens para mudar a finalidade de vários'
         : `Mudar a finalidade de ${marcados.size} ${marcados.size === 1 ? 'item marcado' : 'itens marcados'}...`;
@@ -553,7 +632,7 @@ export function abrirFerramentaST(c: ContextoST): void {
     const resolvidos = linhas.map(resolver);
     const comCfop = resolvidos.filter((r) => r.cfop !== null).length;
     const semCfop = resolvidos.length - comCfop;
-    const destino = selCfop.value;
+    const destino = selCfop.valor;
     resumoAplicar.textContent =
       `${comCfop} de ${resolvidos.length} itens com CFOP para gravar` +
       (semCfop > 0
@@ -581,7 +660,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         ? [
             (() => {
               const td = el('td', 'st__vazio', 'Nenhum item precisa de você.');
-              td.colSpan = 10;
+              td.colSpan = 11;
               return el('tr', '', td);
             })(),
           ]
@@ -600,22 +679,19 @@ export function abrirFerramentaST(c: ContextoST): void {
     else marcados.clear();
     desenhar();
   });
-  finalidadeLote.addEventListener('change', () => {
-    const f = finalidadeLote.value as Finalidade | '';
-    if (!f) return;
+  function mudarFinalidadeLote(f: Finalidade): void {
     const alvos = linhas.filter((l) => marcados.has(l.item.nItem));
     void acao(null, async () => {
       for (const l of alvos) await decidir(l, { ...l.decisao, finalidade: f });
-      finalidadeLote.value = '';
     });
-  });
+  }
 
   // ---------- aplicar ----------
   async function colunaDe(
-    sel: HTMLSelectElement,
+    sel: Seletor,
     padrao: string,
   ): Promise<string | null> {
-    if (sel.value !== CRIAR) return sel.value || null;
+    if (sel.valor !== CRIAR) return sel.valor || null;
     const r = await c.criarColuna(padrao);
     if ('erro' in r) {
       mostrarErro(`Não foi possível criar a coluna "${padrao}": ${r.erro}`);
@@ -630,17 +706,30 @@ export function abrirFerramentaST(c: ContextoST): void {
     mostrarErro(null);
     void (async () => {
       try {
-        const criarCfop = selCfop.value === CRIAR;
+        const criarCfop = selCfop.valor === CRIAR;
         const colCfop = await colunaDe(selCfop, COLUNA_CFOP_PADRAO);
         if (!colCfop) return;
         const colMva = comMva.checked
           ? await colunaDe(selMva, COLUNA_MVA_PADRAO)
           : null;
         if (comMva.checked && !colMva) return;
+        const colAliq = comAliq.checked
+          ? await colunaDe(selAliq, COLUNA_ALIQ_PADRAO)
+          : null;
+        if (comAliq.checked && !colAliq) return;
         const rotuloDe = (id: string, padrao: string) =>
           c.colunasAnotacao.find((col) => col.id === id)?.rotulo ?? padrao;
         const resolvidos = linhas.map(resolver);
-        const plano = planoAplicar(resolvidos, c.anotacoes, colCfop, colMva);
+        const base = planoAplicar(resolvidos, c.anotacoes, colCfop, colMva);
+        const plano = {
+          ...base,
+          gravacoes: [
+            ...base.gravacoes,
+            ...(colAliq
+              ? gravacoesAliquota(resolvidos, c.anotacoes, colAliq)
+              : []),
+          ],
+        };
         const preenchidas = plano.gravacoes.filter((g) =>
           g.atual.trim(),
         ).length;
@@ -665,7 +754,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         c.aplicado(
           gravadas === 0
             ? 'Nada mudou: as anotações já estavam assim.'
-            : `${gravadas} ${gravadas === 1 ? 'anotação gravada' : 'anotações gravadas'} (${nomeCfop}${criarCfop ? ', coluna criada' : ''}${colMva ? `, ${rotuloDe(colMva, COLUNA_MVA_PADRAO)}` : ''}). Salve para guardar no .psxml.`,
+            : `${gravadas} ${gravadas === 1 ? 'anotação gravada' : 'anotações gravadas'} (${nomeCfop}${criarCfop ? ', coluna criada' : ''}${colMva ? `, ${rotuloDe(colMva, COLUNA_MVA_PADRAO)}` : ''}${colAliq ? `, ${rotuloDe(colAliq, COLUNA_ALIQ_PADRAO)}` : ''}). Salve para guardar no .psxml.`,
         );
       } finally {
         ocupado = false;
@@ -697,6 +786,8 @@ export function itensParaAnalise(itens: Item[]): ItemParaAnalise[] {
     CST: i.CST ?? '',
     CSOSN: i.CSOSN ?? '',
     pICMS: i.pICMS ?? '',
+    vBCST: i.vBCST ?? '',
+    vST: i.vST ?? '',
     CFOP: i.CFOP,
     cstIPI: i.cstIPI ?? '',
     pIPI: i.pIPI ?? '',

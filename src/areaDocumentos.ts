@@ -20,7 +20,7 @@ import { NOME_DOCUMENTO } from './fiscal/documentos';
 import {
   problemasPorAba,
   rotuloDocumento,
-  semaforoDocumento,
+  seloDocumento,
 } from './leituraDocumentos';
 
 let dialogo: HTMLDialogElement | null = null;
@@ -447,8 +447,7 @@ export function abrirAreaDocumentos(): void {
     const info = e[tipo];
     const leitura = e.leitura[tipo];
     const r = e.preferencias.verificacaoOnline ? e.verificacao[tipo] : null;
-    const rotulo = rotuloDocumento(info, leitura, e.recusado[tipo]);
-    const sinal = semaforoDocumento(info, leitura, r, e.recusado[tipo]);
+    const selo = seloDocumento(info, leitura, r, e.recusado[tipo]);
     const tituloId = `documento-${tipo}`;
     const btnAtualizar = botao(
       info
@@ -469,6 +468,40 @@ export function abrirAreaDocumentos(): void {
           aoImportar(tipo, await window.psApi.importarDocumento(tipo));
         }),
     );
+    // Planilha importada antes da leitura das colunas de estados: sem os
+    // protocolos, a prévia não mostra as observações de protocolo.
+    let avisoReimportar: HTMLElement | false = false;
+    if (tipo === 'st' && info && e.stSemProtocolos) {
+      const reimportar = botao(
+        'botao botao--claro botao--pequeno',
+        icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
+        el('span', '', 'Atualizar'),
+      );
+      reimportar.dataset.foco = 'reimportar-st';
+      reimportar.addEventListener(
+        'click',
+        () =>
+          void acao('atualizar-st', async () => {
+            status.textContent = '';
+            aoImportar('st', await window.psApi.importarDocumento('st'));
+          }),
+      );
+      avisoReimportar = el(
+        'div',
+        'documento__parcial documento__reimportar',
+        el(
+          'p',
+          '',
+          el(
+            'strong',
+            '',
+            'Reimporte a planilha para habilitar as observações de protocolo.',
+          ),
+          ' Esta importação é anterior à leitura das colunas de estados.',
+        ),
+        el('div', 'documento__acoes', reimportar),
+      );
+    }
     const aberto = relatorios.has(tipo);
     const btnRelatorio =
       info &&
@@ -557,23 +590,20 @@ export function abrirAreaDocumentos(): void {
     h.id = tituloId;
     const artigo = el(
       'article',
-      `documento documento--${rotulo.cor}`,
+      `documento documento--${selo.cor}`,
       el(
         'header',
         'documento__cabecalho',
         h,
+        // Um selo só: a bolinha do semáforo e o texto da situação.
         el(
-          'div',
-          'documento__nome',
-          semaforo(sinal.cor, sinal.texto),
-          el(
-            'span',
-            `documento__situacao documento__situacao--${rotulo.cor}`,
-            rotulo.texto,
-          ),
+          'span',
+          `documento__selo documento__selo--${selo.cor}`,
+          semaforo(selo.cor, selo.texto),
         ),
       ),
       arquivo,
+      avisoReimportar,
       el('p', 'documento__para-que', PARA_QUE[tipo]),
       info &&
         el(

@@ -366,3 +366,41 @@ export function mensagemArquivoErrado(
     oQueFazer: ONDE_BAIXAR[esperado],
   };
 }
+
+/**
+ * Selo único do cartão: bolinha e texto ("Carregado", "3 problemas de
+ * leitura", "Faltando", "Versão nova disponível"), na cor do semáforo.
+ */
+export function seloDocumento(
+  info: InfoDocumento | null,
+  leitura: LeituraDocumento | null,
+  verificacao: ResultadoVerificacao | null,
+  incompativel = false,
+): Sinal {
+  if (!info)
+    return {
+      cor: 'vermelha',
+      texto: incompativel ? 'Arquivo incompatível' : 'Faltando',
+    };
+  const partes: string[] = [];
+  if (leitura && leitura.totalProblemas > 0)
+    partes.push(
+      plural(
+        leitura.totalProblemas,
+        'problema de leitura',
+        'problemas de leitura',
+      ),
+    );
+  if (leitura && leitura.segmentosIncompletos.length > 0)
+    partes.push(
+      plural(
+        leitura.segmentosIncompletos.length,
+        'segmento incompleto',
+        'segmentos incompletos',
+      ),
+    );
+  if (partes.length > 0) return { cor: 'amarela', texto: partes.join(' e ') };
+  if (verificacao?.estado === 'nova')
+    return { cor: 'amarela', texto: 'Versão nova disponível' };
+  return { cor: 'verde', texto: 'Carregado' };
+}
