@@ -12,6 +12,14 @@ o DANFE.
 
 ## Versão 1.2.0
 
+- **Visual "Bancada"**: tela inicial nova (faixa preta com a logo e as
+  pastilhas de ST, TIPI e perfil, zona de soltar, cartões da pasta de
+  destino e dos documentos) e o mesmo acabamento no resto do app: fundo
+  bege, cartões brancos, pastilhas, títulos de seção e botões das janelas
+  (primário amarelo, secundário branco, perigo vermelho). O PDF e a
+  impressão não mudam.
+- **Notas recentes** na tela inicial: as últimas 8 notas abertas ou salvas,
+  com a situação (em conferência, conferida ou alerta) e o último acesso.
 - **Documentos de referência**: a planilha de ST de Sergipe (CONFAZ) e a TIPI
   (o `tipi.xlsx` oficial ou o texto do PDF), que a pessoa carrega. O app vem
   sem nenhum. Cada documento é conferido antes de trocar o anterior; arquivo
@@ -90,11 +98,37 @@ npm start
 ```
 
 Na tela inicial, clique em **Abrir arquivo** (XML da NF-e ou cópia editada
-`.psxml`) ou arraste o arquivo para a janela. O diálogo de abrir começa na pasta
-do último arquivo aberto (guardada em `config.json`); se ela não existir mais,
-abre no padrão do Windows. Ao lado de **Pasta de destino**, **Abrir pasta** abre
-a pasta de destino no Explorer; fica desabilitado sem pasta escolhida e mostra
-erro se a pasta não existir mais.
+`.psxml`) ou arraste o arquivo para a janela: com um arquivo sobre a janela,
+a zona "Solte aqui o XML da nota" fica em destaque. O diálogo de abrir começa
+na pasta do último arquivo aberto (guardada em `config.json`); se ela não
+existir mais, abre no padrão do Windows.
+
+### Tela inicial
+
+- **Faixa preta** no topo: a logo e "PS Reader", e à direita as pastilhas dos
+  documentos de referência, com a bolinha do semáforo ("ST ok", "TIPI falta")
+  e a pastilha amarela **Perfil**, que abre o seletor de perfil (o mesmo da
+  barra amarela da nota).
+- **Zona de soltar**, com **Abrir arquivo**.
+- **Pasta de destino**: o caminho, **Trocar** (escolhe outra pasta) e **Abrir
+  pasta** (no Explorer; desabilitado sem pasta escolhida, com erro se a pasta
+  não existir mais).
+- **Documentos de referência**: o que está carregado ("ST v0019 · TIPI
+  2022") e **Gerenciar**, que abre a área dos documentos.
+- **Notas recentes**: as últimas 8 notas abertas ou salvas, a mais recente
+  em cima, com fornecedor, número, quantidade de itens, último acesso ("hoje
+  10:42", "ontem 16:05", "28/10 09:00") e a situação: **em conferência** (XML
+  sem `.psxml` salvo), **conferida** (abriu ou salvou o `.psxml`) ou um
+  alerta com o principal ponto do painel ("parcela vencida"). Clicar abre o
+  arquivo (nesta janela, se ela estiver vazia). Cada nota tem uma entrada só:
+  depois de salvar, a entrada passa a abrir o `.psxml`. Arquivo que não existe
+  mais aparece esmaecido, com "arquivo movido" e **Limpar** ao lado, que tira
+  essa entrada; **Limpar lista** esvazia a lista. Ficam no `config.json`,
+  chave `notasRecentes`.
+- No rodapé do cartão, a versão do app e os atalhos Ctrl+O e Ctrl+S.
+
+Em 1366 a 125% (ou janela estreita), a grade passa de três para duas colunas,
+com as notas recentes embaixo.
 
 Um XML da NF-e abre a tela de escolha de modo: no topo, fornecedor (nome
 fantasia ou razão social), número e série, data de emissão, valor total e
@@ -395,7 +429,8 @@ posição salva não cai em nenhum monitor conectado (por exemplo, o segundo
 monitor foi desligado), abre com o tamanho padrão, centralizada no monitor
 principal.
 
-A versão do app (do `package.json`) aparece discreta no canto da tela inicial.
+A versão do app (do `package.json`) aparece no cartão de notas recentes da
+tela inicial.
 
 ### Atalhos
 
@@ -832,7 +867,8 @@ não faz chamada de rede.
    outros arquivos da pasta (`.nupkg`, `RELEASES`) não são necessários para
    instalar.
 4. No computador, rode o Setup.exe: ele instala ou atualiza por cima, sem
-   administrador, e abre o app. A versão aparece no canto da tela inicial.
+   administrador, e abre o app. A versão aparece no cartão de notas recentes
+   da tela inicial.
 
 ## Outros comandos
 
@@ -862,6 +898,7 @@ src/
   nfe/avisos.ts      avisos da nota: quantidade, totais, outra empresa, já conferida (lógica pura)
   nfe/conferencia.ts resumo do painel de conferência (verificações e pendências, lógica pura)
   nfe/resumoCfop.ts  contagem dos CFOPs de entrada por valor, para o painel
+  nfe/recentes.ts    notas recentes da tela inicial: lista, situação e último acesso
   nfe/ferramentas.ts ferramentas do painel (Rodar, prévia, Aplicar; e as de janela própria)
   painelConferencia.ts painel de conferência à esquerda da nota
   ferramentaST.ts    janela da ferramenta ST, MVA e CFOP (prévia, decisões, Aplicar)
@@ -886,8 +923,9 @@ src/
   nfe/nome.ts        nome dos arquivos salvos a partir dos dados da nota
   nfe/tipos.ts       interfaces Nota, Emitente, Destinatario, Item, Totais, Transporte
   nfe/formato.ts     formatação pt-BR: moeda, quantidade, data, CNPJ, chave de acesso
-  styles/tokens.css  variáveis de cor, tipografia e medidas
+  styles/tokens.css  variáveis de cor, tipografia e medidas (inclui as do visual Bancada)
   styles/app.css     tela
+  styles/bancada.css visual Bancada, só na tela: tela inicial, cartões, pastilhas, botões das janelas
   styles/print.css   @media print (usado pelo PDF)
   danfe/dados.ts     XML -> campos do DANFE (separado do Nota da conferência)
   danfe/danfe.ts     montagem dos quadros e paginação do DANFE
