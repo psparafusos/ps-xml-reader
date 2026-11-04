@@ -18,6 +18,10 @@
 
 import type { AnaliseItem, CandidatoAnalise } from './analise';
 
+/** Motivo do item que pode ser lubrificante do Apêndice XIV (fiscal/analise.ts). */
+export const MOTIVO_APENDICE_XIV =
+  'Pode ser lubrificante do Apêndice XIV (sem NCM na planilha); confirme';
+
 export const FINALIDADES = [
   'revenda',
   'uso-consumo',
@@ -58,6 +62,8 @@ export function cfopEntrada(
 /** O que a pessoa escolheu para a ST de um item. */
 export type EscolhaST =
   | { tipo: 'candidato'; segmento: string; linhaPlanilha: number; cest: string }
+  /** Lubrificante do Apêndice XIV: a linha do apêndice que vale. */
+  | { tipo: 'apendice-xiv'; linhaPlanilha: number; descricao: string }
   | { tipo: 'sem-st' };
 
 export interface Decisao {
@@ -120,6 +126,11 @@ const mesmoCandidato = (c: CandidatoAnalise, e: EscolhaST) =>
   c.segmento === e.segmento &&
   c.linhaPlanilha === e.linhaPlanilha;
 
+const mesmaLinhaApendice = (c: CandidatoAnalise, e: EscolhaST) =>
+  e.tipo === 'apendice-xiv' &&
+  c.linhaPlanilha === e.linhaPlanilha &&
+  c.descricao === e.descricao;
+
 /** A decisão ainda serve para esta análise? (mesmo NCM e, se for linha, ela ainda existe). */
 export function decisaoAplicavel(
   a: AnaliseItem,
@@ -128,6 +139,8 @@ export function decisaoAplicavel(
   if (d.ncm !== a.ncm) return false;
   if (d.escolha?.tipo === 'candidato')
     return a.candidatos.some((c) => mesmoCandidato(c, d.escolha!));
+  if (d.escolha?.tipo === 'apendice-xiv')
+    return (a.apendiceXIV ?? []).some((c) => mesmaLinhaApendice(c, d.escolha!));
   return true;
 }
 
@@ -155,7 +168,10 @@ export function resolverItem(
   const escolhido =
     escolha?.tipo === 'candidato'
       ? (a.candidatos.find((c) => mesmoCandidato(c, escolha)) ?? null)
-      : null;
+      : escolha?.tipo === 'apendice-xiv'
+        ? ((a.apendiceXIV ?? []).find((c) => mesmaLinhaApendice(c, escolha)) ??
+          null)
+        : null;
 
   if (escolha?.tipo === 'sem-st') {
     st = 'nao';
@@ -163,7 +179,10 @@ export function resolverItem(
   } else if (escolhido) {
     st = 'sim';
     candidato = escolhido;
-    motivo = `linha escolhida: ${escolhido.segmento}, CEST ${escolhido.cest}`;
+    motivo =
+      escolha?.tipo === 'apendice-xiv'
+        ? `lubrificante do Apêndice XIV: ${escolhido.descricao}`
+        : `linha escolhida: ${escolhido.segmento}, CEST ${escolhido.cest}`;
   } else if (a.stSergipe === 'nao') {
     st = 'nao';
     motivo = 'NCM fora da planilha de ST de Sergipe';
@@ -177,7 +196,9 @@ export function resolverItem(
     motivo =
       a.candidatos.length > 1
         ? `${a.candidatos.length} linhas da planilha servem: escolher uma`
-        : (pendencias[0] ?? 'conferir a linha da planilha');
+        : a.apendiceXIV
+          ? MOTIVO_APENDICE_XIV
+          : (pendencias[0] ?? 'conferir a linha da planilha');
   }
 
   // MVA: só da linha em uso, e só na revenda.
@@ -218,7 +239,7 @@ export function resolverItem(
     st,
     candidato,
     segmento: candidato?.segmento ?? a.segmento,
-    cest: candidato?.cest ?? null,
+    cest: candidato?.cest || null,
     finalidade,
     mva,
     mvaTexto,
@@ -262,6 +283,9 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
     (typeof e === 'object' &&
       e !== undefined &&
       (e.tipo === 'sem-st' ||
+        (e.tipo === 'apendice-xiv' &&
+          texto((e as { descricao?: unknown }).descricao) &&
+          Number.isInteger(e.linhaPlanilha)) ||
         (e.tipo === 'candidato' &&
           texto(e.segmento) &&
           texto(e.cest) &&

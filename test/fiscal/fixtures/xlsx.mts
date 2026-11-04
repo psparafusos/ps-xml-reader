@@ -29,3 +29,44 @@ export function xlsx(nome: string, linhas: CelulaTeste[][]): Uint8Array {
     'xl/worksheets/sheet1.xml': `<worksheet ${NS}><sheetData>${rows}</sheetData></worksheet>`,
   });
 }
+
+/** .xlsx de várias abas, na ordem dada (cada uma como em xlsx()). */
+export function xlsxAbas(
+  abas: { nome: string; linhas: CelulaTeste[][] }[],
+): Uint8Array {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const col = (c: number) => String.fromCharCode(65 + c);
+  const folha = (linhas: CelulaTeste[][]) =>
+    `<worksheet ${NS}><sheetData>${linhas
+      .map(
+        (l, i) =>
+          `<row r="${i + 1}">${l
+            .map((v, c) => {
+              const r = `${col(c)}${i + 1}`;
+              if (v === null) return '';
+              return typeof v === 'number'
+                ? `<c r="${r}"><v>${v}</v></c>`
+                : `<c r="${r}" t="inlineStr"><is><t>${esc(v)}</t></is></c>`;
+            })
+            .join('')}</row>`,
+      )
+      .join('')}</sheetData></worksheet>`;
+  const arquivos: Record<string, string> = {
+    'xl/workbook.xml': `<workbook ${NS} xmlns:r="r"><sheets>${abas
+      .map(
+        (a, i) =>
+          `<sheet name="${esc(a.nome)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
+      )
+      .join('')}</sheets></workbook>`,
+    'xl/_rels/workbook.xml.rels': `<Relationships>${abas
+      .map(
+        (_, i) =>
+          `<Relationship Id="rId${i + 1}" Type="x" Target="worksheets/sheet${i + 1}.xml"/>`,
+      )
+      .join('')}</Relationships>`,
+  };
+  abas.forEach((a, i) => {
+    arquivos[`xl/worksheets/sheet${i + 1}.xml`] = folha(a.linhas);
+  });
+  return zip(arquivos);
+}

@@ -62,7 +62,11 @@ describe('base fiscal: importação', () => {
   const destino = join(pasta, 'base');
 
   it('começa sem documentos', () => {
-    assert.deepEqual(lerDocumentos(destino), { st: null, tipi: null });
+    assert.deepEqual(lerDocumentos(destino), {
+      st: null,
+      tipi: null,
+      combustiveis: null,
+    });
     const b = carregarBaseFiscal(destino);
     assert.equal(b.st, null);
     assert.equal(b.tipi, null);

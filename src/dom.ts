@@ -122,7 +122,7 @@ export function navegarMenu(
  * (nunca só a cor). Os documentos de referência usam no cartão e no rodapé.
  */
 export function semaforo(
-  cor: 'verde' | 'amarela' | 'vermelha',
+  cor: 'verde' | 'amarela' | 'vermelha' | 'neutra',
   texto: string,
 ): HTMLElement {
   return el(

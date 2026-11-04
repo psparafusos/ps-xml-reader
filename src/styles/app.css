@@ -3421,6 +3421,11 @@ body.pdf-previa #pdf-previa {
   background: var(--semaforo-vermelho);
 }
 
+.semaforo--neutra .semaforo__bolinha {
+  background: transparent;
+  border-color: currentColor;
+}
+
 .semaforo__texto {
   color: var(--cor-texto-forte);
   font-size: var(--fs-xs);

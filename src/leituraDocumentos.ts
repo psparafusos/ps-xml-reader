@@ -8,7 +8,12 @@
 //
 // Usa só os tipos e relatórios de src/fiscal (sem mudar nada lá).
 
-import type { InfoDocumento, TipoDocumento } from './fiscal/documentos';
+import type { RelatorioCombustiveis } from './fiscal/combustiveis';
+import {
+  MENSAGEM_SEM_APENDICE,
+  type InfoDocumento,
+  type TipoDocumento,
+} from './fiscal/documentos';
 import type { ResultadoVerificacao } from './fiscal/online';
 import type { RelatorioST } from './fiscal/st';
 import type { RelatorioTipi } from './fiscal/tipi';
@@ -161,6 +166,42 @@ export function leituraTipi(
   };
 }
 
+// ---------- combustíveis (Apêndice XIV) ----------
+
+export function leituraCombustiveis(
+  r: RelatorioCombustiveis,
+  arquivo: string,
+  importadoEm: string,
+): LeituraDocumento {
+  const ignorados: Ignorado[] = [];
+  if (r.abasIgnoradas.length > 0)
+    ignorados.push({
+      motivo: 'abas que não são do Apêndice XIV',
+      total: r.abasIgnoradas.length,
+      onde: r.abasIgnoradas.slice(0, 12),
+    });
+  if (r.outrasUf > 0)
+    ignorados.push({
+      motivo: 'linhas de outras UFs',
+      total: r.outrasUf,
+      onde: [r.aba],
+    });
+  return {
+    versao: VERSAO_LEITURA,
+    tipo: 'combustiveis',
+    arquivo,
+    importadoEm,
+    segmentosIncompletos: [],
+    problemas: r.problemas.slice(0, LIMITE_PROBLEMAS).map((p) => ({ ...p })),
+    totalProblemas: r.problemas.length,
+    ignorados,
+    observacoes: [
+      `Lida a aba "${r.aba}" (cabeçalho na linha ${r.linhaCabecalho}).`,
+      ...r.notas.map((n) => `${r.aba}: ${n}.`),
+    ],
+  };
+}
+
 /** Problemas agrupados por aba (segmento), na ordem em que aparecem. */
 export function problemasPorAba(
   problemas: ProblemaLeitura[],
@@ -289,6 +330,8 @@ export function reconhecerArquivo(
   if (abas) {
     let combustiveis = false;
     let tipi = false;
+    if (abas.some((a) => /ap[eê]ndice\s*xiv(?![a-z])/i.test(normal(a.nome))))
+      return 'combustiveis';
     for (const a of abas)
       for (const l of a.linhas.slice(0, 40)) {
         const t = l
@@ -333,6 +376,8 @@ const NOME_RECONHECIDO: Record<Reconhecido, string> = {
 const ONDE_BAIXAR: Record<TipoDocumento, string> = {
   st: 'Baixe o .xlsx mais recente na página de Sergipe do Portal Nacional da Substituição Tributária (CONFAZ) e use Carregar no cartão da planilha de ST.',
   tipi: 'Baixe o tipi.xlsx na página da TIPI no site da Receita Federal (ou use o texto extraído do PDF) e use Carregar no cartão da TIPI.',
+  combustiveis:
+    'Baixe a planilha de combustíveis e lubrificantes (Ato COTEPE/ICMS 61/19) na página de MVA de combustíveis do CONFAZ e use Carregar no cartão de combustíveis e lubrificantes.',
 };
 
 /** Arquivo que não é o esperado: o que ele parece e o que fazer. */
@@ -340,6 +385,14 @@ export function mensagemArquivoErrado(
   esperado: TipoDocumento,
   r: Reconhecido,
 ): { mensagem: string; oQueFazer: string } {
+  if (esperado === 'combustiveis')
+    return {
+      mensagem:
+        r === 'combustiveis' || r === 'planilha' || r === 'texto'
+          ? MENSAGEM_SEM_APENDICE
+          : `Este arquivo parece ${NOME_RECONHECIDO[r]}: não parece a planilha de combustíveis (falta a aba do Apêndice XIV).`,
+      oQueFazer: ONDE_BAIXAR.combustiveis,
+    };
   const nomeEsperado = esperado === 'st' ? 'a de ST de Sergipe' : 'a TIPI';
   if (r === 'st' && esperado === 'tipi')
     return {

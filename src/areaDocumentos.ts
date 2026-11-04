@@ -38,6 +38,8 @@ export function atualizarAreaDocumentos(estado: EstadoDocumentos): void {
 const PARA_QUE: Record<TipoDocumento, string> = {
   st: 'Arquivo .xlsx do Portal Nacional da Substituição Tributária (CONFAZ), página de Sergipe. Necessária para a ferramenta "ST, MVA e CFOP": diz se o produto tem ST em Sergipe e qual MVA usar.',
   tipi: 'Tabela do IPI da Receita Federal: o tipi.xlsx oficial ou o texto .txt extraído do PDF. Usada para conferir se o NCM existe e a alíquota de IPI da nota.',
+  combustiveis:
+    'Opcional. Planilha .xlsx de combustíveis e lubrificantes do CONFAZ (Ato COTEPE/ICMS 61/19); só a aba do Apêndice XIV (lubrificantes derivados de petróleo) é lida. Com ela, item de NCM 2710 ou 3403 fora da planilha de ST pede confirmação na ferramenta "ST, MVA e CFOP".',
 };
 
 const ROTULO_VERIFICACAO: Record<ResultadoVerificacao['estado'], string> = {
@@ -446,8 +448,15 @@ export function abrirAreaDocumentos(): void {
   function cartao(tipo: TipoDocumento, e: EstadoDocumentos): HTMLElement {
     const info = e[tipo];
     const leitura = e.leitura[tipo];
-    const r = e.preferencias.verificacaoOnline ? e.verificacao[tipo] : null;
-    const selo = seloDocumento(info, leitura, r, e.recusado[tipo]);
+    const r =
+      e.preferencias.verificacaoOnline && tipo !== 'combustiveis'
+        ? e.verificacao[tipo]
+        : null;
+    // Opcional e não carregado: não é falta (nada muda no app sem ele).
+    const opcionalVazio = tipo === 'combustiveis' && !info && !e.recusado[tipo];
+    const selo = opcionalVazio
+      ? { cor: 'neutra' as const, texto: 'Opcional, não carregado' }
+      : seloDocumento(info, leitura, r, e.recusado[tipo]);
     const tituloId = `documento-${tipo}`;
     const btnAtualizar = botao(
       info
@@ -547,7 +556,9 @@ export function abrirAreaDocumentos(): void {
               texto:
                 tipo === 'st'
                   ? `${info.arquivo} sai da base. A ferramenta "ST, MVA e CFOP" volta a pedir a planilha até você carregar outra.`
-                  : `${info.arquivo} sai da base. A análise passa a rodar sem conferir NCM e IPI até você carregar outra.`,
+                  : tipo === 'combustiveis'
+                    ? `${info.arquivo} sai da base. Itens de NCM 2710 e 3403 fora da planilha de ST voltam a ser tratados como sem ST.`
+                    : `${info.arquivo} sai da base. A análise passa a rodar sem conferir NCM e IPI até você carregar outra.`,
               botoes: [
                 { rotulo: 'Cancelar', valor: 'cancelar', principal: true },
                 { rotulo: 'Remover', valor: 'remover', perigo: true },
@@ -572,13 +583,15 @@ export function abrirAreaDocumentos(): void {
     const erro = erros.get(tipo);
     const parcial = parciais.get(tipo);
     const versao = info
-      ? tipo === 'st'
-        ? info.versao
-          ? `Versão ${info.versao}`
-          : 'Versão não informada'
-        : info.versao
-          ? `TIPI ${info.versao}`
-          : 'Ano não informado'
+      ? tipo === 'combustiveis'
+        ? 'Ato COTEPE/ICMS 61/19, Apêndice XIV'
+        : tipo === 'st'
+          ? info.versao
+            ? `Versão ${info.versao}`
+            : 'Versão não informada'
+          : info.versao
+            ? `TIPI ${info.versao}`
+            : 'Ano não informado'
       : '';
     const vigencia =
       info && info.vigencia
@@ -590,7 +603,7 @@ export function abrirAreaDocumentos(): void {
     h.id = tituloId;
     const artigo = el(
       'article',
-      `documento documento--${selo.cor}`,
+      `documento documento--${selo.cor}${tipo === 'combustiveis' ? ' documento--opcional' : ''}`,
       el(
         'header',
         'documento__cabecalho',
@@ -646,28 +659,6 @@ export function abrirAreaDocumentos(): void {
     return artigo;
   }
 
-  function cartaoDerivados(): HTMLElement {
-    return el(
-      'article',
-      'documento documento--opcional',
-      el(
-        'header',
-        'documento__cabecalho',
-        el('h3', 'documento__titulo', 'Planilha de derivados de petróleo'),
-        el(
-          'span',
-          'documento__situacao documento__situacao--opcional',
-          'Opcional',
-        ),
-      ),
-      el(
-        'p',
-        'documento__para-que',
-        'Opcional, ainda não usada pelo app. Por enquanto não há importação.',
-      ),
-    );
-  }
-
   // ---------- decisões lembradas (ferramenta ST, MVA e CFOP) ----------
 
   function decisoes(e: EstadoDocumentos): HTMLElement {
@@ -677,7 +668,9 @@ export function abrirAreaDocumentos(): void {
           ? null
           : d.escolha.tipo === 'sem-st'
             ? 'Sem ST'
-            : `${d.escolha.segmento}, CEST ${d.escolha.cest}`,
+            : d.escolha.tipo === 'apendice-xiv'
+              ? `Apêndice XIV: ${d.escolha.descricao}`
+              : `${d.escolha.segmento}, CEST ${d.escolha.cest}`,
         ROTULO_FINALIDADE[d.finalidade],
       ]
         .filter(Boolean)
@@ -884,7 +877,7 @@ export function abrirAreaDocumentos(): void {
           'documentos__cartoes',
           cartao('st', e),
           cartao('tipi', e),
-          cartaoDerivados(),
+          cartao('combustiveis', e),
         ),
         decisoes(e),
         online(e),

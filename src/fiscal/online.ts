@@ -10,7 +10,7 @@
 //   (Content-Range) e a data (Last-Modified, quando vem) sem baixar tudo. O
 //   servidor da Receita recusa HEAD, por isso o GET parcial.
 
-import type { InfoDocumento, TipoDocumento } from './documentos';
+import type { InfoDocumento, TipoOnline } from './documentos';
 
 export const PAGINA_ST =
   'https://www.confaz.fazenda.gov.br/legislacao/portal-nacional-da-substituicao-tributaria/sergipe-1';
@@ -18,7 +18,7 @@ export const PAGINA_TIPI =
   'https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/legislacao/tipi-tabela-de-incidencia-do-imposto-sobre-produtos-industrializados';
 export const ARQUIVO_TIPI =
   'https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/legislacao/documentos-e-arquivos/tipi.xlsx';
-export const PAGINA: Record<TipoDocumento, string> = {
+export const PAGINA: Record<TipoOnline, string> = {
   st: PAGINA_ST,
   tipi: PAGINA_TIPI,
 };
@@ -44,7 +44,7 @@ export interface Disponivel {
 }
 
 export interface ResultadoVerificacao {
-  tipo: TipoDocumento;
+  tipo: TipoOnline;
   estado: EstadoVerificacao;
   /** Frase para a pessoa. */
   detalhe: string;
@@ -95,7 +95,7 @@ export function versoesConfaz(html: string, base = PAGINA_ST): VersaoPagina[] {
 }
 
 /** Só baixa de onde a verificação aponta: o CONFAZ (ST) ou o gov.br (TIPI). */
-export function urlPermitida(tipo: TipoDocumento, url: string): boolean {
+export function urlPermitida(tipo: TipoOnline, url: string): boolean {
   try {
     const u = new URL(url);
     if (u.protocol !== 'https:') return false;
@@ -138,7 +138,7 @@ function ehSemConexao(erro: unknown): boolean {
 }
 
 const resultado = (
-  tipo: TipoDocumento,
+  tipo: TipoOnline,
   estado: EstadoVerificacao,
   detalhe: string,
   agora: Date,
