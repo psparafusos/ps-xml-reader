@@ -99,7 +99,7 @@ npm start
 
 Na tela inicial, clique em **Abrir arquivo** (XML da NF-e ou cópia editada
 `.psxml`) ou arraste o arquivo para a janela: com um arquivo sobre a janela,
-a zona "Solte aqui o XML da nota" fica em destaque. O diálogo de abrir começa
+a zona "Anexe aqui o XML da nota" fica em destaque. O diálogo de abrir começa
 na pasta do último arquivo aberto (guardada em `config.json`); se ela não
 existir mais, abre no padrão do Windows.
 
