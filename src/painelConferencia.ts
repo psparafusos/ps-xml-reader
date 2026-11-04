@@ -7,7 +7,7 @@
 // lado da nota, sem empurrá-la, e lembra se a pessoa recolheu. Janela
 // estreita: começa recolhido e abre por cima da nota.
 
-import { botao, el, icone, semaforo } from './dom';
+import { botao, el, icone } from './dom';
 import { criarIndicador, type Indicador } from './indicador';
 import type { Conferido } from './nfe/avisos';
 import {
@@ -24,6 +24,7 @@ import {
   type PreviaFerramenta,
 } from './nfe/ferramentas';
 import type { ResumoCfop } from './nfe/resumoCfop';
+import { ICONES } from './icones';
 
 export interface AcoesPainel {
   abrirConferido(c: Conferido): void;
@@ -33,19 +34,10 @@ export interface AcoesPainel {
   contexto(): ContextoFerramenta | null;
   /** Ferramenta aplicou mudanças: a tela redesenha o que mudou. */
   aplicado(): void;
-  /** Abre a área Documentos de referência (rodapé do painel). */
-  abrirDocumentos(): void;
   /** Ferramentas com janela própria, antes das de prévia simples. */
   ferramentasJanela(): readonly FerramentaJanela[];
   /** CFOPs de entrada da nota (coluna "CFOP de entrada"); null sem a coluna. */
   resumoCfop(): ResumoCfop | null;
-}
-
-/** Um documento no rodapé do painel: sigla, cor e texto curto. */
-export interface SinalBase {
-  sigla: string;
-  cor: 'verde' | 'amarela' | 'vermelha';
-  texto: string;
 }
 
 export interface PainelConferencia {
@@ -57,8 +49,6 @@ export interface PainelConferencia {
   atualizarFerramentas(): void;
   /** Recalcula se cabe ao lado (tamanho da janela, zoom, tela trocada). */
   ajustarLayout(): void;
-  /** Semáforo de cada documento de referência, no rodapé ("● ST ok · ● TIPI falta"). */
-  definirBase(itens: SinalBase[]): void;
   indicador: Indicador;
 }
 
@@ -102,7 +92,6 @@ export function criarPainel(
   const abertas = new Set<string>();
   /** A nota aberta ainda não foi desenhada com o resumo. */
   let primeiroResumo = true;
-  let base: SinalBase[] | null = null;
 
   const corpo = el('div', 'conferencia__corpo');
   corpo.id = 'conferencia-corpo';
@@ -158,7 +147,7 @@ export function criarPainel(
     const pontos = r?.pontos ?? 0;
     const expandir = botao(
       'conferencia__expandir',
-      icone('M9 6l6 6-6 6'),
+      icone(...ICONES.setaDireita),
       el('span', 'conferencia__so-leitor', 'Abrir o painel de conferência'),
     );
     expandir.title = 'Abrir o painel de conferência';
@@ -189,7 +178,7 @@ export function criarPainel(
       'conferencia__linha',
       sinal(v.nivel),
       el('span', 'conferencia__linha-titulo', v.titulo),
-      icone(aberta ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'),
+      icone(...(aberta ? ICONES.setaCima : ICONES.setaBaixo)),
     );
     cabeca.setAttribute('aria-expanded', String(aberta));
     cabeca.setAttribute('aria-controls', detalheId);
@@ -218,7 +207,7 @@ export function criarPainel(
     for (const c of v.conferidos ?? []) {
       const b = botao(
         'botao botao--claro botao--pequeno conferencia__abrir',
-        icone('M14 4h6v6', 'M20 4l-9 9', 'M18 14v6H4V6h6'),
+        icone(...ICONES.externo),
         el('span', '', 'Abrir em nova janela'),
       );
       b.title = `Abrir ${c.nome} numa janela nova`;
@@ -253,7 +242,7 @@ export function criarPainel(
   function desenharCorpo(r: ResumoConferencia | null): void {
     const recolherBtn = botao(
       'conferencia__recolher',
-      icone('M15 6l-6 6 6 6'),
+      icone(...ICONES.setaEsquerda),
       el('span', 'conferencia__so-leitor', 'Recolher o painel'),
     );
     recolherBtn.title = 'Recolher o painel';
@@ -289,7 +278,7 @@ export function criarPainel(
     );
 
     if (r === null) {
-      corpo.replaceChildren(cabecalho, resultado, rodapeBase());
+      corpo.replaceChildren(cabecalho, resultado);
       return;
     }
 
@@ -345,7 +334,6 @@ export function criarPainel(
             ),
           ]
         : []),
-      rodapeBase(),
     );
   }
 
@@ -377,7 +365,7 @@ export function criarPainel(
           `${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}`,
         ),
         g.destaque && el('span', 'conferencia__so-leitor', ', poucos itens'),
-        icone(aberto ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'),
+        icone(...(aberto ? ICONES.setaCima : ICONES.setaBaixo)),
       );
       b.setAttribute('aria-expanded', String(aberto));
       b.setAttribute('aria-controls', listaId);
@@ -432,30 +420,6 @@ export function criarPainel(
           `${r.vazios} ${r.vazios === 1 ? 'item sem CFOP' : 'itens sem CFOP'} de entrada.`,
         ),
     );
-  }
-
-  /** Rodapé com a situação dos documentos; abre a área de documentos. */
-  function rodapeBase(): HTMLElement {
-    const b = botao(
-      base?.some((x) => x.cor === 'vermelha')
-        ? 'conferencia__base conferencia__base--faltando'
-        : 'conferencia__base',
-      icone('M6 3h9l4 4v14H6z', 'M14 3v5h5', 'M9 13h7', 'M9 17h7'),
-      ...(base
-        ? base.flatMap((x, i) => [
-            i > 0 && el('span', 'conferencia__base-sep', '·'),
-            semaforo(x.cor, `${x.sigla} ${x.texto}`),
-          ])
-        : [el('span', '', 'Documentos de referência')]),
-    );
-    b.title = 'Documentos de referência';
-    if (base)
-      b.setAttribute(
-        'aria-label',
-        `Documentos de referência: ${base.map((x) => `${x.sigla} ${x.texto}`).join(', ')}`,
-      );
-    b.addEventListener('click', () => acoes.abrirDocumentos());
-    return el('footer', 'conferencia__rodape', b);
   }
 
   // ---------- ferramentas (Rodar, prévia e Aplicar) ----------
@@ -616,10 +580,6 @@ export function criarPainel(
       previas.clear();
     },
     ajustarLayout,
-    definirBase(itens) {
-      base = itens;
-      desenharCorpo(resumoAtual);
-    },
     indicador,
   };
 }

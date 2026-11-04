@@ -23,14 +23,25 @@ function novaCaixa<T>(
   texto: string,
   aoCancelar: T,
   resolver: (valor: T) => void,
-): { d: HTMLDialogElement; fim: (valor: T) => void } {
+): {
+  d: HTMLDialogElement;
+  corpo: HTMLElement;
+  fim: (valor: T) => void;
+} {
   const t = el('h2', 'caixa-dialogo__titulo', titulo);
   t.id = `caixa-titulo-${Math.random().toString(36).slice(2)}`;
+  // Cabeça (título), corpo (texto e campos) e rodapé (botões, acrescentado
+  // por quem chama).
+  const corpo = el(
+    'div',
+    'caixa-dialogo__corpo',
+    el('p', 'caixa-dialogo__texto', texto),
+  );
   const d = el(
     'dialog',
     'caixa-dialogo',
-    t,
-    el('p', 'caixa-dialogo__texto', texto),
+    el('header', 'caixa-dialogo__cabeca', t),
+    corpo,
   );
   d.setAttribute('aria-labelledby', t.id);
   let terminou = false;
@@ -45,7 +56,7 @@ function novaCaixa<T>(
     e.preventDefault();
     fim(aoCancelar);
   });
-  return { d, fim };
+  return { d, corpo, fim };
 }
 
 /** Pergunta com botões. Devolve o valor do botão escolhido (Esc: `cancelar`). */
@@ -74,7 +85,7 @@ export function perguntar<T extends string>(opcoes: {
       e.addEventListener('click', () => fim(b.valor));
       return e;
     });
-    d.append(el('div', 'caixa-dialogo__botoes', ...botoes));
+    d.append(el('footer', 'caixa-dialogo__botoes', ...botoes));
     document.body.append(d);
     d.showModal();
     const i = opcoes.botoes.findIndex((b) => b.principal);
@@ -99,7 +110,7 @@ export function pedirTexto(opcoes: {
   problema: (texto: string) => string | null;
 }): Promise<string | null> {
   return new Promise((resolve) => {
-    const { d, fim } = novaCaixa<string | null>(
+    const { d, corpo, fim } = novaCaixa<string | null>(
       opcoes.titulo,
       opcoes.texto,
       null,
@@ -137,7 +148,7 @@ export function pedirTexto(opcoes: {
     confirmar.addEventListener('click', concluir);
     cancelar.addEventListener('click', () => fim(null));
 
-    d.append(
+    corpo.append(
       el(
         'div',
         'caixa-dialogo__linha',
@@ -146,8 +157,8 @@ export function pedirTexto(opcoes: {
       ),
       erro,
       ...(opcoes.nota ? [el('p', 'caixa-dialogo__pasta', opcoes.nota)] : []),
-      el('div', 'caixa-dialogo__botoes', cancelar, confirmar),
     );
+    d.append(el('footer', 'caixa-dialogo__botoes', cancelar, confirmar));
     document.body.append(d);
     d.showModal();
     conferir();

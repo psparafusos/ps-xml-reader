@@ -88,6 +88,7 @@ import {
   montarFolha,
   planoDaTabela,
 } from './folhaTabela';
+import { ICONES } from './icones';
 
 // ---------- utilitários de DOM ----------
 
@@ -778,14 +779,10 @@ function controleOrdenar(miniatura = false): HTMLElement {
     icone('M7 4v16', 'M4 7l3-3 3 3', 'M17 20V4', 'M14 17l3 3 3-3'),
     el('span', 'ordenar__rotulo', 'Ordenar por'),
     el('span', 'ordenar__atual'),
-    icone('M6 9l6 6 6-6'),
+    icone(...ICONES.setaBaixo),
   );
   botao.type = 'button';
-  const limpar = el(
-    'button',
-    'ordenar__limpar',
-    icone('M6 6l12 12', 'M18 6L6 18'),
-  );
+  const limpar = el('button', 'ordenar__limpar', icone(...ICONES.fechar));
   limpar.type = 'button';
   limpar.setAttribute('aria-label', 'Voltar à ordem da nota');
   limpar.title = 'Voltar à ordem da nota';
@@ -848,7 +845,7 @@ function controleOrdenar(miniatura = false): HTMLElement {
   const editar = el(
     'button',
     'botao botao--claro botao--pequeno ordenar__editar',
-    icone('M4 5h16v14H4z', 'M10 5v14', 'M16 5v14'),
+    icone(...ICONES.colunas),
     el('span', '', 'Editar colunas'),
   );
   editar.type = 'button';
@@ -1168,7 +1165,7 @@ const recentesLista = $('recentes-lista');
 const btnLimparRecentes = $('btn-limpar-recentes') as HTMLButtonElement;
 /** Bloco do seletor de perfil (botão e menu): na barra ou na faixa da tela inicial. */
 const perfilRapido = btnPerfil.closest<HTMLElement>('.perfil-rapido')!;
-const barraTitulo = perfilRapido.parentElement!;
+const barraPerfil = $('barra-perfil');
 const areaSoltar = $('area-soltar');
 const modo = $('modo');
 const modoArquivo = $('modo-arquivo');
@@ -1196,7 +1193,6 @@ const painel = criarPainel(painelEl, notaEl, {
     aplicarConfig(configAtual);
     atualizarPendentes();
   },
-  abrirDocumentos: () => abrirAreaDocumentos(),
   ferramentasJanela: () => [ferramentaST],
   resumoCfop: () => {
     const coluna = idColunaCfop();
@@ -1412,8 +1408,8 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   if (tela === 'vazio') {
     inicioPerfil.append(perfilRapido);
     void atualizarRecentes();
-  } else if (perfilRapido.parentElement !== barraTitulo)
-    barraTitulo.insertBefore(perfilRapido, barraCopia);
+  } else if (perfilRapido.parentElement !== barraPerfil)
+    barraPerfil.append(perfilRapido);
   modo.hidden = tela !== 'modo';
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
@@ -3227,12 +3223,16 @@ const ferramentaST: FerramentaJanela = {
   },
 };
 
-// Documentos de referência: situação no rodapé do painel e na tela inicial;
-// mudou (importação em outra janela, verificação ao abrir), atualiza tudo.
+// Documentos de referência: situação nas pastilhas da barra e da tela
+// inicial; mudou (importação em outra janela, verificação ao abrir), atualiza
+// tudo.
 const btnDocumentos = $('btn-documentos') as HTMLButtonElement;
+const btnBarraDocumentos = $('barra-documentos') as HTMLButtonElement;
 const documentosSituacao = $('documentos-situacao');
 const inicioST = $('inicio-st');
 const inicioTipi = $('inicio-tipi');
+const barraST = $('barra-st');
+const barraTipi = $('barra-tipi');
 function atualizarDocumentos(): void {
   window.psApi
     .documentos()
@@ -3247,12 +3247,17 @@ function atualizarDocumentos(): void {
           e.recusado[tipo],
         ),
       }));
-      painel.definirBase(sinais);
       for (const [x, pastilha] of [
         [sinais[0], inicioST],
         [sinais[1], inicioTipi],
+        [sinais[0], barraST],
+        [sinais[1], barraTipi],
       ] as const)
         pastilha.replaceChildren(semaforo(x.cor, `${x.sigla} ${x.texto}`));
+      btnBarraDocumentos.setAttribute(
+        'aria-label',
+        `Documentos de referência: ${sinais.map((x) => `${x.sigla} ${x.texto}`).join(', ')}`,
+      );
       documentosSituacao.textContent = [
         e.st
           ? `ST ${e.st.versao ? `v${e.st.versao}` : 'carregada'}`
@@ -3264,6 +3269,7 @@ function atualizarDocumentos(): void {
     .catch((erro: unknown) => console.error(erro));
 }
 btnDocumentos.addEventListener('click', () => abrirAreaDocumentos());
+btnBarraDocumentos.addEventListener('click', () => abrirAreaDocumentos());
 window.psApi.aoMudarDocumentos(atualizarDocumentos);
 atualizarDocumentos();
 // Uma página recarregada começa sem pendências.

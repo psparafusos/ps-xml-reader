@@ -22,6 +22,7 @@ import {
   rotuloDocumento,
   seloDocumento,
 } from './leituraDocumentos';
+import { ICONES } from './icones';
 
 let dialogo: HTMLDialogElement | null = null;
 let redesenhar: ((e: EstadoDocumentos) => void) | null = null;
@@ -396,7 +397,7 @@ export function abrirAreaDocumentos(): void {
     if (r.estado === 'nova' && r.disponivel) {
       const b = botao(
         'botao botao--principal botao--pequeno',
-        icone('M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'),
+        icone(...ICONES.salvar),
         el('span', '', 'Baixar e importar'),
       );
       b.dataset.foco = `baixar-${tipo}`;
@@ -413,7 +414,7 @@ export function abrirAreaDocumentos(): void {
     if (r.estado === 'nao-verificou' || r.estado === 'sem-conexao') {
       const b = botao(
         'botao botao--claro botao--pequeno',
-        icone('M14 4h6v6', 'M20 4l-9 9', 'M18 14v6H4V6h6'),
+        icone(...ICONES.externo),
         el('span', '', 'Abrir no navegador'),
       );
       b.title = r.pagina;
@@ -453,7 +454,7 @@ export function abrirAreaDocumentos(): void {
       info
         ? 'botao botao--claro botao--pequeno'
         : 'botao botao--principal botao--pequeno',
-      icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
+      icone(...ICONES.enviar),
       el('span', '', info ? 'Atualizar' : 'Carregar'),
     );
     btnAtualizar.dataset.foco = `atualizar-${tipo}`;
@@ -474,7 +475,7 @@ export function abrirAreaDocumentos(): void {
     if (tipo === 'st' && info && e.stSemProtocolos) {
       const reimportar = botao(
         'botao botao--claro botao--pequeno',
-        icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
+        icone(...ICONES.enviar),
         el('span', '', 'Atualizar'),
       );
       reimportar.dataset.foco = 'reimportar-st';
@@ -528,10 +529,7 @@ export function abrirAreaDocumentos(): void {
     // Nome do arquivo em uso e o X que tira o documento da base.
     let arquivo: HTMLElement | false = false;
     if (info) {
-      const remover = botao(
-        'documento__remover',
-        icone('M6 6l12 12', 'M18 6L6 18'),
-      );
+      const remover = botao('documento__remover', icone(...ICONES.fechar));
       remover.dataset.foco = `remover-${tipo}`;
       remover.title = `Remover ${info.arquivo}`;
       remover.setAttribute(
@@ -818,7 +816,7 @@ export function abrirAreaDocumentos(): void {
       linhaAoAbrir.htmlFor = aoAbrir.id;
       const verificar = botao(
         'botao botao--claro botao--pequeno',
-        icone('M4 12a8 8 0 1 0 3-6.2', 'M4 4v5h5'),
+        icone(...ICONES.desfazer),
         el('span', '', e.verificando ? 'Verificando...' : 'Verificar agora'),
       );
       verificar.dataset.foco = 'verificar';

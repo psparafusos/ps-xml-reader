@@ -1,11 +1,43 @@
-/* Visual "Bancada": fundo bege, cartões brancos de borda clara, pastilhas
-   arredondadas, títulos de seção pequenos em caixa alta e botões das janelas
-   (primário amarelo com borda preta, secundário branco, perigo vermelho).
-   Tudo só na tela: o PDF e a impressão seguem app.css e print.css como
-   antes. Cores e medidas vêm de tokens.css. */
+/* Visual "Bancada", em todas as telas e janelas: faixa preta com o filete
+   amarelo no alto, fundo bege, cartões brancos de borda clara, pastilhas
+   arredondadas, títulos de seção pequenos em caixa alta, uma família só de
+   botões (principal amarelo, secundário branco, perigo vermelho, .link de
+   texto) e um conjunto só de ícones (src/icones.ts). Tudo só na tela: o PDF
+   e a impressão seguem app.css e print.css como antes. Cores e medidas vêm
+   de tokens.css; os ajustes abaixo valem só na mídia screen. */
 
 @media screen {
+  :root {
+    --bancada-borda: var(--cartao-borda);
+    /* Borda do botão secundário com o mouse em cima. */
+    --bancada-borda-forte: #cbc5b8;
+    /* Botões: a família do visual Bancada (app.css usa estes tokens). */
+    --botao-pri-fundo: var(--ps-amarelo);
+    --botao-pri-texto: var(--cor-texto-sobre-destaque);
+    --botao-pri-fundo-hover: var(--botao-amarelo-hover);
+    --botao-pri-fundo-pressionado: #d4a200;
+    --botao-sec-borda: var(--bancada-borda);
+    --botao-sec-fundo-hover: var(--bancada-fundo);
+    --botao-sec-fundo-pressionado: var(--cartao-borda);
+    --seletor-ativo-fundo: var(--ps-amarelo);
+    --seletor-ativo-texto: var(--cor-texto-sobre-destaque);
+    /* Ícones: traço 1.8, 20 px nos botões e 26 px nos cartões. */
+    --icone-traco: 1.8;
+    --icone-botao: 20px;
+    --icone-cartao: 26px;
+    /* Sombra das janelas e menus sobre o fundo bege. */
+    --sombra-cartao: 0 12px 32px rgb(0 0 0 / 0.18);
+  }
+
+  /* Cadeia de altura até a tela inicial: a grade estica até o pé da
+     janela. body só com min-height (com height, a barra sticky da nota
+     deixaria de grudar depois da primeira tela). */
+  html {
+    height: 100%;
+  }
+
   body {
+    min-height: 100%;
     background: var(--bancada-fundo);
   }
 
@@ -88,39 +120,125 @@
     font-size: var(--fs-xs);
   }
 
-  /* Botão amarelo com borda preta (tela inicial e janelas). */
-  .botao--amarelo,
-  :is(.painel, .caixa-dialogo) .botao:not(.botao--claro, .botao--perigo) {
-    border-color: var(--ps-preto);
+  /* ---------- botões: uma família só ---------- */
+
+  /* Principal (Abrir arquivo, Aplicar, Rodar, Salvar): amarelo, texto
+     preto. Secundário (.botao--claro: Fechar, Início, Abrir pasta,
+     Imprimir): branco, borda clara, texto preto. As cores vêm dos tokens
+     --botao-* acima; aqui só a borda fina, sem o contorno preto de 2 px. */
+  .botao {
+    border-width: var(--borda);
+  }
+
+  .botao .icone {
+    width: var(--icone-botao);
+    height: var(--icone-botao);
+  }
+
+  .botao--claro:hover:not(:disabled) {
+    border-color: var(--bancada-borda-forte);
+  }
+
+  /* Botões colados (Pasta de destino | Abrir pasta; Salvar | seta). */
+  .par-pasta > .botao + .botao {
+    margin-left: calc(-1 * var(--borda));
+  }
+
+  .salvar-grupo__seta {
+    border-left-color: color-mix(in srgb, var(--ps-preto) 25%, transparent);
+  }
+
+  /* A tela inicial mantém o "Abrir arquivo" grande, com a borda preta. */
+  .vazio .botao--amarelo {
+    border: var(--borda-forte) solid var(--ps-preto);
     background: var(--ps-amarelo);
     color: var(--cor-texto-sobre-destaque);
   }
 
-  .botao--amarelo:hover:not(:disabled),
-  :is(.painel, .caixa-dialogo)
-    .botao:not(.botao--claro, .botao--perigo):hover:not(:disabled) {
+  .vazio .botao--amarelo:hover:not(:disabled),
+  .vazio .botao--amarelo:active:not(:disabled) {
     border-color: var(--ps-preto);
     background: var(--botao-amarelo-hover);
     color: var(--cor-texto-sobre-destaque);
-  }
-
-  .botao--amarelo:active:not(:disabled),
-  :is(.painel, .caixa-dialogo)
-    .botao:not(.botao--claro, .botao--perigo):active:not(:disabled) {
-    border-color: var(--ps-preto);
-    background: var(--botao-amarelo-hover);
   }
 
   .botao--perigo,
   .botao--perigo:hover:not(:disabled),
   .botao--perigo:active:not(:disabled) {
-    border-color: var(--ps-preto);
+    border-color: var(--botao-perigo-fundo);
     background: var(--botao-perigo-fundo);
     color: var(--ps-branco);
   }
 
   .botao--perigo:hover:not(:disabled) {
+    border-color: var(--botao-perigo-hover);
     background: var(--botao-perigo-hover);
+  }
+
+  /* Ícone de cartão (título de cartão, cartão de ferramenta). */
+  .cartao__icone,
+  .cartao > .icone {
+    width: var(--icone-cartao);
+    height: var(--icone-cartao);
+  }
+
+  /* Pastilha de situação: colorida pelo semáforo (em conferência, parcela
+     vencida, carregado). A de estado (ST ok, perfil) fica preta. */
+  .pastilha--verde,
+  .documento__selo .semaforo--verde {
+    border-color: var(--semaforo-verde);
+    background: color-mix(in srgb, var(--semaforo-verde) 18%, white);
+    color: var(--cor-texto-forte);
+  }
+
+  .pastilha--amarela,
+  .documento__selo .semaforo--amarela {
+    border-color: var(--soltar-borda);
+    background: var(--soltar-fundo);
+    color: var(--cor-texto-forte);
+  }
+
+  .pastilha--vermelha,
+  .documento__selo .semaforo--vermelha {
+    border-color: var(--semaforo-vermelho);
+    background: color-mix(in srgb, var(--semaforo-vermelho) 12%, white);
+    color: var(--semaforo-vermelho);
+  }
+
+  /* ---------- menus e campos: borda clara, sem o contorno preto ---------- */
+
+  .perfil-rapido__menu,
+  .menu-largura,
+  .menu-salvar,
+  .ordenar__menu,
+  .perfis-menu,
+  .menu-escolha {
+    border: var(--borda) solid var(--bancada-borda);
+    border-radius: var(--cartao-raio);
+    box-shadow: var(--sombra-cartao);
+  }
+
+  .caixa-dialogo__campo,
+  .painel__campo {
+    border: var(--borda) solid var(--bancada-borda-forte);
+    border-radius: var(--raio);
+    background: var(--ps-branco);
+  }
+
+  .caixa-dialogo__campo:focus,
+  .painel__campo:focus {
+    border-color: var(--ps-preto);
+    box-shadow: 0 0 0 var(--borda) var(--ps-preto);
+    background: var(--ps-branco);
+  }
+
+  /* Seletor de duas posições (Conferência | DANFE, orientação da folha). */
+  .seletor {
+    border-width: var(--borda);
+  }
+
+  .seletor__opcao + .seletor__opcao {
+    border-left-width: var(--borda);
   }
 
   /* ---------- tela inicial ---------- */
@@ -131,12 +249,14 @@
     align-items: stretch;
     justify-content: flex-start;
     place-items: stretch;
+    height: 100%;
     min-height: 100vh;
     padding: 0;
     background: var(--bancada-fundo);
   }
 
   .inicio__faixa {
+    flex: none;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -182,41 +302,17 @@
     gap: var(--esp-2);
   }
 
-  /* O seletor de perfil, aqui, é uma pastilha amarela. */
-  .inicio__perfil .perfil-rapido {
-    margin: 0;
-  }
-
-  .inicio__perfil .perfil-rapido__botao {
-    min-height: 30px;
-    padding: 0 var(--esp-3);
-    border: var(--borda) solid var(--ps-amarelo);
-    border-radius: var(--pastilha-raio);
-    background: var(--ps-amarelo);
-    color: var(--cor-texto-sobre-destaque);
-    font-size: var(--fs-sm);
-  }
-
-  .inicio__perfil .perfil-rapido__botao:hover,
-  .inicio__perfil .perfil-rapido__botao[aria-expanded='true'] {
-    border-color: var(--ps-branco);
-    background: var(--botao-amarelo-hover);
-  }
-
-  .inicio__perfil .perfil-rapido__botao:focus-visible {
-    outline: var(--botao-foco-espessura) solid var(--ps-branco);
-    outline-offset: var(--botao-foco-afastamento);
-  }
-
   .inicio__perfil .perfil-rapido__menu {
     right: 0;
     left: auto;
   }
 
   .inicio__grade {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
     gap: var(--bancada-grade-espaco);
     width: 100%;
@@ -226,6 +322,7 @@
 
   .inicio__principal {
     grid-column: span 2;
+    height: 100%;
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto;
     gap: var(--bancada-grade-espaco);
@@ -261,7 +358,7 @@
     height: 56px;
     fill: none;
     stroke: var(--cor-texto-forte);
-    stroke-width: 1.5;
+    stroke-width: var(--icone-traco);
     stroke-linecap: round;
     stroke-linejoin: round;
   }
@@ -313,7 +410,10 @@
     margin-top: auto;
   }
 
+  /* Vazio ou com notas, o cartão vai até o pé: a lista (ou a frase de
+     lista vazia) no topo e a linha da versão embaixo. */
   .inicio__recentes {
+    height: 100%;
     display: flex;
     flex-direction: column;
     gap: var(--esp-3);
@@ -341,6 +441,8 @@
   }
 
   .recentes {
+    flex: none;
+    align-content: start;
     display: grid;
     gap: var(--esp-1);
     margin: 0;
@@ -451,7 +553,13 @@
   @media (max-width: 1180px) {
     .inicio__grade {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: none;
       align-items: start;
+    }
+
+    .inicio__principal,
+    .inicio__recentes {
+      height: auto;
     }
 
     .inicio__principal {
@@ -491,10 +599,51 @@
     background: var(--bancada-fundo);
   }
 
-  /* ---------- painel de conferência ---------- */
+  /* ---------- painel de conferência: um cartão branco ---------- */
 
+  /* Solto da barra e da borda da janela, como os cartões da tela inicial. A
+     folga cabe na --folga-painel-conferencia que o painel já deixa até a
+     nota (painelConferencia.ts, ajustarLayout). */
   .conferencia {
-    border-right-color: var(--cartao-borda);
+    top: calc(var(--altura-barra, 0px) + var(--esp-3));
+    bottom: var(--esp-3);
+    left: var(--esp-3);
+    width: calc(var(--largura-painel-conferencia) - var(--esp-3));
+    border: var(--borda) solid var(--bancada-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+    overflow: hidden;
+  }
+
+  .conferencia[data-estado='recolhido'] {
+    width: calc(var(--largura-trilho-conferencia) - var(--esp-3));
+  }
+
+  .conferencia__titulo {
+    font-size: var(--fs-sm);
+  }
+
+  .conferencia__recolher,
+  .conferencia__expandir,
+  .conferencia__icone-trilho:not(
+    .conferencia__icone-trilho--ok,
+    .conferencia__icone-trilho--alerta
+  ) {
+    border-color: var(--bancada-borda);
+  }
+
+  .conferencia__recolher:hover,
+  .conferencia__expandir:hover,
+  .conferencia__icone-trilho:not(
+      .conferencia__icone-trilho--ok,
+      .conferencia__icone-trilho--alerta
+    ):hover {
+    border-color: var(--bancada-borda-forte);
+    background: var(--bancada-fundo);
+  }
+
+  .conferencia__ferramenta {
+    background: var(--bancada-fundo);
   }
 
   .conferencia__subtitulo {
@@ -511,53 +660,58 @@
     border-radius: var(--cartao-raio);
   }
 
-  /* Rodapé: as pastilhas dos documentos, iguais às da tela inicial. */
-  .conferencia__base {
-    gap: var(--esp-1);
-    padding: var(--esp-1);
-    border-radius: var(--cartao-raio);
-  }
-
-  .conferencia__base .semaforo {
-    min-height: 26px;
-    padding: 0 var(--esp-2);
-    border: var(--borda) solid var(--pastilha-escura-borda);
-    border-radius: var(--pastilha-raio);
-    background: var(--pastilha-escura-fundo);
-  }
-
-  .conferencia__base .semaforo__texto {
-    color: var(--ps-branco);
-  }
-
-  .conferencia__base-sep {
-    display: none;
-  }
-
   .conferencia__cfop {
     border-radius: var(--pastilha-raio);
   }
 
   /* ---------- janelas: documentos, editor de colunas, ferramenta ---------- */
 
-  .painel {
-    border: var(--borda) solid var(--cartao-borda);
+  /* Cabeça preta com o filete amarelo (a mesma faixa da tela inicial),
+     corpo bege com cartões brancos e rodapé com os botões. */
+  .painel,
+  .caixa-dialogo {
+    overflow: hidden;
+    border: var(--borda) solid var(--ps-preto);
     border-radius: var(--cartao-raio-grande);
     background: var(--bancada-fundo);
+    box-shadow: var(--sombra-cartao);
   }
 
   .painel__cabecalho,
-  .painel__rodape {
+  .caixa-dialogo__cabeca {
+    border-bottom: var(--bancada-faixa-linha) solid var(--ps-amarelo);
+    background: var(--bancada-faixa);
+    color: color-mix(in srgb, var(--ps-branco) 72%, transparent);
+  }
+
+  .painel__cabecalho .painel__titulo,
+  .caixa-dialogo__titulo {
+    color: var(--ps-branco);
+  }
+
+  .painel__cabecalho .painel__dica {
+    color: inherit;
+  }
+
+  .painel__rodape,
+  .caixa-dialogo__botoes {
+    border-top: var(--borda) solid var(--bancada-borda);
     background: var(--cartao-fundo);
-    border-color: var(--cartao-borda);
   }
 
-  .painel__cabecalho {
-    border-radius: var(--cartao-raio-grande) var(--cartao-raio-grande) 0 0;
+  /* Perfil ativo no alto do editor de colunas: pastilha escura na faixa. */
+  .painel__cabecalho .perfil-ativo {
+    border-color: var(--pastilha-escura-borda);
+    background: var(--pastilha-escura-fundo);
+    color: var(--ps-branco);
   }
 
-  .painel__rodape {
-    border-radius: 0 0 var(--cartao-raio-grande) var(--cartao-raio-grande);
+  .painel__cabecalho .perfil-ativo__rotulo {
+    color: color-mix(in srgb, var(--ps-branco) 70%, transparent);
+  }
+
+  .painel__cabecalho .perfil-ativo__nome {
+    color: var(--ps-branco);
   }
 
   .painel__subtitulo,
@@ -594,17 +748,17 @@
     border-radius: var(--cartao-raio);
   }
 
-  /* Selo único do cartão: bolinha do semáforo e o texto da situação. */
+  /* Selo único do cartão: pastilha de situação, colorida pelo semáforo
+     (as cores ficam com .pastilha--* acima). */
   .documento__selo .semaforo {
     min-height: 28px;
     padding: 0 var(--esp-3);
     border: var(--borda) solid var(--pastilha-escura-borda);
     border-radius: var(--pastilha-raio);
-    background: var(--pastilha-escura-fundo);
   }
 
   .documento__selo .semaforo__texto {
-    color: var(--ps-branco);
+    color: inherit;
     font-size: var(--fs-sm);
   }
 
@@ -621,62 +775,178 @@
     border-radius: var(--pastilha-raio);
   }
 
-  /* Caixas de pergunta (substituir, cópia, alterações não salvas). */
+  /* Caixas de pergunta (substituir, cópia, alterações não salvas): a cabeça
+     preta, o corpo bege com o texto num cartão branco e os botões no rodapé. */
   .caixa-dialogo {
-    border: var(--borda) solid var(--cartao-borda);
-    border-radius: var(--cartao-raio-grande);
+    padding: 0;
+  }
+
+  .caixa-dialogo__cabeca {
+    padding: var(--esp-4) var(--esp-5);
+  }
+
+  .caixa-dialogo__titulo {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .caixa-dialogo__corpo {
+    margin: var(--esp-4);
+    padding: var(--esp-4);
+    border: var(--borda) solid var(--bancada-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+  }
+
+  .caixa-dialogo__texto {
+    margin-top: 0;
+    color: var(--cor-texto-forte);
+  }
+
+  .caixa-dialogo__botoes {
+    margin-top: 0;
+    padding: var(--esp-3) var(--esp-5);
+  }
+
+  /* Tabelas: cabeçalho amarelo em todas as janelas, como na nota. */
+  .documento__tabela th,
+  .previa__tabela th {
+    background: var(--cor-destaque);
+    color: var(--cor-texto-sobre-destaque);
   }
 }
 
 @media screen {
-  /* ---------- barra da nota: o perfil como pastilha ---------- */
+  /* ---------- barra da nota: a faixa preta da tela inicial ---------- */
 
-  /* Fornecedor em cima; número da nota e a pastilha do perfil lado a lado. */
+  /* Logo, emitente e número da nota, pastilhas (ST, TIPI, perfil) e as
+     ações à direita. O título cresce e corta com reticências; sem espaço, a
+     saída desce para a segunda linha (app.css). */
+  .barra {
+    gap: var(--esp-3);
+    min-height: var(--bancada-faixa-altura);
+    padding: var(--esp-3) var(--esp-5);
+    border-bottom: var(--bancada-faixa-linha) solid var(--ps-amarelo);
+    background: var(--bancada-faixa);
+    color: var(--ps-branco);
+    box-shadow: none;
+  }
+
+  .barra__logo {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+  }
+
   .barra__titulo {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
+    justify-content: center;
+    gap: 2px;
+    min-width: var(--largura-minima-titulo);
+  }
+
+  .barra__fornecedor {
+    color: var(--ps-branco);
+    line-height: var(--altura-linha-titulo);
+  }
+
+  .barra__nota {
+    color: color-mix(in srgb, var(--ps-branco) 65%, transparent);
+    font-weight: var(--peso-normal);
+  }
+
+  /* Cópia editada: pastilha de situação, no amarelo do semáforo. */
+  .barra__copia {
+    margin-top: var(--esp-1);
+    padding: 0 var(--esp-2);
+    border: var(--borda) solid var(--semaforo-amarelo);
+    border-radius: var(--pastilha-raio);
+    background: var(--semaforo-amarelo);
+    color: var(--cor-texto-sobre-destaque);
+  }
+
+  .barra__pastilhas {
+    display: flex;
+    flex: none;
     align-items: center;
-    column-gap: var(--esp-3);
-    align-content: center;
+    gap: var(--esp-2);
   }
 
-  .barra__fornecedor,
-  .barra__copia {
-    grid-column: 1 / -1;
+  .barra__documentos {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-2);
+    padding: 0;
+    border: 0;
+    border-radius: var(--pastilha-raio);
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
   }
 
-  .barra__copia {
-    justify-self: start;
+  .barra__documentos:hover .pastilha {
+    border-color: var(--ps-branco);
   }
 
-  .barra .perfil-rapido {
-    justify-self: start;
+  .barra__documentos:focus-visible,
+  .barra .botao:focus-visible,
+  .barra .seletor__opcao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .barra .seletor__opcao:focus-visible {
+    outline-offset: calc(-1 * var(--botao-foco-espessura));
+    outline-color: var(--ps-preto);
+  }
+
+  /* Seletor do perfil, na barra e na faixa da tela inicial: pastilha preta
+     de borda cinza, como as de ST e TIPI. */
+  .barra .perfil-rapido,
+  .inicio__perfil .perfil-rapido {
+    align-self: center;
     margin: 0;
   }
 
-  .barra .perfil-rapido__botao {
-    min-height: 22px;
+  .barra .perfil-rapido__botao,
+  .inicio__perfil .perfil-rapido__botao {
+    min-height: 30px;
     padding: 0 var(--esp-3);
-    border: var(--borda) solid var(--bancada-faixa);
+    border: var(--borda) solid var(--pastilha-escura-borda);
     border-radius: var(--pastilha-raio);
-    background: var(--bancada-faixa);
+    background: var(--pastilha-escura-fundo);
     color: var(--ps-branco);
     font-size: var(--fs-sm);
   }
 
   .barra .perfil-rapido__botao:hover,
-  .barra .perfil-rapido__botao[aria-expanded='true'] {
+  .barra .perfil-rapido__botao[aria-expanded='true'],
+  .inicio__perfil .perfil-rapido__botao:hover,
+  .inicio__perfil .perfil-rapido__botao[aria-expanded='true'] {
     border-color: var(--ps-branco);
     background: var(--pastilha-escura-fundo);
   }
 
-  .barra .perfil-rapido__botao:focus-visible {
-    outline: var(--botao-foco-espessura) solid var(--ps-preto);
+  .barra .perfil-rapido__botao:focus-visible,
+  .inicio__perfil .perfil-rapido__botao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
     outline-offset: var(--botao-foco-afastamento);
   }
 
-  .barra .perfil-rapido__rotulo {
-    color: color-mix(in srgb, var(--ps-branco) 75%, transparent);
+  .barra .perfil-rapido__rotulo,
+  .inicio__perfil .perfil-rapido__rotulo {
+    color: color-mix(in srgb, var(--ps-branco) 70%, transparent);
+  }
+
+  .barra .perfil-rapido__menu {
+    right: 0;
+    left: auto;
+  }
+
+  /* Pasta de destino: o caminho em cinza, sob o rótulo. */
+  .barra .botao__caminho {
+    color: var(--cor-texto);
   }
 
   /* ---------- seletores no visual do app (menuEscolha.ts) ---------- */

@@ -30,6 +30,7 @@ import { botao, comSetasDeRolagem, el, icone, navegarMenu } from './dom';
 import { desenharMiniatura } from './miniaturaFolha';
 import { perguntar, pedirTexto } from './dialogos';
 import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
+import { ICONES } from './icones';
 
 /**
  * O que o painel pede ao resto da tela. Cada ação grava nos perfis salvos e,
@@ -391,7 +392,7 @@ export function abrirEditorColunas(
     'botao botao--claro perfil-ativo__trocar',
     icone('M7 7h12l-3-3', 'M17 17H5l3 3'),
     el('span', '', 'Trocar perfil'),
-    icone('M6 9l6 6 6-6'),
+    icone(...ICONES.setaBaixo),
   );
   btnTrocar.setAttribute('aria-haspopup', 'true');
   btnTrocar.setAttribute('aria-expanded', 'false');
@@ -400,20 +401,20 @@ export function abrirEditorColunas(
   listaPerfis.setAttribute('aria-label', 'Perfis');
   const btnNovoPerfil = botao(
     'perfis-menu__acao',
-    icone('M12 5v14', 'M5 12h14'),
+    icone(...ICONES.mais),
     el('span', '', 'Novo perfil'),
   );
   btnNovoPerfil.title = 'Novo perfil, começando igual ao perfil ativo';
   const btnImportar = botao(
     'perfis-menu__acao',
-    icone('M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14'),
+    icone(...ICONES.salvar),
     el('span', '', 'Importar'),
   );
   btnImportar.title =
     'Acrescenta um perfil exportado (ou uma configuração antiga) à lista';
   const btnExportar = botao(
     'perfis-menu__acao',
-    icone('M12 15V4', 'M7 9l5-5 5 5', 'M5 20h14'),
+    icone(...ICONES.enviar),
     el('span', '', 'Exportar perfil ativo'),
   );
   btnExportar.title =
@@ -445,7 +446,7 @@ export function abrirEditorColunas(
   campoTitulo.setAttribute('aria-describedby', erroTitulo.id);
   const btnCriar = botao(
     'botao botao--claro botao--pequeno',
-    icone('M12 5v14', 'M5 12h14'),
+    icone(...ICONES.mais),
     el('span', '', 'Criar'),
   );
   const previa = el('div', 'previa');
@@ -492,7 +493,7 @@ export function abrirEditorColunas(
 
   const btnRestaurar = botao(
     'botao botao--claro botao--pequeno',
-    icone('M4 12a8 8 0 1 0 3-6.2', 'M4 4v5h5'),
+    icone(...ICONES.desfazer),
     el('span', '', 'Restaurar padrão'),
   );
   const btnCancelar = botao('botao botao--claro', el('span', '', 'Cancelar'));
@@ -620,10 +621,7 @@ export function abrirEditorColunas(
 
     const extra = rascunho.anotacoes.find((a) => a.id === c.id);
     if (extra) {
-      const remover = botao(
-        'colunas-lista__remover',
-        icone('M6 6l12 12', 'M18 6L6 18'),
-      );
+      const remover = botao('colunas-lista__remover', icone(...ICONES.fechar));
       remover.setAttribute('aria-label', `Remover a anotação ${c.rotulo}`);
       remover.title = 'Remover esta anotação';
       remover.addEventListener('click', () => {
@@ -663,7 +661,7 @@ export function abrirEditorColunas(
     const b = botao(
       'colunas-lista__largura',
       el('span', '', ROTULO_LARGURA[atual]),
-      icone('M6 9l6 6 6-6'),
+      icone(...ICONES.setaBaixo),
     );
     b.setAttribute('aria-haspopup', 'menu');
     b.setAttribute('aria-expanded', 'false');
@@ -825,7 +823,7 @@ export function abrirEditorColunas(
       ...ANOTACOES_PRONTAS.map((t) => {
         const b = botao(
           'botao botao--claro botao--pequeno',
-          icone('M12 5v14', 'M5 12h14'),
+          icone(...ICONES.mais),
           el('span', '', t),
         );
         b.disabled = rascunho.anotacoes.some((a) => a.id === idDaAnotacao(t));

@@ -5,6 +5,7 @@
 // por cima (popover), para a rolagem da tabela não cortar.
 
 import { botao, el, icone, navegarMenu } from './dom';
+import { ICONES } from './icones';
 
 export interface OpcaoMenu {
   valor: string;
@@ -82,7 +83,7 @@ export function criarMenuEscolha(container: HTMLElement): {
     const b = botao(
       `seletor-menu${o.classe ? ` ${o.classe}` : ''}`,
       texto,
-      icone('M6 9l6 6 6-6'),
+      icone(...ICONES.setaBaixo),
     );
     b.setAttribute('aria-haspopup', 'menu');
     b.setAttribute('aria-expanded', 'false');

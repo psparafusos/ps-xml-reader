@@ -17,39 +17,58 @@
     <script type="module" src="/src/renderer.ts"></script>
   </head>
   <body>
+    <!-- Barra no visual "Bancada" (bancada.css), a mesma faixa preta com o
+         filete amarelo da tela inicial: logo, emitente e número da nota, as
+         pastilhas dos documentos e do perfil e, à direita, as ações. -->
     <header id="barra" class="barra" hidden>
+      <img class="barra__logo" src="/assets/ps-logo.svg" alt="" />
       <div class="barra__titulo">
         <strong id="barra-fornecedor" class="barra__fornecedor"></strong>
         <span id="barra-nota" class="barra__nota"></span>
-        <!-- Troca rápida do perfil de colunas; a lista é montada no
-             renderer.ts a cada abertura. -->
-        <div class="perfil-rapido">
-          <button
-            id="btn-perfil"
-            type="button"
-            class="perfil-rapido__botao"
-            aria-haspopup="menu"
-            aria-expanded="false"
-            aria-controls="menu-perfil"
-            title="Trocar o perfil de colunas"
-          >
-            <span class="perfil-rapido__rotulo">Perfil:</span>
-            <span id="perfil-nome" class="perfil-rapido__nome"></span>
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <div
-            id="menu-perfil"
-            class="perfil-rapido__menu"
-            role="menu"
-            aria-label="Perfis"
-            hidden
-          ></div>
-        </div>
         <span id="barra-copia" class="barra__copia" hidden
           >Cópia editada, sem validade fiscal</span
         >
+      </div>
+      <div class="barra__pastilhas">
+        <!-- Situação dos documentos de referência; abre a área deles. -->
+        <button
+          id="barra-documentos"
+          type="button"
+          class="barra__documentos"
+          title="Documentos de referência"
+        >
+          <span id="barra-st" class="pastilha"></span>
+          <span id="barra-tipi" class="pastilha"></span>
+        </button>
+        <!-- Troca rápida do perfil de colunas; a lista é montada no
+             renderer.ts a cada abertura. Na tela inicial o bloco vai para a
+             faixa de lá (renderer.ts, mostrarTela). -->
+        <div id="barra-perfil" class="barra__perfil">
+          <div class="perfil-rapido">
+            <button
+              id="btn-perfil"
+              type="button"
+              class="perfil-rapido__botao"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="menu-perfil"
+              title="Trocar o perfil de colunas"
+            >
+              <span class="perfil-rapido__rotulo">Perfil:</span>
+              <span id="perfil-nome" class="perfil-rapido__nome"></span>
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            <div
+              id="menu-perfil"
+              class="perfil-rapido__menu"
+              role="menu"
+              aria-label="Perfis"
+              hidden
+            ></div>
+          </div>
+        </div>
       </div>
       <!-- Grupos por função: navegação, modo, saída. Salvar é o único botão
            principal; os demais são secundários. Com pouco espaço, a saída
@@ -59,7 +78,7 @@
           <button id="btn-inicio" type="button" class="botao botao--claro">
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 11l8-7 8 7" />
-              <path d="M6 10v10h12V10" />
+              <path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" />
             </svg>
             <span>Início</span>
           </button>
@@ -146,11 +165,11 @@
             aria-keyshortcuts="Control+P"
           >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 9V4h10v5" />
+              <path d="M7 9V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v4" />
               <path
                 d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"
               />
-              <path d="M7 14h10v6H7z" />
+              <path d="M7 14h10v5a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
             </svg>
             <span>Imprimir</span>
           </button>
@@ -300,7 +319,9 @@
         <div class="inicio__principal">
           <div id="area-soltar" class="inicio__soltar">
             <svg class="inicio__icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 3h9l4 4v14H6z" />
+              <path
+                d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+              />
               <path d="M14 3v5h5" />
               <path d="M12 11v6" />
               <path d="M9.5 14.5L12 17l2.5-2.5" />
@@ -448,7 +469,9 @@
                 data-modo="conferencia"
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 5h16v14H4z" />
+                  <path
+                    d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
+                  />
                   <path d="M8 12h8" />
                   <path d="M13 9l3 3-3 3" />
                 </svg>
@@ -461,8 +484,10 @@
                 data-modo="conferencia"
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 8h12v12H8z" />
-                  <path d="M4 16V4h12" />
+                  <path
+                    d="M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"
+                  />
+                  <path d="M4 16V6a2 2 0 0 1 2-2h10" />
                 </svg>
                 <span>Nova janela</span>
               </button>
@@ -502,7 +527,9 @@
                 data-modo="danfe"
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 5h16v14H4z" />
+                  <path
+                    d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
+                  />
                   <path d="M8 12h8" />
                   <path d="M13 9l3 3-3 3" />
                 </svg>
@@ -515,8 +542,10 @@
                 data-modo="danfe"
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 8h12v12H8z" />
-                  <path d="M4 16V4h12" />
+                  <path
+                    d="M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"
+                  />
+                  <path d="M4 16V6a2 2 0 0 1 2-2h10" />
                 </svg>
                 <span>Nova janela</span>
               </button>
