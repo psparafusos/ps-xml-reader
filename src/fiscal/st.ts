@@ -31,6 +31,14 @@ export interface AliquotaInterna {
   numero: number | null;
 }
 
+/** Acordo interestadual de ST (protocolo ou convênio) de uma linha. */
+export interface ProtocoloST {
+  /** Texto da célula, como "PT 97/10" ou "CV 118/17". */
+  acordo: string;
+  /** UFs do acordo: as do título da coluna e as escritas na célula. */
+  ufs: string[];
+}
+
 export interface LinhaST {
   /** Nome da aba (Tintas, Autopecas...). */
   segmento: string;
@@ -49,6 +57,13 @@ export interface LinhaST {
   /** Todos os jogos, na ordem das colunas (o primeiro é o mvaPorAliquota). */
   jogosMva: JogoMva[];
   aliquotaInterna: AliquotaInterna | null;
+  /**
+   * Acordos com Sergipe das colunas de estados da aba ("AC, AL, AM, BA" no
+   * título, "PT 97/10" na célula). Lista vazia: a aba tem as colunas, mas a
+   * linha não tem acordo. null: a aba não tem essas colunas (ou a base foi
+   * gravada antes de elas serem lidas).
+   */
+  protocolos?: ProtocoloST[] | null;
   /** Início de validade ou período de vigência da linha, quando a aba tem. */
   inicioValidade: string | null;
   versao: string;
@@ -104,6 +119,8 @@ interface Colunas {
   descricao?: number;
   aliquotaInterna?: number;
   inicioValidade?: number;
+  /** Colunas de estados/protocolos, com as UFs do título. */
+  protocolos: { coluna: number; ufs: string[] }[];
   mva: { coluna: number; jogo: string; aliquota: AliquotaMva | 'unica' }[];
 }
 
@@ -282,6 +299,10 @@ function lerAba(
           ),
       ),
       inicioValidade: dataTexto(celula(colunas.inicioValidade)),
+      protocolos:
+        colunas.protocolos.length === 0
+          ? null
+          : protocolosDaLinha(colunas.protocolos, l),
       versao,
       vigencia,
       linhaPlanilha: i + 1,
@@ -338,8 +359,14 @@ function acharColunas(
     descricao: achar(/^descri/i),
     inicioValidade: achar(/vigencia|inicio de validade/i),
     aliquotaInterna: achar(/^aliq(uota|\.)?\s*interna/i),
+    protocolos: [],
     mva: [],
   };
+  for (let c = 0; c < titulos.length; c++) {
+    const t = titulos[c];
+    if (RE_TITULO_UFS.test(t) || /^UF\s*\d/i.test(t))
+      colunas.protocolos.push({ coluna: c, ufs: ufsDoTexto(t) });
+  }
   if (colunas.aliquotaInterna === undefined) {
     colunas.aliquotaInterna = achar(
       /especifica\S*\s+aliq(uota|\.)?\s*interna/i,
@@ -564,6 +591,34 @@ export function buscarST(
     candidatos,
     unico: candidatos.length === 1 ? candidatos[0].linha : null,
   };
+}
+
+const UFS = new Set(
+  'AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(
+    ' ',
+  ),
+);
+/** Título que é só uma lista de UFs ("AC, AL, AM, BA"). */
+const RE_TITULO_UFS = /^[A-Z]{2}(\s*[,;/e]\s*[A-Z]{2})*$/;
+
+function ufsDoTexto(t: string): string[] {
+  return [...new Set(t.match(/\b[A-Z]{2}\b/g) ?? [])].filter((u) => UFS.has(u));
+}
+
+function protocolosDaLinha(
+  colunas: Colunas['protocolos'],
+  l: (ValorCelula | undefined)[],
+): ProtocoloST[] {
+  const r: ProtocoloST[] = [];
+  for (const c of colunas) {
+    const acordo = texto(l[c.coluna]).replace(/\s+/g, ' ');
+    if (!acordo || /^[-–]+$/.test(acordo)) continue;
+    r.push({
+      acordo,
+      ufs: [...new Set([...c.ufs, ...ufsDoTexto(acordo)])],
+    });
+  }
+  return r;
 }
 
 function vazio(): MvaPorAliquota {
