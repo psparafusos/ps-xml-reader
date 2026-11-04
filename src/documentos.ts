@@ -21,12 +21,14 @@ import {
   shell,
   type WebContents,
 } from 'electron';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { analisarItem, type ItemFiscal } from './fiscal/analise';
 import {
   carregarBaseFiscal,
   importarDocumento,
+  removerDocumento,
   lerDocumentos,
   type BaseFiscal,
 } from './fiscal/base';
@@ -49,6 +51,19 @@ import {
   verificarTipi,
   type ResultadoVerificacao,
 } from './fiscal/online';
+import { lerTabelaST } from './fiscal/st';
+import { lerTipi, lerTipiPlanilha } from './fiscal/tipi';
+import { lerXlsx, type Aba } from './fiscal/xlsx';
+import {
+  leituraST,
+  leituraTipi,
+  lerLeitura,
+  mensagemArquivoErrado,
+  reconhecerArquivo,
+  segmentosIncompletosST,
+  type LeituraDocumento,
+  type Reconhecido,
+} from './leituraDocumentos';
 
 /** Tempo para baixar a planilha (a de ST tem ~1 MB; a TIPI, ~700 KB). */
 const TEMPO_DOWNLOAD_MS = 120_000;
@@ -101,6 +116,14 @@ async function estado(): Promise<EstadoDocumentos> {
   return {
     st: docs.st,
     tipi: docs.tipi,
+    leitura: {
+      st: await lerArquivoLeitura('st', docs.st),
+      tipi: await lerArquivoLeitura('tipi', docs.tipi),
+    },
+    recusado: {
+      st: !docs.st && recusado.has('st'),
+      tipi: !docs.tipi && recusado.has('tipi'),
+    },
     preferencias: await lerPreferencias(),
     verificacao: {
       st: verificacao.get('st') ?? null,
@@ -216,13 +239,127 @@ function avisarJanelas(exceto?: WebContents): void {
 const mensagem = (erro: unknown) =>
   erro instanceof Error ? erro.message : String(erro);
 
-/** Importa e responde; formato não reconhecido não toca no documento anterior. */
+// ---------- importação: reconhecer, conferir, confirmar o parcial ----------
+
+const arqLeitura = (tipo: TipoDocumento) => `${tipo}-leitura.json`;
+
+/** Última tentativa recusada de cada documento (vermelho "incompatível" se nada carregado). */
+const recusado = new Set<TipoDocumento>();
+
+interface Pendente {
+  tipo: TipoDocumento;
+  dados: Uint8Array;
+  nome: string;
+  servidor: InfoDocumento['servidor'];
+}
+/** Planilhas com segmentos não lidos, esperando a pessoa confirmar. */
+const pendentes = new Map<string, Pendente>();
+
+/** Lê o arquivo sem gravar nada: o que ele parece e o resumo da leitura. */
+function lerSemGravar(
+  tipo: TipoDocumento,
+  dados: Uint8Array,
+): {
+  reconhecido: Reconhecido;
+  relatorio: (() => LeituraDocumento) | null;
+  segmentosIncompletos: string[];
+} {
+  const ehZip = dados.length > 4 && dados[0] === 0x50 && dados[1] === 0x4b;
+  let abas: Aba[] | null = null;
+  if (ehZip) {
+    try {
+      abas = lerXlsx(dados);
+    } catch {
+      abas = null;
+    }
+  }
+  const reconhecido = reconhecerArquivo(dados, abas);
+  if (tipo === 'st') {
+    if (!abas)
+      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+    const st = lerTabelaST(abas);
+    if (st.linhas.length === 0)
+      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+    return {
+      reconhecido,
+      relatorio: () => leituraST(st.relatorio, '', ''),
+      segmentosIncompletos: segmentosIncompletosST(st.relatorio),
+    };
+  }
+  try {
+    const tipi = abas
+      ? lerTipiPlanilha(abas)
+      : lerTipi(new TextDecoder().decode(dados));
+    if (tipi.relatorio.totalNcm === 0)
+      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+    return {
+      reconhecido,
+      relatorio: () => leituraTipi(tipi.relatorio, '', ''),
+      segmentosIncompletos: [],
+    };
+  } catch {
+    return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+  }
+}
+
+/**
+ * Importa e responde. Arquivo de outro tipo ou sem nada legível: recusa, diz
+ * o que ele parece e o que fazer, e não usa nenhum dado (o documento anterior
+ * fica). Planilha de ST com segmentos não lidos: só ativa depois de a pessoa
+ * confirmar (`confirmado`).
+ */
 async function importar(
   tipo: TipoDocumento,
   dados: Uint8Array,
   nome: string,
   servidor: InfoDocumento['servidor'],
+  confirmado = false,
 ): Promise<ResultadoImportarDocumento> {
+  const recusar = async (m: {
+    mensagem: string;
+    oQueFazer: string;
+  }): Promise<ResultadoImportarDocumento> => {
+    if (!lerDocumentos(pastaDocumentos())[tipo]) recusado.add(tipo);
+    avisarJanelas();
+    return {
+      status: 'erro',
+      formato: true,
+      mensagem: `${nome}: ${m.mensagem} Nenhum dado dele foi usado. ${anterior(tipo)}`,
+      oQueFazer: m.oQueFazer,
+      estado: await estado(),
+    };
+  };
+  let leitura: ReturnType<typeof lerSemGravar>;
+  try {
+    leitura = lerSemGravar(tipo, dados);
+  } catch (erro) {
+    console.error(erro);
+    leitura = {
+      reconhecido: 'texto',
+      relatorio: null,
+      segmentosIncompletos: [],
+    };
+  }
+  const outroTipo =
+    leitura.reconhecido !== tipo &&
+    leitura.reconhecido !== 'planilha' &&
+    leitura.reconhecido !== 'texto';
+  if (outroTipo || !leitura.relatorio)
+    return recusar(mensagemArquivoErrado(tipo, leitura.reconhecido));
+
+  if (leitura.segmentosIncompletos.length > 0 && !confirmado) {
+    const token = randomUUID();
+    pendentes.clear();
+    pendentes.set(token, { tipo, dados, nome, servidor });
+    return {
+      status: 'parcial',
+      token,
+      arquivo: nome,
+      segmentos: leitura.segmentosIncompletos,
+      estado: await estado(),
+    };
+  }
+
   try {
     const info = importarDocumento(
       tipo,
@@ -232,20 +369,54 @@ async function importar(
       new Date(),
       servidor,
     );
+    const resumo: LeituraDocumento = {
+      ...leitura.relatorio(),
+      arquivo: info.arquivo,
+      importadoEm: info.importadoEm,
+    };
+    await writeFile(
+      path.join(pastaDocumentos(), arqLeitura(tipo)),
+      `${JSON.stringify(resumo, null, 2)}\n`,
+      'utf8',
+    );
+    recusado.delete(tipo);
     avisarJanelas();
     return { status: 'ok', info, estado: await estado() };
   } catch (erro) {
-    const formato = erro instanceof ErroFormato;
-    if (!formato) console.error(erro);
+    if (erro instanceof ErroFormato)
+      return recusar(mensagemArquivoErrado(tipo, leitura.reconhecido));
+    console.error(erro);
     return {
       status: 'erro',
-      formato,
-      mensagem: formato
-        ? `${nome}: formato não reconhecido. ${mensagem(erro)} ${anterior(tipo)}`
-        : `Não foi possível importar ${nome}: ${mensagem(erro)}`,
+      formato: false,
+      mensagem: `Não foi possível importar ${nome}: ${mensagem(erro)}`,
       estado: await estado(),
     };
   }
+}
+
+/** Resumo da leitura do documento carregado; importação antiga, sem arquivo: calcula e grava. */
+async function lerArquivoLeitura(
+  tipo: TipoDocumento,
+  info: InfoDocumento | null,
+): Promise<LeituraDocumento | null> {
+  if (!info) return null;
+  const caminho = path.join(pastaDocumentos(), arqLeitura(tipo));
+  try {
+    const l = lerLeitura(JSON.parse(await readFile(caminho, 'utf8')), info);
+    if (l) return l;
+  } catch {
+    // Sem arquivo ainda: segue para calcular.
+  }
+  const base = carregarBaseFiscal(pastaDocumentos());
+  const relatorio =
+    tipo === 'st'
+      ? base.st && leituraST(base.st.relatorio, info.arquivo, info.importadoEm)
+      : base.tipi &&
+        leituraTipi(base.tipi.relatorio, info.arquivo, info.importadoEm);
+  if (!relatorio) return null;
+  await writeFile(caminho, `${JSON.stringify(relatorio, null, 2)}\n`, 'utf8');
+  return relatorio;
 }
 
 function anterior(tipo: TipoDocumento): string {
@@ -384,6 +555,49 @@ export function registrarDocumentos(): void {
         };
       }
       return importar(tipo, dados, path.basename(filePaths[0]), null);
+    },
+  );
+
+  // Planilha com segmentos não lidos: a pessoa confirmou que pode usar o resto.
+  ipcMain.handle(
+    'confirmar-parcial',
+    async (_event, token: unknown): Promise<ResultadoImportarDocumento> => {
+      const p = typeof token === 'string' ? pendentes.get(token) : undefined;
+      if (!p) return { status: 'cancelado' };
+      pendentes.delete(token as string);
+      const r = await importar(p.tipo, p.dados, p.nome, p.servidor, true);
+      const v = verificacao.get(p.tipo);
+      if (r.status === 'ok' && p.servidor && v?.estado === 'nova') {
+        verificacao.set(p.tipo, {
+          ...v,
+          estado: 'atualizado',
+          detalhe: 'Baixado e importado agora.',
+          disponivel: null,
+        });
+        r.estado = await estado();
+      }
+      return r;
+    },
+  );
+
+  ipcMain.handle('cancelar-parcial', (_event, token: unknown) => {
+    if (typeof token === 'string') pendentes.delete(token);
+  });
+
+  // Remover: o documento volta a "faltando" (a ferramenta pede o arquivo).
+  ipcMain.handle(
+    'remover-documento',
+    async (_event, tipo: unknown): Promise<EstadoDocumentos> => {
+      if (ehTipo(tipo)) {
+        removerDocumento(tipo, pastaDocumentos());
+        await rm(path.join(pastaDocumentos(), arqLeitura(tipo)), {
+          force: true,
+        });
+        verificacao.delete(tipo);
+        recusado.delete(tipo);
+        avisarJanelas();
+      }
+      return estado();
     },
   );
 

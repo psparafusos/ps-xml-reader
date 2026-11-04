@@ -1,22 +1,27 @@
 // Área "Documentos de referência": o que o app usa para a análise fiscal e
 // que a pessoa carrega (o app vem sem nenhum). Um cartão por documento, com
-// a situação, a versão e a vigência, a data da importação, as quantidades
-// lidas e o relatório da leitura; embaixo, as decisões lembradas da
+// o semáforo, o arquivo em uso (e o X para remover), a versão e a vigência,
+// a data da importação, as quantidades lidas e o relatório da leitura
+// (problemas de leitura separados do ignorado de propósito). Arquivo errado
+// é recusado com o que ele parece e o que fazer; planilha com segmentos não
+// lidos só entra com a confirmação da pessoa; embaixo, as decisões lembradas da
 // ferramenta "ST, MVA e CFOP" (com Apagar) e a verificação online (desligada
 // por padrão). Abre pelo rodapé do painel de conferência e pela tela
 // inicial. Tudo passa pelo processo principal (src/documentos.ts).
 
-import { botao, el, icone } from './dom';
+import { botao, el, icone, semaforo } from './dom';
 import {
   chaveDecisao,
   ROTULO_FINALIDADE,
   type DecisaoLembrada,
 } from './fiscal/entrada';
+import { perguntar } from './dialogos';
+import { NOME_DOCUMENTO } from './fiscal/documentos';
 import {
-  NOME_DOCUMENTO,
-  situacaoDocumento,
-  type SituacaoDocumento,
-} from './fiscal/documentos';
+  problemasPorAba,
+  rotuloDocumento,
+  semaforoDocumento,
+} from './leituraDocumentos';
 
 let dialogo: HTMLDialogElement | null = null;
 let redesenhar: ((e: EstadoDocumentos) => void) | null = null;
@@ -29,12 +34,6 @@ export function areaDocumentosAberta(): boolean {
 export function atualizarAreaDocumentos(estado: EstadoDocumentos): void {
   redesenhar?.(estado);
 }
-
-const ROTULO_SITUACAO: Record<SituacaoDocumento, string> = {
-  carregado: 'Carregado',
-  faltando: 'Faltando',
-  'com-pontos': 'Carregado com pontos não entendidos',
-};
 
 const PARA_QUE: Record<TipoDocumento, string> = {
   st: 'Arquivo .xlsx do Portal Nacional da Substituição Tributária (CONFAZ), página de Sergipe. Necessária para a ferramenta "ST, MVA e CFOP": diz se o produto tem ST em Sergipe e qual MVA usar.',
@@ -66,8 +65,16 @@ export function abrirAreaDocumentos(): void {
     return;
   }
   let estado: EstadoDocumentos | null = null;
-  /** Erro da última importação, por documento (formato não reconhecido). */
-  const erros = new Map<TipoDocumento, string>();
+  /** Erro da última importação, por documento: o que houve e o que fazer. */
+  const erros = new Map<
+    TipoDocumento,
+    { mensagem: string; oQueFazer?: string }
+  >();
+  /** Planilha com segmentos não lidos, esperando a confirmação. */
+  const parciais = new Map<
+    TipoDocumento,
+    { token: string; arquivo: string; segmentos: string[] }
+  >();
   /** Relatórios abertos. */
   const relatorios = new Set<TipoDocumento>();
   let ocupado = false;
@@ -136,14 +143,21 @@ export function abrirAreaDocumentos(): void {
     estado = r.estado;
     if (r.status === 'ok') {
       erros.delete(tipo);
-      const s = situacaoDocumento(r.info);
-      status.textContent =
-        s === 'com-pontos'
-          ? `${NOME_DOCUMENTO[tipo]} carregada, com ${r.info.totalNaoEntendidos} ${r.info.totalNaoEntendidos === 1 ? 'ponto não entendido' : 'pontos não entendidos'}.`
-          : `${NOME_DOCUMENTO[tipo]} carregada.`;
-      if (s === 'com-pontos') relatorios.add(tipo);
+      parciais.delete(tipo);
+      const rotulo = rotuloDocumento(r.info, r.estado.leitura[tipo]);
+      status.textContent = `${NOME_DOCUMENTO[tipo]}: ${rotulo.texto.toLowerCase()}.`;
+      if (rotulo.cor !== 'verde') relatorios.add(tipo);
+    } else if (r.status === 'parcial') {
+      erros.delete(tipo);
+      parciais.set(tipo, {
+        token: r.token,
+        arquivo: r.arquivo,
+        segmentos: r.segmentos,
+      });
+      status.textContent = '';
     } else {
-      erros.set(tipo, r.mensagem);
+      parciais.delete(tipo);
+      erros.set(tipo, { mensagem: r.mensagem, oQueFazer: r.oQueFazer });
       status.textContent = '';
     }
   }
@@ -159,45 +173,50 @@ export function abrirAreaDocumentos(): void {
     );
   }
 
-  function relatorio(info: InfoDocumento): HTMLElement {
-    const pontos =
-      info.totalNaoEntendidos === 0
-        ? el('p', 'documento__vazio', 'Nenhum ponto não entendido.')
-        : el(
-            'div',
-            'documento__tabela',
+  function tabelaProblemas(problemas: LeituraDocumento['problemas']) {
+    return el(
+      'div',
+      'documento__tabela',
+      el(
+        'table',
+        '',
+        el(
+          'thead',
+          '',
+          el(
+            'tr',
+            '',
+            el('th', '', 'Célula'),
+            el('th', '', 'Motivo'),
+            el('th', '', 'Conteúdo'),
+          ),
+        ),
+        el(
+          'tbody',
+          '',
+          ...problemas.map((p) =>
             el(
-              'table',
-              'tabela-simples',
-              el(
-                'thead',
-                '',
-                el(
-                  'tr',
-                  '',
-                  el('th', '', 'Aba'),
-                  el('th', '', 'Célula'),
-                  el('th', '', 'Motivo'),
-                  el('th', '', 'Conteúdo'),
-                ),
-              ),
-              el(
-                'tbody',
-                '',
-                ...info.naoEntendidos.map((p) =>
-                  el(
-                    'tr',
-                    '',
-                    el('td', '', p.aba || '-'),
-                    el('td', '', p.celula || '-'),
-                    el('td', '', p.motivo),
-                    el('td', 'documento__valor', p.valor || '-'),
-                  ),
-                ),
-              ),
+              'tr',
+              '',
+              el('td', '', p.celula || '-'),
+              el('td', '', p.motivo),
+              el('td', 'documento__valor', p.valor || '-'),
             ),
-          );
-    const total = info.totalNaoEntendidos;
+          ),
+        ),
+      ),
+    );
+  }
+
+  /** Relatório: problemas de leitura (por aba) separados do ignorado de propósito. */
+  function relatorio(tipo: TipoDocumento, l: LeituraDocumento | null) {
+    if (!l)
+      return el(
+        'section',
+        'documento__relatorio',
+        el('p', 'documento__nota', 'Relatório da leitura indisponível.'),
+      );
+    const total = l.totalProblemas;
     return el(
       'section',
       'documento__relatorio',
@@ -205,34 +224,168 @@ export function abrirAreaDocumentos(): void {
         'h4',
         'documento__subtitulo',
         total === 0
-          ? 'Relatório da leitura'
-          : `Relatório da leitura: ${total} ${total === 1 ? 'ponto não entendido' : 'pontos não entendidos'}`,
+          ? 'Problemas de leitura: nenhum'
+          : `Problemas de leitura: ${total}`,
       ),
       total > 0 &&
         el(
           'p',
           'documento__nota',
-          'O que foi entendido está carregado; os pontos abaixo ficaram de fora.',
+          'Células que não deu para converter. O resto do documento está carregado.',
         ),
-      pontos,
-      total > info.naoEntendidos.length &&
+      ...problemasPorAba(l.problemas).map(([aba, ps]) =>
+        el(
+          'div',
+          'documento__grupo',
+          el(
+            'h5',
+            'documento__aba',
+            aba || (tipo === 'tipi' ? 'TIPI' : 'Sem aba'),
+            el('span', 'documento__quando', ` (${ps.length})`),
+          ),
+          tabelaProblemas(ps),
+        ),
+      ),
+      total > l.problemas.length &&
         el(
           'p',
           'documento__nota',
-          `Mostrando ${info.naoEntendidos.length} de ${total}.`,
+          `Mostrando ${l.problemas.length} de ${total}.`,
         ),
-      info.observacoes.length > 0 &&
+      l.segmentosIncompletos.length > 0 &&
         el(
           'div',
-          '',
-          el('h5', 'documento__subtitulo', 'Observações'),
+          'documento__grupo',
+          el('h4', 'documento__subtitulo', 'Segmentos não lidos'),
+          el(
+            'p',
+            'documento__nota',
+            `${l.segmentosIncompletos.join(', ')}. Usado assim por sua confirmação: produtos desses segmentos não são achados nesta planilha.`,
+          ),
+        ),
+      l.ignorados.length > 0 &&
+        el(
+          'div',
+          'documento__grupo',
+          el('h4', 'documento__subtitulo', 'Ignorado de propósito'),
           el(
             'ul',
             'documento__observacoes',
-            ...info.observacoes.map((o) => el('li', '', o)),
+            ...l.ignorados.map((g) =>
+              el(
+                'li',
+                '',
+                `${g.motivo}: ${g.total.toLocaleString('pt-BR')}`,
+                g.onde.length > 0 &&
+                  el(
+                    'span',
+                    'documento__quando',
+                    ` (${g.onde.join(', ')}${g.total > g.onde.length && tipo === 'tipi' ? ', ...' : ''})`,
+                  ),
+              ),
+            ),
+          ),
+        ),
+      l.observacoes.length > 0 &&
+        el(
+          'div',
+          'documento__grupo',
+          el('h4', 'documento__subtitulo', 'Observações'),
+          el(
+            'ul',
+            'documento__observacoes',
+            ...l.observacoes.map((o) => el('li', '', o)),
           ),
         ),
     );
+  }
+
+  /** Arquivo de outro tipo ou ilegível: o que houve e o que fazer, em destaque. */
+  function caixaErro(erro: { mensagem: string; oQueFazer?: string }) {
+    const caixa = el(
+      'div',
+      'documento__erro',
+      el('p', '', el('strong', '', erro.mensagem)),
+      erro.oQueFazer && el('p', '', `O que fazer: ${erro.oQueFazer}`),
+    );
+    caixa.setAttribute('role', 'alert');
+    return caixa;
+  }
+
+  /** Segmentos não lidos: só ativa a planilha com a confirmação marcada. */
+  function caixaParcial(
+    tipo: TipoDocumento,
+    p: { token: string; arquivo: string; segmentos: string[] },
+    temAnterior: boolean,
+  ): HTMLElement {
+    const marca = el('input', '');
+    marca.type = 'checkbox';
+    marca.id = `parcial-${tipo}`;
+    marca.dataset.foco = `parcial-${tipo}`;
+    const usar = botao(
+      'botao botao--principal botao--pequeno',
+      el('span', '', 'Usar o resto'),
+    );
+    usar.disabled = true;
+    marca.addEventListener('change', () => {
+      usar.disabled = !marca.checked;
+    });
+    const cancelar = botao(
+      'botao botao--claro botao--pequeno',
+      el('span', '', 'Cancelar'),
+    );
+    usar.addEventListener(
+      'click',
+      () =>
+        void acao(`atualizar-${tipo}`, async () => {
+          aoImportar(tipo, await window.psApi.confirmarParcial(p.token));
+        }),
+    );
+    cancelar.addEventListener(
+      'click',
+      () =>
+        void acao(`atualizar-${tipo}`, async () => {
+          await window.psApi.cancelarParcial(p.token);
+          parciais.delete(tipo);
+          status.textContent = `${p.arquivo} não foi usado.`;
+        }),
+    );
+    const rotulo = el(
+      'label',
+      'documentos__opcao',
+      marca,
+      el(
+        'span',
+        '',
+        'Os segmentos com problema não afetam meu trabalho. Usar o resto.',
+      ),
+    );
+    rotulo.htmlFor = marca.id;
+    const caixa = el(
+      'div',
+      'documento__parcial',
+      el(
+        'p',
+        '',
+        el(
+          'strong',
+          '',
+          `${p.arquivo}: ${p.segmentos.length === 1 ? 'um segmento não foi lido' : `${p.segmentos.length} segmentos não foram lidos`}.`,
+        ),
+        temAnterior
+          ? ' Ainda não está em uso; o documento anterior continua valendo.'
+          : ` Ainda não está em uso; ${NOME_DOCUMENTO[tipo]} continua faltando.`,
+      ),
+      el(
+        'ul',
+        'documento__observacoes',
+        ...p.segmentos.map((x) => el('li', '', x)),
+      ),
+      rotulo,
+      el('div', 'documento__acoes', usar, cancelar),
+    );
+    caixa.setAttribute('role', 'alert');
+    return caixa;
   }
 
   function verificacao(
@@ -292,7 +445,10 @@ export function abrirAreaDocumentos(): void {
 
   function cartao(tipo: TipoDocumento, e: EstadoDocumentos): HTMLElement {
     const info = e[tipo];
-    const s = situacaoDocumento(info);
+    const leitura = e.leitura[tipo];
+    const r = e.preferencias.verificacaoOnline ? e.verificacao[tipo] : null;
+    const rotulo = rotuloDocumento(info, leitura, e.recusado[tipo]);
+    const sinal = semaforoDocumento(info, leitura, r, e.recusado[tipo]);
     const tituloId = `documento-${tipo}`;
     const btnAtualizar = botao(
       info
@@ -336,8 +492,52 @@ export function abrirAreaDocumentos(): void {
           ?.focus();
       });
     }
+    // Nome do arquivo em uso e o X que tira o documento da base.
+    let arquivo: HTMLElement | false = false;
+    if (info) {
+      const remover = botao(
+        'documento__remover',
+        icone('M6 6l12 12', 'M18 6L6 18'),
+      );
+      remover.dataset.foco = `remover-${tipo}`;
+      remover.title = `Remover ${info.arquivo}`;
+      remover.setAttribute(
+        'aria-label',
+        `Remover ${NOME_DOCUMENTO[tipo]} (${info.arquivo})`,
+      );
+      remover.addEventListener(
+        'click',
+        () =>
+          void acao(`atualizar-${tipo}`, async () => {
+            const resposta = await perguntar({
+              titulo: `Remover ${NOME_DOCUMENTO[tipo]}?`,
+              texto:
+                tipo === 'st'
+                  ? `${info.arquivo} sai da base. A ferramenta "ST, MVA e CFOP" volta a pedir a planilha até você carregar outra.`
+                  : `${info.arquivo} sai da base. A análise passa a rodar sem conferir NCM e IPI até você carregar outra.`,
+              botoes: [
+                { rotulo: 'Cancelar', valor: 'cancelar', principal: true },
+                { rotulo: 'Remover', valor: 'remover' },
+              ],
+              cancelar: 'cancelar',
+            });
+            if (resposta !== 'remover') return;
+            estado = await window.psApi.removerDocumento(tipo);
+            relatorios.delete(tipo);
+            erros.delete(tipo);
+            status.textContent = `${NOME_DOCUMENTO[tipo]} removida.`;
+          }),
+      );
+      arquivo = el(
+        'p',
+        'documento__arquivo',
+        el('span', '', 'Arquivo: '),
+        el('strong', '', info.arquivo),
+        remover,
+      );
+    }
     const erro = erros.get(tipo);
-    const r = e.preferencias.verificacaoOnline ? e.verificacao[tipo] : null;
+    const parcial = parciais.get(tipo);
     const versao = info
       ? tipo === 'st'
         ? info.versao
@@ -357,17 +557,23 @@ export function abrirAreaDocumentos(): void {
     h.id = tituloId;
     const artigo = el(
       'article',
-      `documento documento--${s}`,
+      `documento documento--${rotulo.cor}`,
       el(
         'header',
         'documento__cabecalho',
         h,
         el(
-          'span',
-          `documento__situacao documento__situacao--${s}`,
-          ROTULO_SITUACAO[s],
+          'div',
+          'documento__nome',
+          semaforo(sinal.cor, sinal.texto),
+          el(
+            'span',
+            `documento__situacao documento__situacao--${rotulo.cor}`,
+            rotulo.texto,
+          ),
         ),
       ),
+      arquivo,
       el('p', 'documento__para-que', PARA_QUE[tipo]),
       info &&
         el(
@@ -378,7 +584,7 @@ export function abrirAreaDocumentos(): void {
             linhaInfo(tipo === 'st' ? 'Vigência' : 'Atualização', vigencia),
           linhaInfo(
             'Importado',
-            `${dataHora(info.importadoEm)}, de ${info.arquivo} (${tamanho(info.tamanhoArquivo)})`,
+            `${dataHora(info.importadoEm)} (${tamanho(info.tamanhoArquivo)})`,
           ),
           info.servidor &&
             linhaInfo(
@@ -400,10 +606,11 @@ export function abrirAreaDocumentos(): void {
               .join(' · '),
           ),
         ),
-      erro && el('p', 'documento__erro', erro),
+      erro && caixaErro(erro),
+      parcial && caixaParcial(tipo, parcial, info !== null),
       r && verificacao(tipo, r),
       el('div', 'documento__acoes', btnAtualizar, btnRelatorio),
-      info && aberto && relatorio(info),
+      info && aberto && relatorio(tipo, leitura),
     );
     artigo.setAttribute('aria-labelledby', tituloId);
     return artigo;

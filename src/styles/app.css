@@ -2939,7 +2939,7 @@ body.pdf-previa #pdf-previa {
   border-radius: var(--raio);
 }
 
-.documento--faltando {
+.documento--vermelha {
   border-style: dashed;
 }
 
@@ -2970,17 +2970,17 @@ body.pdf-previa #pdf-previa {
   font-weight: var(--peso-forte);
 }
 
-.documento__situacao--carregado {
+.documento__situacao--verde {
   background: var(--cor-ok);
   color: var(--cor-texto-sobre-ok);
 }
 
-.documento__situacao--com-pontos {
+.documento__situacao--amarela {
   background: var(--cor-destaque);
   color: var(--cor-texto-sobre-destaque);
 }
 
-.documento__situacao--faltando {
+.documento__situacao--vermelha {
   background: var(--cor-alerta-suave);
   color: var(--aviso-erro-fundo);
 }
@@ -3447,4 +3447,218 @@ body.pdf-previa #pdf-previa {
 
 .st__rodape > .painel__grupo {
   margin-left: auto;
+}
+
+/* Tabela de itens mais larga que o conteúdo: a seção cresce para os lados
+   (medido em renderer.ts, ajustarLarguraItens) antes de a tabela rolar. */
+@media screen {
+  #nota .secao--itens {
+    margin-left: calc(-1 * var(--expandir-esq, 0px));
+    margin-right: calc(-1 * var(--expandir-dir, 0px));
+  }
+}
+
+/* ---------- semáforo (documentos de referência) ---------- */
+
+/* Bolinha com o texto curto ao lado: a cor nunca vem sozinha. */
+.semaforo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.semaforo__bolinha {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgb(0 0 0 / 0.35);
+  border-radius: 50%;
+}
+
+.semaforo--verde .semaforo__bolinha {
+  background: var(--cor-ok);
+}
+
+.semaforo--amarela .semaforo__bolinha {
+  background: var(--cor-destaque);
+}
+
+.semaforo--vermelha .semaforo__bolinha {
+  background: var(--aviso-erro-fundo);
+}
+
+.semaforo__texto {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-medio);
+}
+
+.conferencia__base {
+  flex-wrap: wrap;
+}
+
+.conferencia__base-sep {
+  color: var(--cor-texto);
+}
+
+.documento__nome {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+}
+
+.documento__arquivo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-1);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.documento__arquivo strong {
+  color: var(--cor-texto-forte);
+}
+
+.documento__remover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: var(--esp-1);
+  padding: 0;
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--raio);
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  cursor: pointer;
+}
+
+.documento__remover .icone {
+  width: 14px;
+  height: 14px;
+}
+
+.documento__remover:hover {
+  border-color: var(--aviso-erro-fundo);
+  background: var(--cor-alerta-suave);
+}
+
+.documento__remover:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
+}
+
+.documento__erro {
+  display: grid;
+  gap: var(--esp-1);
+}
+
+.documento__parcial {
+  display: grid;
+  gap: var(--esp-2);
+  padding: var(--esp-2) var(--esp-3);
+  border-left: var(--borda-destaque) solid var(--cor-destaque);
+  background: var(--cor-destaque-suave);
+  font-size: var(--fs-sm);
+}
+
+.documento__grupo {
+  display: grid;
+  gap: var(--esp-1);
+}
+
+.documento__aba {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+  font-weight: var(--peso-forte);
+}
+
+/* ---------- resumo dos CFOPs de entrada (painel) ---------- */
+
+.conferencia__resumo-cfop {
+  display: grid;
+  gap: var(--esp-1);
+  margin-top: var(--esp-2);
+  padding: var(--esp-2);
+  border: var(--borda) solid var(--cor-borda-suave);
+  border-radius: var(--raio);
+}
+
+.conferencia__cfops,
+.conferencia__cfop-itens {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conferencia__cfop {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: 2px var(--esp-2);
+  border: var(--borda) solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.conferencia__cfop:hover {
+  border-color: var(--cor-borda-suave);
+  background: var(--cor-destaque-suave);
+}
+
+.conferencia__cfop .icone {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+}
+
+/* Poucos itens com o valor: costuma ser o item que escapou. */
+.conferencia__cfop--destaque {
+  border-color: var(--aviso-erro-fundo);
+  background: var(--cor-alerta-suave);
+}
+
+.conferencia__cfop-itens {
+  margin: 2px 0 var(--esp-1) var(--esp-3);
+}
+
+.conferencia__cfop-item {
+  display: flex;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: 2px var(--esp-1);
+  border: 0;
+  border-radius: var(--raio);
+  background: none;
+  color: var(--cor-texto);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.conferencia__cfop-item:hover {
+  background: var(--cor-zebra);
+  color: var(--cor-texto-forte);
+}
+
+.conferencia__cfop-num {
+  min-width: 2.5em;
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-forte);
+  text-align: right;
+}
+
+.conferencia__cfop-itens[hidden] {
+  display: none;
 }

@@ -7,7 +7,7 @@
 // lado da nota, sem empurrá-la, e lembra se a pessoa recolheu. Janela
 // estreita: começa recolhido e abre por cima da nota.
 
-import { botao, el, icone } from './dom';
+import { botao, el, icone, semaforo } from './dom';
 import { criarIndicador, type Indicador } from './indicador';
 import type { Conferido } from './nfe/avisos';
 import {
@@ -23,11 +23,12 @@ import {
   type FerramentaJanela,
   type PreviaFerramenta,
 } from './nfe/ferramentas';
+import type { ResumoCfop } from './nfe/resumoCfop';
 
 export interface AcoesPainel {
   abrirConferido(c: Conferido): void;
   /** Rola a tabela até o item e destaca a linha por um instante. */
-  irParaItem(nItem: string): void;
+  irParaItem(nItem: string, campo?: 'qtd' | 'cfop'): void;
   /** Nota aberta e anotações, para as ferramentas. */
   contexto(): ContextoFerramenta | null;
   /** Ferramenta aplicou mudanças: a tela redesenha o que mudou. */
@@ -36,6 +37,15 @@ export interface AcoesPainel {
   abrirDocumentos(): void;
   /** Ferramentas com janela própria, antes das de prévia simples. */
   ferramentasJanela(): readonly FerramentaJanela[];
+  /** CFOPs de entrada da nota (coluna "CFOP de entrada"); null sem a coluna. */
+  resumoCfop(): ResumoCfop | null;
+}
+
+/** Um documento no rodapé do painel: sigla, cor e texto curto. */
+export interface SinalBase {
+  sigla: string;
+  cor: 'verde' | 'amarela' | 'vermelha';
+  texto: string;
 }
 
 export interface PainelConferencia {
@@ -43,13 +53,12 @@ export interface PainelConferencia {
   desenhar(resumo: ResumoConferencia | null): void;
   /** Nota nova: na janela estreita, volta a começar recolhido. */
   novaNota(): void;
+  /** Redesenha a seção Ferramentas (o resumo de CFOPs muda enquanto a pessoa digita). */
+  atualizarFerramentas(): void;
   /** Recalcula se cabe ao lado (tamanho da janela, zoom, tela trocada). */
   ajustarLayout(): void;
-  /**
-   * Situação dos documentos de referência, no rodapé ("Base: ST ✓ · TIPI ✓");
-   * completa: false quando falta algum (o rodapé fica em destaque).
-   */
-  definirBase(texto: string, completa: boolean): void;
+  /** Semáforo de cada documento de referência, no rodapé ("● ST ok · ● TIPI falta"). */
+  definirBase(itens: SinalBase[]): void;
   indicador: Indicador;
 }
 
@@ -93,7 +102,7 @@ export function criarPainel(
   const abertas = new Set<string>();
   /** A nota aberta ainda não foi desenhada com o resumo. */
   let primeiroResumo = true;
-  let base: { texto: string; completa: boolean } | null = null;
+  let base: SinalBase[] | null = null;
 
   const corpo = el('div', 'conferencia__corpo');
   corpo.id = 'conferencia-corpo';
@@ -332,6 +341,7 @@ export function criarPainel(
                 ...acoes.ferramentasJanela().map(linhaFerramentaJanela),
                 ...FERRAMENTAS.map(linhaFerramenta),
               ),
+              resumoCfops(),
             ),
           ]
         : []),
@@ -339,16 +349,111 @@ export function criarPainel(
     );
   }
 
+  // ---------- resumo dos CFOPs de entrada ----------
+
+  /** Valor com a lista de itens aberta (até trocar de nota). */
+  let cfopAberto: string | null = null;
+
+  /**
+   * "2102: 194 itens · 2403: 2 itens", da coluna CFOP de entrada. Clicar num
+   * valor lista os itens; clicar num item leva à linha (como a divergência
+   * de quantidade). Valores com poucos itens ficam em destaque.
+   */
+  function resumoCfops(): HTMLElement | false {
+    const r = acoes.resumoCfop();
+    if (!r) return false;
+    if (cfopAberto && !r.grupos.some((g) => g.valor === cfopAberto))
+      cfopAberto = null;
+    const lista = el('ul', 'conferencia__cfops');
+    for (const g of r.grupos) {
+      const aberto = cfopAberto === g.valor;
+      const listaId = `conferencia-cfop-${g.valor.replace(/\W/g, '_')}`;
+      const b = botao(
+        `conferencia__cfop${g.destaque ? ' conferencia__cfop--destaque' : ''}`,
+        el('strong', '', g.valor),
+        el(
+          'span',
+          '',
+          `${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}`,
+        ),
+        g.destaque && el('span', 'conferencia__so-leitor', ', poucos itens'),
+        icone(aberto ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'),
+      );
+      b.setAttribute('aria-expanded', String(aberto));
+      b.setAttribute('aria-controls', listaId);
+      b.dataset.cfop = g.valor;
+      b.title = g.destaque
+        ? 'Poucos itens com este CFOP: confira se é isso mesmo'
+        : 'Ver os itens';
+      b.addEventListener('click', () => {
+        cfopAberto = aberto ? null : g.valor;
+        desenharCorpo(resumoAtual);
+        corpo
+          .querySelector<HTMLElement>(`[data-cfop="${CSS.escape(g.valor)}"]`)
+          ?.focus();
+      });
+      const itens = el(
+        'ul',
+        'conferencia__cfop-itens',
+        ...g.itens.map((i) => {
+          const item = botao(
+            'conferencia__cfop-item',
+            el('span', 'conferencia__cfop-num', i.nItem),
+            el('span', '', i.xProd),
+          );
+          item.title = `Ir para o item ${i.nItem} na tabela`;
+          item.addEventListener('click', () => {
+            if (!aoLado) recolher(false);
+            acoes.irParaItem(i.nItem, 'cfop');
+          });
+          return el('li', '', item);
+        }),
+      );
+      itens.id = listaId;
+      itens.hidden = !aberto;
+      lista.append(el('li', '', b, itens));
+    }
+    return el(
+      'div',
+      'conferencia__resumo-cfop',
+      el('span', 'conferencia__linha-titulo', 'CFOPs de entrada'),
+      r.grupos.length === 0
+        ? el(
+            'p',
+            'conferencia__pendencia-detalhe',
+            'Nenhum item com CFOP de entrada preenchido.',
+          )
+        : lista,
+      r.grupos.length > 0 &&
+        r.vazios > 0 &&
+        el(
+          'p',
+          'conferencia__pendencia-detalhe',
+          `${r.vazios} ${r.vazios === 1 ? 'item sem CFOP' : 'itens sem CFOP'} de entrada.`,
+        ),
+    );
+  }
+
   /** Rodapé com a situação dos documentos; abre a área de documentos. */
   function rodapeBase(): HTMLElement {
     const b = botao(
-      base && !base.completa
+      base?.some((x) => x.cor === 'vermelha')
         ? 'conferencia__base conferencia__base--faltando'
         : 'conferencia__base',
       icone('M6 3h9l4 4v14H6z', 'M14 3v5h5', 'M9 13h7', 'M9 17h7'),
-      el('span', '', base?.texto ?? 'Documentos de referência'),
+      ...(base
+        ? base.flatMap((x, i) => [
+            i > 0 && el('span', 'conferencia__base-sep', '·'),
+            semaforo(x.cor, `${x.sigla} ${x.texto}`),
+          ])
+        : [el('span', '', 'Documentos de referência')]),
     );
     b.title = 'Documentos de referência';
+    if (base)
+      b.setAttribute(
+        'aria-label',
+        `Documentos de referência: ${base.map((x) => `${x.sigla} ${x.texto}`).join(', ')}`,
+      );
     b.addEventListener('click', () => acoes.abrirDocumentos());
     return el('footer', 'conferencia__rodape', b);
   }
@@ -500,15 +605,19 @@ export function criarPainel(
       desenharCorpo(r);
       aplicarEstado();
     },
+    atualizarFerramentas() {
+      desenharCorpo(resumoAtual);
+    },
     novaNota() {
+      cfopAberto = null;
       sobreposto = false;
       primeiroResumo = true;
       abertas.clear();
       previas.clear();
     },
     ajustarLayout,
-    definirBase(texto, completa) {
-      base = { texto, completa };
+    definirBase(itens) {
+      base = itens;
       desenharCorpo(resumoAtual);
     },
     indicador,

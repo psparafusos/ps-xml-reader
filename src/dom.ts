@@ -116,3 +116,19 @@ export function navegarMenu(
   else return;
   if (e.key !== 'Tab') e.preventDefault();
 }
+
+/**
+ * Semáforo: bolinha verde, amarela ou vermelha com o texto curto ao lado
+ * (nunca só a cor). Os documentos de referência usam no cartão e no rodapé.
+ */
+export function semaforo(
+  cor: 'verde' | 'amarela' | 'vermelha',
+  texto: string,
+): HTMLElement {
+  return el(
+    'span',
+    `semaforo semaforo--${cor}`,
+    el('span', 'semaforo__bolinha'),
+    el('span', 'semaforo__texto', texto),
+  );
+}

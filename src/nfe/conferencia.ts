@@ -13,6 +13,7 @@ import {
   situacaoParcelas,
   textoAviso,
   type Conferido,
+  type SituacaoParcela,
 } from './avisos';
 import * as f from './formato';
 import type { Anotacoes, Nota } from './tipos';
@@ -100,21 +101,25 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
           : `Emitida em ${f.data(nota.ide.dhEmi)}. Acima de ${d.diasNotaAntiga} dias, vira aviso.`,
   });
 
+  // Os títulos dizem o resultado ("Totais conferem", "Parcela 001 vencida há
+  // 20 dias"), não a pergunta; o detalhe explica.
   const difItens = dif('itens');
+  const diferenca = (x: { soma: number; total: number }) =>
+    reais(Math.abs(x.soma - x.total));
   verificacoes.push(
     difItens
       ? {
           id: 'totais-itens',
           ok: false,
           nivel: 'forte',
-          titulo: 'Total dos itens',
+          titulo: `Total dos itens difere em ${diferenca(difItens)}`,
           detalhe: textoAviso({ tipo: 'total', ...difItens }).detalhe,
         }
       : {
           id: 'totais-itens',
           ok: true,
           nivel: 'ok',
-          titulo: 'Total dos itens',
+          titulo: 'Totais conferem',
           detalhe: `A soma dos itens, ${reais(nota.itens.reduce((t, i) => t + centavos(i.vProd), 0))}, bate com o total dos produtos.`,
         },
   );
@@ -126,14 +131,17 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
           id: 'duplicatas',
           ok: false,
           nivel: 'forte',
-          titulo: 'Duplicatas',
+          titulo: `Duplicatas diferem em ${diferenca(difDup)}`,
           detalhe: textoAviso({ tipo: 'total', ...difDup }).detalhe,
         }
       : {
           id: 'duplicatas',
           ok: true,
           nivel: 'ok',
-          titulo: 'Duplicatas',
+          titulo:
+            nota.duplicatas.length === 0
+              ? 'Sem duplicatas'
+              : 'Duplicatas conferem',
           detalhe:
             nota.duplicatas.length === 0
               ? 'A nota não tem duplicatas.'
@@ -150,12 +158,7 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
     id: 'vencimentos',
     ok: nivelVenc === 'ok',
     nivel: nivelVenc,
-    titulo:
-      vencidas > 0
-        ? plural(vencidas, 'parcela vencida', 'parcelas vencidas')
-        : proximas > 0
-          ? `${plural(proximas, 'parcela vence', 'parcelas vencem')} em até ${d.diasAvisoVencimento} dias`
-          : 'Vencimentos',
+    titulo: tituloParcelas(parcelas, d.diasAvisoVencimento),
     detalhe:
       parcelas.length === 0
         ? 'A nota não tem duplicatas.'
@@ -174,7 +177,9 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
     id: 'destinatario',
     ok: !outra,
     nivel: outra ? 'forte' : 'ok',
-    titulo: 'Destinatário',
+    titulo: outra
+      ? `Destinatário é outra empresa${nota.destinatario.xNome ? `: ${nota.destinatario.xNome}` : ''}`
+      : `Destinatário: ${nota.destinatario.xNome || f.cnpj(d.cnpjEmpresa)}`,
     detalhe: outra
       ? textoAviso({
           tipo: 'outra-empresa',
@@ -192,7 +197,7 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
           id: 'conferida',
           ok: false,
           nivel: 'forte',
-          titulo: 'Nota já conferida',
+          titulo: `Já conferida em ${dataCurta(maisNovo.modificado)}`,
           detalhe: textoAviso({ tipo: 'conferido', arquivo: maisNovo }).detalhe,
           conferidos: d.conferidos,
         }
@@ -200,7 +205,9 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
           id: 'conferida',
           ok: true,
           nivel: 'ok',
-          titulo: 'Nota já conferida',
+          titulo: d.temPastaDestino
+            ? 'Primeira conferência desta nota'
+            : 'Sem pasta de destino para procurar conferências',
           detalhe: d.temPastaDestino
             ? 'Nenhum .psxml desta nota na pasta de destino.'
             : 'Sem pasta de destino escolhida: não há onde procurar.',
@@ -227,6 +234,45 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
   };
 }
 
+/** "28/10" (ano só quando não é o de agora); vazio se a data não for válida. */
+function dataCurta(iso: string, agora = new Date()): string {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return 'data desconhecida';
+  const dd = String(t.getDate()).padStart(2, '0');
+  const mm = String(t.getMonth() + 1).padStart(2, '0');
+  return t.getFullYear() === agora.getFullYear()
+    ? `${dd}/${mm}`
+    : `${dd}/${mm}/${t.getFullYear()}`;
+}
+
+/** Título dos vencimentos: o pior caso primeiro ("Parcela 001 vencida há 20 dias"). */
+function tituloParcelas(
+  parcelas: SituacaoParcela[],
+  diasAviso: number,
+): string {
+  if (parcelas.length === 0) return 'Sem parcelas';
+  const nome = (x: SituacaoParcela) =>
+    x.nDup ? `Parcela ${x.nDup}` : 'Parcela';
+  const dias = (n: number) => plural(n, 'dia', 'dias');
+  const vencidas = parcelas.filter((x) => x.nivel === 'vencida');
+  if (vencidas.length === 1)
+    return `${nome(vencidas[0])} vencida há ${dias(-(vencidas[0].dias ?? 0))}`;
+  if (vencidas.length > 1) {
+    const maisAntiga = Math.max(...vencidas.map((x) => -(x.dias ?? 0)));
+    return `${vencidas.length} parcelas vencidas, a mais antiga há ${dias(maisAntiga)}`;
+  }
+  const proximas = parcelas.filter((x) => x.nivel === 'proxima');
+  if (proximas.length === 1) {
+    const p = proximas[0];
+    return p.dias === 0
+      ? `${nome(p)} vence hoje`
+      : `${nome(p)} vence em ${dias(p.dias ?? 0)}`;
+  }
+  if (proximas.length > 1)
+    return `${proximas.length} parcelas vencem em até ${diasAviso} dias`;
+  return 'Parcelas em dia';
+}
+
 /**
  * Painel aberto ao lado da nota sem empurrá-la: cabe na sobra à esquerda do
  * conteúdo centralizado (janela larga). Senão, o painel começa recolhido e
@@ -238,4 +284,24 @@ export function painelCabeAoLado(
   larguraPainel: number,
 ): boolean {
   return (larguraJanela - larguraConteudo) / 2 >= larguraPainel;
+}
+
+/**
+ * Quanto a seção de itens cresce para cada lado quando a tabela não cabe na
+ * largura do conteúdo: usa a sobra da janela (sem passar por cima do painel)
+ * antes de deixar a tabela rolar. Divide entre os lados; o que um lado não
+ * tem, o outro dá. Medidas em pixels CSS; tudo zero quando a tabela cabe.
+ */
+export function expansaoLateral(
+  falta: number,
+  livreEsquerda: number,
+  livreDireita: number,
+): { esquerda: number; direita: number } {
+  const esq = Math.max(0, livreEsquerda);
+  const dir = Math.max(0, livreDireita);
+  const total = Math.min(Math.max(0, Math.ceil(falta)), esq + dir);
+  let esquerda = Math.min(esq, Math.floor(total / 2));
+  const direita = Math.min(dir, total - esquerda);
+  esquerda = Math.min(esq, total - direita);
+  return { esquerda, direita };
 }

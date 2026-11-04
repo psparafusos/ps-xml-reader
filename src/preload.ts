@@ -15,6 +15,12 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('verificar-documentos'),
   baixarDocumento: (tipo: TipoDocumento): Promise<ResultadoImportarDocumento> =>
     ipcRenderer.invoke('baixar-documento', tipo),
+  confirmarParcial: (token: string): Promise<ResultadoImportarDocumento> =>
+    ipcRenderer.invoke('confirmar-parcial', token),
+  cancelarParcial: (token: string): Promise<void> =>
+    ipcRenderer.invoke('cancelar-parcial', token),
+  removerDocumento: (tipo: TipoDocumento): Promise<EstadoDocumentos> =>
+    ipcRenderer.invoke('remover-documento', tipo),
   abrirPaginaDocumento: (tipo: TipoDocumento): Promise<void> =>
     ipcRenderer.invoke('abrir-pagina-documento', tipo),
   analisarST: (pedido: {

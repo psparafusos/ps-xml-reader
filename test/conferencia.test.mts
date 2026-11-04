@@ -5,6 +5,7 @@ import {
   painelCabeAoLado,
   resumoConferencia,
   type DadosConferencia,
+  expansaoLateral,
 } from '../src/nfe/conferencia.ts';
 import { FERRAMENTAS } from '../src/nfe/ferramentas.ts';
 import { criarIndicador } from '../src/indicador.ts';
@@ -137,12 +138,22 @@ describe('resumoConferencia', () => {
     assert.equal(ver(r, 'vencimentos').detalhe, 'A nota não tem duplicatas.');
     assert.match(ver(r, 'totais-itens').detalhe, /R\$\s52,00/);
     assert.equal(ver(r, 'idade').titulo, 'Emitida há 3 dias (31/10/2026)');
+    // Os títulos dizem o resultado.
+    assert.equal(ver(r, 'totais-itens').titulo, 'Totais conferem');
+    assert.equal(ver(r, 'duplicatas').titulo, 'Sem duplicatas');
+    assert.equal(ver(r, 'vencimentos').titulo, 'Sem parcelas');
+    assert.equal(ver(r, 'destinatario').titulo, 'Destinatário: PS');
+    assert.equal(ver(r, 'conferida').titulo, 'Primeira conferência desta nota');
   });
 
   it('sem pasta de destino, a "já conferida" diz que não há onde procurar', () => {
     const r = resumoConferencia(dados({ temPastaDestino: false }));
     assert.match(ver(r, 'conferida').detalhe, /Sem pasta de destino/);
     assert.equal(ver(r, 'conferida').ok, true);
+    assert.equal(
+      ver(r, 'conferida').titulo,
+      'Sem pasta de destino para procurar conferências',
+    );
   });
 
   it('conta verificações com ! e pendências de quantidade', () => {
@@ -174,6 +185,15 @@ describe('resumoConferencia', () => {
       [true, false, true, true, false, false],
     );
     assert.deepEqual(ver(r, 'conferida').conferidos, [conferido]);
+    assert.equal(ver(r, 'conferida').titulo, 'Já conferida em 01/11');
+    assert.match(
+      ver(r, 'totais-itens').titulo,
+      /^Total dos itens difere em R\$\s2,00$/,
+    );
+    assert.match(
+      ver(r, 'destinatario').titulo,
+      /^Destinatário é outra empresa/,
+    );
     assert.deepEqual(
       r.pendencias.map((p) => p.nItem),
       ['1'],
@@ -224,7 +244,7 @@ describe('vencimentos e idade da nota no resumo', () => {
     assert.match(idade.detalhe, /20\/08\/2026/);
     const v = ver(r, 'vencimentos');
     assert.equal(v.nivel, 'forte');
-    assert.equal(v.titulo, '1 parcela vencida');
+    assert.equal(v.titulo, 'Parcela 001 vencida há 20 dias');
     assert.match(v.detalhe, /Falar com o fornecedor para prorrogar/);
     assert.deepEqual(
       v.linhas?.map((l) => l.nivel),
@@ -252,7 +272,7 @@ describe('vencimentos e idade da nota no resumo', () => {
     assert.equal(ver(r, 'idade').titulo, 'Emitida hoje (03/11/2026)');
     assert.equal(ver(r, 'idade').nivel, 'info');
     assert.equal(ver(r, 'vencimentos').nivel, 'ok');
-    assert.equal(ver(r, 'vencimentos').titulo, 'Vencimentos');
+    assert.equal(ver(r, 'vencimentos').titulo, 'Parcelas em dia');
     assert.equal(r.pontos, 0);
     assert.equal(r.titulo, 'Tudo certo · 6 verificações');
   });
@@ -262,10 +282,7 @@ describe('vencimentos e idade da nota no resumo', () => {
     n.duplicatas = [{ nDup: '1', dVenc: aDias(12), vDup: '52.00' }];
     const r15 = resumoConferencia(dados({ nota: n }));
     assert.equal(ver(r15, 'vencimentos').nivel, 'leve');
-    assert.equal(
-      ver(r15, 'vencimentos').titulo,
-      '1 parcela vence em até 15 dias',
-    );
+    assert.equal(ver(r15, 'vencimentos').titulo, 'Parcela 1 vence em 12 dias');
     const r10 = resumoConferencia(dados({ nota: n, diasAvisoVencimento: 10 }));
     assert.equal(ver(r10, 'vencimentos').nivel, 'ok');
   });
@@ -378,5 +395,29 @@ describe('criarIndicador', () => {
     } finally {
       mock.timers.reset();
     }
+  });
+});
+
+describe('expansaoLateral', () => {
+  it('tabela que cabe não cresce', () => {
+    assert.deepEqual(expansaoLateral(0, 300, 300), { esquerda: 0, direita: 0 });
+  });
+  it('divide a falta entre os dois lados', () => {
+    assert.deepEqual(expansaoLateral(200, 300, 300), {
+      esquerda: 100,
+      direita: 100,
+    });
+  });
+  it('o lado com pouca sobra (painel aberto) passa o resto para o outro', () => {
+    assert.deepEqual(expansaoLateral(200, 20, 300), {
+      esquerda: 20,
+      direita: 180,
+    });
+  });
+  it('sem sobra suficiente: cresce o que dá e a tabela rola o resto', () => {
+    assert.deepEqual(expansaoLateral(900, 100, 150), {
+      esquerda: 100,
+      direita: 150,
+    });
   });
 });

@@ -11,6 +11,7 @@ import {
 } from './nfe/colunas';
 import { configPadrao, idDaAnotacao, problemaTitulo } from './nfe/config';
 import type { FerramentaJanela } from './nfe/ferramentas';
+import { resumoCfops, TITULO_COLUNA_CFOP } from './nfe/resumoCfop';
 import {
   abrirFerramentaST,
   DESCRICAO_FERRAMENTA_ST,
@@ -54,16 +55,23 @@ import {
   type Aviso,
   type Conferido,
 } from './nfe/avisos';
-import { resumoConferencia } from './nfe/conferencia';
+import { expansaoLateral, resumoConferencia } from './nfe/conferencia';
 import { criarPainel } from './painelConferencia';
 import { abrirAreaDocumentos, atualizarAreaDocumentos } from './areaDocumentos';
-import { textoRodapeBase } from './fiscal/documentos';
+import { semaforoDocumento } from './leituraDocumentos';
 import {
   abrirEditorColunas,
   atualizarEditor,
   editorAberto,
 } from './editorColunas';
-import { comSetasDeRolagem, el, icone, navegarMenu, type Filho } from './dom';
+import {
+  comSetasDeRolagem,
+  el,
+  icone,
+  navegarMenu,
+  semaforo,
+  type Filho,
+} from './dom';
 import { perguntar, pedirNomeCopia } from './dialogos';
 import {
   copiaParaFolha,
@@ -603,6 +611,7 @@ function celulaAnotacao(
     espelho.textContent = campoTexto.value;
     atualizarPendentes();
     if (coluna.id === ID_QTD_RECEBIDA) atualizarAvisos();
+    if (coluna.id === idColunaCfop()) painel.atualizarFerramentas();
   });
 
   td.append(campoTexto, espelho);
@@ -1155,7 +1164,11 @@ const notaEl = $('nota');
 const painelEl = $('painel-conferencia');
 const painel = criarPainel(painelEl, notaEl, {
   abrirConferido: (c) => void abrirConferido(c),
-  irParaItem,
+  irParaItem: (nItem, campo) =>
+    irParaItem(
+      nItem,
+      campo === 'cfop' ? (idColunaCfop() ?? ID_QTD_RECEBIDA) : ID_QTD_RECEBIDA,
+    ),
   contexto: () => (aberto ? { nota: aberto.lido.nota, anotacoes } : null),
   aplicado: () => {
     aplicarConfig(configAtual);
@@ -1163,6 +1176,64 @@ const painel = criarPainel(painelEl, notaEl, {
   },
   abrirDocumentos: () => abrirAreaDocumentos(),
   ferramentasJanela: () => [ferramentaST],
+  resumoCfop: () => {
+    const coluna = idColunaCfop();
+    return aberto && coluna
+      ? resumoCfops(aberto.lido.nota.itens, anotacoes, coluna)
+      : null;
+  },
+});
+/**
+ * Tabela de itens mais larga que o conteúdo: a seção de itens cresce para os
+ * lados, até a margem da janela e sem passar por cima do painel; só o que
+ * ainda não couber rola, com as setas. Só na tela (print.css não usa).
+ */
+function ajustarLarguraItens(): void {
+  const secaoItens = notaEl.querySelector<HTMLElement>('.secao--itens');
+  if (!secaoItens || notaEl.hidden) return;
+  secaoItens.style.removeProperty('--expandir-esq');
+  secaoItens.style.removeProperty('--expandir-dir');
+  const rolagem = secaoItens.querySelector<HTMLElement>('.tabela-rolagem');
+  if (!rolagem) return;
+  const falta = rolagem.scrollWidth - rolagem.clientWidth;
+  if (falta <= 0) return;
+  const caixa = secaoItens.getBoundingClientRect();
+  const margem = parseFloat(getComputedStyle(notaEl).paddingRight) || 0;
+  let limiteEsquerda = margem;
+  if (!painelEl.hidden) {
+    // Por cima da nota, o painel aberto é passageiro: vale a barra fina.
+    const direitaPainel =
+      painelEl.dataset.layout === 'sobre'
+        ? parseFloat(
+            getComputedStyle(painelEl).getPropertyValue(
+              '--largura-trilho-conferencia',
+            ),
+          ) || 0
+        : painelEl.getBoundingClientRect().right;
+    limiteEsquerda = direitaPainel + margem;
+  }
+  const limiteDireita = document.documentElement.clientWidth - margem;
+  const { esquerda, direita } = expansaoLateral(
+    falta,
+    caixa.left - limiteEsquerda,
+    limiteDireita - caixa.right,
+  );
+  secaoItens.style.setProperty('--expandir-esq', `${esquerda}px`);
+  secaoItens.style.setProperty('--expandir-dir', `${direita}px`);
+}
+// setTimeout, não requestAnimationFrame: numa janela coberta por outras o
+// Chromium para os quadros, e a medida ficaria para depois.
+let temporizadorLargura: ReturnType<typeof setTimeout> | undefined;
+const agendarLarguraItens = () => {
+  clearTimeout(temporizadorLargura);
+  temporizadorLargura = setTimeout(ajustarLarguraItens, 0);
+};
+new ResizeObserver(agendarLarguraItens).observe(document.documentElement);
+new ResizeObserver(agendarLarguraItens).observe(notaEl);
+new MutationObserver(agendarLarguraItens).observe(notaEl, { childList: true });
+new MutationObserver(agendarLarguraItens).observe(painelEl, {
+  attributes: true,
+  attributeFilter: ['data-estado', 'data-layout', 'hidden'],
 });
 // O painel fica logo abaixo da barra amarela, que muda de altura quando os
 // botões descem para uma segunda linha.
@@ -1585,7 +1656,7 @@ const DURACAO_DESTAQUE_MS = 1600;
  * Pendência clicada no painel: rola a tabela até o item, destaca a linha por
  * um instante e põe o foco na caixa Qtd recebida dele.
  */
-function irParaItem(nItem: string): void {
+function irParaItem(nItem: string, coluna = ID_QTD_RECEBIDA): void {
   const tbody = corposItens.get(nItem);
   if (!tbody) return;
   tbody.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -1597,9 +1668,7 @@ function irParaItem(nItem: string): void {
     DURACAO_DESTAQUE_MS,
   );
   tbody
-    .querySelector<HTMLInputElement>(
-      `td.col-${CSS.escape(ID_QTD_RECEBIDA)} input`,
-    )
+    .querySelector<HTMLInputElement>(`td.col-${CSS.escape(coluna)} input`)
     ?.focus({ preventScroll: true });
 }
 
@@ -2899,6 +2968,12 @@ window.psApi.aoMudarPasta(() => {
 });
 // ---------- ferramenta ST, MVA e CFOP ----------
 
+/** Id da coluna de anotação "CFOP de entrada" do perfil ativo; null se não há. */
+function idColunaCfop(): string | null {
+  const id = idDaAnotacao(TITULO_COLUNA_CFOP);
+  return configAtual.anotacoes.some((a) => a.id === id) ? id : null;
+}
+
 /** Situação dos documentos (a ferramenta precisa da planilha de ST). */
 let estadoDocumentos: EstadoDocumentos | null = null;
 
@@ -2960,6 +3035,7 @@ const ferramentaST: FerramentaJanela = {
       aplicado: (mensagem) => {
         aplicarConfig(configAtual);
         atualizarPendentes();
+        painel.atualizarFerramentas();
         mostrarSucesso(mensagem);
       },
     });
@@ -2975,9 +3051,22 @@ function atualizarDocumentos(): void {
     .documentos()
     .then((e) => {
       estadoDocumentos = e;
-      const texto = textoRodapeBase(e.st, e.tipi);
-      painel.definirBase(texto, e.st !== null && e.tipi !== null);
-      documentosSituacao.textContent = texto.replace(/^Base: /, '');
+      const sinais = (['st', 'tipi'] as const).map((tipo) => ({
+        sigla: tipo === 'st' ? 'ST' : 'TIPI',
+        ...semaforoDocumento(
+          e[tipo],
+          e.leitura[tipo],
+          e.preferencias.verificacaoOnline ? e.verificacao[tipo] : null,
+          e.recusado[tipo],
+        ),
+      }));
+      painel.definirBase(sinais);
+      documentosSituacao.replaceChildren(
+        ...sinais.flatMap((x, i) => [
+          ...(i > 0 ? [' · '] : []),
+          semaforo(x.cor, `${x.sigla} ${x.texto}`),
+        ]),
+      );
       atualizarAreaDocumentos(e);
     })
     .catch((erro: unknown) => console.error(erro));

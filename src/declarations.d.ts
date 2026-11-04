@@ -171,9 +171,15 @@ interface PreferenciasDocumentos {
   verificarAoAbrir: boolean;
 }
 
+type LeituraDocumento = import('./leituraDocumentos').LeituraDocumento;
+
 interface EstadoDocumentos {
   st: InfoDocumento | null;
   tipi: InfoDocumento | null;
+  /** Ignorado de propósito, problemas e segmentos incompletos (<tipo>-leitura.json). */
+  leitura: { st: LeituraDocumento | null; tipi: LeituraDocumento | null };
+  /** Última tentativa recusada e nenhum documento carregado (vermelho "incompatível"). */
+  recusado: { st: boolean; tipi: boolean };
   preferencias: PreferenciasDocumentos;
   /** Última verificação de cada um (enquanto o app está aberto). */
   verificacao: {
@@ -224,6 +230,16 @@ type ResultadoImportarDocumento =
       status: 'erro';
       formato: boolean;
       mensagem: string;
+      /** Arquivo errado: o que fazer (vai em destaque). */
+      oQueFazer?: string;
+      estado: EstadoDocumentos;
+    }
+  /** Planilha com segmentos não lidos: espera a confirmação (confirmarParcial). */
+  | {
+      status: 'parcial';
+      token: string;
+      arquivo: string;
+      segmentos: string[];
       estado: EstadoDocumentos;
     }
   | { status: 'cancelado' };
@@ -240,6 +256,11 @@ interface PsApi {
   verificarDocumentos(): Promise<EstadoDocumentos>;
   /** Baixa a versão nova achada na verificação e importa (mesma validação). */
   baixarDocumento(tipo: TipoDocumento): Promise<ResultadoImportarDocumento>;
+  /** "Os segmentos com problema não afetam meu trabalho. Usar o resto." */
+  confirmarParcial(token: string): Promise<ResultadoImportarDocumento>;
+  cancelarParcial(token: string): Promise<void>;
+  /** Tira o documento da base (volta a faltar). */
+  removerDocumento(tipo: TipoDocumento): Promise<EstadoDocumentos>;
   /** Abre no navegador a página oficial do documento. */
   abrirPaginaDocumento(tipo: TipoDocumento): Promise<void>;
   aoMudarDocumentos(callback: () => void): void;
