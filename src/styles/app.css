@@ -2887,7 +2887,7 @@ body.pdf-previa #pdf-previa {
   border-radius: var(--raio);
 }
 
-.documento--vermelha {
+.documento--faltando {
   border-style: dashed;
 }
 
@@ -3429,6 +3429,38 @@ body.pdf-previa #pdf-previa {
 .semaforo__texto {
   color: var(--cor-texto-forte);
   font-size: var(--fs-xs);
+  font-weight: var(--peso-medio);
+}
+
+/* ---------- estado dos documentos de referência ---------- */
+
+/* Ícone do estado (src/estadoDocumentos.ts) com o texto curto ao lado: ok,
+   aviso, faltando, opcional. A cor vem do mapa, no style do ícone. */
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.estado-icone {
+  width: 18px;
+  height: 18px;
+}
+
+/* Aviso: o triângulo cheio no amarelo e a exclamação escura, para ler no
+   cartão branco e na barra preta. */
+.estado-icone--aviso path:first-child {
+  fill: var(--semaforo-amarelo);
+}
+
+.estado-icone--aviso path:not(:first-child) {
+  stroke: var(--cor-texto-forte);
+}
+
+.estado__texto {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
   font-weight: var(--peso-medio);
 }
 

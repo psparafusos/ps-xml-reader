@@ -9,7 +9,7 @@
 // por padrão). Abre pelo rodapé do painel de conferência e pela tela
 // inicial. Tudo passa pelo processo principal (src/documentos.ts).
 
-import { botao, el, icone, semaforo } from './dom';
+import { botao, el, icone, marcaEstado } from './dom';
 import {
   chaveDecisao,
   ROTULO_FINALIDADE,
@@ -17,15 +17,14 @@ import {
 } from './fiscal/entrada';
 import { perguntar } from './dialogos';
 import { NOME_DOCUMENTO } from './fiscal/documentos';
-import {
-  problemasPorAba,
-  rotuloDocumento,
-  seloDocumento,
-} from './leituraDocumentos';
+import { problemasPorAba, rotuloDocumento } from './leituraDocumentos';
+import { seloVisivel, textoVersaoNova } from './estadoDocumentos';
 import { ICONES } from './icones';
 
 let dialogo: HTMLDialogElement | null = null;
 let redesenhar: ((e: EstadoDocumentos) => void) | null = null;
+let irParaCartao: ((tipo: TipoDocumento) => void) | null = null;
+let mostrarProgresso: ((p: ProgressoDocumento) => void) | null = null;
 
 export function areaDocumentosAberta(): boolean {
   return dialogo?.open === true;
@@ -34,6 +33,18 @@ export function areaDocumentosAberta(): boolean {
 /** Documentos mudaram (outra janela, verificação ao abrir): a área aberta se atualiza. */
 export function atualizarAreaDocumentos(estado: EstadoDocumentos): void {
   redesenhar?.(estado);
+}
+
+/** Andamento do download do Atualizar: a área aberta mostra no cartão. */
+export function progressoAreaDocumentos(p: ProgressoDocumento): void {
+  mostrarProgresso?.(p);
+}
+
+export interface OpcoesAreaDocumentos {
+  /** Abre rolada até o cartão deste documento. */
+  cartao?: TipoDocumento;
+  /** Resultado de um Carregar ou Atualizar feito fora (tela inicial). */
+  resultado?: ResultadoImportarDocumento;
 }
 
 const PARA_QUE: Record<TipoDocumento, string> = {
@@ -62,9 +73,10 @@ const tamanho = (bytes: number) =>
     ? `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`
     : `${Math.max(1, Math.round(bytes / 1024)).toLocaleString('pt-BR')} KB`;
 
-export function abrirAreaDocumentos(): void {
+export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
   if (areaDocumentosAberta()) {
-    dialogo?.focus();
+    if (opcoes.cartao) irParaCartao?.(opcoes.cartao);
+    else dialogo?.focus();
     return;
   }
   let estado: EstadoDocumentos | null = null;
@@ -81,6 +93,8 @@ export function abrirAreaDocumentos(): void {
   /** Relatórios abertos. */
   const relatorios = new Set<TipoDocumento>();
   let ocupado = false;
+  /** Download do Atualizar em andamento (indicador no cartão). */
+  const progresso = new Map<TipoDocumento, ProgressoDocumento>();
 
   const titulo = el('h2', 'painel__titulo', 'Documentos de referência');
   titulo.id = 'documentos-titulo';
@@ -112,6 +126,8 @@ export function abrirAreaDocumentos(): void {
     d.remove();
     dialogo = null;
     redesenhar = null;
+    irParaCartao = null;
+    mostrarProgresso = null;
   };
   btnFechar.addEventListener('click', fechar);
   d.addEventListener('cancel', (e) => {
@@ -391,24 +407,69 @@ export function abrirAreaDocumentos(): void {
     return caixa;
   }
 
+  /** Download em andamento: barra de progresso e o texto. */
+  function indicador(p: ProgressoDocumento): HTMLElement {
+    const barra = el('progress', 'documento__barra');
+    const pct = p.total
+      ? Math.min(100, Math.round((p.recebido / p.total) * 100))
+      : null;
+    if (pct !== null) {
+      barra.max = 100;
+      barra.value = pct;
+    }
+    barra.setAttribute('aria-hidden', 'true');
+    return el(
+      'span',
+      'documento__progresso',
+      barra,
+      el(
+        'span',
+        '',
+        p.fim
+          ? 'Importando...'
+          : pct === null
+            ? 'Baixando...'
+            : `Baixando ${pct}%`,
+      ),
+    );
+  }
+
   function verificacao(
     tipo: TipoDocumento,
     r: ResultadoVerificacao,
   ): HTMLElement {
     const acoes: HTMLElement[] = [];
-    if (r.estado === 'nova' && r.disponivel) {
+    const andamento = progresso.get(tipo);
+    if (andamento) acoes.push(indicador(andamento));
+    else if (r.estado === 'nova' && r.disponivel) {
+      // Com documento carregado é o Atualizar (troca só se a nova for lida).
+      const temInfo = estado?.[tipo] != null;
       const b = botao(
         'botao botao--principal botao--pequeno',
         icone(...ICONES.salvar),
-        el('span', '', 'Baixar e importar'),
+        el('span', '', temInfo ? 'Atualizar' : 'Baixar e importar'),
       );
       b.dataset.foco = `baixar-${tipo}`;
+      b.title = temInfo
+        ? `Baixar a versão nova do site oficial (a ${NOME_DOCUMENTO[tipo]} atual só é trocada se a nova for lida)`
+        : `Baixar do site oficial e importar`;
       b.addEventListener(
         'click',
         () =>
           void acao(`atualizar-${tipo}`, async () => {
             status.textContent = 'Baixando...';
-            aoImportar(tipo, await window.psApi.baixarDocumento(tipo));
+            progresso.set(tipo, {
+              tipo,
+              recebido: 0,
+              total: null,
+              fim: false,
+            });
+            if (estado) desenhar(estado);
+            try {
+              aoImportar(tipo, await window.psApi.baixarDocumento(tipo));
+            } finally {
+              progresso.delete(tipo);
+            }
           }),
       );
       acoes.push(b);
@@ -454,17 +515,16 @@ export function abrirAreaDocumentos(): void {
         ? e.verificacao[tipo]
         : null;
     // Opcional e não carregado: não é falta (nada muda no app sem ele).
-    const opcionalVazio = tipo === 'combustiveis' && !info && !e.recusado[tipo];
-    const selo = opcionalVazio
-      ? { cor: 'neutra' as const, texto: 'Opcional, não carregado' }
-      : seloDocumento(info, leitura, r, e.recusado[tipo]);
+    // Ícone e cor do estado iguais aos da tela inicial e da barra.
+    const selo = seloVisivel(tipo, e);
+    const nova = textoVersaoNova(tipo, e);
     const tituloId = `documento-${tipo}`;
     const btnAtualizar = botao(
       info
         ? 'botao botao--claro botao--pequeno'
         : 'botao botao--principal botao--pequeno',
       icone(...ICONES.enviar),
-      el('span', '', info ? 'Atualizar' : 'Carregar'),
+      el('span', '', info ? 'Trocar arquivo' : 'Carregar'),
     );
     btnAtualizar.dataset.foco = `atualizar-${tipo}`;
     btnAtualizar.title = info
@@ -485,7 +545,7 @@ export function abrirAreaDocumentos(): void {
       const reimportar = botao(
         'botao botao--claro botao--pequeno',
         icone(...ICONES.enviar),
-        el('span', '', 'Atualizar'),
+        el('span', '', 'Trocar arquivo'),
       );
       reimportar.dataset.foco = 'reimportar-st';
       reimportar.addEventListener(
@@ -601,16 +661,20 @@ export function abrirAreaDocumentos(): void {
     h.id = tituloId;
     const artigo = el(
       'article',
-      `documento documento--${selo.cor}${tipo === 'combustiveis' ? ' documento--opcional' : ''}`,
+      `documento documento--${selo.estado}${tipo === 'combustiveis' ? ' documento--opcional' : ''}`,
       el(
         'header',
         'documento__cabecalho',
         h,
-        // Um selo só: a bolinha do semáforo e o texto da situação.
+        // Um selo só: o ícone do estado e o texto da situação. Com versão
+        // nova e o documento lido sem problema, o selo diz qual é.
         el(
           'span',
-          `documento__selo documento__selo--${selo.cor}`,
-          semaforo(selo.cor, selo.texto),
+          `documento__selo documento__selo--${selo.estado}`,
+          marcaEstado(
+            selo.estado,
+            nova && selo.texto === 'Versão nova disponível' ? nova : selo.texto,
+          ),
         ),
       ),
       arquivo,
@@ -888,12 +952,43 @@ export function abrirAreaDocumentos(): void {
   redesenhar = (e) => {
     if (!ocupado) desenhar(e);
   };
+  irParaCartao = (tipo) => {
+    const artigo = corpo
+      .querySelector(`#documento-${tipo}`)
+      ?.closest<HTMLElement>('article');
+    if (!artigo) return;
+    artigo.scrollIntoView({ block: 'start' });
+    artigo
+      .querySelector<HTMLElement>(
+        `[data-foco="baixar-${tipo}"], [data-foco="atualizar-${tipo}"]`,
+      )
+      ?.focus({ preventScroll: true });
+  };
+  mostrarProgresso = (p) => {
+    if (!progresso.has(p.tipo)) return;
+    progresso.set(p.tipo, p);
+    const pct = p.total
+      ? Math.min(100, Math.round((p.recebido / p.total) * 100))
+      : null;
+    status.textContent = p.fim
+      ? 'Importando...'
+      : pct === null
+        ? 'Baixando...'
+        : `Baixando ${pct}%`;
+    const antigo = corpo.querySelector(
+      `article:has(#documento-${p.tipo}) .documento__progresso`,
+    );
+    antigo?.replaceWith(indicador(p));
+  };
 
   document.body.append(d);
   d.showModal();
   corpo.replaceChildren(el('p', 'documento__nota', 'Carregando...'));
   void window.psApi.documentos().then((e) => {
+    if (opcoes.cartao && opcoes.resultado)
+      aoImportar(opcoes.cartao, opcoes.resultado);
     desenhar(e);
-    corpo.querySelector<HTMLElement>('[data-foco^="atualizar-"]')?.focus();
+    if (opcoes.cartao) irParaCartao?.(opcoes.cartao);
+    else corpo.querySelector<HTMLElement>('[data-foco^="atualizar-"]')?.focus();
   });
 }

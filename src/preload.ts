@@ -45,6 +45,11 @@ contextBridge.exposeInMainWorld('psApi', {
   aoMudarDocumentos: (callback: () => void): void => {
     ipcRenderer.on('documentos-mudou', () => callback());
   },
+  aoProgressoDocumento: (callback: (p: ProgressoDocumento) => void): void => {
+    ipcRenderer.on('documento-progresso', (_e, p: ProgressoDocumento) =>
+      callback(p),
+    );
+  },
   abrirArquivo: (): Promise<ResultadoAbrir> =>
     ipcRenderer.invoke('abrir-arquivo'),
   // O caminho do arquivo solto só existe aqui (webUtils); o processo

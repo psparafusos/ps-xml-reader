@@ -316,3 +316,80 @@ export async function verificarTipi(
         agora,
       );
 }
+
+// ---------- download (botão Atualizar) ----------
+
+/** Tempo para baixar a planilha (a de ST tem ~1 MB; a TIPI, ~700 KB). */
+export const TEMPO_DOWNLOAD_MS = 120_000;
+export const LIMITE_DOWNLOAD = 30 * 1024 * 1024;
+
+export interface ArquivoBaixado {
+  dados: Uint8Array;
+  /** Nome do arquivo no endereço ("portal-st-se-v0020.xlsx"). */
+  nome: string;
+  /** Last-Modified (ISO), quando o servidor informa. */
+  data: string | null;
+}
+
+/** Recebido até agora e o total (null quando o servidor não diz). */
+export type AoProgresso = (recebido: number, total: number | null) => void;
+
+/**
+ * Baixa o arquivo de uma versão anunciada. Só https e só do CONFAZ (ST) ou
+ * do gov.br (TIPI), como a verificação. Lança Error com o motivo em
+ * português ("o servidor respondeu 404", "arquivo grande demais").
+ */
+export async function baixarArquivo(
+  tipo: TipoOnline,
+  url: string,
+  buscar: Buscar,
+  aoProgresso: AoProgresso = () => undefined,
+  tempoLimite = TEMPO_DOWNLOAD_MS,
+  limite = LIMITE_DOWNLOAD,
+): Promise<ArquivoBaixado> {
+  if (!urlPermitida(tipo, url))
+    throw new Error('endereço fora do site oficial');
+  const resp = await buscar(url, {
+    signal: AbortSignal.timeout(tempoLimite),
+  });
+  if (!resp.ok) throw new Error(`o servidor respondeu ${resp.status}`);
+  const declarado = Number(resp.headers.get('content-length'));
+  const total = Number.isFinite(declarado) && declarado > 0 ? declarado : null;
+  if (total !== null && total > limite)
+    throw new Error('arquivo grande demais');
+  const partes: Uint8Array[] = [];
+  let recebido = 0;
+  aoProgresso(0, total);
+  if (resp.body) {
+    const leitor = resp.body.getReader();
+    for (;;) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      recebido += value.length;
+      if (recebido > limite) {
+        void leitor.cancel().catch(() => undefined);
+        throw new Error('arquivo grande demais');
+      }
+      partes.push(value);
+      aoProgresso(recebido, total);
+    }
+  }
+  const dados = new Uint8Array(recebido);
+  let pos = 0;
+  for (const p of partes) {
+    dados.set(p, pos);
+    pos += p.length;
+  }
+  const lm = Date.parse(resp.headers.get('last-modified') ?? '');
+  let nome = '';
+  try {
+    nome = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+  } catch {
+    nome = '';
+  }
+  return {
+    dados,
+    nome: nome || `${tipo}.xlsx`,
+    data: Number.isNaN(lm) ? null : new Date(lm).toISOString(),
+  };
+}

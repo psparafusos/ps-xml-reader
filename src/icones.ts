@@ -40,4 +40,33 @@ export const ICONES = {
     'M10 5v14',
     'M15 5v14',
   ],
+  /** Pasta com seta (trocar a pasta de destino). */
+  pastaTrocar: [
+    'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    'M9 13h6',
+    'M12.5 10.5L15 13l-2.5 2.5',
+  ],
+  /** Pasta aberta (abrir a pasta no Explorer). */
+  pastaAberta: [
+    'M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1',
+    'M5 19h12.5a1.5 1.5 0 0 0 1.4-1l2-5.6a1 1 0 0 0-.9-1.4H8.1a1.5 1.5 0 0 0-1.4 1z',
+  ],
+  // Estados dos documentos de referência (src/estadoDocumentos.ts): a forma
+  // vem primeiro (círculo ou triângulo), a marca depois.
+  /** Ok: check em círculo. */
+  estadoOk: ['M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z', 'M8 12.5l2.7 2.7L16 9.8'],
+  /** Aviso: triângulo com exclamação. */
+  estadoAviso: [
+    'M10.3 4.2a2 2 0 0 1 3.4 0l7.6 13.2a2 2 0 0 1-1.7 3H4.4a2 2 0 0 1-1.7-3z',
+    'M12 9.5v4.5',
+    'M12 17.2v.1',
+  ],
+  /** Faltando: x em círculo. */
+  estadoFaltando: [
+    'M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z',
+    'M9.2 9.2l5.6 5.6',
+    'M14.8 9.2l-5.6 5.6',
+  ],
+  /** Opcional não carregado: círculo vazado. */
+  estadoOpcional: ['M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z'],
 } as const satisfies Record<string, readonly string[]>;

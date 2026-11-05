@@ -251,6 +251,16 @@ type ResultadoImportarDocumento =
     }
   | { status: 'cancelado' };
 
+/** Andamento do download do Atualizar (versão nova de um documento). */
+interface ProgressoDocumento {
+  tipo: TipoDocumento;
+  recebido: number;
+  /** null quando o servidor não informa o tamanho. */
+  total: number | null;
+  /** Download terminou (bem ou mal); a importação vem em seguida. */
+  fim: boolean;
+}
+
 /** Nota recente da tela inicial (src/nfe/recentes.ts) e se o arquivo ainda existe. */
 type NotaRecenteTela = import('./nfe/recentes').NotaRecente & {
   existe: boolean;
@@ -294,6 +304,8 @@ interface PsApi {
   /** Abre no navegador a página oficial do documento. */
   abrirPaginaDocumento(tipo: TipoDocumento): Promise<void>;
   aoMudarDocumentos(callback: () => void): void;
+  /** Andamento do download do Atualizar, em qualquer janela. */
+  aoProgressoDocumento(callback: (p: ProgressoDocumento) => void): void;
   /** Ferramenta ST, MVA e CFOP: analisa os itens com a base carregada. */
   analisarST(pedido: {
     itens: ItemParaAnalise[];
