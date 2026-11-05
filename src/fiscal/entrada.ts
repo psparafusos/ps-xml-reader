@@ -101,6 +101,8 @@ export interface DecisaoLembrada extends Decisao {
   ncm: string;
   /** ISO 8601. */
   atualizadaEm: string;
+  /** Escolhida pela sugestão do histórico ("Usar"); ausente: escolha direta. */
+  origem?: 'histórico';
 }
 
 export const raizCnpj = (cnpj: string) => cnpj.replace(/\D/g, '').slice(0, 8);

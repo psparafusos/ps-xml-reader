@@ -266,7 +266,12 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
       lembrada: decisoes[chaveDecisao(cnpj, textoDe(i.cProd))] ?? null,
     };
   });
-  return { status: 'ok', itens: analises, semTipi: base.tipi === null };
+  return {
+    status: 'ok',
+    itens: analises,
+    semTipi: base.tipi === null,
+    historico: Object.values(decisoes),
+  };
 }
 
 /** Andamento do download do Atualizar, para todas as janelas. */

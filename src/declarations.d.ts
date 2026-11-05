@@ -225,6 +225,8 @@ type ResultadoAnaliseST =
       itens: { analise: AnaliseItem; lembrada: DecisaoLembrada | null }[];
       /** TIPI não carregada: a análise roda sem a parte da TIPI. */
       semTipi: boolean;
+      /** Todas as decisões lembradas, para a sugestão pelo histórico. */
+      historico: DecisaoLembrada[];
     };
 
 /**

@@ -72,6 +72,8 @@ export interface Item {
   vBCST?: string;
   /** Valor do ICMS-ST retido pelo fornecedor (vST). */
   vST?: string;
+  /** MVA (%) que o fornecedor usou na retenção do ICMS-ST (pMVAST). */
+  pMVAST?: string;
   /** CST do IPI (IPITrib ou IPINT). */
   cstIPI?: string;
   /** Alíquota do IPI (pIPI, em IPITrib). */
