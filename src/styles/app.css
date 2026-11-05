@@ -3737,3 +3737,64 @@ body.pdf-previa #pdf-previa {
 .st__mva-jogo {
   max-width: 150px;
 }
+
+/* Dica (src/tooltip.ts): no lugar do title nativo. Popover: fica por cima
+   das janelas modais. A classe .dica (sem DANFE na barra) é outra. */
+.dica-flutuante {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  max-width: 320px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #000;
+  color: #fff;
+  font-family: var(--fonte);
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+/* Alvo de dica que não é controle (cabeçalho, selo): dá para chegar pelo Tab. */
+.st__dica-alvo {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.st__dica-alvo:focus-visible {
+  outline: 2px solid var(--ps-preto);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Sugestão pelo histórico (decisões lembradas do mesmo NCM), no alto da
+   caixa de escolha. Nunca pré-marcada: só o botão Usar. */
+.st__historico {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  margin: 0;
+  padding: var(--esp-2) var(--esp-3);
+  border: var(--borda) solid var(--cor-borda);
+  border-left: 4px solid var(--cor-destaque);
+  border-radius: var(--raio);
+  background: var(--cor-destaque-suave);
+}
+
+.st__historico-texto {
+  flex: 1;
+  max-width: 90ch;
+  margin: 0;
+  color: var(--cor-texto-forte);
+}
+
+.st__historico--dividido {
+  border-left-color: var(--cor-borda);
+  background: none;
+  color: var(--cor-texto);
+}

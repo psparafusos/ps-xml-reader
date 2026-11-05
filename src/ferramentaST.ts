@@ -41,6 +41,8 @@ import {
   stRetidoNaNota,
   sugerirSemST,
 } from './explicacaoST';
+import { observacaoMvaFornecedor, sugestaoHistorico } from './historicoST';
+import { ligarDica, type Dica } from './tooltip';
 import type { ColunaItem } from './nfe/colunas';
 import type { Anotacoes, Item, Nota } from './nfe/tipos';
 
@@ -75,6 +77,41 @@ interface Linha {
   lembrada: boolean;
   /** Decisão guardada agora, nesta prévia. */
   guardada: boolean;
+  /** A escolha veio do "Usar" da sugestão pelo histórico. */
+  origem?: 'histórico';
+}
+
+/** Textos das dicas (src/tooltip.ts) da ferramenta. */
+const DICAS = {
+  filtro:
+    'Mostra só os itens em que o app não decidiu sozinho e precisa da sua escolha.',
+  lote: 'Marque as caixas dos itens e escolha aqui uma finalidade para todos de uma vez (revenda, uso e consumo, bonificação...). O CFOP muda junto.',
+  st: 'Se o produto tem substituição tributária em Sergipe, pela planilha de ST carregada.',
+  segmento: 'A linha da planilha de ST que vale para o item.',
+  mva: 'Margem de valor agregado da planilha, na coluna da alíquota de ICMS da nota.',
+  aliq: 'Alíquota de ICMS de Sergipe para o produto, da linha da planilha (com FECOEP quando houver).',
+  cfop: 'CFOP de entrada pela tabela da loja: origem do fornecedor, ST e finalidade.',
+  finalidade:
+    'Para que a loja comprou: revenda, uso e consumo, bonificação, ativo. Muda o CFOP.',
+  motivo: 'Por que o app chegou a esse resultado, e o que conferir.',
+  gravarCfop:
+    'Em qual coluna de anotação da nota o CFOP vai ser escrito ao clicar em Aplicar. Se a coluna ainda não existe, o app cria.',
+  gravarMva:
+    'Marque para escrever também a MVA numa coluna de anotação. Útil para lançar no Saef.',
+  gravarAliq:
+    'Marque para escrever também a alíquota interna numa coluna de anotação.',
+  aplicar:
+    'Escreve os valores nas colunas de anotação da nota. Não mexe no XML do fornecedor.',
+  lembrado:
+    'Você já decidiu este produto deste fornecedor antes. Clique em desfazer para escolher de novo.',
+};
+
+/** Texto com dica que não é controle: ganha o Tab para a dica abrir no foco. */
+function alvoDica(texto: string, dica: string): HTMLSpanElement {
+  const s = el('span', 'st__dica-alvo', texto);
+  s.tabIndex = 0;
+  ligarDica(s, dica);
+  return s;
 }
 
 export function abrirFerramentaST(c: ContextoST): void {
@@ -103,6 +140,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         : { escolha: null, finalidade: FINALIDADE_PADRAO, mvaJogo: null },
       lembrada: vale,
       guardada: false,
+      origem: vale ? lembrada.origem : undefined,
     });
   }
 
@@ -112,8 +150,29 @@ export function abrirFerramentaST(c: ContextoST): void {
   let confirmando: string | null = null;
   let ocupado = false;
 
-  const resolver = (l: Linha): LinhaPrevia =>
-    previaItem(analises.get(l.item.nItem)!, uf, l.decisao, l.lembrada);
+  // Decisões lembradas de todos os fornecedores, para o histórico por NCM;
+  // acompanha o que se decide nesta janela.
+  const historico = new Map(
+    (c.resultado.historico ?? []).map((d) => [
+      chaveDecisao(d.raizCnpj, d.cProd),
+      d,
+    ]),
+  );
+
+  const resolver = (l: Linha): LinhaPrevia => {
+    const r = previaItem(
+      analises.get(l.item.nItem)!,
+      uf,
+      l.decisao,
+      l.lembrada,
+    );
+    // MVA que o fornecedor usou na retenção x a da planilha: só observa.
+    const obs =
+      stRetidoNaNota(l.item) && !r.manual
+        ? observacaoMvaFornecedor(l.item.pMVAST, r.mva)
+        : null;
+    return obs ? { ...r, observacoes: [...r.observacoes, obs] } : r;
+  };
 
   // ---------- estrutura da janela ----------
   const titulo = el('h2', 'painel__titulo', TITULO_FERRAMENTA_ST);
@@ -148,6 +207,13 @@ export function abrirFerramentaST(c: ContextoST): void {
     aoMudar: (f) => mudarFinalidadeLote(f as Finalidade),
   });
   const barra = el('div', 'st__barra', rotuloFiltro, finalidadeLote.botao);
+  // Dicas fixas da janela (desligadas ao fechar).
+  const dicas: Dica[] = [
+    ligarDica(rotuloFiltro, DICAS.filtro),
+    ligarDica(finalidadeLote.botao, DICAS.lote),
+  ];
+  const cab = (classe: string, texto: string, dica?: string) =>
+    el('th', classe, dica ? alvoDica(texto, dica) : texto);
 
   const tabela = el('table', 'st__tabela');
   const corpoTabela = el('tbody', '');
@@ -165,13 +231,13 @@ export function abrirFerramentaST(c: ContextoST): void {
         el('th', 'num', 'Item'),
         el('th', '', 'Descrição'),
         el('th', '', 'NCM'),
-        el('th', '', 'ST em SE'),
-        el('th', '', 'Segmento e CEST'),
-        el('th', 'num', 'MVA'),
-        el('th', '', 'Alíq. interna'),
-        el('th', '', 'CFOP'),
-        el('th', '', 'Finalidade'),
-        el('th', '', 'Motivo'),
+        cab('', 'ST em SE', DICAS.st),
+        cab('', 'Segmento e CEST', DICAS.segmento),
+        cab('num', 'MVA', DICAS.mva),
+        cab('', 'Alíq. interna', DICAS.aliq),
+        cab('', 'CFOP', DICAS.cfop),
+        cab('', 'Finalidade', DICAS.finalidade),
+        cab('', 'Motivo', DICAS.motivo),
       ),
     ),
     corpoTabela,
@@ -230,6 +296,13 @@ export function abrirFerramentaST(c: ContextoST): void {
   erro.hidden = true;
   const btnCancelar = botao('botao botao--claro', el('span', '', 'Fechar'));
   const btnAplicar = botao('botao botao--principal', el('span', '', 'Aplicar'));
+  const campoCfopDestino = el('div', 'st__campo', rotCfop, selCfop.botao);
+  dicas.push(
+    ligarDica(campoCfopDestino, DICAS.gravarCfop),
+    ligarDica(rotMva, DICAS.gravarMva),
+    ligarDica(rotAliq, DICAS.gravarAliq),
+    ligarDica(btnAplicar, DICAS.aplicar),
+  );
 
   const corpo = el(
     'div',
@@ -250,7 +323,7 @@ export function abrirFerramentaST(c: ContextoST): void {
       el(
         'div',
         'st__destino',
-        el('div', 'st__campo', rotCfop, selCfop.botao),
+        campoCfopDestino,
         el('div', 'st__campo', rotMva, selMva.botao),
         el('div', 'st__campo', rotAliq, selAliq.botao),
         resumoAplicar,
@@ -262,6 +335,7 @@ export function abrirFerramentaST(c: ContextoST): void {
   d.setAttribute('aria-labelledby', titulo.id);
 
   const fechar = () => {
+    for (const x of dicas) x.remover();
     menus.fechar();
     if (d.open) d.close();
     d.remove();
@@ -313,7 +387,14 @@ export function abrirFerramentaST(c: ContextoST): void {
   });
 
   // ---------- decisões ----------
-  async function decidir(l: Linha, decisao: DecisaoST): Promise<void> {
+  async function decidir(
+    l: Linha,
+    decisao: DecisaoST,
+    origem?: 'histórico',
+  ): Promise<void> {
+    // Mudou só a finalidade ou a MVA: a escolha (e de onde veio) fica.
+    l.origem =
+      origem ?? (decisao.escolha === l.decisao.escolha ? l.origem : undefined);
     l.decisao = decisao;
     l.lembrada = false;
     const a = analises.get(l.item.nItem)!;
@@ -327,6 +408,7 @@ export function abrirFerramentaST(c: ContextoST): void {
     ) {
       // Voltou ao automático: nada a lembrar.
       await window.psApi.esquecerDecisao(chave);
+      historico.delete(chave);
       l.guardada = false;
     } else {
       const lembrada: DecisaoLembradaST = {
@@ -337,13 +419,17 @@ export function abrirFerramentaST(c: ContextoST): void {
         xProd: l.item.xProd,
         ncm: a.ncm,
         atualizadaEm: new Date().toISOString(),
+        ...(l.origem ? { origem: l.origem } : {}),
       };
       l.guardada = await window.psApi.lembrarDecisao(lembrada);
+      if (l.guardada) historico.set(chave, lembrada);
     }
   }
 
   async function desfazer(l: Linha): Promise<void> {
     await window.psApi.esquecerDecisao(chaveDecisao(cnpj, l.item.cProd));
+    historico.delete(chaveDecisao(cnpj, l.item.cProd));
+    l.origem = undefined;
     l.decisao = { escolha: null, finalidade: FINALIDADE_PADRAO, mvaJogo: null };
     l.lembrada = false;
     l.guardada = false;
@@ -504,7 +590,13 @@ export function abrirFerramentaST(c: ContextoST): void {
       el(
         'span',
         'st__lembrado',
-        el('span', 'st__etiqueta', l.lembrada ? 'lembrado' : 'guardado'),
+        l.lembrada
+          ? (() => {
+              const selo = alvoDica('lembrado', DICAS.lembrado);
+              selo.classList.add('st__etiqueta');
+              return selo;
+            })()
+          : el('span', 'st__etiqueta', 'guardado'),
         (() => {
           const b = botao('st__desfazer', 'desfazer');
           b.dataset.foco = `desfazer-${n}`;
@@ -583,6 +675,52 @@ export function abrirFerramentaST(c: ContextoST): void {
     const sugerido =
       !apendice.length && atual === null && sugerirSemST(a, retido);
     const explicacao = apendice.length ? null : explicacaoItem(a, retido);
+    // Pelo histórico do NCM: só sem escolha própria; nunca pré-marcada.
+    const hist =
+      atual === null
+        ? sugestaoHistorico(
+            a,
+            [...historico.values()],
+            chaveDecisao(cnpj, l.item.cProd),
+          )
+        : null;
+    // Histórico e "Sem ST" apontam o mesmo: uma só opção, com as duas razões.
+    const juntos =
+      hist?.tipo === 'sugere' && hist.escolha.tipo === 'sem-st' && sugerido;
+    const blocoHistorico =
+      hist &&
+      (() => {
+        if (hist.tipo === 'dividido')
+          return el('p', 'st__historico st__historico--dividido', hist.texto);
+        const usarHist = botao(
+          'botao botao--claro botao--pequeno',
+          el('span', '', 'Usar'),
+        );
+        usarHist.dataset.foco = `historico-${n}`;
+        usarHist.addEventListener('click', () => {
+          mostrarErro(null);
+          confirmando = null;
+          void acao(`finalidade-${n}`, () =>
+            decidir(l, { ...l.decisao, escolha: hist.escolha }, 'histórico'),
+          );
+        });
+        return el(
+          'div',
+          'st__historico',
+          el(
+            'p',
+            'st__historico-texto',
+            hist.texto,
+            juntos &&
+              el(
+                'span',
+                'st__sugerido',
+                'Sugerido também porque o produto não parece ser nenhuma das linhas.',
+              ),
+          ),
+          usarHist,
+        );
+      })();
     const opcoes: { valor: EscolhaST; rotulo: HTMLElement }[] = apendice.length
       ? apendice.map((cand) => ({
           valor: {
@@ -630,6 +768,7 @@ export function abrirFerramentaST(c: ContextoST): void {
               el('strong', '', 'Sem ST'),
               ' O produto não é nenhuma das linhas acima.',
               sugerido &&
+                !juntos &&
                 el(
                   'span',
                   'st__sugerido',
@@ -788,6 +927,7 @@ export function abrirFerramentaST(c: ContextoST): void {
           ? `Item ${n}: qual lubrificante do Apêndice XIV é este produto?`
           : `Item ${n}: qual linha da planilha vale?`,
       ),
+      blocoHistorico,
       explicacao?.linhaTipi && el('p', 'st__tipi', explicacao.linhaTipi),
       explicacao && el('p', 'st__explicacao', explicacao.texto),
       el('ul', 'st__motivos', ...r.detalhes.map((m) => el('li', '', m))),
@@ -829,12 +969,8 @@ export function abrirFerramentaST(c: ContextoST): void {
       (semCfop > 0
         ? `; ${semCfop} sem CFOP (precisam de você) ficam como estão.`
         : '.');
+    // O porquê de estar desligado já está no resumo ao lado; a dica é fixa.
     btnAplicar.disabled = !destino || comCfop === 0;
-    btnAplicar.title = !destino
-      ? 'Escolha a coluna de destino'
-      : comCfop === 0
-        ? 'Nenhum item com CFOP definido'
-        : '';
   }
 
   function desenhar(): void {
