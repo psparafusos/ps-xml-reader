@@ -3776,10 +3776,6 @@ body.pdf-previa #pdf-previa {
   font-weight: var(--peso-forte);
 }
 
-.st__mva-jogo {
-  max-width: 150px;
-}
-
 /* Dica (src/tooltip.ts): no lugar do title nativo. Popover: fica por cima
    das janelas modais. A classe .dica (sem DANFE na barra) é outra. */
 .dica-flutuante {

@@ -1,38 +1,49 @@
 // Prévia da ferramenta "ST, MVA e CFOP" com os campos que o motor fiscal
-// (src/fiscal/analise.ts) devolve: o rótulo da MVA e a troca entre MVA-ST 1
-// e MVA-ST 2 (Autopeças), a alíquota interna da linha da planilha, as
-// observações (protocolo com SE e pendências que só informam) e o motivo
-// "segmento X lido com problemas". Fica por cima de resolverItem
-// (src/fiscal/entrada.ts), sem mudar o motor. Lógica pura, sem DOM.
+// (src/fiscal/analise.ts) devolve: o rótulo da MVA (em Autopeças, sempre a
+// MVA-ST 1, porque a loja não tem índice de fidelização), a alíquota interna
+// da linha da planilha, as observações (protocolo com SE e pendências que só
+// informam) e o motivo "segmento X lido com problemas". Fica por cima de
+// resolverItem (src/fiscal/entrada.ts), sem mudar o motor. Lógica pura, sem
+// DOM.
 
-import type {
-  AliquotaInternaItem,
-  AnaliseItem,
-  MvaJogo,
-} from './fiscal/analise';
+import type { AliquotaInternaItem, AnaliseItem } from './fiscal/analise';
 import {
+  FINALIDADE_PADRAO,
+  jogosAutopecas,
   resolverItem,
   textoMva,
   type Decisao,
   type DecisaoLembrada,
-  type Gravacao,
   type ItemResolvido,
+  type Gravacao,
 } from './fiscal/entrada';
 
-/** Decisão da prévia: a da ferramenta e, em Autopeças, o jogo de MVA escolhido. */
-export type DecisaoST = Decisao & {
-  /** Rótulo do jogo escolhido ("MVA-ST 2"); ausente ou null: o padrão do motor. */
-  mvaJogo?: string | null;
-};
+/** Decisão da prévia (a MVA não se escolhe: a da regra geral). */
+export type DecisaoST = Decisao;
 
-/** Decisão lembrada com o jogo de MVA (o arquivo guarda o campo a mais). */
+/**
+ * Decisão lembrada como está no arquivo. As antigas podem trazer mvaJogo
+ * ("MVA-ST 2"), da época em que a tela deixava trocar: não vale mais.
+ */
 export type DecisaoLembradaST = DecisaoLembrada & { mvaJogo?: string | null };
+
+/** Motivo acrescentado quando a linha tem MVA-ST 1 e MVA-ST 2 (fidelização). */
+export const MOTIVO_SEM_FIDELIZACAO =
+  'MVA-ST 1 (regra geral; a loja não tem índice de fidelização)';
+
+/**
+ * Decisão de uma lembrada, sem o jogo de MVA. A que só guardava a MVA-ST 2
+ * (sem escolha de linha e na finalidade padrão) não tem mais o que lembrar:
+ * volta null, e o item fica no automático.
+ */
+export function decisaoDaLembrada(l: DecisaoLembradaST): DecisaoST | null {
+  if (l.escolha === null && l.finalidade === FINALIDADE_PADRAO) return null;
+  return { escolha: l.escolha, finalidade: l.finalidade };
+}
 
 export interface LinhaPrevia extends ItemResolvido {
   /** Rótulo do jogo de onde veio a MVA ("MVA-ST 1"). */
   mvaRotulo: string | null;
-  /** Jogos para trocar na própria célula (Autopeças); vazio quando não há troca. */
-  mvaOpcoes: MvaJogo[];
   /** Alíquota interna da linha em uso. */
   aliquotaInterna: AliquotaInternaItem | null;
   /** Texto da coluna "Alíq. interna": o da planilha, "confirmar" ou "-". */
@@ -61,29 +72,29 @@ export function previaItem(
   lembrado = false,
 ): LinhaPrevia {
   const r = resolverItem(a, ufEmitente, decisao, lembrado);
-  let { mva, mvaTexto } = r;
+  let { mva, mvaTexto, motivo } = r;
   let mvaRotulo: string | null = null;
-  let mvaOpcoes: MvaJogo[] = [];
 
-  // A linha em uso é a única do motor: vale a MVA que ele escolheu (em
-  // Autopeças, a MVA-ST 1), com a troca para a alternativa.
-  const linhaDoMotor =
-    r.candidato !== null &&
-    a.candidatos.length === 1 &&
-    a.candidatos[0].linhaPlanilha === r.candidato.linhaPlanilha &&
-    a.candidatos[0].segmento === r.candidato.segmento;
-  if (r.st === 'sim' && r.finalidade === 'revenda' && r.candidato) {
-    if (linhaDoMotor && a.mva !== null && a.mvaRotulo) {
-      mvaOpcoes = a.mvaAlternativa
-        ? [{ rotulo: a.mvaRotulo, valor: a.mva }, a.mvaAlternativa]
-        : [];
-      const escolhida = mvaOpcoes.find((m) => m.rotulo === decisao.mvaJogo) ?? {
-        rotulo: a.mvaRotulo,
-        valor: a.mva,
-      };
-      mva = escolhida.valor;
-      mvaRotulo = escolhida.rotulo;
-      mvaTexto = mva === null ? 'confirmar' : textoMva(mva);
+  if (
+    r.st === 'sim' &&
+    r.finalidade === 'revenda' &&
+    r.candidato &&
+    !r.manual
+  ) {
+    // Autopeças (MVA-ST 1 e MVA-ST 2): vale sempre a MVA-ST 1, na linha do
+    // motor ou na escolhida pela pessoa. A MVA-ST 2 não aparece como opção.
+    const autopecas =
+      a.colunaMva !== null && !r.candidato.lubrificante
+        ? jogosAutopecas(r.candidato)
+        : null;
+    if (autopecas) {
+      mva = autopecas.padrao.valor;
+      mvaRotulo = autopecas.padrao.rotulo;
+      mvaTexto =
+        mva === null
+          ? `confirmar (linha sem MVA na coluna ${a.colunaMva}%)`
+          : textoMva(mva);
+      motivo = `${motivo}; ${MOTIVO_SEM_FIDELIZACAO}`;
     } else if (r.mva !== null) {
       mvaRotulo = r.candidato.mvas[0]?.rotulo ?? null;
     }
@@ -110,8 +121,8 @@ export function previaItem(
     ...r,
     mva,
     mvaTexto,
+    motivo,
     mvaRotulo,
-    mvaOpcoes,
     aliquotaInterna,
     aliquotaTexto:
       r.st !== 'sim' || r.manual
