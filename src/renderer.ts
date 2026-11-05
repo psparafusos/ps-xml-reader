@@ -72,6 +72,7 @@ import {
 import { criarPainel } from './painelConferencia';
 import {
   abrirAreaDocumentos,
+  aoFecharErroDocumento,
   atualizarAreaDocumentos,
   progressoAreaDocumentos,
 } from './areaDocumentos';
@@ -1175,8 +1176,12 @@ function blocoDadosAdicionais(n: Nota): HTMLElement | null {
 
 const vazio = $('vazio');
 const inicioPerfil = $('inicio-perfil');
+const inicioPasta = $('inicio-pasta');
+const inicioPastaRotulo = $('inicio-pasta-rotulo');
 const inicioPastaCaminho = $('inicio-pasta-caminho');
 const inicioPastaSessao = $('inicio-pasta-sessao');
+const btnPastaTexto = $('btn-pasta-texto');
+const btnAbrirPastaInicio = $('btn-abrir-pasta') as HTMLButtonElement;
 const recentesLista = $('recentes-lista');
 const btnLimparRecentes = $('btn-limpar-recentes') as HTMLButtonElement;
 /** Bloco do seletor de perfil (botão e menu): na barra ou na faixa da tela inicial. */
@@ -2309,9 +2314,17 @@ function abreviarCaminho(caminho: string): string {
  */
 function atualizarPasta(caminho: string | null, sessao = false): void {
   pastaDestino = caminho;
-  inicioPastaCaminho.textContent = caminho ?? 'Nenhuma pasta escolhida';
+  // Faixa da tela inicial: "Salvando em <caminho>" ou "Escolha onde salvar".
+  inicioPasta.dataset.estado = caminho ? 'com' : 'sem';
+  inicioPastaRotulo.textContent = caminho
+    ? 'Salvando em'
+    : 'Escolha onde salvar';
+  inicioPastaCaminho.dataset.caminho = caminho ?? '';
   inicioPastaCaminho.title = caminho ?? '';
+  cortarCaminhoInicio();
   inicioPastaSessao.hidden = !(caminho && sessao);
+  btnPastaTexto.textContent = caminho ? 'Trocar' : 'Escolher';
+  btnAbrirPastaInicio.hidden = !caminho;
   for (const b of botoesPasta) {
     const rotulo = b.querySelector('.botao__caminho');
     if (rotulo) {
@@ -2333,6 +2346,42 @@ function atualizarPasta(caminho: string | null, sessao = false): void {
       : 'Escolha a pasta de destino primeiro';
   }
 }
+
+const medidaTexto = document.createElement('canvas').getContext('2d');
+
+/**
+ * Caminho da faixa da tela inicial: inteiro se couber; senão, cortado no
+ * meio com reticências, guardando o começo (a unidade) e mais do fim (a
+ * pasta). O caminho inteiro fica no title.
+ */
+function cortarCaminhoInicio(): void {
+  const caminho = inicioPastaCaminho.dataset.caminho ?? '';
+  const largura = inicioPastaCaminho.clientWidth;
+  if (!caminho || largura <= 0 || !medidaTexto) {
+    inicioPastaCaminho.textContent = caminho;
+    return;
+  }
+  const estilo = getComputedStyle(inicioPastaCaminho);
+  medidaTexto.font = `${estilo.fontWeight} ${estilo.fontSize} ${estilo.fontFamily}`;
+  const cabe = (t: string) => medidaTexto.measureText(t).width <= largura;
+  if (cabe(caminho)) {
+    inicioPastaCaminho.textContent = caminho;
+    return;
+  }
+  const cortado = (n: number) => {
+    const inicio = Math.ceil(n * 0.4);
+    return `${caminho.slice(0, inicio)}…${caminho.slice(caminho.length - (n - inicio))}`;
+  };
+  let menor = 0;
+  let maior = caminho.length - 1;
+  while (menor < maior) {
+    const meio = Math.ceil((menor + maior) / 2);
+    if (cabe(cortado(meio))) menor = meio;
+    else maior = meio - 1;
+  }
+  inicioPastaCaminho.textContent = cortado(menor);
+}
+new ResizeObserver(cortarCaminhoInicio).observe(inicioPastaCaminho);
 
 /** Abre a pasta de destino no Explorer; pasta que sumiu mostra o erro. */
 async function abrirPastaDestino(): Promise<void> {
@@ -3376,7 +3425,10 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
   let acao: Element | null = null;
   if (ocupado && progressoDocumentos.has(l.tipo))
     acao = indicadorProgresso(progressoDocumentos.get(l.tipo));
-  else if (l.versaoNova || (ocupado && l.estado !== 'faltando')) {
+  else if (
+    l.versaoNova ||
+    (ocupado && l.estado !== 'faltando' && l.estado !== 'opcional')
+  ) {
     const b = botao(
       'botao botao--principal botao--pequeno',
       icone(...ICONES.salvar),
@@ -3419,11 +3471,54 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     `docs-linha docs-linha--${l.estado}`,
     abrir,
     acao && el('span', 'docs-linha__acao', acao),
-    erro !== undefined && el('p', 'docs-linha__erro', erro),
+    erro !== undefined && avisoErroDocumento(l.tipo, l.nome, erro),
   );
   li.dataset.tipo = l.tipo;
   return li;
 }
+
+/**
+ * Aviso de erro da última tentativa, com X. Fechar tira o aviso e devolve o
+ * estado de antes da tentativa; ele só volta numa nova tentativa.
+ */
+function avisoErroDocumento(
+  tipo: TipoDocumento,
+  nome: string,
+  erro: string,
+): HTMLElement {
+  const fechar = botao('fechar-aviso', icone(...ICONES.fechar));
+  fechar.dataset.foco = 'fechar-erro';
+  fechar.title = 'Fechar o aviso';
+  fechar.setAttribute('aria-label', `Fechar o aviso de erro de ${nome}`);
+  fechar.addEventListener('click', () => {
+    erroDocumentos.delete(tipo);
+    if (estadoDocumentos) desenharListaDocumentos(estadoDocumentos);
+    const linha = listaDocumentos.querySelector(`[data-tipo="${tipo}"]`);
+    (
+      linha?.querySelector<HTMLElement>('[data-foco="acao"]') ??
+      linha?.querySelector<HTMLElement>('.docs-linha__abrir')
+    )?.focus();
+    // A recusa some no processo principal; o aviso de mudança redesenha.
+    window.psApi
+      .descartarRecusa(tipo)
+      .then(atualizarDocumentos)
+      .catch((e: unknown) => console.error(e));
+  });
+  const aviso = el(
+    'div',
+    'docs-linha__erro',
+    el('p', 'docs-linha__erro-texto', erro),
+    fechar,
+  );
+  aviso.setAttribute('role', 'alert');
+  return aviso;
+}
+
+/** Aviso fechado na tela de Documentos: some daqui também. */
+aoFecharErroDocumento((tipo) => {
+  if (!erroDocumentos.delete(tipo)) return;
+  if (estadoDocumentos) desenharListaDocumentos(estadoDocumentos);
+});
 
 function desenharListaDocumentos(e: EstadoDocumentos): void {
   // O foco volta ao mesmo lugar da mesma linha depois de redesenhar.

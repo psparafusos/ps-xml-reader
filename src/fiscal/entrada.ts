@@ -22,6 +22,20 @@ import type { AnaliseItem, CandidatoAnalise } from './analise';
 export const MOTIVO_APENDICE_XIV =
   'Pode ser lubrificante do Apêndice XIV (sem NCM na planilha); confirme';
 
+/** Opção do Apêndice XIV (fiscal/combustiveis.ts lê os dois grupos). */
+export type TipoLubrificante = 'derivado' | 'nao-derivado';
+export const ROTULO_LUBRIFICANTE: Record<TipoLubrificante, string> = {
+  derivado: 'derivado de petróleo',
+  'nao-derivado': 'não derivado de petróleo',
+};
+
+/**
+ * Ressalva do Apêndice XIV, junto do motivo de quem escolheu "Sim": pergunta
+ * em aberto com a contabilidade (o apêndice é de operações de distribuidoras).
+ */
+export const RESSALVA_APENDICE_XIV =
+  'Apêndice XIV trata de operações de distribuidoras; confirmar com a contabilidade';
+
 export const FINALIDADES = [
   'revenda',
   'uso-consumo',
@@ -62,8 +76,8 @@ export function cfopEntrada(
 /** O que a pessoa escolheu para a ST de um item. */
 export type EscolhaST =
   | { tipo: 'candidato'; segmento: string; linhaPlanilha: number; cest: string }
-  /** Lubrificante do Apêndice XIV: a linha do apêndice que vale. */
-  | { tipo: 'apendice-xiv'; linhaPlanilha: number; descricao: string }
+  /** Lubrificante do Apêndice XIV: derivado ou não derivado de petróleo. */
+  | { tipo: 'apendice-xiv'; lubrificante: TipoLubrificante }
   | { tipo: 'sem-st' }
   /**
    * CFOP informado pela pessoa ("Outro"), com a MVA em fração (opcional) e
@@ -134,9 +148,7 @@ const mesmoCandidato = (c: CandidatoAnalise, e: EscolhaST) =>
   c.linhaPlanilha === e.linhaPlanilha;
 
 const mesmaLinhaApendice = (c: CandidatoAnalise, e: EscolhaST) =>
-  e.tipo === 'apendice-xiv' &&
-  c.linhaPlanilha === e.linhaPlanilha &&
-  c.descricao === e.descricao;
+  e.tipo === 'apendice-xiv' && c.lubrificante === e.lubrificante;
 
 /** A decisão ainda serve para esta análise? (mesmo NCM e, se for linha, ela ainda existe). */
 export function decisaoAplicavel(
@@ -149,6 +161,17 @@ export function decisaoAplicavel(
   if (d.escolha?.tipo === 'apendice-xiv')
     return (a.apendiceXIV ?? []).some((c) => mesmaLinhaApendice(c, d.escolha!));
   return true;
+}
+
+/**
+ * Motivo de quem escolheu "Sim" no Apêndice XIV: "Apêndice XIV, derivado de
+ * petróleo, MVA 106,67% (interestadual)", com a ressalva da contabilidade.
+ */
+export function motivoApendiceXIV(c: CandidatoAnalise): string {
+  const tipo = c.lubrificante ? ROTULO_LUBRIFICANTE[c.lubrificante] : '';
+  const valor = c.mvas[0]?.valor ?? null;
+  const mva = valor === null ? 'MVA a confirmar' : `MVA ${fmtPct(valor)}`;
+  return `Apêndice XIV, ${tipo}, ${mva} (${c.colunaApendice ?? '-'}). ${RESSALVA_APENDICE_XIV}`;
 }
 
 /** Mensagens da análise que são da TIPI: viram observação, não pendência. */
@@ -211,7 +234,7 @@ export function resolverItem(
     candidato = escolhido;
     motivo =
       escolha?.tipo === 'apendice-xiv'
-        ? `lubrificante do Apêndice XIV: ${escolhido.descricao}`
+        ? motivoApendiceXIV(escolhido)
         : `linha escolhida: ${escolhido.segmento}, CEST ${escolhido.cest}`;
   } else if (a.stSergipe === 'nao') {
     st = 'nao';
@@ -238,6 +261,14 @@ export function resolverItem(
   if (st === 'sim' && candidato) {
     if (finalidade !== 'revenda') {
       mvaTexto = 'confirmar com a contabilidade';
+    } else if (candidato.lubrificante) {
+      // Apêndice XIV: a coluna já foi escolhida pela análise (interna ou
+      // interestadual, e a alíquota quando dividida).
+      mva = candidato.mvas[0]?.valor ?? null;
+      if (mva === null) {
+        mvaTexto = `confirmar (${candidato.colunaApendice ?? 'coluna sem MVA'})`;
+        mvaPendente = true;
+      } else mvaTexto = fmtPct(mva);
     } else if (a.colunaMva === null) {
       mvaTexto = 'confirmar (alíquota da nota não é 4, 7 ou 12)';
       mvaPendente = true;
@@ -323,8 +354,9 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
           (e.mva === null ||
             (typeof e.mva === 'number' && Number.isFinite(e.mva)))) ||
         (e.tipo === 'apendice-xiv' &&
-          texto((e as { descricao?: unknown }).descricao) &&
-          Number.isInteger(e.linhaPlanilha)) ||
+          ((e as { lubrificante?: unknown }).lubrificante === 'derivado' ||
+            (e as { lubrificante?: unknown }).lubrificante ===
+              'nao-derivado')) ||
         (e.tipo === 'candidato' &&
           texto(e.segmento) &&
           texto(e.cest) &&

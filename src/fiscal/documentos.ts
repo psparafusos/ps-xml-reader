@@ -18,9 +18,9 @@ export const NOME_DOCUMENTO: Record<TipoDocumento, string> = {
   combustiveis: 'Combustíveis e lubrificantes (Apêndice XIV)',
 };
 
-/** Arquivo sem a aba do Apêndice XIV (planilha de combustíveis). */
+/** Arquivo sem o Apêndice XIV (planilha de combustíveis). */
 export const MENSAGEM_SEM_APENDICE =
-  'Este arquivo não parece a planilha de combustíveis: não tem a aba do Apêndice XIV (lubrificantes derivados de petróleo).';
+  'Este arquivo não parece a planilha de combustíveis: não tem o Apêndice XIV (lubrificantes).';
 
 /** Algo do arquivo que o leitor não entendeu e deixou de fora. */
 export interface PontoNaoEntendido {
@@ -150,20 +150,35 @@ export function resumoST(t: TabelaST): Resumo {
   };
 }
 
-/** Valida e resume o Apêndice XIV lido. Lança ErroFormato se nenhuma linha foi lida. */
+/** Valores de MVA lidos do Apêndice XIV (internas e interestaduais dos dois grupos). */
+export function mvasLidasCombustiveis(t: TabelaCombustiveis): number {
+  let n = 0;
+  for (const g of [t.derivado, t.naoDerivado]) {
+    if (g.interna !== null) n++;
+    if (g.interestadual !== null) n++;
+    for (const v of Object.values(g.porAliquota ?? {})) if (v !== null) n++;
+  }
+  return n;
+}
+
+/** Valida e resume o Apêndice XIV lido. Lança ErroFormato se nenhuma MVA foi lida. */
 export function resumoCombustiveis(t: TabelaCombustiveis): Resumo {
   const r = t.relatorio;
-  if (t.linhas.length === 0)
+  const mvas = mvasLidasCombustiveis(t);
+  if (mvas === 0)
     throw new ErroFormato(
-      `A aba "${r.aba}" do Apêndice XIV não tem nenhuma linha de lubrificante com descrição: não parece a planilha de combustíveis.`,
+      `O Apêndice XIV da aba "${r.aba}" não tem nenhuma MVA: não parece a planilha de combustíveis.`,
     );
   return {
-    versao: '',
-    vigencia: '',
-    quantidades: [{ rotulo: 'linhas do Apêndice XIV', valor: t.linhas.length }],
+    versao: t.cabecalho.versao,
+    vigencia: t.cabecalho.vigencia,
+    quantidades: [{ rotulo: 'MVAs do Apêndice XIV', valor: mvas }],
     naoEntendidos: r.problemas.slice(0, LIMITE_PONTOS).map((p) => ({ ...p })),
     totalNaoEntendidos: r.problemas.length,
-    observacoes: r.notas.map((n) => `${r.aba}: ${n}.`),
+    observacoes: [
+      `UF destinatária: ${t.cabecalho.uf}.`,
+      ...r.notas.map((n) => `${r.aba}: ${n}.`),
+    ],
   };
 }
 

@@ -43,7 +43,9 @@ import {
 } from './fiscal/entrada';
 import {
   ErroFormato,
+  MENSAGEM_SEM_APENDICE,
   NOME_DOCUMENTO,
+  mvasLidasCombustiveis,
   type InfoDocumento,
   type TipoDocumento,
   type TipoOnline,
@@ -306,6 +308,8 @@ function lerSemGravar(
   reconhecido: Reconhecido;
   relatorio: (() => LeituraDocumento) | null;
   segmentosIncompletos: string[];
+  /** Recusa com motivo próprio do leitor (combustíveis de outra UF, por exemplo). */
+  erroFormato?: string;
 } {
   const ehZip = dados.length > 4 && dados[0] === 0x50 && dados[1] === 0x4b;
   let abas: Aba[] | null = null;
@@ -322,15 +326,25 @@ function lerSemGravar(
       return { reconhecido, relatorio: null, segmentosIncompletos: [] };
     try {
       const c = lerCombustiveis(abas);
-      if (c.linhas.length === 0)
+      if (mvasLidasCombustiveis(c) === 0)
         return { reconhecido, relatorio: null, segmentosIncompletos: [] };
       return {
         reconhecido,
         relatorio: () => leituraCombustiveis(c.relatorio, '', ''),
         segmentosIncompletos: [],
       };
-    } catch {
-      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
+    } catch (erro) {
+      // Achou o Apêndice XIV, mas a planilha não serve (outra UF, sem os
+      // grupos): a mensagem do leitor diz o porquê.
+      return {
+        reconhecido,
+        relatorio: null,
+        segmentosIncompletos: [],
+        erroFormato:
+          erro instanceof ErroFormato && erro.message !== MENSAGEM_SEM_APENDICE
+            ? erro.message
+            : undefined,
+      };
     }
   }
   if (tipo === 'st') {
@@ -403,6 +417,11 @@ async function importar(
     leitura.reconhecido !== tipo &&
     leitura.reconhecido !== 'planilha' &&
     leitura.reconhecido !== 'texto';
+  if (!outroTipo && leitura.erroFormato)
+    return recusar({
+      ...mensagemArquivoErrado(tipo, leitura.reconhecido),
+      mensagem: leitura.erroFormato,
+    });
   if (outroTipo || !leitura.relatorio)
     return recusar(mensagemArquivoErrado(tipo, leitura.reconhecido));
 
@@ -658,6 +677,16 @@ export function registrarDocumentos(): void {
         r.estado = await estado();
       }
       return r;
+    },
+  );
+
+  // Aviso de erro fechado pela pessoa: a recusa some e o documento volta ao
+  // estado de antes da tentativa (o carregado, "Faltando" ou "Opcional").
+  ipcMain.handle(
+    'descartar-recusa',
+    async (_event, tipo: unknown): Promise<EstadoDocumentos> => {
+      if (ehTipo(tipo) && recusado.delete(tipo)) avisarJanelas();
+      return estado();
     },
   );
 

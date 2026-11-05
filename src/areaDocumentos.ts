@@ -13,6 +13,7 @@ import { botao, el, icone, marcaEstado } from './dom';
 import {
   chaveDecisao,
   ROTULO_FINALIDADE,
+  ROTULO_LUBRIFICANTE,
   textoMva,
   type DecisaoLembrada,
 } from './fiscal/entrada';
@@ -26,6 +27,12 @@ let dialogo: HTMLDialogElement | null = null;
 let redesenhar: ((e: EstadoDocumentos) => void) | null = null;
 let irParaCartao: ((tipo: TipoDocumento) => void) | null = null;
 let mostrarProgresso: ((p: ProgressoDocumento) => void) | null = null;
+let aoFecharErro: ((tipo: TipoDocumento) => void) | null = null;
+
+/** Aviso de erro fechado num cartão: quem mais mostra o aviso (a tela inicial) tira o seu. */
+export function aoFecharErroDocumento(fn: (tipo: TipoDocumento) => void): void {
+  aoFecharErro = fn;
+}
 
 export function areaDocumentosAberta(): boolean {
   return dialogo?.open === true;
@@ -52,7 +59,7 @@ const PARA_QUE: Record<TipoDocumento, string> = {
   st: 'Arquivo .xlsx do Portal Nacional da Substituição Tributária (CONFAZ), página de Sergipe. Necessária para a ferramenta "ST, MVA e CFOP": diz se o produto tem ST em Sergipe e qual MVA usar.',
   tipi: 'Tabela do IPI da Receita Federal: o tipi.xlsx oficial ou o texto .txt extraído do PDF. Usada para conferir se o NCM existe e a alíquota de IPI da nota.',
   combustiveis:
-    'Opcional. Planilha .xlsx de combustíveis e lubrificantes do CONFAZ (Ato COTEPE/ICMS 61/19); só a aba do Apêndice XIV (lubrificantes derivados de petróleo) é lida. Com ela, item de NCM 2710 ou 3403 fora da planilha de ST pede confirmação na ferramenta "ST, MVA e CFOP".',
+    'Opcional. Planilha .xlsx de combustíveis e lubrificantes do CONFAZ para Sergipe (Ato COTEPE/ICMS 61/19); só o Apêndice XIV (lubrificantes derivados e não derivados de petróleo) é lido. Com ela, item de NCM 2710 ou 3403 fora da planilha de ST pede confirmação na ferramenta "ST, MVA e CFOP".',
 };
 
 const ROTULO_VERIFICACAO: Record<ResultadoVerificacao['estado'], string> = {
@@ -320,12 +327,36 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
     );
   }
 
-  /** Arquivo de outro tipo ou ilegível: o que houve e o que fazer, em destaque. */
-  function caixaErro(erro: { mensagem: string; oQueFazer?: string }) {
+  /**
+   * Arquivo de outro tipo ou ilegível: o que houve e o que fazer, em
+   * destaque. O X fecha o aviso e o documento volta ao estado de antes da
+   * tentativa; o aviso só volta numa nova tentativa.
+   */
+  function caixaErro(
+    tipo: TipoDocumento,
+    erro: { mensagem: string; oQueFazer?: string },
+  ) {
+    const fecharErro = botao('fechar-aviso', icone(...ICONES.fechar));
+    fecharErro.dataset.foco = `fechar-erro-${tipo}`;
+    fecharErro.title = 'Fechar o aviso';
+    fecharErro.setAttribute(
+      'aria-label',
+      `Fechar o aviso de erro de ${NOME_DOCUMENTO[tipo]}`,
+    );
+    fecharErro.addEventListener(
+      'click',
+      () =>
+        void acao(`atualizar-${tipo}`, async () => {
+          erros.delete(tipo);
+          estado = await window.psApi.descartarRecusa(tipo);
+          aoFecharErro?.(tipo);
+        }),
+    );
     const caixa = el(
       'div',
       'documento__erro',
       el('p', '', el('strong', '', erro.mensagem)),
+      fecharErro,
       erro.oQueFazer && el('p', '', `O que fazer: ${erro.oQueFazer}`),
     );
     caixa.setAttribute('role', 'alert');
@@ -643,7 +674,7 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
     const parcial = parciais.get(tipo);
     const versao = info
       ? tipo === 'combustiveis'
-        ? 'Ato COTEPE/ICMS 61/19, Apêndice XIV'
+        ? `${info.versao ? `Versão ${info.versao}` : 'Versão não informada'} (Ato COTEPE/ICMS 61/19, Apêndice XIV)`
         : tipo === 'st'
           ? info.versao
             ? `Versão ${info.versao}`
@@ -654,7 +685,7 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
       : '';
     const vigencia =
       info && info.vigencia
-        ? tipo === 'st'
+        ? tipo === 'st' || tipo === 'combustiveis'
           ? `a partir de ${info.vigencia}`
           : `atualizada até ${info.vigencia}`
         : '';
@@ -687,7 +718,7 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
           'documento__dados',
           linhaInfo('Versão', versao),
           vigencia &&
-            linhaInfo(tipo === 'st' ? 'Vigência' : 'Atualização', vigencia),
+            linhaInfo(tipo === 'tipi' ? 'Atualização' : 'Vigência', vigencia),
           linhaInfo(
             'Importado',
             `${dataHora(info.importadoEm)} (${tamanho(info.tamanhoArquivo)})`,
@@ -712,7 +743,7 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
               .join(' · '),
           ),
         ),
-      erro && caixaErro(erro),
+      erro && caixaErro(tipo, erro),
       parcial && caixaParcial(tipo, parcial, info !== null),
       r && verificacao(tipo, r),
       el('div', 'documento__acoes', btnAtualizar, btnRelatorio),
@@ -732,7 +763,7 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
           : d.escolha.tipo === 'sem-st'
             ? 'Sem ST'
             : d.escolha.tipo === 'apendice-xiv'
-              ? `Apêndice XIV: ${d.escolha.descricao}`
+              ? `Apêndice XIV: ${ROTULO_LUBRIFICANTE[d.escolha.lubrificante]}`
               : d.escolha.tipo === 'manual'
                 ? `CFOP manual ${d.escolha.cfop}${d.escolha.mva === null ? '' : `, MVA ${textoMva(d.escolha.mva)}`}: ${d.escolha.motivo}`
                 : `${d.escolha.segmento}, CEST ${d.escolha.cest}`,

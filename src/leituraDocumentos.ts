@@ -180,11 +180,11 @@ export function leituraCombustiveis(
       total: r.abasIgnoradas.length,
       onde: r.abasIgnoradas.slice(0, 12),
     });
-  if (r.outrasUf > 0)
+  if (r.outrosApendices.length > 0)
     ignorados.push({
-      motivo: 'linhas de outras UFs',
-      total: r.outrasUf,
-      onde: [r.aba],
+      motivo: 'outros apêndices da planilha (combustíveis)',
+      total: r.outrosApendices.length,
+      onde: r.outrosApendices.slice(0, 13),
     });
   return {
     versao: VERSAO_LEITURA,
@@ -196,7 +196,8 @@ export function leituraCombustiveis(
     totalProblemas: r.problemas.length,
     ignorados,
     observacoes: [
-      `Lida a aba "${r.aba}" (cabeçalho na linha ${r.linhaCabecalho}).`,
+      `Lido o Apêndice XIV da aba "${r.aba}" (título na linha ${r.linhaApendice}, valores na linha ${r.linhaValores}).`,
+      ...(r.lido ?? []).map((l) => `${l}.`),
       ...r.notas.map((n) => `${r.aba}: ${n}.`),
     ],
   };

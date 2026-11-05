@@ -23,6 +23,7 @@ import {
   lerCfopManual,
   planoAplicar,
   raizCnpj,
+  RESSALVA_APENDICE_XIV,
   ROTULO_FINALIDADE,
   textoMva,
   type EscolhaST,
@@ -450,8 +451,8 @@ export function abrirFerramentaST(c: ContextoST): void {
       celulaSt.append(b);
     }
     // NCM 2710/3403 fora da planilha, com o Apêndice XIV carregado: a pessoa
-    // diz se é lubrificante. "Sim" abre a lista das linhas do apêndice;
-    // "Não" é sem ST.
+    // diz se é lubrificante. "Sim" pergunta se é derivado ou não derivado de
+    // petróleo (a MVA vem da coluna do grupo); "Não" é sem ST.
     if (!podeEscolher && a.apendiceXIV && a.apendiceXIV.length > 0) {
       const esc = l.decisao.escolha;
       const selAp = menus.seletor({
@@ -483,7 +484,7 @@ export function abrirFerramentaST(c: ContextoST): void {
       });
       selAp.botao.dataset.foco = `apendice-${n}`;
       selAp.botao.title =
-        'Sim: escolha a linha do Apêndice XIV (MVA e alíquota dela). Não: sem ST.';
+        'Sim: diga se é derivado ou não derivado de petróleo (a MVA vem do Apêndice XIV). Não: sem ST.';
       celulaSt.append(selAp.botao);
     }
 
@@ -548,7 +549,7 @@ export function abrirFerramentaST(c: ContextoST): void {
           (r.st === 'nao' || r.manual
             ? '-'
             : a.candidatos.length === 0 && a.apendiceXIV
-              ? `${a.apendiceXIV.length} ${a.apendiceXIV.length === 1 ? 'linha' : 'linhas'} do Apêndice XIV`
+              ? 'Apêndice XIV'
               : `${a.candidatos.length} opções`),
         r.cest && el('span', 'st__cest', `CEST ${r.cest}`),
       ),
@@ -587,18 +588,17 @@ export function abrirFerramentaST(c: ContextoST): void {
       ? apendice.map((cand) => ({
           valor: {
             tipo: 'apendice-xiv' as const,
-            linhaPlanilha: cand.linhaPlanilha,
-            descricao: cand.descricao,
+            lubrificante: cand.lubrificante ?? 'derivado',
           },
           rotulo: el(
             'span',
             'st__opcao-texto',
             el('strong', '', cand.descricao),
-            ` (linha ${cand.linhaPlanilha} do apêndice)`,
+            ` (${cand.segmentoOficial})`,
             el(
               'span',
               'st__cest',
-              ` MVA: ${pct(cand.mvas[0]?.valor ?? null)} · Alíquota: ${cand.aliquotaInterna?.texto ?? '-'}`,
+              ` MVA ${pct(cand.mvas[0]?.valor ?? null)} (${cand.colunaApendice ?? '-'})`,
             ),
           ),
         }))
@@ -651,10 +651,10 @@ export function abrirFerramentaST(c: ContextoST): void {
       x.tipo === y.tipo &&
       (x.tipo === 'sem-st' ||
         x.tipo === 'manual' ||
-        (x.linhaPlanilha === (y as typeof x).linhaPlanilha &&
-          (x.tipo === 'candidato'
-            ? x.segmento === (y as typeof x).segmento
-            : x.descricao === (y as typeof x).descricao)));
+        (x.tipo === 'apendice-xiv'
+          ? x.lubrificante === (y as typeof x).lubrificante
+          : x.linhaPlanilha === (y as typeof x).linhaPlanilha &&
+            x.segmento === (y as typeof x).segmento));
     const radios = opcoes.map((o, i) => {
       const r2 = el('input', '');
       r2.type = 'radio';
@@ -746,7 +746,7 @@ export function abrirFerramentaST(c: ContextoST): void {
       if (!marcada) {
         mostrarErro(
           apendice.length
-            ? 'Escolha uma linha do Apêndice XIV.'
+            ? 'Escolha: derivado ou não derivado de petróleo.'
             : 'Escolha uma linha da planilha, "Sem ST" ou "Outro".',
         );
         return;
@@ -785,11 +785,13 @@ export function abrirFerramentaST(c: ContextoST): void {
         'legend',
         '',
         apendice.length
-          ? `Item ${n}: qual lubrificante do Apêndice XIV é este produto?`
+          ? `Item ${n}: o lubrificante é derivado de petróleo?`
           : `Item ${n}: qual linha da planilha vale?`,
       ),
       explicacao?.linhaTipi && el('p', 'st__tipi', explicacao.linhaTipi),
       explicacao && el('p', 'st__explicacao', explicacao.texto),
+      apendice.length > 0 &&
+        el('p', 'st__explicacao', `${RESSALVA_APENDICE_XIV}.`),
       el('ul', 'st__motivos', ...r.detalhes.map((m) => el('li', '', m))),
       ...radios.map((x) => x.lbl),
       !apendice.length && camposManual,

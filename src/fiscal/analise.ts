@@ -20,12 +20,19 @@
 //   retido. É só observação; não muda a ST nem o CFOP.
 // - Lubrificantes (Apêndice XIV do Ato COTEPE/ICMS 61/19): NCM que começa
 //   em 2710 ou 3403 e não está na planilha de Sergipe fica "confirmar" se
-//   o Apêndice XIV foi carregado. A pessoa diz se é lubrificante e escolhe
-//   a linha do apêndice (apendiceXIV traz as opções). Sem o apêndice
+//   o Apêndice XIV foi carregado. A pessoa diz se é lubrificante e se é
+//   derivado ou não derivado de petróleo (apendiceXIV traz as duas opções).
+//   A MVA vem da coluna: fornecedor de SE = Internas; de fora =
+//   Interestaduais e, quando a coluna é dividida (não derivados), a da
+//   alíquota de ICMS da nota (7 ou 12; 4 se importado). Sem o apêndice
 //   carregado, segue a regra geral (sem ST).
 
 import type { Item } from '../nfe/tipos';
-import type { LinhaCombustivel, TabelaCombustiveis } from './combustiveis';
+import type {
+  GrupoLubrificante,
+  TabelaCombustiveis,
+  TipoLubrificante,
+} from './combustiveis';
 import { MOTIVO_APENDICE_XIV } from './entrada';
 
 export { MOTIVO_APENDICE_XIV };
@@ -71,7 +78,7 @@ export interface BaseAnalise {
    */
   segmentosIncompletos?: string[];
   /** Apêndice XIV (lubrificantes); ausente ou null = não carregado. */
-  combustiveis?: TabelaCombustiveis | LinhaCombustivel[] | null;
+  combustiveis?: TabelaCombustiveis | null;
 }
 
 /** Segmento das opções do Apêndice XIV (vai na escolha e na prévia). */
@@ -127,6 +134,10 @@ export interface CandidatoAnalise {
   protocolos: ProtocoloST[] | null;
   /** O segmento foi lido com problemas na importação. */
   segmentoIncompleto: boolean;
+  /** Opção do Apêndice XIV: derivado ou não derivado de petróleo. */
+  lubrificante?: TipoLubrificante;
+  /** Coluna do Apêndice XIV de onde veio a MVA ("interna", "interestadual 7%"). */
+  colunaApendice?: string;
 }
 
 export interface AnaliseTipi {
@@ -289,18 +300,24 @@ export function analisarItem(
   );
   const indicioST = indicioDeST(item);
 
-  const lubrificantes = Array.isArray(base.combustiveis)
-    ? base.combustiveis
-    : (base.combustiveis?.linhas ?? []);
+  const apendice = base.combustiveis ?? null;
   if (
     candidatos.length === 0 &&
-    lubrificantes.length > 0 &&
+    apendice &&
     PREFIXOS_LUBRIFICANTE.some((p) => ncm.startsWith(p))
   ) {
     motivos.push(MOTIVO_APENDICE_XIV);
     if (indicioST) motivos.push(`fornecedor tratou como ST (${indicioST})`);
+    const coluna = colunaApendiceXIV(
+      deSergipe,
+      origem.tipo === 'importado',
+      aliquota,
+    );
     return resultado('confirmar', [], {
-      apendiceXIV: lubrificantes.map((l) => candidatoApendice(l, colunaMva)),
+      apendiceXIV: [
+        candidatoApendice('derivado', apendice, coluna),
+        candidatoApendice('nao-derivado', apendice, coluna),
+      ],
     });
   }
 
@@ -517,33 +534,81 @@ function candidato(
   };
 }
 
-/** Linha do Apêndice XIV no formato de candidato da planilha. */
+/**
+ * Coluna do Apêndice XIV para a nota: Internas (fornecedor de SE) ou
+ * Interestaduais. Quando as interestaduais são divididas, vale a alíquota
+ * de ICMS da nota (7 ou 12), ou 4 se o produto é importado.
+ */
+export interface ColunaApendiceXIV {
+  operacao: 'interna' | 'interestadual';
+  /** Coluna das interestaduais divididas; null quando não deu para saber. */
+  aliquota: '4' | '7' | '12' | null;
+}
+
+export function colunaApendiceXIV(
+  deSergipe: boolean,
+  importado: boolean,
+  aliquotaNota: number | null,
+): ColunaApendiceXIV {
+  if (deSergipe) return { operacao: 'interna', aliquota: null };
+  const aliquota =
+    importado || aliquotaNota === 4
+      ? '4'
+      : aliquotaNota === 7
+        ? '7'
+        : aliquotaNota === 12
+          ? '12'
+          : null;
+  return { operacao: 'interestadual', aliquota };
+}
+
+/** MVA do grupo na coluna e o rótulo dela ("interestadual 7%"). */
+export function mvaApendiceXIV(
+  g: GrupoLubrificante,
+  coluna: ColunaApendiceXIV,
+): { valor: number | null; rotulo: string } {
+  if (coluna.operacao === 'interna')
+    return { valor: g.interna, rotulo: 'interna' };
+  if (!g.porAliquota)
+    return { valor: g.interestadual, rotulo: 'interestadual' };
+  if (coluna.aliquota === null)
+    return {
+      valor: null,
+      rotulo: 'interestadual (alíquota da nota não é 4, 7 ou 12)',
+    };
+  return {
+    valor: g.porAliquota[coluna.aliquota],
+    rotulo:
+      coluna.aliquota === '4'
+        ? 'importação 4%'
+        : `interestadual ${coluna.aliquota}%`,
+  };
+}
+
+/** Opção do Apêndice XIV (derivado ou não) no formato de candidato da planilha. */
 export function candidatoApendice(
-  l: LinhaCombustivel,
-  coluna: AliquotaMva | null,
+  tipo: TipoLubrificante,
+  t: TabelaCombustiveis,
+  coluna: ColunaApendiceXIV,
 ): CandidatoAnalise {
+  const g = tipo === 'derivado' ? t.derivado : t.naoDerivado;
+  const mva = mvaApendiceXIV(g, coluna);
   return {
     segmento: SEGMENTO_APENDICE_XIV,
-    segmentoOficial: 'Lubrificantes derivados de petróleo',
+    segmentoOficial: g.titulo,
     cest: '',
     ncmPlanilha: '',
-    descricao: l.descricao,
+    descricao:
+      tipo === 'derivado' ? 'Derivado de petróleo' : 'Não derivado de petróleo',
     digitos: 0,
     cestConfere: null,
-    mvas: [
-      {
-        rotulo: 'MVA Apêndice XIV',
-        valor: coluna === null ? null : l.mvaPorAliquota[coluna],
-      },
-    ],
-    linhaPlanilha: l.linhaPlanilha,
-    aliquotaInterna: separarAliquotaInterna(
-      l.aliquotaTexto === null
-        ? null
-        : { texto: l.aliquotaTexto, numero: l.aliquota },
-    ),
+    mvas: [{ rotulo: 'MVA Apêndice XIV', valor: mva.valor }],
+    linhaPlanilha: t.relatorio.linhaValores,
+    aliquotaInterna: null,
     protocolos: null,
     segmentoIncompleto: false,
+    lubrificante: tipo,
+    colunaApendice: mva.rotulo,
   };
 }
 

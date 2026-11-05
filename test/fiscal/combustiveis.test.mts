@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -18,116 +18,206 @@ import {
   decisaoAplicavel,
   decisaoValida,
   resolverItem,
+  RESSALVA_APENDICE_XIV,
 } from '../../src/fiscal/entrada.ts';
 import { lerTabelaST } from '../../src/fiscal/st.ts';
 import { lerXlsx } from '../../src/fiscal/xlsx.ts';
-import { xlsx, xlsxAbas } from './fixtures/xlsx.mts';
+import { xlsxAbas, type CelulaTeste } from './fixtures/xlsx.mts';
 
-// Planilha de combustíveis inventada: uma aba de outro apêndice (que não
-// pode ser lida) e a aba do Apêndice XIV, com coluna de UF, MVA por
-// alíquota interestadual e alíquota interna. Valores fictícios.
-const apendiceXIV = [
-  ['ATO COTEPE/ICMS 61/19'],
-  ['APÊNDICE XIV - LUBRIFICANTES DERIVADOS DE PETRÓLEO'],
+// Planilha de combustíveis inventada, no formato do CONFAZ: uma aba só (de
+// nome qualquer), o cabeçalho e os apêndices empilhados. O Apêndice XIV tem
+// os dois grupos mesclados, "Internas"/"Interestaduais", as alíquotas das
+// interestaduais divididas e a linha dos valores. Valores fictícios.
+const linhas: CelulaTeste[][] = [
+  ['ANEXO ÚNICO'], // 1
+  [],
+  ['(ATO COTEPE/ICMS 61/19, de 20 de novembro de 2019)'], // 3
+  [],
+  ['UF DESTINATÁRIA/DECLARANTE: SERGIPE'], // 5
+  [],
+  ['VERSÃO: 007'], // 7
+  [],
+  ['PRODUÇÃO DE EFEITOS A PARTIR DE: 01/02/2026'], // 9
+  [],
+  [],
+  ['APÊNDICE I - OPERAÇÕES DE TESTE COM GASOLINA'], // 12
+  ['Gasolina teste', null, 'Óleo teste'], // 13
+  ['Internas', 'Interestaduais', 'Internas', 'Interestaduais'], // 14
+  [0.11, 0.22, 0.33, 0.44], // 15
+  [],
+  ['APÊNDICE XIV - OPERAÇÕES DE TESTE COM LUBRIFICANTES'], // 17
   [
-    'UF',
-    'Descrição',
-    'MVA 4%',
-    'MVA 7%',
-    'MVA 12%',
-    'MVA interna',
-    'Alíquota interna',
-  ],
-  ['SE', 'Óleo lubrificante teste A', 0.611, 0.55, 0.49, 0.4, '18%'],
-  ['SE', 'Graxa teste B', '70,5%', '64%', '57,1%', '45%', 0.18],
-  ['BA', 'Óleo lubrificante teste A', 0.9, 0.9, 0.9, 0.9, '20%'],
-  [null, null, null],
-  ['SE', null, 0.1],
+    'Lubrificantes Derivados de Petróleo',
+    null,
+    'Lubrificantes Não Derivados de Petróleo',
+  ], // 18
+  ['Internas', 'Interestaduais', 'Internas', 'Interestaduais'], // 19
+  [null, null, null, 0.07, 0.12, 'Importação 4%'], // 20
+  [0.5, 0.9, 0.55, 0.8, 0.7, '85%'], // 21
 ];
-const planilha = xlsxAbas([
-  {
-    nome: 'Apendice I',
-    linhas: [
-      ['APÊNDICE I - GASOLINA'],
-      ['UF', 'Descrição', 'MVA'],
-      ['SE', 'Gasolina teste', 0.3],
-    ],
-  },
-  { nome: 'Apendice XIV', linhas: apendiceXIV },
-]);
+const mesclas = [
+  'A17:F17',
+  'A18:B18',
+  'C18:F18',
+  'A19:A20',
+  'B19:B20',
+  'C19:C20',
+  'D19:F19',
+];
+const planilha = xlsxAbas([{ nome: 'Planilha2', linhas, mesclas }]);
 
 describe('combustíveis: leitor do Apêndice XIV', () => {
-  it('lê só a aba do Apêndice XIV, só as linhas de SE', () => {
+  it('lê o cabeçalho e as MVAs dos dois grupos pelos títulos e mesclas', () => {
     const t = lerCombustiveis(lerXlsx(planilha));
-    assert.equal(t.relatorio.aba, 'Apendice XIV');
-    assert.deepEqual(t.relatorio.abasIgnoradas, ['Apendice I']);
-    assert.equal(t.relatorio.linhaCabecalho, 3);
-    assert.equal(t.relatorio.outrasUf, 1);
-    assert.deepEqual(
-      t.linhas.map((l) => l.descricao),
-      ['Óleo lubrificante teste A', 'Graxa teste B'],
+    assert.deepEqual(t.cabecalho, {
+      versao: '007',
+      uf: 'SERGIPE',
+      vigencia: '01/02/2026',
+    });
+    assert.equal(t.derivado.titulo, 'Lubrificantes Derivados de Petróleo');
+    assert.equal(t.derivado.interna, 0.5);
+    assert.equal(t.derivado.interestadual, 0.9);
+    assert.equal(t.derivado.porAliquota, null);
+    assert.equal(t.naoDerivado.interna, 0.55);
+    assert.equal(t.naoDerivado.interestadual, null);
+    // "85%" em texto vira fração.
+    assert.deepEqual(t.naoDerivado.porAliquota, {
+      '4': 0.85,
+      '7': 0.8,
+      '12': 0.7,
+    });
+    assert.deepEqual(t.naoDerivado.celulas, {
+      interna: 'C21',
+      '7': 'D21',
+      '12': 'E21',
+      '4': 'F21',
+    });
+    assert.equal(t.relatorio.aba, 'Planilha2');
+    assert.equal(t.relatorio.linhaApendice, 17);
+    assert.equal(t.relatorio.linhaValores, 21);
+    assert.deepEqual(t.relatorio.outrosApendices, ['Apêndice I']);
+    assert.deepEqual(t.relatorio.problemas, []);
+    assert.deepEqual(t.relatorio.notas, []);
+    assert.deepEqual(t.relatorio.lido, [
+      'UF destinatária: SERGIPE',
+      'Derivados de petróleo: interna 50% (A21), interestadual 90% (B21)',
+      'Não derivados de petróleo: interna 55% (C21), interestadual 7% 80% (D21), interestadual 12% 70% (E21), importação 4% 85% (F21)',
+    ]);
+  });
+
+  it('sem mesclas: cada título vale até o próximo da mesma linha', () => {
+    const t = lerCombustiveis(
+      lerXlsx(xlsxAbas([{ nome: 'Qualquer', linhas }])),
     );
-    const [a, b] = t.linhas;
-    assert.deepEqual(a.mvaPorAliquota, {
-      '4': 0.611,
-      '7': 0.55,
-      '12': 0.49,
-      '19': 0.4,
+    assert.equal(t.derivado.interestadual, 0.9);
+    assert.deepEqual(t.naoDerivado.porAliquota, {
+      '4': 0.85,
+      '7': 0.8,
+      '12': 0.7,
     });
-    assert.equal(a.aliquotaTexto, '18%');
-    assert.equal(a.aliquota, 18);
-    assert.equal(a.linhaPlanilha, 4);
-    // Percentual em texto vira fração; 0,18 vira 18%.
-    assert.deepEqual(b.mvaPorAliquota, {
-      '4': 0.705,
-      '7': 0.64,
-      '12': 0.571,
-      '19': 0.45,
-    });
-    assert.equal(b.aliquota, 18);
-    // Linha sem descrição: problema, não entra.
-    assert.equal(t.relatorio.problemas.length, 1);
-    assert.equal(t.relatorio.problemas[0].motivo, 'linha sem descrição');
   });
 
-  it('acha a aba pelo título quando o nome não diz', () => {
-    const t = lerCombustiveis(lerXlsx(xlsx('Plan3', apendiceXIV)));
-    assert.equal(t.linhas.length, 2);
-  });
-
-  it('MVA única (sem alíquota no título) vale para todas as colunas', () => {
+  it('acha o apêndice por título, não por posição (colunas trocadas)', () => {
+    const trocado: CelulaTeste[][] = [
+      ...linhas.slice(0, 16),
+      ['APÊNDICE XIV - LUBRIFICANTES'],
+      [
+        'Lubrificantes Não Derivados de Petróleo',
+        null,
+        null,
+        null,
+        'Lubrificantes Derivados de Petróleo',
+      ],
+      ['Interestaduais', null, null, 'Internas', 'Interestaduais', 'Internas'],
+      ['Importação 4%', 0.12, 0.07],
+      [0.85, 0.7, 0.8, 0.55, 0.9, 0.5],
+    ];
     const t = lerCombustiveis(
       lerXlsx(
-        xlsx('Apêndice XIV', [
-          ['Descrição', 'MVA', 'Alíquota'],
-          ['Óleo teste', 0.5, '19%'],
+        xlsxAbas([
+          {
+            nome: 'X',
+            linhas: trocado,
+            mesclas: ['A18:D18', 'E18:F18', 'A19:C19'],
+          },
         ]),
       ),
     );
-    assert.deepEqual(t.linhas[0].mvaPorAliquota, {
-      '4': 0.5,
-      '7': 0.5,
-      '12': 0.5,
-      '19': 0.5,
+    assert.equal(t.derivado.interna, 0.5);
+    assert.equal(t.derivado.interestadual, 0.9);
+    assert.equal(t.naoDerivado.interna, 0.55);
+    assert.deepEqual(t.naoDerivado.porAliquota, {
+      '4': 0.85,
+      '7': 0.8,
+      '12': 0.7,
     });
   });
 
-  it('arquivo sem a aba: recusa com "não parece a planilha de combustíveis"', () => {
-    const outra = xlsx('Tintas', [
-      ['ITEM', 'CEST', 'NCM', 'Descrição'],
-      [1, '24.001.00', '3208', 'Tinta'],
-    ]);
+  it('sem "APÊNDICE XIV": recusa com "não parece a planilha de combustíveis"', () => {
+    const sem = xlsxAbas([{ nome: 'Planilha2', linhas: linhas.slice(0, 16) }]);
     assert.throws(
-      () => lerCombustiveis(lerXlsx(outra)),
+      () => lerCombustiveis(lerXlsx(sem)),
       (e: unknown) =>
         e instanceof ErroFormato &&
         e.message === MENSAGEM_SEM_APENDICE &&
         /não parece a planilha de combustíveis/.test(e.message),
     );
-    // "Apêndice XIV-A" ou "XV" não confundem.
+    // "APÊNDICE XV" e "XIV-A" não confundem; título no meio do texto também não.
+    for (const titulo of [
+      'APÊNDICE XV - LUBRIFICANTES',
+      'APÊNDICE XIVA',
+      'VER APÊNDICE XIV',
+    ]) {
+      const outro = linhas.map((l, i) => (i === 16 ? [titulo] : l));
+      assert.throws(
+        () =>
+          lerCombustiveis(lerXlsx(xlsxAbas([{ nome: 'P', linhas: outro }]))),
+        ErroFormato,
+        titulo,
+      );
+    }
+  });
+
+  it('UF que não é Sergipe (ou sem UF): recusa', () => {
+    const bahia = linhas.map((l, i) =>
+      i === 4 ? ['UF DESTINATÁRIA/DECLARANTE: BAHIA'] : l,
+    );
     assert.throws(
-      () => lerCombustiveis(lerXlsx(xlsx('Apendice XV', apendiceXIV.slice(2)))),
-      ErroFormato,
+      () => lerCombustiveis(lerXlsx(xlsxAbas([{ nome: 'P', linhas: bahia }]))),
+      (e: unknown) =>
+        e instanceof ErroFormato &&
+        e.message ===
+          'Esta planilha de combustíveis é da UF destinatária BAHIA, não de Sergipe.',
+    );
+    const semUf = linhas.map((l, i) => (i === 4 ? [] : l));
+    assert.throws(
+      () => lerCombustiveis(lerXlsx(xlsxAbas([{ nome: 'P', linhas: semUf }]))),
+      /não diz a UF destinatária/,
+    );
+  });
+
+  it('versão e vigência que faltam viram nota, não recusa', () => {
+    const sem = linhas.map((l, i) => (i === 6 || i === 8 ? [] : l));
+    const t = lerCombustiveis(lerXlsx(xlsxAbas([{ nome: 'P', linhas: sem }])));
+    assert.equal(t.cabecalho.versao, '');
+    assert.deepEqual(t.relatorio.notas, [
+      'cabeçalho sem a versão',
+      'cabeçalho sem a data de produção de efeitos',
+    ]);
+  });
+
+  it('valor ilegível vira problema com a célula; "-" é vazio', () => {
+    const ruim = linhas.map((l, i) =>
+      i === 20 ? [0.5, 'abc', '-', 0.8, 0.7, 0.85] : l,
+    );
+    const t = lerCombustiveis(
+      lerXlsx(xlsxAbas([{ nome: 'P', linhas: ruim, mesclas }])),
+    );
+    assert.equal(t.derivado.interestadual, null);
+    assert.equal(t.naoDerivado.interna, null);
+    assert.deepEqual(
+      t.relatorio.problemas.map((p) => [p.celula, p.motivo]),
+      [['B21', 'MVA não é número nem percentual']],
     );
   });
 });
@@ -136,7 +226,7 @@ const pasta = mkdtempSync(join(tmpdir(), 'ps-combustiveis-'));
 after(() => rmSync(pasta, { recursive: true, force: true }));
 
 describe('combustíveis: importação na pasta de dados', () => {
-  it('grava combustiveis.json e carrega na base', () => {
+  it('grava combustiveis.json com versão e vigência e carrega na base', () => {
     const info = importarDocumento(
       'combustiveis',
       planilha,
@@ -145,12 +235,16 @@ describe('combustíveis: importação na pasta de dados', () => {
       new Date('2026-11-04T12:00:00Z'),
     );
     assert.equal(info.tipo, 'combustiveis');
+    assert.equal(info.versao, '007');
+    assert.equal(info.vigencia, '01/02/2026');
     assert.deepEqual(info.quantidades, [
-      { rotulo: 'linhas do Apêndice XIV', valor: 2 },
+      { rotulo: 'MVAs do Apêndice XIV', valor: 6 },
     ]);
+    assert.ok(info.observacoes.includes('UF destinatária: SERGIPE.'));
     assert.ok(existsSync(join(pasta, 'combustiveis.json')));
     const base = carregarBaseFiscal(pasta);
-    assert.equal(base.combustiveis?.linhas.length, 2);
+    assert.equal(base.combustiveis?.derivado.interestadual, 0.9);
+    assert.equal(base.combustiveis?.cabecalho.uf, 'SERGIPE');
     assert.equal(base.info.combustiveis?.arquivo, 'combustiveis-teste.xlsx');
   });
 
@@ -159,7 +253,7 @@ describe('combustíveis: importação na pasta de dados', () => {
       () =>
         importarDocumento(
           'combustiveis',
-          xlsx('Outra', [['a', 'b']]),
+          xlsxAbas([{ nome: 'Outra', linhas: [['a', 'b']] }]),
           'errado.xlsx',
           pasta,
         ),
@@ -186,6 +280,11 @@ const st = lerTabelaST([
 ]);
 const combustiveis = lerCombustiveis(lerXlsx(planilha));
 const oleo = { nItem: '1', NCM: '27101932', orig: '0', pICMS: '7' };
+const revenda = 'revenda' as const;
+const sim = (lubrificante: 'derivado' | 'nao-derivado') => ({
+  escolha: { tipo: 'apendice-xiv' as const, lubrificante },
+  finalidade: revenda,
+});
 
 describe('motor: lubrificante do Apêndice XIV', () => {
   it('2710 sem a planilha de combustíveis: segue sem ST (nada muda)', () => {
@@ -195,26 +294,24 @@ describe('motor: lubrificante do Apêndice XIV', () => {
     assert.equal(r.apendiceXIV, null);
   });
 
-  it('2710 com a planilha carregada e fora da ST: confirmar, com as linhas', () => {
+  it('2710 com a planilha: confirmar, com derivado e não derivado', () => {
     const r = analisarItem(oleo, 'SP', { st, combustiveis });
     assert.equal(r.stSergipe, 'confirmar');
     assert.equal(r.cfopSugerido, null);
     assert.ok(r.motivos.includes(MOTIVO_APENDICE_XIV));
-    assert.equal(
-      MOTIVO_APENDICE_XIV,
-      'Pode ser lubrificante do Apêndice XIV (sem NCM na planilha); confirme',
-    );
     assert.deepEqual(
-      r.apendiceXIV?.map((c) => [c.descricao, c.mvas[0].valor]),
+      r.apendiceXIV?.map((c) => [
+        c.lubrificante,
+        c.descricao,
+        c.mvas[0].valor,
+        c.colunaApendice,
+      ]),
       [
-        ['Óleo lubrificante teste A', 0.55],
-        ['Graxa teste B', 0.64],
+        ['derivado', 'Derivado de petróleo', 0.9, 'interestadual'],
+        ['nao-derivado', 'Não derivado de petróleo', 0.8, 'interestadual 7%'],
       ],
     );
-    const sem = resolverItem(r, 'SP', {
-      escolha: null,
-      finalidade: 'revenda',
-    });
+    const sem = resolverItem(r, 'SP', { escolha: null, finalidade: revenda });
     assert.equal(sem.st, 'confirmar');
     assert.equal(sem.motivo, MOTIVO_APENDICE_XIV);
     assert.equal(sem.precisaDeMim, true);
@@ -249,39 +346,90 @@ describe('motor: lubrificante do Apêndice XIV', () => {
     assert.equal(r.candidatos.length, 1);
   });
 
-  it('Sim usa a MVA e a alíquota da linha; Não é sem ST', () => {
+  it('fornecedor de fora: derivado na coluna única; não derivado pela alíquota', () => {
     const r = analisarItem(oleo, 'SP', { st, combustiveis });
-    const sim = resolverItem(r, 'SP', {
-      escolha: {
-        tipo: 'apendice-xiv',
-        linhaPlanilha: 5,
-        descricao: 'Graxa teste B',
-      },
-      finalidade: 'revenda',
+    const d = resolverItem(r, 'SP', sim('derivado'));
+    assert.equal(d.st, 'sim');
+    assert.equal(d.cfop, '2403');
+    assert.equal(d.mva, 0.9);
+    assert.equal(
+      d.motivo,
+      `Apêndice XIV, derivado de petróleo, MVA 90% (interestadual). ${RESSALVA_APENDICE_XIV}`,
+    );
+    assert.equal(
+      RESSALVA_APENDICE_XIV,
+      'Apêndice XIV trata de operações de distribuidoras; confirmar com a contabilidade',
+    );
+    const n7 = resolverItem(r, 'SP', sim('nao-derivado'));
+    assert.equal(n7.mva, 0.8);
+    assert.equal(
+      n7.motivo,
+      `Apêndice XIV, não derivado de petróleo, MVA 80% (interestadual 7%). ${RESSALVA_APENDICE_XIV}`,
+    );
+    const r12 = analisarItem({ ...oleo, pICMS: '12' }, 'MG', {
+      st,
+      combustiveis,
     });
-    assert.equal(sim.st, 'sim');
-    assert.equal(sim.cfop, '2403');
-    assert.equal(sim.mva, 0.64);
-    assert.equal(sim.candidato?.aliquotaInterna?.aliquota, 18);
-    assert.equal(sim.motivo, 'lubrificante do Apêndice XIV: Graxa teste B');
+    assert.equal(resolverItem(r12, 'MG', sim('nao-derivado')).mva, 0.7);
+    assert.equal(resolverItem(r12, 'MG', sim('derivado')).mva, 0.9);
+  });
+
+  it('importado: coluna "Importação 4%"; alíquota fora de 4, 7, 12: confirmar', () => {
+    const imp = analisarItem({ ...oleo, orig: '1', pICMS: '4' }, 'SP', {
+      st,
+      combustiveis,
+    });
+    const r = resolverItem(imp, 'SP', sim('nao-derivado'));
+    assert.equal(r.mva, 0.85);
+    assert.match(r.motivo, /MVA 85% \(importação 4%\)/);
+    const estranha = analisarItem({ ...oleo, pICMS: '18' }, 'SP', {
+      st,
+      combustiveis,
+    });
+    const e = resolverItem(estranha, 'SP', sim('nao-derivado'));
+    assert.equal(e.mva, null);
+    assert.equal(e.precisaDeMim, true);
+    assert.match(
+      e.motivo,
+      /^Apêndice XIV, não derivado de petróleo, MVA a confirmar/,
+    );
+    // O derivado tem uma coluna só: a alíquota da nota não importa.
+    assert.equal(resolverItem(estranha, 'SP', sim('derivado')).mva, 0.9);
+  });
+
+  it('fornecedor de SE: coluna Internas, CFOP 1403', () => {
+    const r = analisarItem({ ...oleo, pICMS: '19' }, 'SE', {
+      st,
+      combustiveis,
+    });
+    const d = resolverItem(r, 'SE', sim('derivado'));
+    assert.equal(d.cfop, '1403');
+    assert.equal(d.mva, 0.5);
+    assert.match(d.motivo, /MVA 50% \(interna\)/);
+    assert.equal(resolverItem(r, 'SE', sim('nao-derivado')).mva, 0.55);
+  });
+
+  it('Não é sem ST; outra finalidade não calcula MVA', () => {
+    const r = analisarItem(oleo, 'SP', { st, combustiveis });
     const nao = resolverItem(r, 'SP', {
       escolha: { tipo: 'sem-st' },
-      finalidade: 'revenda',
+      finalidade: revenda,
     });
     assert.equal(nao.st, 'nao');
     assert.equal(nao.cfop, '2102');
     assert.equal(nao.mva, null);
+    const uso = resolverItem(r, 'SP', {
+      ...sim('derivado'),
+      finalidade: 'uso-consumo',
+    });
+    assert.equal(uso.cfop, '2407');
+    assert.equal(uso.mva, null);
   });
 
   it('decisão lembrada por raiz do CNPJ + código do produto', () => {
     const r = analisarItem(oleo, 'SP', { st, combustiveis });
     const d = {
-      escolha: {
-        tipo: 'apendice-xiv' as const,
-        linhaPlanilha: 4,
-        descricao: 'Óleo lubrificante teste A',
-      },
-      finalidade: 'revenda' as const,
+      ...sim('nao-derivado'),
       raizCnpj: '12345678',
       fornecedor: 'Fornecedor Teste',
       cProd: 'OL-1',
@@ -292,15 +440,44 @@ describe('motor: lubrificante do Apêndice XIV', () => {
     assert.equal(decisaoValida(d), true);
     assert.equal(chaveDecisao('12.345.678/0001-90', 'OL-1'), '12345678|OL-1');
     assert.equal(decisaoAplicavel(r, d), true);
-    // Linha que sumiu do apêndice: a decisão não vale mais.
+    // Decisão do formato antigo (linha do apêndice): não vale mais.
     assert.equal(
-      decisaoAplicavel(r, {
+      decisaoValida({
         ...d,
-        escolha: { ...d.escolha, descricao: 'Outra' },
+        escolha: { tipo: 'apendice-xiv', linhaPlanilha: 4, descricao: 'Óleo' },
       }),
       false,
     );
-    // Sem o apêndice carregado, a decisão não acha a linha.
+    // Sem o apêndice carregado, a decisão não acha a opção.
     assert.equal(decisaoAplicavel(analisarItem(oleo, 'SP', { st }), d), false);
   });
+});
+
+// Com o arquivo real do CONFAZ em samples\fiscal (fora do git).
+const real = new URL(
+  '../../samples/fiscal/combustiveis-se-v002.xlsx',
+  import.meta.url,
+);
+describe('combustíveis: arquivo real do CONFAZ', () => {
+  it(
+    'combustiveis-se-v002.xlsx: Sergipe, versão 002 e as MVAs do Apêndice XIV',
+    { skip: !existsSync(real) },
+    () => {
+      const t = lerCombustiveis(lerXlsx(new Uint8Array(readFileSync(real))));
+      assert.equal(t.cabecalho.uf, 'SERGIPE');
+      assert.equal(t.cabecalho.versao, '002');
+      assert.ok(t.cabecalho.vigencia);
+      assert.equal(t.derivado.interna, 0.6534);
+      assert.equal(t.derivado.interestadual, 1.0667);
+      assert.equal(t.derivado.porAliquota, null);
+      assert.equal(t.naoDerivado.interna, 0.6534);
+      assert.deepEqual(t.naoDerivado.porAliquota, {
+        '7': 0.9221,
+        '12': 0.8187,
+        '4': 0.9841,
+      });
+      assert.deepEqual(t.relatorio.problemas, []);
+      assert.ok(t.relatorio.outrosApendices.includes('Apêndice XIII'));
+    },
+  );
 });

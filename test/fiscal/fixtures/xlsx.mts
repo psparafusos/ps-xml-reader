@@ -30,13 +30,16 @@ export function xlsx(nome: string, linhas: CelulaTeste[][]): Uint8Array {
   });
 }
 
-/** .xlsx de várias abas, na ordem dada (cada uma como em xlsx()). */
+/**
+ * .xlsx de várias abas, na ordem dada (cada uma como em xlsx()). `mesclas`:
+ * áreas mescladas da aba, como no Excel ("A96:B96").
+ */
 export function xlsxAbas(
-  abas: { nome: string; linhas: CelulaTeste[][] }[],
+  abas: { nome: string; linhas: CelulaTeste[][]; mesclas?: string[] }[],
 ): Uint8Array {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const col = (c: number) => String.fromCharCode(65 + c);
-  const folha = (linhas: CelulaTeste[][]) =>
+  const folha = (linhas: CelulaTeste[][], mesclas: string[] = []) =>
     `<worksheet ${NS}><sheetData>${linhas
       .map(
         (l, i) =>
@@ -50,7 +53,13 @@ export function xlsxAbas(
             })
             .join('')}</row>`,
       )
-      .join('')}</sheetData></worksheet>`;
+      .join('')}</sheetData>${
+      mesclas.length
+        ? `<mergeCells count="${mesclas.length}">${mesclas
+            .map((m) => `<mergeCell ref="${m}"/>`)
+            .join('')}</mergeCells>`
+        : ''
+    }</worksheet>`;
   const arquivos: Record<string, string> = {
     'xl/workbook.xml': `<workbook ${NS} xmlns:r="r"><sheets>${abas
       .map(
@@ -66,7 +75,7 @@ export function xlsxAbas(
       .join('')}</Relationships>`,
   };
   abas.forEach((a, i) => {
-    arquivos[`xl/worksheets/sheet${i + 1}.xml`] = folha(a.linhas);
+    arquivos[`xl/worksheets/sheet${i + 1}.xml`] = folha(a.linhas, a.mesclas);
   });
   return zip(arquivos);
 }

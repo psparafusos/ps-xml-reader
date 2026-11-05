@@ -118,9 +118,8 @@ export function detalheVersao(
 ): string {
   const info = e[tipo];
   if (!info) return '';
-  if (tipo === 'combustiveis') return 'Ato COTEPE/ICMS 61/19, Apêndice XIV';
   const versao =
-    tipo === 'st'
+    tipo === 'st' || tipo === 'combustiveis'
       ? info.versao
         ? `Versão ${info.versao}`
         : 'Versão não informada'
@@ -128,7 +127,7 @@ export function detalheVersao(
         ? `TIPI ${info.versao}`
         : 'Ano não informado';
   const vigencia = info.vigencia
-    ? tipo === 'st'
+    ? tipo === 'st' || tipo === 'combustiveis'
       ? `vigência a partir de ${info.vigencia}`
       : `atualizada até ${info.vigencia}`
     : '';

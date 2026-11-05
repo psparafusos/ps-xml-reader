@@ -293,8 +293,9 @@
     </button>
 
     <!-- Tela inicial no visual "Bancada" (bancada.css): faixa preta com a
-         logo e as pastilhas (documentos e perfil), a zona de soltar, os
-         cartões da pasta de destino e dos documentos e as notas recentes. -->
+         logo e as pastilhas (documentos e perfil), a zona de soltar (com a
+         faixa da pasta de destino no pé), o cartão dos documentos e as
+         notas recentes. -->
     <section id="vazio" class="vazio inicio">
       <header class="inicio__faixa">
         <div class="inicio__marca">
@@ -315,58 +316,64 @@
       <div class="inicio__grade">
         <div class="inicio__principal">
           <div id="area-soltar" class="inicio__soltar">
-            <svg class="inicio__icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
-              />
-              <path d="M14 3v5h5" />
-              <path d="M12 11v6" />
-              <path d="M9.5 14.5L12 17l2.5-2.5" />
-            </svg>
-            <h2 class="inicio__soltar-titulo">Anexe aqui o XML da nota</h2>
-            <p id="vazio-formatos" class="inicio__soltar-texto">
-              XML da NF-e ou cópia editada (.psxml). Também abre com Ctrl+O, ou
-              com duplo clique no arquivo.
-            </p>
-            <button
-              id="btn-abrir"
-              type="button"
-              class="botao botao--amarelo botao--grande"
-              aria-describedby="vazio-formatos"
-              title="Abrir arquivo (Ctrl+O)"
-              aria-keyshortcuts="Control+O"
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <div class="inicio__soltar-centro">
+              <svg class="inicio__icone" viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                  d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
                 />
+                <path d="M14 3v5h5" />
+                <path d="M12 11v6" />
+                <path d="M9.5 14.5L12 17l2.5-2.5" />
               </svg>
-              <span>Abrir arquivo</span>
-            </button>
-          </div>
-
-          <div class="inicio__cartoes">
-            <section
-              class="cartao inicio__cartao"
-              aria-labelledby="titulo-pasta"
-            >
-              <h2 id="titulo-pasta" class="titulo-secao">Pasta de destino</h2>
-              <p class="inicio__valor inicio__pasta">
-                <svg
-                  class="icone inicio__pasta-icone"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
+              <h2 class="inicio__soltar-titulo">Anexe aqui o XML da nota</h2>
+              <p id="vazio-formatos" class="inicio__soltar-texto">
+                XML da NF-e ou cópia editada (.psxml). Também abre com Ctrl+O,
+                ou com duplo clique no arquivo.
+              </p>
+              <button
+                id="btn-abrir"
+                type="button"
+                class="botao botao--amarelo botao--grande"
+                aria-describedby="vazio-formatos"
+                title="Abrir arquivo (Ctrl+O)"
+                aria-keyshortcuts="Control+O"
+              >
+                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
                   <path
                     d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
                   />
                 </svg>
-                <span id="inicio-pasta-caminho">Nenhuma pasta escolhida</span>
-                <span id="inicio-pasta-sessao" class="botao__sessao" hidden
-                  >só nesta janela</span
+                <span>Abrir arquivo</span>
+              </button>
+            </div>
+
+            <!-- Pasta de destino: faixa fina no pé da zona de soltar. Com
+                 pasta: "Salvando em <caminho>" (cortado no meio quando não
+                 cabe), Trocar e Abrir pasta. Sem pasta: "Escolha onde salvar"
+                 e Escolher (renderer.ts, atualizarPasta). -->
+            <div id="inicio-pasta" class="inicio__pasta" data-estado="sem">
+              <svg
+                class="icone inicio__pasta-icone"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                />
+              </svg>
+              <p class="inicio__pasta-texto">
+                <span id="inicio-pasta-rotulo" class="inicio__pasta-rotulo"
+                  >Escolha onde salvar</span
                 >
+                <span
+                  id="inicio-pasta-caminho"
+                  class="inicio__pasta-caminho"
+                ></span>
               </p>
-              <div class="inicio__botoes">
+              <span id="inicio-pasta-sessao" class="botao__sessao" hidden
+                >só nesta janela</span
+              >
+              <div class="inicio__pasta-botoes">
                 <button
                   id="btn-pasta"
                   type="button"
@@ -380,13 +387,13 @@
                     <path d="M9 13h6" />
                     <path d="M12.5 10.5L15 13l-2.5 2.5" />
                   </svg>
-                  <span>Trocar</span>
+                  <span id="btn-pasta-texto">Escolher</span>
                 </button>
                 <button
                   id="btn-abrir-pasta"
                   type="button"
                   class="botao botao--claro botao--pequeno"
-                  disabled
+                  hidden
                 >
                   <!-- Pasta aberta (ICONES.pastaAberta). -->
                   <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -400,23 +407,25 @@
                   <span>Abrir pasta</span>
                 </button>
               </div>
-            </section>
-            <section
-              class="cartao inicio__cartao"
-              aria-labelledby="titulo-documentos"
-            >
+            </div>
+          </div>
+
+          <section
+            class="cartao inicio__cartao inicio__docs"
+            aria-labelledby="titulo-documentos"
+          >
+            <header class="inicio__docs-cabecalho">
               <h2 id="titulo-documentos" class="titulo-secao">
                 Documentos de referência
               </h2>
-              <!-- Uma linha por documento (renderer.ts, desenharListaDocumentos). -->
-              <ul id="documentos-lista" class="docs-lista"></ul>
-              <div class="inicio__links">
-                <button id="btn-documentos" type="button" class="link">
-                  Gerenciar
-                </button>
-              </div>
-            </section>
-          </div>
+              <button id="btn-documentos" type="button" class="link">
+                Gerenciar
+              </button>
+            </header>
+            <!-- Um documento por coluna (renderer.ts, desenharListaDocumentos);
+                 em largura menor, um embaixo do outro. -->
+            <ul id="documentos-lista" class="docs-lista"></ul>
+          </section>
         </div>
 
         <section

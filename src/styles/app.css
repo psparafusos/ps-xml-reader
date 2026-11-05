@@ -3581,7 +3581,49 @@ body.pdf-previa #pdf-previa {
 
 .documento__erro {
   display: grid;
-  gap: var(--esp-1);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--esp-1) var(--esp-2);
+}
+
+.documento__erro > p {
+  grid-column: 1;
+}
+
+.documento__erro > .fechar-aviso {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+/* X que fecha um aviso de erro de documento (tela inicial e Documentos). */
+.fechar-aviso {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: var(--borda) solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.fechar-aviso .icone {
+  width: 14px;
+  height: 14px;
+}
+
+.fechar-aviso:hover {
+  border-color: currentColor;
+  background: var(--ps-branco);
+}
+
+.fechar-aviso:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
 }
 
 .documento__parcial {

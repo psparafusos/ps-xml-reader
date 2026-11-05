@@ -9,7 +9,7 @@
 //   tipi-info.json  data da importação, quantidades, pontos não entendidos)
 //   st.json         linhas da planilha de ST (uma por NCM)
 //   tipi.json       registros da TIPI (um por NCM de 8 dígitos)
-//   combustiveis.json      linhas do Apêndice XIV (lubrificantes), opcional
+//   combustiveis.json      MVAs do Apêndice XIV (lubrificantes), opcional
 //   combustiveis-info.json metadados do Apêndice XIV
 //   st-leitura.json segmentos da planilha de ST lidos com problemas
 //                   (LeituraST; gravado por quem importa, opcional)
@@ -29,7 +29,7 @@ import {
 import { join } from 'node:path';
 import {
   lerCombustiveis,
-  type LinhaCombustivel,
+  tabelaCombustiveisValida,
   type TabelaCombustiveis,
 } from './combustiveis';
 import {
@@ -124,7 +124,7 @@ export function importarDocumento(
     tipoArquivo = 'xlsx';
     const c = lerCombustiveis(abasXlsx(dados));
     resumo = resumoCombustiveis(c);
-    gravar = { relatorio: c.relatorio, linhas: c.linhas };
+    gravar = c;
   } else {
     let tipi: TabelaTipi;
     if (ehZip(dados)) {
@@ -258,10 +258,10 @@ export function carregarBaseFiscal(pasta: string): BaseFiscal {
   let combustiveis: TabelaCombustiveis | null = null;
   if (info.combustiveis) {
     try {
-      combustiveis = lerJson(pasta, arqDados('combustiveis')) as {
-        relatorio: TabelaCombustiveis['relatorio'];
-        linhas: LinhaCombustivel[];
-      };
+      const lido = lerJson(pasta, arqDados('combustiveis'));
+      // Gravado pelo leitor antigo (por linhas): não serve, carregar de novo.
+      if (tabelaCombustiveisValida(lido)) combustiveis = lido;
+      else info.combustiveis = null;
     } catch {
       info.combustiveis = null;
     }

@@ -337,14 +337,14 @@
     min-width: 0;
   }
 
+  /* A zona de soltar: o convite no centro e a faixa da pasta no pé. */
   .inicio__soltar {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--esp-3);
+    align-items: stretch;
+    gap: var(--esp-4);
     min-height: 300px;
-    padding: var(--esp-7) var(--esp-6);
+    padding: var(--esp-7) var(--esp-6) var(--esp-3);
     border: var(--borda-forte) dashed var(--soltar-borda);
     border-radius: var(--cartao-raio-grande);
     background: var(--soltar-fundo);
@@ -352,6 +352,15 @@
     transition:
       background var(--transicao),
       border-color var(--transicao);
+  }
+
+  .inicio__soltar-centro {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--esp-3);
   }
 
   /* Arquivo arrastado sobre a janela: a zona inteira em destaque. */
@@ -384,14 +393,8 @@
     font-size: var(--fs-md);
   }
 
-  .inicio__soltar .botao {
+  .inicio__soltar-centro .botao {
     margin-top: var(--esp-2);
-  }
-
-  .inicio__cartoes {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--bancada-grade-espaco);
   }
 
   .inicio__cartao {
@@ -401,68 +404,114 @@
     padding: var(--esp-4) var(--esp-5);
   }
 
-  .inicio__valor {
+  /* Pasta de destino: faixa fina no pé da zona de soltar, com o ícone, o
+     texto (o caminho cortado no meio quando não cabe) e os botões pequenos. */
+  .inicio__pasta {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: var(--esp-2);
-    color: var(--cor-texto-forte);
-    font-size: var(--fs-md);
-    font-weight: var(--peso-medio);
-    overflow-wrap: anywhere;
-  }
-
-  .inicio__links {
-    display: flex;
-    gap: var(--esp-4);
-    margin-top: auto;
-  }
-
-  /* Pasta de destino: o ícone ao lado do caminho e os botões secundários
-     pequenos (Trocar, Abrir pasta) no pé do cartão. */
-  .inicio__pasta {
-    flex-wrap: nowrap;
-    align-items: flex-start;
+    min-width: 0;
+    padding: 3px 3px 3px var(--esp-3);
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--raio);
+    background: var(--cartao-fundo, var(--ps-branco));
+    color: var(--cor-texto);
+    font-size: var(--fs-sm);
+    text-align: left;
   }
 
   .inicio__pasta-icone {
-    width: 22px;
-    height: 22px;
-    margin-top: -2px;
+    flex: none;
+    width: 18px;
+    height: 18px;
     color: var(--cor-icone);
   }
 
-  .inicio__botoes {
+  .inicio__pasta-texto {
+    flex: 1 1 auto;
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--esp-2);
-    margin-top: auto;
+    align-items: baseline;
+    gap: 0.35em;
+    min-width: 0;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .inicio__pasta-rotulo {
+    flex: none;
+  }
+
+  .inicio__pasta[data-estado='sem'] .inicio__pasta-rotulo {
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-medio);
+  }
+
+  .inicio__pasta-caminho {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-medio);
+  }
+
+  .inicio__pasta .botao__sessao {
+    flex: none;
+  }
+
+  .inicio__pasta-botoes {
+    flex: none;
+    display: flex;
+    gap: var(--esp-1);
+  }
+
+  /* Documentos de referência: largura toda, abaixo da zona de soltar, um
+     documento por coluna; "Gerenciar" no canto. Estreito (o cartão com menos
+     de 720px), um embaixo do outro. */
+  .inicio__docs {
+    container-type: inline-size;
+  }
+
+  .inicio__docs-cabecalho {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--esp-3);
   }
 
   /* Documentos de referência: uma linha por documento, com o ícone do
      estado, o nome, a versão e a ação. A linha abre a tela de Documentos. */
   .docs-lista {
     display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
+  /* Coluna: ícone e nome, a versão (até duas linhas) e a ação embaixo. */
   .docs-linha {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: var(--esp-2);
-    border-top: var(--borda) solid var(--cartao-borda);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    row-gap: var(--esp-1);
+    min-width: 0;
+    padding: 0 var(--esp-4);
+    border-left: var(--borda) solid var(--cartao-borda);
   }
 
   .docs-linha:first-child {
-    border-top: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .docs-linha:last-child {
+    padding-right: 0;
   }
 
   .docs-linha__abrir {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--esp-3);
     min-width: 0;
     padding: var(--esp-2);
@@ -502,13 +551,15 @@
     font-weight: var(--peso-medio);
   }
 
+  /* A versão em uma ou duas linhas; o que passar disso vira reticências. */
   .docs-linha__detalhe,
   .docs-linha__situacao {
+    display: -webkit-box;
     overflow: hidden;
     color: var(--cor-texto);
     font-size: var(--fs-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .docs-linha__situacao {
@@ -527,15 +578,58 @@
   }
 
   .docs-linha__acao {
+    align-self: end;
     display: flex;
     align-items: center;
+    padding-left: calc(22px + var(--esp-3));
   }
 
+  /* Aviso de erro da última tentativa, com X para fechar. */
   .docs-linha__erro {
     grid-column: 1 / -1;
-    margin: 0 0 var(--esp-2);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--esp-1);
+    margin: var(--esp-1) 0 0;
+    padding: var(--esp-1) var(--esp-1) var(--esp-1) var(--esp-2);
+    border: var(--borda) solid
+      color-mix(in srgb, var(--semaforo-vermelho) 35%, transparent);
+    border-radius: var(--raio);
+    background: color-mix(in srgb, var(--semaforo-vermelho) 6%, transparent);
     color: var(--semaforo-vermelho);
     font-size: var(--fs-sm);
+  }
+
+  .docs-linha__erro-texto {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @container (max-width: 720px) {
+    .docs-lista {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .docs-linha {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: none;
+      align-items: center;
+      column-gap: var(--esp-2);
+      padding: 0;
+      border-top: var(--borda) solid var(--cartao-borda);
+      border-left: 0;
+    }
+
+    .docs-linha:first-child {
+      border-top: 0;
+    }
+
+    .docs-linha__acao {
+      align-self: center;
+      padding-left: 0;
+    }
   }
 
   .docs-linha__progresso {
@@ -716,9 +810,10 @@
     }
   }
 
+  /* Janela estreita: a faixa da pasta quebra, os botões embaixo. */
   @media (max-width: 760px) {
-    .inicio__cartoes {
-      grid-template-columns: minmax(0, 1fr);
+    .inicio__pasta {
+      flex-wrap: wrap;
     }
   }
 

@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('confirmar-parcial', token),
   cancelarParcial: (token: string): Promise<void> =>
     ipcRenderer.invoke('cancelar-parcial', token),
+  descartarRecusa: (tipo: TipoDocumento): Promise<EstadoDocumentos> =>
+    ipcRenderer.invoke('descartar-recusa', tipo),
   removerDocumento: (tipo: TipoDocumento): Promise<EstadoDocumentos> =>
     ipcRenderer.invoke('remover-documento', tipo),
   abrirPaginaDocumento: (tipo: TipoDocumento): Promise<void> =>

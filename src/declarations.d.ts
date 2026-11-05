@@ -299,6 +299,8 @@ interface PsApi {
   /** "Os segmentos com problema não afetam meu trabalho. Usar o resto." */
   confirmarParcial(token: string): Promise<ResultadoImportarDocumento>;
   cancelarParcial(token: string): Promise<void>;
+  /** Aviso de erro fechado: esquece a recusa (o documento volta ao estado de antes). */
+  descartarRecusa(tipo: TipoDocumento): Promise<EstadoDocumentos>;
   /** Tira o documento da base (volta a faltar). */
   removerDocumento(tipo: TipoDocumento): Promise<EstadoDocumentos>;
   /** Abre no navegador a página oficial do documento. */

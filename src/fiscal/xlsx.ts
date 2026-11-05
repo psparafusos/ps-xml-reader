@@ -2,6 +2,7 @@
 // textos compartilhados e cada aba, e devolve as células como uma grade de
 // texto ou número. Lógica pura, sem dependência externa. Não interpreta
 // estilos nem fórmulas: usa o valor já calculado que o Excel grava no <v>.
+// As células mescladas vêm à parte (mesclas), com o valor na primeira.
 
 import { lerZip } from './zip';
 
@@ -11,6 +12,16 @@ export interface Aba {
   nome: string;
   /** linhas[i][j]: linha i+1, coluna j (A = 0). Célula vazia = undefined. */
   linhas: (ValorCelula | undefined)[][];
+  /** Células mescladas (base zero, inclusive). Ausente: nenhuma. */
+  mesclas?: Mescla[];
+}
+
+/** Área mesclada: de (linha, coluna) até (ateLinha, ateColuna), base zero. */
+export interface Mescla {
+  linha: number;
+  coluna: number;
+  ateLinha: number;
+  ateColuna: number;
 }
 
 export function lerXlsx(dados: Uint8Array): Aba[] {
@@ -39,7 +50,11 @@ export function lerXlsx(dados: Uint8Array): Aba[] {
     const nome = desescapar(atributo(m[0], 'name') ?? '');
     const caminho = rels.get(atributo(m[0], 'r:id') ?? '');
     if (!caminho) throw new Error(`xlsx: aba "${nome}" sem arquivo`);
-    abas.push({ nome, linhas: lerAba(texto(caminho), compartilhados) });
+    const xml = texto(caminho);
+    const aba: Aba = { nome, linhas: lerAba(xml, compartilhados) };
+    const mesclas = lerMesclas(xml);
+    if (mesclas.length > 0) aba.mesclas = mesclas;
+    abas.push(aba);
   }
   return abas;
 }
@@ -90,6 +105,29 @@ function lerAba(
   }
   for (let i = 0; i < linhas.length; i++) linhas[i] ??= [];
   return linhas;
+}
+
+/** <mergeCell ref="A97:A98"/> de cada área mesclada. */
+function lerMesclas(xml: string): Mescla[] {
+  const r: Mescla[] = [];
+  for (const m of xml.matchAll(/<mergeCell[^>]*>/g)) {
+    const ref = atributo(m[0], 'ref');
+    const partes = ref?.split(':');
+    if (!partes || partes.length !== 2) continue;
+    try {
+      const de = referencia(partes[0]);
+      const ate = referencia(partes[1]);
+      r.push({
+        linha: de.linha,
+        coluna: de.coluna,
+        ateLinha: ate.linha,
+        ateColuna: ate.coluna,
+      });
+    } catch {
+      // Referência que não é célula: fica de fora.
+    }
+  }
+  return r;
 }
 
 /** "AB12" -> { linha: 11, coluna: 27 } (base zero). */
