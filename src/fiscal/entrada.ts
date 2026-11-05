@@ -64,7 +64,12 @@ export type EscolhaST =
   | { tipo: 'candidato'; segmento: string; linhaPlanilha: number; cest: string }
   /** Lubrificante do Apêndice XIV: a linha do apêndice que vale. */
   | { tipo: 'apendice-xiv'; linhaPlanilha: number; descricao: string }
-  | { tipo: 'sem-st' };
+  | { tipo: 'sem-st' }
+  /**
+   * CFOP informado pela pessoa ("Outro"), com a MVA em fração (opcional) e
+   * o motivo. Vale como está: não passa pela planilha.
+   */
+  | { tipo: 'manual'; cfop: string; mva: number | null; motivo: string };
 
 export interface Decisao {
   escolha: EscolhaST | null;
@@ -116,6 +121,8 @@ export interface ItemResolvido {
   precisaDeMim: boolean;
   /** Veio de uma decisão lembrada. */
   lembrado: boolean;
+  /** CFOP (e MVA) informados pela pessoa na opção "Outro". */
+  manual?: boolean;
 }
 
 const fmtPct = (v: number) =>
@@ -172,6 +179,29 @@ export function resolverItem(
         ? ((a.apendiceXIV ?? []).find((c) => mesmaLinhaApendice(c, escolha)) ??
           null)
         : null;
+
+  if (escolha?.tipo === 'manual') {
+    // CFOP do grupo x.400 é entrada com ST; os outros, sem ST.
+    const comST = escolha.cfop[1] === '4';
+    return {
+      nItem: a.nItem,
+      ncm: a.ncm,
+      st: comST ? 'sim' : 'nao',
+      candidato: null,
+      segmento: null,
+      cest: null,
+      finalidade,
+      mva: escolha.mva,
+      mvaTexto: escolha.mva === null ? '-' : fmtPct(escolha.mva),
+      cfop: escolha.cfop,
+      motivo: `CFOP manual: ${escolha.motivo}`,
+      detalhes: [...new Set([...a.motivos, ...pendencias])],
+      observacoesTipi,
+      precisaDeMim: false,
+      lembrado,
+      manual: true,
+    };
+  }
 
   if (escolha?.tipo === 'sem-st') {
     st = 'nao';
@@ -275,6 +305,9 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
         segmento?: unknown;
         cest?: unknown;
         linhaPlanilha?: unknown;
+        cfop?: unknown;
+        mva?: unknown;
+        motivo?: unknown;
       }
     | null
     | undefined;
@@ -283,6 +316,12 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
     (typeof e === 'object' &&
       e !== undefined &&
       (e.tipo === 'sem-st' ||
+        (e.tipo === 'manual' &&
+          cfopManualValido(e.cfop) &&
+          texto(e.motivo) &&
+          (e.motivo as string).trim() !== '' &&
+          (e.mva === null ||
+            (typeof e.mva === 'number' && Number.isFinite(e.mva)))) ||
         (e.tipo === 'apendice-xiv' &&
           texto((e as { descricao?: unknown }).descricao) &&
           Number.isInteger(e.linhaPlanilha)) ||
@@ -301,6 +340,55 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
     texto(x.ncm) &&
     texto(x.atualizadaEm)
   );
+}
+
+// ---------- CFOP manual ("Outro") ----------
+
+/** CFOP de entrada: 4 dígitos, o primeiro 1 (SE), 2 (outro estado) ou 3 (exterior). */
+export function cfopManualValido(v: unknown): v is string {
+  return typeof v === 'string' && /^[123]\d{3}$/.test(v);
+}
+
+/**
+ * Lê os campos da opção "Outro". CFOP com ou sem ponto ("2.102"); MVA em
+ * percentual ("56,94", "56,94%"), vazia = sem MVA; motivo obrigatório.
+ */
+export function lerCfopManual(campos: {
+  cfop: string;
+  mva: string;
+  motivo: string;
+}):
+  | { ok: true; escolha: Extract<EscolhaST, { tipo: 'manual' }> }
+  | { ok: false; campo: 'cfop' | 'mva' | 'motivo'; erro: string } {
+  const cfop = campos.cfop.replace(/[.\s]/g, '');
+  if (!/^\d{4}$/.test(cfop))
+    return { ok: false, campo: 'cfop', erro: 'O CFOP tem 4 dígitos.' };
+  if (!cfopManualValido(cfop))
+    return {
+      ok: false,
+      campo: 'cfop',
+      erro: 'CFOP de entrada começa com 1, 2 ou 3.',
+    };
+  const mvaTexto = campos.mva.trim().replace(/%$/, '').trim();
+  let mva: number | null = null;
+  if (mvaTexto) {
+    const decimal = mvaTexto.replace(',', '.');
+    if (!/^\d+(\.\d+)?$/.test(decimal))
+      return {
+        ok: false,
+        campo: 'mva',
+        erro: 'MVA em percentual, como 56,94 (ou deixe vazio).',
+      };
+    mva = Math.round(Number(decimal) * 100) / 10000;
+  }
+  const motivo = campos.motivo.trim();
+  if (!motivo)
+    return {
+      ok: false,
+      campo: 'motivo',
+      erro: 'Diga o motivo do CFOP manual.',
+    };
+  return { ok: true, escolha: { tipo: 'manual', cfop, mva, motivo } };
 }
 
 // ---------- Aplicar: o que vai para as anotações ----------

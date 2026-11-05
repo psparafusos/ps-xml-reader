@@ -91,8 +91,10 @@ export function previaItem(
 
   const aliquotaInterna =
     r.st === 'sim' ? (r.candidato?.aliquotaInterna ?? null) : null;
+  // CFOP manual: não há linha da planilha, então não há alíquota a conferir.
   const aliquotaConfirmar =
     r.st === 'sim' &&
+    !r.manual &&
     (aliquotaInterna === null || aliquotaInterna.aliquota === null);
 
   const pendencias = a.pendencias.filter((p) => !RE_TIPI.test(p));
@@ -103,7 +105,7 @@ export function previaItem(
   const segmentoProblema = pendencias.find((p) => RE_SEGMENTO.test(p)) ?? null;
 
   const mvaPendente =
-    r.st === 'sim' && r.finalidade === 'revenda' && mva === null;
+    r.st === 'sim' && r.finalidade === 'revenda' && mva === null && !r.manual;
   return {
     ...r,
     mva,
@@ -112,7 +114,7 @@ export function previaItem(
     mvaOpcoes,
     aliquotaInterna,
     aliquotaTexto:
-      r.st !== 'sim'
+      r.st !== 'sim' || r.manual
         ? '-'
         : aliquotaInterna?.texto
           ? aliquotaInterna.texto

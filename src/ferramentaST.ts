@@ -20,6 +20,7 @@ import {
   executarPlano,
   FINALIDADE_PADRAO,
   FINALIDADES,
+  lerCfopManual,
   planoAplicar,
   raizCnpj,
   ROTULO_FINALIDADE,
@@ -34,6 +35,12 @@ import {
   type DecisaoST,
   type LinhaPrevia,
 } from './previaST';
+import {
+  explicacaoItem,
+  formatarNcm,
+  stRetidoNaNota,
+  sugerirSemST,
+} from './explicacaoST';
 import type { ColunaItem } from './nfe/colunas';
 import type { Anotacoes, Item, Nota } from './nfe/tipos';
 
@@ -538,7 +545,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         'td',
         '',
         r.segmento ??
-          (r.st === 'nao'
+          (r.st === 'nao' || r.manual
             ? '-'
             : a.candidatos.length === 0 && a.apendiceXIV
               ? `${a.apendiceXIV.length} ${a.apendiceXIV.length === 1 ? 'linha' : 'linhas'} do Apêndice XIV`
@@ -571,6 +578,11 @@ export function abrirFerramentaST(c: ContextoST): void {
       v === null
         ? '-'
         : `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+    const retido = stRetidoNaNota(l.item);
+    // "Sem ST" pré-marcado só sem escolha feita e quando nada liga o produto às linhas.
+    const sugerido =
+      !apendice.length && atual === null && sugerirSemST(a, retido);
+    const explicacao = apendice.length ? null : explicacaoItem(a, retido);
     const opcoes: { valor: EscolhaST; rotulo: HTMLElement }[] = apendice.length
       ? apendice.map((cand) => ({
           valor: {
@@ -617,12 +629,28 @@ export function abrirFerramentaST(c: ContextoST): void {
               'st__opcao-texto',
               el('strong', '', 'Sem ST'),
               ' O produto não é nenhuma das linhas acima.',
+              sugerido &&
+                el(
+                  'span',
+                  'st__sugerido',
+                  'Sugerido: o produto não parece ser nenhuma das linhas',
+                ),
+            ),
+          },
+          {
+            valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' },
+            rotulo: el(
+              'span',
+              'st__opcao-texto',
+              el('strong', '', 'Outro'),
+              ' Informar o CFOP (e a MVA, se houver) com o motivo.',
             ),
           },
         ];
     const igual = (x: EscolhaST, y: EscolhaST) =>
       x.tipo === y.tipo &&
       (x.tipo === 'sem-st' ||
+        x.tipo === 'manual' ||
         (x.linhaPlanilha === (y as typeof x).linhaPlanilha &&
           (x.tipo === 'candidato'
             ? x.segmento === (y as typeof x).segmento
@@ -632,12 +660,79 @@ export function abrirFerramentaST(c: ContextoST): void {
       r2.type = 'radio';
       r2.name = nome;
       r2.id = `${nome}-${i}`;
-      r2.checked = atual !== null && igual(o.valor, atual);
+      r2.checked =
+        atual !== null
+          ? igual(o.valor, atual)
+          : sugerido && o.valor.tipo === 'sem-st';
       if (i === 0) r2.dataset.foco = `escolha-${n}`;
       const lbl = el('label', 'st__opcao', r2, o.rotulo);
       lbl.htmlFor = r2.id;
       return { r2, lbl, valor: o.valor };
     });
+    // Campos da opção "Outro": digitar num deles marca a opção.
+    const manualAtual = atual?.tipo === 'manual' ? atual : null;
+    const radioOutro = radios.find((x) => x.valor.tipo === 'manual');
+    const campo = (
+      id: string,
+      rotulo: string,
+      valor: string,
+      dica: string,
+      largura: string,
+    ) => {
+      const input = el('input', `st__manual-campo ${largura}`);
+      input.type = 'text';
+      input.id = `${nome}-${id}`;
+      input.value = valor;
+      input.placeholder = dica;
+      input.autocomplete = 'off';
+      input.addEventListener('input', () => {
+        if (radioOutro) radioOutro.r2.checked = true;
+        // Corrigindo o campo: o aviso de antes some.
+        mostrarErro(null);
+      });
+      const lbl = el('label', 'st__manual-rotulo', rotulo);
+      lbl.htmlFor = input.id;
+      return { input, bloco: el('div', 'st__manual-item', lbl, input) };
+    };
+    const pctManual = (v: number | null) =>
+      v === null
+        ? ''
+        : (Math.round(v * 10000) / 100).toLocaleString('pt-BR', {
+            maximumFractionDigits: 2,
+          });
+    const campoCfop = campo(
+      'cfop',
+      'CFOP',
+      manualAtual?.cfop ?? '',
+      'ex. 2102',
+      'st__manual-curto',
+    );
+    campoCfop.input.inputMode = 'numeric';
+    campoCfop.input.maxLength = 5;
+    const campoMva = campo(
+      'mva',
+      'MVA % (opcional)',
+      pctManual(manualAtual?.mva ?? null),
+      'ex. 56,94',
+      'st__manual-curto',
+    );
+    campoMva.input.inputMode = 'decimal';
+    const campoMotivo = campo(
+      'motivo',
+      'Motivo',
+      manualAtual?.motivo ?? '',
+      'Obrigatório: por que este CFOP',
+      'st__manual-longo',
+    );
+    const camposManual = el(
+      'div',
+      'st__manual',
+      campoCfop.bloco,
+      campoMva.bloco,
+      campoMotivo.bloco,
+    );
+    camposManual.setAttribute('role', 'group');
+    camposManual.setAttribute('aria-label', 'CFOP manual');
     const usar = botao(
       'botao botao--principal botao--pequeno',
       el('span', '', 'Usar esta escolha'),
@@ -652,15 +747,29 @@ export function abrirFerramentaST(c: ContextoST): void {
         mostrarErro(
           apendice.length
             ? 'Escolha uma linha do Apêndice XIV.'
-            : 'Escolha uma linha da planilha ou "Sem ST".',
+            : 'Escolha uma linha da planilha, "Sem ST" ou "Outro".',
         );
         return;
       }
+      let escolha = marcada.valor;
+      if (escolha.tipo === 'manual') {
+        const lido = lerCfopManual({
+          cfop: campoCfop.input.value,
+          mva: campoMva.input.value,
+          motivo: campoMotivo.input.value,
+        });
+        if (!lido.ok) {
+          mostrarErro(lido.erro);
+          ({ cfop: campoCfop, mva: campoMva, motivo: campoMotivo })[
+            lido.campo
+          ].input.focus();
+          return;
+        }
+        escolha = lido.escolha;
+      }
       mostrarErro(null);
       confirmando = null;
-      void acao(`finalidade-${n}`, () =>
-        decidir(l, { ...l.decisao, escolha: marcada.valor }),
-      );
+      void acao(`finalidade-${n}`, () => decidir(l, { ...l.decisao, escolha }));
     });
     voltar.addEventListener('click', () => {
       confirmando = null;
@@ -679,8 +788,11 @@ export function abrirFerramentaST(c: ContextoST): void {
           ? `Item ${n}: qual lubrificante do Apêndice XIV é este produto?`
           : `Item ${n}: qual linha da planilha vale?`,
       ),
+      explicacao?.linhaTipi && el('p', 'st__tipi', explicacao.linhaTipi),
+      explicacao && el('p', 'st__explicacao', explicacao.texto),
       el('ul', 'st__motivos', ...r.detalhes.map((m) => el('li', '', m))),
       ...radios.map((x) => x.lbl),
+      !apendice.length && camposManual,
       el('div', 'documento__acoes', usar, voltar),
     );
     return el(
@@ -845,12 +957,6 @@ export function abrirFerramentaST(c: ContextoST): void {
   document.body.append(d);
   d.showModal();
   (d.querySelector<HTMLElement>('.st__confirmar') ?? filtro).focus();
-}
-
-function formatarNcm(ncm: string): string {
-  return ncm.length === 8
-    ? `${ncm.slice(0, 4)}.${ncm.slice(4, 6)}.${ncm.slice(6)}`
-    : ncm;
 }
 
 /** Itens da nota no formato do pedido de análise. */

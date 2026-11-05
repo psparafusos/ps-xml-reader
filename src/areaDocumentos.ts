@@ -13,6 +13,7 @@ import { botao, el, icone, semaforo } from './dom';
 import {
   chaveDecisao,
   ROTULO_FINALIDADE,
+  textoMva,
   type DecisaoLembrada,
 } from './fiscal/entrada';
 import { perguntar } from './dialogos';
@@ -668,7 +669,9 @@ export function abrirAreaDocumentos(): void {
             ? 'Sem ST'
             : d.escolha.tipo === 'apendice-xiv'
               ? `Apêndice XIV: ${d.escolha.descricao}`
-              : `${d.escolha.segmento}, CEST ${d.escolha.cest}`,
+              : d.escolha.tipo === 'manual'
+                ? `CFOP manual ${d.escolha.cfop}${d.escolha.mva === null ? '' : `, MVA ${textoMva(d.escolha.mva)}`}: ${d.escolha.motivo}`
+                : `${d.escolha.segmento}, CEST ${d.escolha.cest}`,
         ROTULO_FINALIDADE[d.finalidade],
       ]
         .filter(Boolean)

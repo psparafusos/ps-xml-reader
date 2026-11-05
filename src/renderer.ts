@@ -11,7 +11,11 @@ import {
 } from './nfe/colunas';
 import { configPadrao, idDaAnotacao, problemaTitulo } from './nfe/config';
 import type { FerramentaJanela } from './nfe/ferramentas';
-import { resumoCfops, TITULO_COLUNA_CFOP } from './nfe/resumoCfop';
+import {
+  itensCfopManual,
+  resumoCfops,
+  TITULO_COLUNA_CFOP,
+} from './nfe/resumoCfop';
 import {
   ROTULO_SITUACAO as ROTULO_SITUACAO_RECENTE,
   situacaoNota,
@@ -1196,9 +1200,20 @@ const painel = criarPainel(painelEl, notaEl, {
   ferramentasJanela: () => [ferramentaST],
   resumoCfop: () => {
     const coluna = idColunaCfop();
-    return aberto && coluna
-      ? resumoCfops(aberto.lido.nota.itens, anotacoes, coluna)
-      : null;
+    if (!aberto || !coluna) return null;
+    const nota = aberto.lido.nota;
+    return resumoCfops(
+      nota.itens,
+      anotacoes,
+      coluna,
+      itensCfopManual(
+        nota.itens,
+        nota.emitente.CNPJ,
+        estadoDocumentos?.decisoes ?? [],
+        anotacoes,
+        coluna,
+      ),
+    );
   },
 });
 /**
@@ -3265,6 +3280,8 @@ function atualizarDocumentos(): void {
         e.tipi ? `TIPI ${e.tipi.versao || 'carregada'}` : 'TIPI falta',
       ].join(' · ');
       atualizarAreaDocumentos(e);
+      // As decisões lembradas marcam os CFOPs manuais no resumo do painel.
+      painel.atualizarFerramentas();
     })
     .catch((erro: unknown) => console.error(erro));
 }

@@ -365,14 +365,26 @@ export function criarPainel(
           `${g.itens.length} ${g.itens.length === 1 ? 'item' : 'itens'}`,
         ),
         g.destaque && el('span', 'conferencia__so-leitor', ', poucos itens'),
+        g.manuais > 0 &&
+          el(
+            'span',
+            'conferencia__cfop-manual',
+            g.manuais === g.itens.length ? 'manual' : `${g.manuais} manual`,
+          ),
         icone(...(aberto ? ICONES.setaCima : ICONES.setaBaixo)),
       );
       b.setAttribute('aria-expanded', String(aberto));
       b.setAttribute('aria-controls', listaId);
       b.dataset.cfop = g.valor;
-      b.title = g.destaque
-        ? 'Poucos itens com este CFOP: confira se é isso mesmo'
-        : 'Ver os itens';
+      b.title = [
+        g.destaque
+          ? 'Poucos itens com este CFOP: confira se é isso mesmo'
+          : 'Ver os itens',
+        g.manuais > 0 &&
+          `${g.manuais} ${g.manuais === 1 ? 'item com CFOP informado' : 'itens com CFOP informado'} à mão (opção "Outro")`,
+      ]
+        .filter(Boolean)
+        .join('\n');
       b.addEventListener('click', () => {
         cfopAberto = aberto ? null : g.valor;
         desenharCorpo(resumoAtual);
@@ -388,8 +400,9 @@ export function criarPainel(
             'conferencia__cfop-item',
             el('span', 'conferencia__cfop-num', i.nItem),
             el('span', '', i.xProd),
+            i.manual && el('span', 'conferencia__cfop-manual', 'manual'),
           );
-          item.title = `Ir para o item ${i.nItem} na tabela`;
+          item.title = `Ir para o item ${i.nItem} na tabela${i.manual ? ' (CFOP manual, opção "Outro")' : ''}`;
           item.addEventListener('click', () => {
             if (!aoLado) recolher(false);
             acoes.irParaItem(i.nItem, 'cfop');

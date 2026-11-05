@@ -3345,6 +3345,71 @@ body.pdf-previa #pdf-previa {
   accent-color: var(--ps-preto);
 }
 
+/* Explicação gerada (TIPI, planilha e nota) no alto da caixa de escolha. */
+.st__tipi {
+  margin: 0;
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-forte);
+}
+
+.st__explicacao {
+  margin: 0;
+  max-width: 90ch;
+  color: var(--cor-texto-forte);
+}
+
+.st__sugerido {
+  display: block;
+  margin-top: 2px;
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-forte);
+}
+
+.st__sugerido::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--esp-1);
+  border-radius: 50%;
+  background: var(--cor-destaque);
+  vertical-align: middle;
+}
+
+/* Campos da opção "Outro" (CFOP manual). */
+.st__manual {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2) var(--esp-3);
+  padding-left: calc(13px + var(--esp-2) * 2);
+}
+
+.st__manual-item {
+  display: grid;
+  gap: 2px;
+}
+
+.st__manual-rotulo {
+  color: var(--cor-texto);
+  font-size: var(--fs-sm);
+}
+
+.st__manual-campo {
+  padding: var(--esp-1) var(--esp-2);
+  border: var(--borda) solid var(--cor-borda);
+  border-radius: var(--raio);
+  color: var(--cor-texto-forte);
+  font: inherit;
+}
+
+.st__manual-curto {
+  width: 11ch;
+}
+
+.st__manual-longo {
+  width: 36ch;
+}
+
 .st__vazio {
   padding: var(--esp-4) !important;
   text-align: center !important;
@@ -3593,6 +3658,24 @@ body.pdf-previa #pdf-previa {
 
 .conferencia__cfop-itens[hidden] {
   display: none;
+}
+
+/* CFOP informado à mão na ferramenta (opção "Outro"). */
+.conferencia__cfop-manual {
+  flex: none;
+  padding: 0 var(--esp-1);
+  border: var(--borda) solid var(--ps-preto);
+  border-radius: var(--raio);
+  background: var(--cor-destaque);
+  color: var(--cor-texto-sobre-destaque);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
+  white-space: nowrap;
+}
+
+.conferencia__cfop-item .conferencia__cfop-manual {
+  align-self: flex-start;
+  margin-left: auto;
 }
 
 /* ---------- prévia ST, MVA e CFOP: campos do motor ---------- */
