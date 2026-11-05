@@ -28,6 +28,7 @@ import { analisarItem, type ItemFiscal } from './fiscal/analise';
 import {
   carregarBaseFiscal,
   importarDocumento,
+  importarSeLeituraPassar,
   removerDocumento,
   lerDocumentos,
   lerSegmentosIncompletos,
@@ -50,11 +51,14 @@ import {
 import { lerCombustiveis } from './fiscal/combustiveis';
 import {
   PAGINA,
+  baixarArquivo,
   urlPermitida,
   verificarST,
   verificarTipi,
+  type Buscar,
   type ResultadoVerificacao,
 } from './fiscal/online';
+import { buscaSimulada } from './onlineSimulado';
 import { lerTabelaST } from './fiscal/st';
 import { lerTipi, lerTipiPlanilha } from './fiscal/tipi';
 import { lerXlsx, type Aba } from './fiscal/xlsx';
@@ -70,9 +74,13 @@ import {
   type Reconhecido,
 } from './leituraDocumentos';
 
-/** Tempo para baixar a planilha (a de ST tem ~1 MB; a TIPI, ~700 KB). */
-const TEMPO_DOWNLOAD_MS = 120_000;
-const LIMITE_DOWNLOAD = 30 * 1024 * 1024;
+/**
+ * Acesso à internet: net.fetch. Só no app de desenvolvimento (não
+ * empacotado) a variável PS_READER_ONLINE_SIMULADO troca por arquivos
+ * locais (src/onlineSimulado.ts), para testar sem rede.
+ */
+const buscar: Buscar =
+  buscaSimulada(app.isPackaged) ?? ((url, init) => net.fetch(url, init));
 const ARQ_PREFERENCIAS = 'preferencias.json';
 const ARQ_DECISOES = 'decisoes.json';
 
@@ -259,6 +267,12 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
   return { status: 'ok', itens: analises, semTipi: base.tipi === null };
 }
 
+/** Andamento do download do Atualizar, para todas as janelas. */
+function avisarProgresso(p: ProgressoDocumento): void {
+  for (const w of BrowserWindow.getAllWindows())
+    w.webContents.send('documento-progresso', p);
+}
+
 /** Avisa todas as janelas (a área aberta e o rodapé do painel se redesenham). */
 function avisarJanelas(exceto?: WebContents): void {
   for (const w of BrowserWindow.getAllWindows())
@@ -406,7 +420,9 @@ async function importar(
   }
 
   try {
-    const info = importarDocumento(
+    // Arquivo baixado (Atualizar): lido antes numa pasta temporária; só
+    // substitui o carregado se a leitura passar.
+    const info = (servidor ? importarSeLeituraPassar : importarDocumento)(
       tipo,
       dados,
       nome,
@@ -481,7 +497,6 @@ async function verificarAgora(): Promise<void> {
   if (verificando) return verificando;
   verificando = (async () => {
     const docs = lerDocumentos(pastaDocumentos());
-    const buscar = (url: string, init: RequestInit) => net.fetch(url, init);
     // Uma requisição por documento, as duas ao mesmo tempo. As funções de
     // src/fiscal/online.ts não lançam: falha de rede vira "sem conexão".
     const [st, tipi] = await Promise.all([
@@ -498,7 +513,22 @@ async function verificarAgora(): Promise<void> {
   avisarJanelas();
 }
 
+/** Downloads em andamento: dois cliques (ou duas janelas) não baixam duas vezes. */
+const baixando = new Set<TipoOnline>();
+
 async function baixar(tipo: TipoOnline): Promise<ResultadoImportarDocumento> {
+  if (baixando.has(tipo)) return { status: 'cancelado' };
+  baixando.add(tipo);
+  try {
+    return await baixarEImportar(tipo);
+  } finally {
+    baixando.delete(tipo);
+  }
+}
+
+async function baixarEImportar(
+  tipo: TipoOnline,
+): Promise<ResultadoImportarDocumento> {
   const r = verificacao.get(tipo);
   const url = r?.disponivel?.url;
   if (!r || r.estado !== 'nova' || !url || !urlPermitida(tipo, url))
@@ -508,20 +538,11 @@ async function baixar(tipo: TipoOnline): Promise<ResultadoImportarDocumento> {
       mensagem: 'Verifique de novo antes de baixar.',
       estado: await estado(),
     };
-  let dados: Uint8Array;
-  let data: string | null = null;
+  let baixado: Awaited<ReturnType<typeof baixarArquivo>>;
   try {
-    const resp = await net.fetch(url, {
-      signal: AbortSignal.timeout(TEMPO_DOWNLOAD_MS),
-    });
-    if (!resp.ok) throw new Error(`o servidor respondeu ${resp.status}`);
-    const tamanho = Number(resp.headers.get('content-length'));
-    if (tamanho > LIMITE_DOWNLOAD) throw new Error('arquivo grande demais');
-    dados = new Uint8Array(await resp.arrayBuffer());
-    if (dados.length > LIMITE_DOWNLOAD)
-      throw new Error('arquivo grande demais');
-    const lm = Date.parse(resp.headers.get('last-modified') ?? '');
-    data = Number.isNaN(lm) ? null : new Date(lm).toISOString();
+    baixado = await baixarArquivo(tipo, url, buscar, (recebido, total) =>
+      avisarProgresso({ tipo, recebido, total, fim: false }),
+    );
   } catch (erro) {
     return {
       status: 'erro',
@@ -529,9 +550,11 @@ async function baixar(tipo: TipoOnline): Promise<ResultadoImportarDocumento> {
       mensagem: `Não foi possível baixar: ${mensagem(erro)}. ${anterior(tipo)}`,
       estado: await estado(),
     };
+  } finally {
+    avisarProgresso({ tipo, recebido: 0, total: null, fim: true });
   }
-  const nome = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
-  const resultado = await importar(tipo, dados, nome || `${tipo}.xlsx`, {
+  const { dados, nome, data } = baixado;
+  const resultado = await importar(tipo, dados, nome, {
     url,
     data: data ?? r.disponivel?.data ?? null,
     tamanho: r.disponivel?.tamanho ?? dados.length,

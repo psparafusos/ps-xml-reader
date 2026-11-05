@@ -1,6 +1,9 @@
 // Utilitários de DOM usados pela tela e pelo editor de colunas. Texto entra
 // por append (vira nó de texto), nunca por innerHTML.
 
+import { VISUAL_ESTADO, type EstadoVisivel } from './estadoDocumentos';
+import { ICONES } from './icones';
+
 export type Filho = Node | string | null | undefined | false;
 
 export function el<K extends keyof HTMLElementTagNameMap>(
@@ -115,6 +118,28 @@ export function navegarMenu(
   else if (e.key === 'Tab') fechar(false);
   else return;
   if (e.key !== 'Tab') e.preventDefault();
+}
+
+/**
+ * Ícone do estado de um documento de referência (ok, aviso, faltando,
+ * opcional), na cor do estado (src/estadoDocumentos.ts).
+ */
+export function iconeEstado(estado: EstadoVisivel): SVGSVGElement {
+  const v = VISUAL_ESTADO[estado];
+  const svg = icone(...ICONES[v.icone]);
+  svg.classList.add('estado-icone', `estado-icone--${estado}`);
+  svg.style.color = v.cor;
+  return svg;
+}
+
+/** Ícone do estado com o texto curto ao lado (nunca só a cor). */
+export function marcaEstado(estado: EstadoVisivel, texto: string): HTMLElement {
+  return el(
+    'span',
+    `estado estado--${estado}`,
+    iconeEstado(estado),
+    el('span', 'estado__texto', texto),
+  );
 }
 
 /**

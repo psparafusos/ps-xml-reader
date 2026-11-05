@@ -70,19 +70,31 @@ import {
   type ResumoConferencia,
 } from './nfe/conferencia';
 import { criarPainel } from './painelConferencia';
-import { abrirAreaDocumentos, atualizarAreaDocumentos } from './areaDocumentos';
-import { semaforoDocumento } from './leituraDocumentos';
+import {
+  abrirAreaDocumentos,
+  atualizarAreaDocumentos,
+  progressoAreaDocumentos,
+} from './areaDocumentos';
+import {
+  linhasDocumentos,
+  pastilhasDocumentos,
+  type LinhaDocumento,
+} from './estadoDocumentos';
+import { NOME_DOCUMENTO } from './fiscal/documentos';
+import { rotuloDocumento } from './leituraDocumentos';
 import {
   abrirEditorColunas,
   atualizarEditor,
   editorAberto,
 } from './editorColunas';
 import {
+  botao,
   comSetasDeRolagem,
   el,
   icone,
+  iconeEstado,
+  marcaEstado,
   navegarMenu,
-  semaforo,
   type Filho,
 } from './dom';
 import { perguntar, pedirNomeCopia } from './dialogos';
@@ -3194,7 +3206,7 @@ const ferramentaST: FerramentaJanela = {
   aviso: () => {
     const atalho = {
       rotulo: 'Documentos de referência',
-      executar: abrirAreaDocumentos,
+      executar: () => abrirAreaDocumentos(),
     };
     if (!estadoDocumentos?.st)
       return {
@@ -3238,47 +3250,217 @@ const ferramentaST: FerramentaJanela = {
   },
 };
 
-// Documentos de referência: situação nas pastilhas da barra e da tela
-// inicial; mudou (importação em outra janela, verificação ao abrir), atualiza
-// tudo.
+// Documentos de referência: pastilhas da barra e da faixa da tela inicial
+// e a lista do cartão "Documentos de referência" (uma linha por documento,
+// com o ícone do estado). Mudou (importação em outra janela, verificação ao
+// abrir), atualiza tudo.
 const btnDocumentos = $('btn-documentos') as HTMLButtonElement;
 const btnBarraDocumentos = $('barra-documentos') as HTMLButtonElement;
-const documentosSituacao = $('documentos-situacao');
-const inicioST = $('inicio-st');
-const inicioTipi = $('inicio-tipi');
-const barraST = $('barra-st');
-const barraTipi = $('barra-tipi');
+const listaDocumentos = $('documentos-lista');
+const inicioDocumentos = $('inicio-documentos');
+/** Download do Atualizar em andamento, por documento. */
+const progressoDocumentos = new Map<TipoDocumento, ProgressoDocumento>();
+/** Atualizar ou Carregar que falhou: o motivo fica na linha até a próxima tentativa. */
+const erroDocumentos = new Map<TipoDocumento, string>();
+/** Atualizar ou Carregar desta janela em andamento. */
+const ocupadoDocumentos = new Set<TipoDocumento>();
+
+function pastilhasDocumento(e: EstadoDocumentos): HTMLElement[] {
+  return pastilhasDocumentos(e).map((p) =>
+    el(
+      'span',
+      `pastilha pastilha--documento pastilha--${p.estado}`,
+      marcaEstado(p.estado, p.texto),
+    ),
+  );
+}
+
+const porcentagem = (p: ProgressoDocumento) =>
+  p.total ? Math.min(100, Math.round((p.recebido / p.total) * 100)) : null;
+
+/** Download na linha: barra de progresso e o texto. */
+function indicadorProgresso(p: ProgressoDocumento | undefined): HTMLElement {
+  const barra = el('progress', 'docs-linha__barra');
+  const pct = p ? porcentagem(p) : null;
+  if (pct !== null) {
+    barra.max = 100;
+    barra.value = pct;
+  }
+  barra.setAttribute('aria-hidden', 'true');
+  const texto = el(
+    'span',
+    'docs-linha__progresso-texto',
+    p?.fim
+      ? 'Importando...'
+      : pct === null
+        ? 'Baixando...'
+        : `Baixando ${pct}%`,
+  );
+  texto.setAttribute('role', 'status');
+  return el('span', 'docs-linha__progresso', barra, texto);
+}
+
+/** Resultado do Atualizar ou do Carregar feito na tela inicial. */
+function aoImportarNaLista(
+  tipo: TipoDocumento,
+  r: ResultadoImportarDocumento,
+): void {
+  if (r.status === 'cancelado') return;
+  if (r.status === 'ok') {
+    erroDocumentos.delete(tipo);
+    mostrarSucesso(
+      `${NOME_DOCUMENTO[tipo]}: ${rotuloDocumento(r.info, r.estado.leitura[tipo]).texto.toLowerCase()}.`,
+    );
+    return;
+  }
+  if (r.status === 'erro') erroDocumentos.set(tipo, r.mensagem);
+  // Recusado com o que fazer, ou planilha parcial esperando confirmação:
+  // a tela de Documentos mostra tudo, no cartão dele.
+  if (r.status === 'parcial' || (r.status === 'erro' && r.oQueFazer))
+    abrirAreaDocumentos({ cartao: tipo, resultado: r });
+}
+
+async function acaoDocumento(
+  tipo: TipoDocumento,
+  fazer: () => Promise<ResultadoImportarDocumento>,
+): Promise<void> {
+  if (ocupadoDocumentos.has(tipo)) return;
+  ocupadoDocumentos.add(tipo);
+  erroDocumentos.delete(tipo);
+  if (estadoDocumentos) desenharListaDocumentos(estadoDocumentos);
+  try {
+    aoImportarNaLista(tipo, await fazer());
+  } catch (erro) {
+    erroDocumentos.set(
+      tipo,
+      `Não foi possível atualizar: ${erro instanceof Error ? erro.message : String(erro)}`,
+    );
+    console.error(erro);
+  } finally {
+    ocupadoDocumentos.delete(tipo);
+    progressoDocumentos.delete(tipo);
+    atualizarDocumentos();
+  }
+}
+
+function linhaDocumento(l: LinhaDocumento): HTMLElement {
+  const abrir = el(
+    'button',
+    'docs-linha__abrir',
+    iconeEstado(l.estado),
+    el(
+      'span',
+      'docs-linha__meio',
+      el('span', 'docs-linha__nome', l.nome),
+      el('span', 'docs-linha__detalhe', l.detalhe || l.situacao),
+      l.detalhe !== '' &&
+        l.estado !== 'ok' &&
+        el(
+          'span',
+          `docs-linha__situacao docs-linha__situacao--${l.estado}`,
+          l.situacao,
+        ),
+    ),
+  );
+  abrir.type = 'button';
+  abrir.title = `Abrir ${l.nome} na tela de Documentos`;
+  abrir.setAttribute(
+    'aria-label',
+    `${l.nome}: ${[l.situacao, l.detalhe].filter(Boolean).join(', ')}. Abrir na tela de Documentos.`,
+  );
+  abrir.addEventListener('click', () =>
+    abrirAreaDocumentos({ cartao: l.tipo }),
+  );
+
+  const ocupado = ocupadoDocumentos.has(l.tipo);
+  let acao: Element | null = null;
+  if (ocupado && progressoDocumentos.has(l.tipo))
+    acao = indicadorProgresso(progressoDocumentos.get(l.tipo));
+  else if (l.versaoNova || (ocupado && l.estado !== 'faltando')) {
+    const b = botao(
+      'botao botao--principal botao--pequeno',
+      icone(...ICONES.salvar),
+      el('span', '', 'Atualizar'),
+    );
+    b.disabled = ocupado;
+    b.dataset.foco = 'acao';
+    b.title = `Baixar a versão nova do site oficial (a ${l.nome} atual só é trocada se a nova for lida)`;
+    b.addEventListener(
+      'click',
+      () =>
+        void acaoDocumento(l.tipo, () => window.psApi.baixarDocumento(l.tipo)),
+    );
+    acao = b;
+  } else if (l.estado === 'faltando' || l.estado === 'opcional') {
+    const b = botao(
+      'botao botao--claro botao--pequeno',
+      icone(...ICONES.enviar),
+      el('span', '', 'Carregar'),
+    );
+    b.disabled = ocupado;
+    b.dataset.foco = 'acao';
+    b.title = `Escolher o arquivo da ${l.nome}`;
+    b.addEventListener(
+      'click',
+      () =>
+        void acaoDocumento(l.tipo, () =>
+          window.psApi.importarDocumento(l.tipo),
+        ),
+    );
+    acao = b;
+  } else {
+    const seta = icone(...ICONES.setaDireita);
+    seta.classList.add('docs-linha__seta');
+    abrir.append(seta);
+  }
+  const erro = erroDocumentos.get(l.tipo);
+  const li = el(
+    'li',
+    `docs-linha docs-linha--${l.estado}`,
+    abrir,
+    acao && el('span', 'docs-linha__acao', acao),
+    erro !== undefined && el('p', 'docs-linha__erro', erro),
+  );
+  li.dataset.tipo = l.tipo;
+  return li;
+}
+
+function desenharListaDocumentos(e: EstadoDocumentos): void {
+  // O foco volta ao mesmo lugar da mesma linha depois de redesenhar.
+  const ativo = document.activeElement;
+  let foco: string | null = null;
+  if (ativo instanceof HTMLElement && listaDocumentos.contains(ativo)) {
+    const tipo = ativo.closest<HTMLElement>('.docs-linha')?.dataset.tipo;
+    if (tipo)
+      foco = ativo.dataset.foco
+        ? `[data-tipo="${tipo}"] [data-foco="acao"]`
+        : `[data-tipo="${tipo}"] .docs-linha__abrir`;
+  }
+  listaDocumentos.replaceChildren(...linhasDocumentos(e).map(linhaDocumento));
+  if (foco) {
+    const alvo =
+      listaDocumentos.querySelector<HTMLElement>(foco) ??
+      listaDocumentos.querySelector<HTMLElement>(
+        foco.replace('[data-foco="acao"]', '.docs-linha__abrir'),
+      );
+    alvo?.focus();
+  }
+}
+
 function atualizarDocumentos(): void {
   window.psApi
     .documentos()
     .then((e) => {
       estadoDocumentos = e;
-      const sinais = (['st', 'tipi'] as const).map((tipo) => ({
-        sigla: tipo === 'st' ? 'ST' : 'TIPI',
-        ...semaforoDocumento(
-          e[tipo],
-          e.leitura[tipo],
-          e.preferencias.verificacaoOnline ? e.verificacao[tipo] : null,
-          e.recusado[tipo],
-        ),
-      }));
-      for (const [x, pastilha] of [
-        [sinais[0], inicioST],
-        [sinais[1], inicioTipi],
-        [sinais[0], barraST],
-        [sinais[1], barraTipi],
-      ] as const)
-        pastilha.replaceChildren(semaforo(x.cor, `${x.sigla} ${x.texto}`));
+      btnBarraDocumentos.replaceChildren(...pastilhasDocumento(e));
+      inicioDocumentos.replaceChildren(...pastilhasDocumento(e));
       btnBarraDocumentos.setAttribute(
         'aria-label',
-        `Documentos de referência: ${sinais.map((x) => `${x.sigla} ${x.texto}`).join(', ')}`,
+        `Documentos de referência: ${pastilhasDocumentos(e)
+          .map((p) => p.texto)
+          .join(', ')}`,
       );
-      documentosSituacao.textContent = [
-        e.st
-          ? `ST ${e.st.versao ? `v${e.st.versao}` : 'carregada'}`
-          : 'ST falta',
-        e.tipi ? `TIPI ${e.tipi.versao || 'carregada'}` : 'TIPI falta',
-      ].join(' · ');
+      desenharListaDocumentos(e);
       atualizarAreaDocumentos(e);
       // As decisões lembradas marcam os CFOPs manuais no resumo do painel.
       painel.atualizarFerramentas();
@@ -3287,6 +3469,12 @@ function atualizarDocumentos(): void {
 }
 btnDocumentos.addEventListener('click', () => abrirAreaDocumentos());
 btnBarraDocumentos.addEventListener('click', () => abrirAreaDocumentos());
+window.psApi.aoProgressoDocumento((p) => {
+  progressoAreaDocumentos(p);
+  if (!ocupadoDocumentos.has(p.tipo)) return;
+  progressoDocumentos.set(p.tipo, p);
+  if (estadoDocumentos) desenharListaDocumentos(estadoDocumentos);
+});
 window.psApi.aoMudarDocumentos(atualizarDocumentos);
 atualizarDocumentos();
 // Uma página recarregada começa sem pendências.

@@ -76,9 +76,20 @@
     white-space: nowrap;
   }
 
-  .pastilha .semaforo__texto {
+  .pastilha .semaforo__texto,
+  .pastilha .estado__texto {
     color: inherit;
     font-size: var(--fs-sm);
+  }
+
+  .pastilha--documento {
+    padding-left: var(--esp-2);
+  }
+
+  .inicio__documentos {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-2);
   }
 
   .pastilha:empty {
@@ -184,22 +195,19 @@
 
   /* Pastilha de situação: colorida pelo semáforo (em conferência, parcela
      vencida, carregado). A de estado (ST ok, perfil) fica preta. */
-  .pastilha--verde,
-  .documento__selo .semaforo--verde {
+  .pastilha--verde {
     border-color: var(--semaforo-verde);
     background: color-mix(in srgb, var(--semaforo-verde) 18%, white);
     color: var(--cor-texto-forte);
   }
 
-  .pastilha--amarela,
-  .documento__selo .semaforo--amarela {
+  .pastilha--amarela {
     border-color: var(--soltar-borda);
     background: var(--soltar-fundo);
     color: var(--cor-texto-forte);
   }
 
-  .pastilha--vermelha,
-  .documento__selo .semaforo--vermelha {
+  .pastilha--vermelha {
     border-color: var(--semaforo-vermelho);
     background: color-mix(in srgb, var(--semaforo-vermelho) 12%, white);
     color: var(--semaforo-vermelho);
@@ -408,6 +416,142 @@
     display: flex;
     gap: var(--esp-4);
     margin-top: auto;
+  }
+
+  /* Pasta de destino: o ícone ao lado do caminho e os botões secundários
+     pequenos (Trocar, Abrir pasta) no pé do cartão. */
+  .inicio__pasta {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .inicio__pasta-icone {
+    width: 22px;
+    height: 22px;
+    margin-top: -2px;
+    color: var(--cor-icone);
+  }
+
+  .inicio__botoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--esp-2);
+    margin-top: auto;
+  }
+
+  /* Documentos de referência: uma linha por documento, com o ícone do
+     estado, o nome, a versão e a ação. A linha abre a tela de Documentos. */
+  .docs-lista {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .docs-linha {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--esp-2);
+    border-top: var(--borda) solid var(--cartao-borda);
+  }
+
+  .docs-linha:first-child {
+    border-top: 0;
+  }
+
+  .docs-linha__abrir {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-3);
+    min-width: 0;
+    padding: var(--esp-2);
+    margin-left: calc(-1 * var(--esp-2));
+    border: 0;
+    border-radius: var(--raio);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .docs-linha__abrir:hover {
+    background: var(--bancada-fundo);
+  }
+
+  .docs-linha__abrir:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: -1px;
+  }
+
+  .docs-linha__abrir .estado-icone {
+    width: 22px;
+    height: 22px;
+  }
+
+  .docs-linha__meio {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .docs-linha__nome {
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-md);
+    font-weight: var(--peso-medio);
+  }
+
+  .docs-linha__detalhe,
+  .docs-linha__situacao {
+    overflow: hidden;
+    color: var(--cor-texto);
+    font-size: var(--fs-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .docs-linha__situacao {
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-medio);
+  }
+
+  .docs-linha--faltando .docs-linha__detalhe {
+    color: var(--semaforo-vermelho);
+    font-weight: var(--peso-medio);
+  }
+
+  .docs-linha__seta {
+    margin-left: auto;
+    color: var(--cor-icone);
+  }
+
+  .docs-linha__acao {
+    display: flex;
+    align-items: center;
+  }
+
+  .docs-linha__erro {
+    grid-column: 1 / -1;
+    margin: 0 0 var(--esp-2);
+    color: var(--semaforo-vermelho);
+    font-size: var(--fs-sm);
+  }
+
+  .docs-linha__progresso {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-2);
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-medio);
+    white-space: nowrap;
+  }
+
+  .docs-linha__barra {
+    width: 90px;
+    height: 8px;
+    accent-color: var(--ps-amarelo);
   }
 
   /* Vazio ou com notas, o cartão vai até o pé: a lista (ou a frase de
@@ -733,7 +877,7 @@
     background: var(--cartao-fundo);
   }
 
-  .documento--vermelha,
+  .documento--faltando,
   .documento--opcional {
     border-style: dashed;
   }
@@ -748,18 +892,33 @@
     border-radius: var(--cartao-raio);
   }
 
-  /* Selo único do cartão: pastilha de situação, colorida pelo semáforo
-     (as cores ficam com .pastilha--* acima). */
-  .documento__selo .semaforo {
+  /* Selo único do cartão: pastilha branca com o ícone do estado, o mesmo
+     da lista da tela inicial e das pastilhas da barra. */
+  .documento__selo .estado {
     min-height: 28px;
-    padding: 0 var(--esp-3);
-    border: var(--borda) solid var(--pastilha-escura-borda);
+    padding: 0 var(--esp-3) 0 var(--esp-2);
+    border: var(--borda) solid var(--cartao-borda);
     border-radius: var(--pastilha-raio);
+    background: var(--cartao-fundo);
   }
 
-  .documento__selo .semaforo__texto {
-    color: inherit;
+  .documento__selo--faltando .estado__texto {
+    color: var(--semaforo-vermelho);
+  }
+
+  .documento__progresso {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-2);
+    color: var(--cor-texto-forte);
     font-size: var(--fs-sm);
+    font-weight: var(--peso-medio);
+  }
+
+  .documento__barra {
+    width: 120px;
+    height: 8px;
+    accent-color: var(--ps-amarelo);
   }
 
   .documento__erro,

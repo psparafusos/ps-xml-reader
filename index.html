@@ -30,16 +30,14 @@
         >
       </div>
       <div class="barra__pastilhas">
-        <!-- Situação dos documentos de referência; abre a área deles. -->
+        <!-- Situação dos documentos de referência; abre a área deles. Uma
+             pastilha por documento (renderer.ts, atualizarDocumentos). -->
         <button
           id="barra-documentos"
           type="button"
           class="barra__documentos"
           title="Documentos de referência"
-        >
-          <span id="barra-st" class="pastilha"></span>
-          <span id="barra-tipi" class="pastilha"></span>
-        </button>
+        ></button>
         <!-- Troca rápida do perfil de colunas; a lista é montada no
              renderer.ts a cada abertura. Na tela inicial o bloco vai para a
              faixa de lá (renderer.ts, mostrarTela). -->
@@ -307,8 +305,7 @@
           </div>
         </div>
         <div class="inicio__pastilhas">
-          <span id="inicio-st" class="pastilha"></span>
-          <span id="inicio-tipi" class="pastilha"></span>
+          <span id="inicio-documentos" class="inicio__documentos"></span>
           <!-- O seletor de perfil da barra amarela vem para cá enquanto a
                tela inicial está à mostra (renderer.ts, mostrarTela). -->
           <div id="inicio-perfil" class="inicio__perfil"></div>
@@ -354,23 +351,53 @@
               aria-labelledby="titulo-pasta"
             >
               <h2 id="titulo-pasta" class="titulo-secao">Pasta de destino</h2>
-              <p class="inicio__valor">
+              <p class="inicio__valor inicio__pasta">
+                <svg
+                  class="icone inicio__pasta-icone"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                  />
+                </svg>
                 <span id="inicio-pasta-caminho">Nenhuma pasta escolhida</span>
                 <span id="inicio-pasta-sessao" class="botao__sessao" hidden
                   >só nesta janela</span
                 >
               </p>
-              <div class="inicio__links">
-                <button id="btn-pasta" type="button" class="link">
-                  Trocar
+              <div class="inicio__botoes">
+                <button
+                  id="btn-pasta"
+                  type="button"
+                  class="botao botao--claro botao--pequeno"
+                >
+                  <!-- Pasta com seta (ICONES.pastaTrocar). -->
+                  <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                    />
+                    <path d="M9 13h6" />
+                    <path d="M12.5 10.5L15 13l-2.5 2.5" />
+                  </svg>
+                  <span>Trocar</span>
                 </button>
                 <button
                   id="btn-abrir-pasta"
                   type="button"
-                  class="link"
+                  class="botao botao--claro botao--pequeno"
                   disabled
                 >
-                  Abrir pasta
+                  <!-- Pasta aberta (ICONES.pastaAberta). -->
+                  <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1"
+                    />
+                    <path
+                      d="M5 19h12.5a1.5 1.5 0 0 0 1.4-1l2-5.6a1 1 0 0 0-.9-1.4H8.1a1.5 1.5 0 0 0-1.4 1z"
+                    />
+                  </svg>
+                  <span>Abrir pasta</span>
                 </button>
               </div>
             </section>
@@ -381,7 +408,8 @@
               <h2 id="titulo-documentos" class="titulo-secao">
                 Documentos de referência
               </h2>
-              <p id="documentos-situacao" class="inicio__valor"></p>
+              <!-- Uma linha por documento (renderer.ts, desenharListaDocumentos). -->
+              <ul id="documentos-lista" class="docs-lista"></ul>
               <div class="inicio__links">
                 <button id="btn-documentos" type="button" class="link">
                   Gerenciar

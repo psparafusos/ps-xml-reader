@@ -20,6 +20,7 @@
 
 import {
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -162,6 +163,41 @@ export function importarDocumento(
   renameSync(temp(arqDados(tipo)), join(pasta, arqDados(tipo)));
   renameSync(temp(arqInfo(tipo)), join(pasta, arqInfo(tipo)));
   return info;
+}
+
+/**
+ * Atualização (arquivo baixado): importa primeiro numa pasta temporária,
+ * dentro de `pasta`, com o mesmo importarDocumento. Só se a leitura passar
+ * os arquivos vão para `pasta`, no lugar do documento carregado; formato não
+ * reconhecido (ErroFormato) ou qualquer outra falha deixa o anterior como
+ * estava. A pasta temporária é apagada nos dois casos.
+ */
+export function importarSeLeituraPassar(
+  tipo: TipoDocumento,
+  dados: Uint8Array,
+  nomeArquivo: string,
+  pasta: string,
+  agora: Date = new Date(),
+  servidor: ServidorDocumento | null = null,
+): InfoDocumento {
+  mkdirSync(pasta, { recursive: true });
+  const temp = mkdtempSync(join(pasta, '.atualizar-'));
+  try {
+    const info = importarDocumento(
+      tipo,
+      dados,
+      nomeArquivo,
+      temp,
+      agora,
+      servidor,
+    );
+    // Dados primeiro e a info por último, como em importarDocumento.
+    renameSync(join(temp, arqDados(tipo)), join(pasta, arqDados(tipo)));
+    renameSync(join(temp, arqInfo(tipo)), join(pasta, arqInfo(tipo)));
+    return info;
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
 }
 
 /** Tira o documento da base (volta a "faltando"). */
