@@ -63,6 +63,13 @@ type ArquivoExterno = ArquivoAberto & {
 };
 
 /**
+ * Arquivo que o processo principal recusou antes de mandar para a janela
+ * (grande demais ou com DOCTYPE, src/seguranca/xml.ts). `mensagem` é para a
+ * pessoa.
+ */
+type ArquivoRecusado = { status: 'recusado'; mensagem: string };
+
+/**
  * O que aconteceu ao pedir para abrir um arquivo nesta janela:
  * - aqui: abriu nesta janela (estava na tela inicial);
  * - escolher: XML com nota aberta; mostrar a escolha por cima da nota;
@@ -72,7 +79,8 @@ type ArquivoExterno = ArquivoAberto & {
  */
 type ResultadoAbrir =
   | { status: 'aqui' | 'escolher'; arquivo: ArquivoAberto }
-  | { status: 'nova-janela' | 'outra-janela' | 'ja-aberto' | 'cancelado' };
+  | { status: 'nova-janela' | 'outra-janela' | 'ja-aberto' | 'cancelado' }
+  | ArquivoRecusado;
 
 /**
  * Pasta onde o Salvar grava. `sessao`: true se é a pasta de um .psxml aberto
@@ -342,7 +350,7 @@ interface PsApi {
    * Lê o arquivo pedido de fora (duplo clique num .psxml, linha de comando),
    * ou null se não há. Chamar só depois de perguntar sobre anotações.
    */
-  abrirExterno(): Promise<ArquivoExterno | null>;
+  abrirExterno(): Promise<ArquivoExterno | ArquivoRecusado | null>;
   /** Chamado quando chega um arquivo de fora com o app já aberto. */
   aoArquivoExterno(callback: () => void): void;
   /**

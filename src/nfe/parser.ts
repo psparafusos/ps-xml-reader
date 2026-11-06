@@ -5,6 +5,7 @@
 // arquivo não é uma NF-e: raiz diferente de nfeProc, NFe ou psCopiaEditada,
 // ou sem infNFe.
 
+import { ArquivoRecusadoError, verificarXmlSeguro } from '../seguranca/xml';
 import { ehColunaAnotacao } from './config';
 import { ID_ANOTACAO } from './colunas';
 import type {
@@ -216,8 +217,14 @@ export const NS_PS = 'urn:psparafusos:ps-xml-reader';
 /** Raízes aceitas como NF-e. */
 const RAIZES_NFE = ['nfeProc', 'NFe'];
 
-/** Converte o texto em Document. Lança NaoEhNfeError se não for XML válido. */
+/**
+ * Converte o texto em Document. Lança ArquivoRecusadoError se o texto tem
+ * DOCTYPE ou ENTITY (antes do DOMParser, src/seguranca/xml.ts) e
+ * NaoEhNfeError se não for XML válido.
+ */
 export function lerDocumento(xml: string): Document {
+  const recusa = verificarXmlSeguro(xml);
+  if (recusa) throw new ArquivoRecusadoError(recusa);
   const doc = new DOMParser().parseFromString(
     xml.replace(/^﻿/, ''),
     'application/xml',

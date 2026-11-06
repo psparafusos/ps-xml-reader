@@ -72,7 +72,7 @@ contextBridge.exposeInMainWorld('psApi', {
   aoMudarPasta: (callback: () => void): void => {
     ipcRenderer.on('pasta-mudou', () => callback());
   },
-  abrirExterno: (): Promise<ArquivoExterno | null> =>
+  abrirExterno: (): Promise<ArquivoExterno | ArquivoRecusado | null> =>
     ipcRenderer.invoke('abrir-externo'),
   aoArquivoExterno: (callback: () => void): void => {
     ipcRenderer.on('arquivo-externo', () => callback());

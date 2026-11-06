@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T5 (teste de segurança): entidades que se chamam uma à outra e uma
+     entidade de parâmetro externa. O PS Reader deve recusar sem travar. -->
+<!DOCTYPE nfeProc [
+  <!ENTITY % p SYSTEM "http://exemplo.invalid/p.dtd">
+  %p;
+  <!ENTITY a "&b;">
+  <!ENTITY b "&a;">
+]>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261100000000000000550010000000011000000010" versao="4.00">
+      <ide><natOp>Venda de teste</natOp><serie>1</serie><nNF>1</nNF></ide>
+      <emit><CNPJ>00000000000000</CNPJ><xNome>Fornecedor Inventado de Teste</xNome></emit>
+      <det nItem="1">
+        <prod><cProd>T5</cProd><xProd>&a;</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>1.00</vUnCom><vProd>1.00</vProd></prod>
+      </det>
+    </infNFe>
+  </NFe>
+</nfeProc>
