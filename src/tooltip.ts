@@ -4,7 +4,8 @@
 // No lugar do title nativo. Reutilizável: ligarDica(alvo, texto).
 //
 // Uma só caixa para o app inteiro, num popover (camada de cima: aparece por
-// cima de <dialog> modal). O alvo ganha aria-describedby enquanto ela está
+// cima de <dialog> modal). Uma dica por vez; o foco do teclado vale mais que
+// o mouse (grupos, mais abaixo). O alvo ganha aria-describedby enquanto ela está
 // aberta. A parte de eventos não depende do DOM de verdade (os testes usam
 // um EventTarget e uma caixa falsa).
 
@@ -89,6 +90,20 @@ function focoPorTeclado(e: Event): boolean {
   }
 }
 
+/**
+ * Dicas ligadas a uma mesma caixa. O foco do teclado vale mais que o mouse:
+ * com um alvo focado, passar o mouse em outro não troca a dica; quando o
+ * foco sai, abre a do alvo que está sob o mouse.
+ */
+interface Controle {
+  comFoco(): boolean;
+  /** Outra dica tomou a caixa: esta deixa de se considerar aberta. */
+  perdeuCaixa(): void;
+  /** O foco saiu de outro alvo: abre, se o mouse estiver em cima. */
+  focoLiberado(): void;
+}
+const grupos = new Map<CaixaDica | 'app', Set<Controle>>();
+
 export interface Dica {
   /** Troca o texto (vale na próxima vez que abrir, ou já, se aberta). */
   definirTexto(texto: string): void;
@@ -111,6 +126,11 @@ export function ligarDica(
   let pelaMao = false;
   let peloFoco = false;
   const daCaixa = () => caixa ?? caixaDoApp();
+  const chave = caixa ?? 'app';
+  const grupo = grupos.get(chave) ?? new Set<Controle>();
+  grupos.set(chave, grupo);
+  const outros = () => [...grupo].filter((c) => c !== controle);
+  const outroComFoco = () => outros().some((c) => c.comFoco());
   // Esc vale com o mouse em cima (o foco pode estar em outro lugar): ouve
   // no documento enquanto aberta; fora do navegador, no próprio alvo.
   const ondeOuvirEsc: EventTarget =
@@ -125,6 +145,9 @@ export function ligarDica(
     espera = setTimeout(() => {
       espera = null;
       if ((alvo as Partial<Node>).isConnected === false) return;
+      // Só pelo mouse, com outro alvo focado: a dica do foco fica.
+      if (!peloFoco && outroComFoco()) return;
+      for (const c of outros()) c.perdeuCaixa();
       aberta = true;
       daCaixa().mostrar(alvo, atual);
       ondeOuvirEsc.addEventListener('keydown', aoTeclar, true);
@@ -170,8 +193,10 @@ export function ligarDica(
     if (!aberta && espera === null) abrir();
   };
   const desfocar = () => {
+    if (!peloFoco) return;
     peloFoco = false;
     talvezFechar();
+    if (!outroComFoco()) for (const c of outros()) c.focoLiberado();
   };
   // Clique: some (o que importa agora é a ação).
   const clicar = () => {
@@ -189,6 +214,20 @@ export function ligarDica(
   ];
   for (const [tipo, fn] of eventos) alvo.addEventListener(tipo, fn);
 
+  const controle: Controle = {
+    comFoco: () => peloFoco && (alvo as Partial<Node>).isConnected !== false,
+    perdeuCaixa() {
+      cancelar();
+      if (!aberta) return;
+      aberta = false;
+      ondeOuvirEsc.removeEventListener('keydown', aoTeclar, true);
+    },
+    focoLiberado() {
+      if (pelaMao && !aberta && espera === null) abrir();
+    },
+  };
+  grupo.add(controle);
+
   return {
     definirTexto(t) {
       atual = t;
@@ -197,6 +236,7 @@ export function ligarDica(
     remover() {
       for (const [tipo, fn] of eventos) alvo.removeEventListener(tipo, fn);
       fechar();
+      grupo.delete(controle);
     },
   };
 }

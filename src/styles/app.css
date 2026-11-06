@@ -118,37 +118,6 @@ ul {
   color: var(--ps-branco);
 }
 
-.botao--pasta {
-  max-width: var(--largura-caminho);
-  text-align: left;
-}
-
-.botao__textos {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.botao__caminho {
-  font-size: var(--fs-xs);
-  font-weight: var(--peso-normal);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Marca "só nesta janela" da pasta de um .psxml aberto por duplo clique. */
-.botao__sessao {
-  align-self: flex-start;
-  padding: 0 var(--esp-1);
-  border-radius: var(--esp-1);
-  background: var(--cor-texto-forte);
-  color: var(--ps-branco);
-  font-size: var(--fs-xs);
-  font-weight: var(--peso-forte);
-  white-space: nowrap;
-}
-
 .botao--pequeno {
   padding: var(--esp-1) var(--esp-2);
   font-size: var(--fs-sm);
@@ -176,31 +145,6 @@ ul {
 .zoom__valor {
   font-weight: var(--peso-forte);
   font-variant-numeric: tabular-nums;
-}
-
-/* Pasta de destino e Abrir pasta, colados. */
-.par-pasta {
-  display: inline-flex;
-  align-items: stretch;
-  max-width: 100%;
-}
-
-.par-pasta > .botao:first-child {
-  min-width: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.par-pasta > .botao + .botao {
-  flex: none;
-  margin-left: calc(-1 * var(--borda-forte));
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.par-pasta > .botao:focus-visible {
-  position: relative;
-  z-index: 1;
 }
 
 /* ---------- escolha de modo ---------- */

@@ -1177,11 +1177,18 @@ function blocoDadosAdicionais(n: Nota): HTMLElement | null {
 const vazio = $('vazio');
 const inicioPerfil = $('inicio-perfil');
 const inicioPasta = $('inicio-pasta');
-const inicioPastaRotulo = $('inicio-pasta-rotulo');
-const inicioPastaCaminho = $('inicio-pasta-caminho');
-const inicioPastaSessao = $('inicio-pasta-sessao');
-const btnPastaTexto = $('btn-pasta-texto');
-const btnAbrirPastaInicio = $('btn-abrir-pasta') as HTMLButtonElement;
+const barraPasta = $('barra-pasta');
+/** Pastilha da pasta de destino (atualizarPasta): na barra ou na faixa da tela inicial. */
+const btnPasta = $('btn-pasta') as HTMLButtonElement;
+const pastaRapida = btnPasta.closest<HTMLElement>('.pasta-rapida')!;
+const pastaRotulo = $('pasta-rapida-rotulo');
+const pastaNome = $('pasta-rapida-nome');
+const menuPasta = $('menu-pasta');
+const menuPastaCaminho = $('menu-pasta-caminho');
+const menuPastaSessao = $('menu-pasta-sessao');
+const btnTrocarPasta = $('btn-trocar-pasta') as HTMLButtonElement;
+const btnAbrirPasta = $('btn-abrir-pasta') as HTMLButtonElement;
+const itensMenuPasta = () => [btnTrocarPasta, btnAbrirPasta];
 const recentesLista = $('recentes-lista');
 const btnLimparRecentes = $('btn-limpar-recentes') as HTMLButtonElement;
 /** Bloco do seletor de perfil (botão e menu): na barra ou na faixa da tela inicial. */
@@ -1332,14 +1339,6 @@ const avisoTipos = $('aviso-tipos');
 const avisoPasta = $('aviso-pasta');
 const btnZoom = $('btn-zoom') as HTMLButtonElement;
 const btnZoomValor = $('btn-zoom-valor');
-const botoesPasta = [
-  $('btn-pasta') as HTMLButtonElement,
-  $('btn-pasta-barra') as HTMLButtonElement,
-];
-const botoesAbrirPasta = [
-  $('btn-abrir-pasta') as HTMLButtonElement,
-  $('btn-abrir-pasta-barra') as HTMLButtonElement,
-];
 
 /** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
@@ -1437,11 +1436,15 @@ let danfeMontado = false;
 /** Mostra só uma das telas: inicial, escolha de modo, conferência ou DANFE. */
 function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
   vazio.hidden = tela !== 'vazio';
+  fecharMenuPasta();
   if (tela === 'vazio') {
+    inicioPasta.append(pastaRapida);
     inicioPerfil.append(perfilRapido);
     void atualizarRecentes();
-  } else if (perfilRapido.parentElement !== barraPerfil)
+  } else if (perfilRapido.parentElement !== barraPerfil) {
+    barraPasta.append(pastaRapida);
     barraPerfil.append(perfilRapido);
+  }
   modo.hidden = tela !== 'modo';
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
@@ -2283,8 +2286,9 @@ btnLimparRecentes.addEventListener('click', () => {
     .then(desenharRecentes)
     .catch((erro: unknown) => console.error(erro));
 });
-// Abertura do app na tela inicial: o seletor de perfil vai para a faixa.
+// Abertura do app na tela inicial: a pasta e o perfil vão para a faixa.
 if (!vazio.hidden) {
+  inicioPasta.append(pastaRapida);
   inicioPerfil.append(perfilRapido);
   void atualizarRecentes();
 }
@@ -2308,80 +2312,65 @@ function abreviarCaminho(caminho: string): string {
 }
 
 /**
- * Mostra no botão a pasta onde o Salvar grava. `sessao`: é a pasta de um
- * .psxml aberto por duplo clique nesta janela, só até fechá-la; o botão leva
- * a marca "só nesta janela".
+ * Pastilha da pasta de destino (barra e faixa da tela inicial). Com pasta:
+ * "Salvando em: <última pasta>" e a seta, que abre o menu com o caminho
+ * completo, Trocar pasta... e Abrir pasta no Explorer. Sem pasta: amarela,
+ * "Escolha onde salvar", e o clique abre direto o seletor. `sessao`: é a
+ * pasta de um .psxml aberto por duplo clique nesta janela, só até fechá-la;
+ * o menu diz isso. Os elementos ficam no alto (perto de inicioPasta).
  */
 function atualizarPasta(caminho: string | null, sessao = false): void {
   pastaDestino = caminho;
-  // Faixa da tela inicial: "Salvando em <caminho>" ou "Escolha onde salvar".
-  inicioPasta.dataset.estado = caminho ? 'com' : 'sem';
-  inicioPastaRotulo.textContent = caminho
-    ? 'Salvando em'
-    : 'Escolha onde salvar';
-  inicioPastaCaminho.dataset.caminho = caminho ?? '';
-  inicioPastaCaminho.title = caminho ?? '';
-  cortarCaminhoInicio();
-  inicioPastaSessao.hidden = !(caminho && sessao);
-  btnPastaTexto.textContent = caminho ? 'Trocar' : 'Escolher';
-  btnAbrirPastaInicio.hidden = !caminho;
-  for (const b of botoesPasta) {
-    const rotulo = b.querySelector('.botao__caminho');
-    if (rotulo) {
-      rotulo.textContent = caminho
-        ? abreviarCaminho(caminho)
-        : 'Nenhuma pasta escolhida';
-    }
-    const marca = b.querySelector<HTMLElement>('.botao__sessao');
-    if (marca) marca.hidden = !(caminho && sessao);
-    b.title =
-      caminho && sessao
-        ? `${caminho}\nSó nesta janela: a pasta do arquivo aberto. A pasta salva volta quando você fechar esta janela.`
-        : (caminho ?? '');
-  }
-  for (const b of botoesAbrirPasta) {
-    b.disabled = !caminho;
-    b.title = caminho
-      ? 'Abrir a pasta de destino no Explorer'
-      : 'Escolha a pasta de destino primeiro';
+  fecharMenuPasta();
+  pastaRapida.dataset.estado = caminho ? 'com' : 'sem';
+  pastaRotulo.textContent = caminho ? 'Salvando em:' : 'Escolha onde salvar';
+  pastaNome.textContent = caminho ? f.ultimaPasta(caminho) : '';
+  menuPastaCaminho.textContent = caminho ?? '';
+  menuPastaSessao.hidden = !(caminho && sessao);
+  if (caminho) {
+    btnPasta.setAttribute('aria-haspopup', 'menu');
+    btnPasta.setAttribute('aria-controls', menuPasta.id);
+    btnPasta.setAttribute('aria-label', `Salvando em: ${caminho}`);
+  } else {
+    btnPasta.removeAttribute('aria-haspopup');
+    btnPasta.removeAttribute('aria-controls');
+    btnPasta.removeAttribute('aria-label');
   }
 }
 
-const medidaTexto = document.createElement('canvas').getContext('2d');
-
-/**
- * Caminho da faixa da tela inicial: inteiro se couber; senão, cortado no
- * meio com reticências, guardando o começo (a unidade) e mais do fim (a
- * pasta). O caminho inteiro fica no title.
- */
-function cortarCaminhoInicio(): void {
-  const caminho = inicioPastaCaminho.dataset.caminho ?? '';
-  const largura = inicioPastaCaminho.clientWidth;
-  if (!caminho || largura <= 0 || !medidaTexto) {
-    inicioPastaCaminho.textContent = caminho;
-    return;
-  }
-  const estilo = getComputedStyle(inicioPastaCaminho);
-  medidaTexto.font = `${estilo.fontWeight} ${estilo.fontSize} ${estilo.fontFamily}`;
-  const cabe = (t: string) => medidaTexto.measureText(t).width <= largura;
-  if (cabe(caminho)) {
-    inicioPastaCaminho.textContent = caminho;
-    return;
-  }
-  const cortado = (n: number) => {
-    const inicio = Math.ceil(n * 0.4);
-    return `${caminho.slice(0, inicio)}…${caminho.slice(caminho.length - (n - inicio))}`;
-  };
-  let menor = 0;
-  let maior = caminho.length - 1;
-  while (menor < maior) {
-    const meio = Math.ceil((menor + maior) / 2);
-    if (cabe(cortado(meio))) menor = meio;
-    else maior = meio - 1;
-  }
-  inicioPastaCaminho.textContent = cortado(menor);
+function fecharMenuPasta(focarBotao = false): void {
+  if (menuPasta.hidden) return;
+  menuPasta.hidden = true;
+  btnPasta.setAttribute('aria-expanded', 'false');
+  if (focarBotao) btnPasta.focus();
 }
-new ResizeObserver(cortarCaminhoInicio).observe(inicioPastaCaminho);
+
+function abrirMenuPasta(): void {
+  menuPasta.hidden = false;
+  btnPasta.setAttribute('aria-expanded', 'true');
+  btnTrocarPasta.focus();
+}
+
+btnPasta.addEventListener('click', () => {
+  if (!pastaDestino) void escolherPasta();
+  else if (menuPasta.hidden) abrirMenuPasta();
+  else fecharMenuPasta();
+});
+btnTrocarPasta.addEventListener('click', () => {
+  fecharMenuPasta(true);
+  void escolherPasta();
+});
+btnAbrirPasta.addEventListener('click', () => {
+  fecharMenuPasta(true);
+  void abrirPastaDestino();
+});
+menuPasta.addEventListener('keydown', (e) =>
+  navegarMenu(e, itensMenuPasta(), fecharMenuPasta),
+);
+document.addEventListener('mousedown', (e) => {
+  const alvo = e.target as Node;
+  if (!menuPasta.contains(alvo) && !btnPasta.contains(alvo)) fecharMenuPasta();
+});
 
 /** Abre a pasta de destino no Explorer; pasta que sumiu mostra o erro. */
 async function abrirPastaDestino(): Promise<void> {
@@ -3577,12 +3566,6 @@ window.psApi.informarPendentes(false);
 // Duplo clique num .psxml: com o app fechado, o arquivo vem na abertura; com
 // ele aberto, chega o aviso e a janela existente abre o arquivo.
 window.psApi.aoArquivoExterno(() => void abrirExterno());
-for (const b of botoesPasta) {
-  b.addEventListener('click', () => void escolherPasta());
-}
-for (const b of botoesAbrirPasta) {
-  b.addEventListener('click', () => void abrirPastaDestino());
-}
 $('mensagem-fechar').addEventListener('click', esconderMensagem);
 btnZoom.addEventListener('click', () => mudarZoom(0));
 

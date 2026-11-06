@@ -130,3 +130,15 @@ export function nomeArquivoSeguro(bruto: string): string {
       .replace(/[. ]+$/, '')
   );
 }
+
+/**
+ * Última pasta do caminho, para a pastilha "Salvando em": "C:\Notas\2026\"
+ * vira "2026". A raiz de uma unidade fica inteira ("D:\").
+ */
+export function ultimaPasta(caminho: string): string {
+  const partes = caminho.split(/[\\/]+/).filter((p) => p !== '');
+  if (partes.length === 0) return caminho;
+  if (partes.length === 1 && /^[A-Za-z]:$/.test(partes[0]))
+    return `${partes[0]}\\`;
+  return partes[partes.length - 1];
+}

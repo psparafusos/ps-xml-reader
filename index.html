@@ -19,7 +19,8 @@
   <body>
     <!-- Barra no visual "Bancada" (bancada.css), a mesma faixa preta com o
          filete amarelo da tela inicial: logo, emitente e número da nota, as
-         pastilhas dos documentos e do perfil e, à direita, as ações. -->
+         pastilhas dos documentos, da pasta de destino e do perfil e, à direita,
+         as ações. -->
     <header id="barra" class="barra" hidden>
       <img class="barra__logo" src="/assets/ps-logo.svg" alt="" />
       <div class="barra__titulo">
@@ -38,6 +39,74 @@
           class="barra__documentos"
           title="Documentos de referência"
         ></button>
+        <!-- Pasta de destino: pastilha antes do Perfil, na barra e na faixa da
+             tela inicial (renderer.ts, mostrarTela e atualizarPasta). Com
+             pasta, "Salvando em: <última pasta>" abre o menu (caminho
+             completo, Trocar pasta..., Abrir pasta no Explorer); sem pasta,
+             amarela, "Escolha onde salvar" abre direto o seletor. -->
+        <div id="barra-pasta" class="barra__pasta">
+          <div class="pasta-rapida" data-estado="sem">
+            <button
+              id="btn-pasta"
+              type="button"
+              class="pasta-rapida__botao"
+              aria-expanded="false"
+            >
+              <svg
+                class="icone pasta-rapida__icone"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                />
+              </svg>
+              <span id="pasta-rapida-rotulo" class="pasta-rapida__rotulo"
+                >Escolha onde salvar</span
+              >
+              <span id="pasta-rapida-nome" class="pasta-rapida__nome"></span>
+              <svg
+                class="icone pasta-rapida__seta"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            <div
+              id="menu-pasta"
+              class="perfil-rapido__menu pasta-rapida__menu"
+              role="menu"
+              aria-label="Pasta de destino"
+              hidden
+            >
+              <p id="menu-pasta-caminho" class="pasta-rapida__caminho"></p>
+              <p id="menu-pasta-sessao" class="pasta-rapida__caminho" hidden>
+                Só nesta janela: a pasta do arquivo aberto. A pasta salva volta
+                quando você fechar esta janela.
+              </p>
+              <hr class="perfil-rapido__separador" />
+              <button
+                id="btn-trocar-pasta"
+                type="button"
+                class="perfil-rapido__opcao"
+                role="menuitem"
+              >
+                <span class="perfil-rapido__texto">Trocar pasta...</span>
+              </button>
+              <button
+                id="btn-abrir-pasta"
+                type="button"
+                class="perfil-rapido__opcao"
+                role="menuitem"
+              >
+                <span class="perfil-rapido__texto"
+                  >Abrir pasta no Explorer</span
+                >
+              </button>
+            </div>
+          </div>
+        </div>
         <!-- Troca rápida do perfil de colunas; a lista é montada no
              renderer.ts a cada abertura. Na tela inicial o bloco vai para a
              faixa de lá (renderer.ts, mostrarTela). -->
@@ -120,41 +189,6 @@
           >
         </div>
         <div class="barra__grupo barra__saida" role="group" aria-label="Saída">
-          <div class="par-pasta">
-            <button
-              id="btn-pasta-barra"
-              type="button"
-              class="botao botao--claro botao--pasta"
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                />
-                <path d="M12 11v5" />
-                <path d="M9.5 13.5h5" />
-              </svg>
-              <span class="botao__textos">
-                <span>Pasta de destino</span>
-                <span class="botao__caminho"></span>
-                <span class="botao__sessao" hidden>só nesta janela</span>
-              </span>
-            </button>
-            <button
-              id="btn-abrir-pasta-barra"
-              type="button"
-              class="botao botao--claro"
-              disabled
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                />
-                <path d="M10 15l5-5" />
-                <path d="M11 10h4v4" />
-              </svg>
-              <span>Abrir pasta</span>
-            </button>
-          </div>
           <button
             id="btn-imprimir"
             type="button"
@@ -293,9 +327,8 @@
     </button>
 
     <!-- Tela inicial no visual "Bancada" (bancada.css): faixa preta com a
-         logo e as pastilhas (documentos e perfil), a zona de soltar (com a
-         faixa da pasta de destino no pé), o cartão dos documentos e as
-         notas recentes. -->
+         logo e as pastilhas (documentos, pasta de destino e perfil), a zona de
+         soltar, o cartão dos documentos e as notas recentes. -->
     <section id="vazio" class="vazio inicio">
       <header class="inicio__faixa">
         <div class="inicio__marca">
@@ -307,6 +340,8 @@
         </div>
         <div class="inicio__pastilhas">
           <span id="inicio-documentos" class="inicio__documentos"></span>
+          <!-- A pastilha da pasta de destino vem para cá na tela inicial. -->
+          <div id="inicio-pasta" class="inicio__pasta"></div>
           <!-- O seletor de perfil da barra amarela vem para cá enquanto a
                tela inicial está à mostra (renderer.ts, mostrarTela). -->
           <div id="inicio-perfil" class="inicio__perfil"></div>
@@ -345,68 +380,6 @@
                 </svg>
                 <span>Abrir arquivo</span>
               </button>
-            </div>
-
-            <!-- Pasta de destino: faixa fina no pé da zona de soltar. Com
-                 pasta: "Salvando em <caminho>" (cortado no meio quando não
-                 cabe), Trocar e Abrir pasta. Sem pasta: "Escolha onde salvar"
-                 e Escolher (renderer.ts, atualizarPasta). -->
-            <div id="inicio-pasta" class="inicio__pasta" data-estado="sem">
-              <svg
-                class="icone inicio__pasta-icone"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                />
-              </svg>
-              <p class="inicio__pasta-texto">
-                <span id="inicio-pasta-rotulo" class="inicio__pasta-rotulo"
-                  >Escolha onde salvar</span
-                >
-                <span
-                  id="inicio-pasta-caminho"
-                  class="inicio__pasta-caminho"
-                ></span>
-              </p>
-              <span id="inicio-pasta-sessao" class="botao__sessao" hidden
-                >só nesta janela</span
-              >
-              <div class="inicio__pasta-botoes">
-                <button
-                  id="btn-pasta"
-                  type="button"
-                  class="botao botao--claro botao--pequeno"
-                >
-                  <!-- Pasta com seta (ICONES.pastaTrocar). -->
-                  <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                    />
-                    <path d="M9 13h6" />
-                    <path d="M12.5 10.5L15 13l-2.5 2.5" />
-                  </svg>
-                  <span id="btn-pasta-texto">Escolher</span>
-                </button>
-                <button
-                  id="btn-abrir-pasta"
-                  type="button"
-                  class="botao botao--claro botao--pequeno"
-                  hidden
-                >
-                  <!-- Pasta aberta (ICONES.pastaAberta). -->
-                  <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1"
-                    />
-                    <path
-                      d="M5 19h12.5a1.5 1.5 0 0 0 1.4-1l2-5.6a1 1 0 0 0-.9-1.4H8.1a1.5 1.5 0 0 0-1.4 1z"
-                    />
-                  </svg>
-                  <span>Abrir pasta</span>
-                </button>
-              </div>
             </div>
           </div>
 

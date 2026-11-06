@@ -388,7 +388,14 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
 
   // O app é offline: não abre janelas do navegador nem navega para fora.
   janela.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  janela.webContents.on('will-navigate', (event) => event.preventDefault());
+  // Exceção só no npm start: o plugin Vite do Forge recarrega a página quando
+  // termina de compilar o preload, às vezes logo depois de a janela abrir.
+  // Barrar essa recarga cancelava a carga em andamento e a tela inicial
+  // ficava sem documentos, pastilhas e perfil.
+  janela.webContents.on('will-navigate', (event, url) => {
+    if (recargaDoDesenvolvimento(url)) return;
+    event.preventDefault();
+  });
 
   // Todo pedido de fechar passa pelo lote (pedirFechamento), que pergunta
   // nas janelas com anotações não salvas e só então libera. A janela mais
@@ -410,6 +417,23 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     );
   }
   return j;
+}
+
+/**
+ * Recarga da página pelo servidor do Vite (npm start): mesma origem e mesmo
+ * caminho da página do app. No app empacotado nunca vale.
+ */
+function recargaDoDesenvolvimento(url: string): boolean {
+  if (app.isPackaged || !MAIN_WINDOW_VITE_DEV_SERVER_URL) return false;
+  try {
+    const destino = new URL(url);
+    const pagina = new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    return (
+      destino.origin === pagina.origin && destino.pathname === pagina.pathname
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Janela que já está com este arquivo aberto, se houver. */

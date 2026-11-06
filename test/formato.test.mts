@@ -112,3 +112,26 @@ describe('formato: documentos e contato (dados inventados)', () => {
     assert.equal(f.nomeArquivoSeguro('a\u0001b'), 'ab');
   });
 });
+
+describe('formato: última pasta do caminho', () => {
+  it('pega a última pasta, com ou sem barra no fim', () => {
+    assert.equal(f.ultimaPasta(String.raw`C:\Notas Exemplo\2026`), '2026');
+    assert.equal(
+      f.ultimaPasta(String.raw`C:\Notas Exemplo\2026\ `.trim()),
+      '2026',
+    );
+    assert.equal(
+      f.ultimaPasta(String.raw`\\servidor\notas\entrada`),
+      'entrada',
+    );
+    assert.equal(f.ultimaPasta('C:/Notas/abril'), 'abril');
+  });
+
+  it('raiz de unidade fica inteira', () => {
+    assert.equal(
+      f.ultimaPasta(String.raw`D:\ `.trim()),
+      String.raw`D:\ `.trim(),
+    );
+    assert.equal(f.ultimaPasta('D:'), String.raw`D:\ `.trim());
+  });
+});
