@@ -22,7 +22,7 @@ import {
   type WebContents,
 } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { analisarItem, type ItemFiscal } from './fiscal/analise';
 import {
@@ -52,7 +52,9 @@ import {
 } from './fiscal/documentos';
 import { lerCombustiveis } from './fiscal/combustiveis';
 import {
+  LIMITE_DOWNLOAD,
   PAGINA,
+  RedirecionamentoError,
   baixarArquivo,
   urlPermitida,
   verificarST,
@@ -64,6 +66,7 @@ import { buscaSimulada } from './onlineSimulado';
 import { lerTabelaST } from './fiscal/st';
 import { lerTipi, lerTipiPlanilha } from './fiscal/tipi';
 import { lerXlsx, type Aba } from './fiscal/xlsx';
+import { LimiteExcedido } from './fiscal/zip';
 import {
   leituraCombustiveis,
   leituraST,
@@ -321,7 +324,16 @@ function lerSemGravar(
   if (ehZip) {
     try {
       abas = lerXlsx(dados);
-    } catch {
+    } catch (erro) {
+      // Passou de um limite (bomba de descompactação, célula fora do Excel):
+      // recusa com o motivo, sem tentar ler de outro jeito.
+      if (erro instanceof LimiteExcedido)
+        return {
+          reconhecido: 'planilha',
+          relatorio: null,
+          segmentosIncompletos: [],
+          erroFormato: erro.message,
+        };
       abas = null;
     }
   }
@@ -571,7 +583,11 @@ async function baixarEImportar(
     return {
       status: 'erro',
       formato: false,
-      mensagem: `Não foi possível baixar: ${mensagem(erro)}. ${anterior(tipo)}`,
+      // O redirecionamento já é uma frase inteira para a pessoa.
+      mensagem:
+        erro instanceof RedirecionamentoError
+          ? `${erro.message} ${anterior(tipo)}`
+          : `Não foi possível baixar: ${mensagem(erro)}. ${anterior(tipo)}`,
       estado: await estado(),
     };
   } finally {
@@ -645,6 +661,16 @@ export function registrarDocumentos(): void {
       if (canceled || filePaths.length === 0) return { status: 'cancelado' };
       let dados: Uint8Array;
       try {
+        // Tamanho antes de ler: nada acima do limite do download vai para a
+        // memória (as planilhas reais têm de 15 KB a 1 MB).
+        const tamanho = (await stat(filePaths[0])).size;
+        if (tamanho > LIMITE_DOWNLOAD)
+          return {
+            status: 'erro',
+            formato: false,
+            mensagem: `${path.basename(filePaths[0])} tem ${Math.ceil(tamanho / (1024 * 1024))} MB, grande demais para um documento de referência (limite de ${LIMITE_DOWNLOAD / (1024 * 1024)} MB). Nenhum dado dele foi usado. ${anterior(tipo)}`,
+            estado: await estado(),
+          };
         dados = new Uint8Array(await readFile(filePaths[0]));
       } catch (erro) {
         return {

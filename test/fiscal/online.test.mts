@@ -3,7 +3,11 @@ import { describe, it } from 'node:test';
 import type { InfoDocumento } from '../../src/fiscal/documentos.ts';
 import {
   ARQUIVO_TIPI,
+  LIMITE_PAGINA,
+  MENSAGEM_REDIRECIONAMENTO,
   PAGINA_ST,
+  RedirecionamentoError,
+  baixarArquivo,
   lerCabecalhos,
   urlPermitida,
   verificarST,
@@ -232,5 +236,112 @@ describe('online: TIPI pelos cabeçalhos', () => {
     );
     assert.equal(r.estado, 'nao-verificou');
     assert.equal(r.detalhe, 'Não consegui verificar a TIPI.');
+  });
+});
+
+// T16 do plano de segurança: o servidor oficial manda para outro endereço.
+// As buscas usam redirect: 'manual'; um 3xx (ou uma resposta que veio de outro
+// endereço) não é seguido e nada é lido dele.
+describe('online: redirecionamento não é seguido (T16)', () => {
+  const PARA_FORA = 'https://exemplo.invalid/planilha.xlsx';
+  const redirecionar = () =>
+    new Response(null, { status: 302, headers: { location: PARA_FORA } });
+  /** Resposta 200 que diz ter vindo de outro endereço (redirect seguido). */
+  const seguida = () => {
+    const r = new Response('<html>outra coisa</html>');
+    Object.defineProperty(r, 'redirected', { value: true });
+    Object.defineProperty(r, 'url', { value: PARA_FORA });
+    return r;
+  };
+
+  it('as três buscas pedem redirect: manual', async () => {
+    const st = falsa(() => new Response(pagina));
+    await verificarST(info({ versao: '0019' }), st.buscar, agora);
+    const tipi = falsa(
+      () =>
+        new Response('x', {
+          status: 206,
+          headers: { 'content-range': 'bytes 0-0/10' },
+        }),
+    );
+    await verificarTipi(info({ tipo: 'tipi' }), tipi.buscar, agora);
+    const baixar = falsa(() => new Response(new Uint8Array([1, 2, 3])));
+    await baixarArquivo(
+      'st',
+      `${BASE}/portal-st-se-v0021-1.xlsx`,
+      baixar.buscar,
+    );
+    for (const p of [...st.pedidos, ...tipi.pedidos, ...baixar.pedidos])
+      assert.equal(p.init.redirect, 'manual', p.url);
+  });
+
+  it('download: 302 para outro domínio vira a mensagem e nada é baixado', async () => {
+    for (const resposta of [redirecionar, seguida]) {
+      const b = falsa(resposta);
+      await assert.rejects(
+        baixarArquivo('st', `${BASE}/portal-st-se-v0021-1.xlsx`, b.buscar),
+        (e: unknown) =>
+          e instanceof RedirecionamentoError &&
+          e.message ===
+            'O site oficial redirecionou para outro endereço; nada foi baixado.',
+      );
+      assert.equal(b.pedidos.length, 1, 'só o pedido ao site oficial');
+    }
+  });
+
+  it('verificação da ST e da TIPI: redirecionamento não verifica', async () => {
+    for (const resposta of [redirecionar, seguida]) {
+      const st = await verificarST(
+        info({ versao: '0019' }),
+        falsa(resposta).buscar,
+        agora,
+      );
+      assert.equal(st.estado, 'nao-verificou');
+      assert.equal(st.detalhe, MENSAGEM_REDIRECIONAMENTO);
+      assert.equal(st.disponivel, null);
+      const tipi = await verificarTipi(
+        info({ tipo: 'tipi' }),
+        falsa(resposta).buscar,
+        agora,
+      );
+      assert.equal(tipi.estado, 'nao-verificou');
+      assert.equal(tipi.detalhe, MENSAGEM_REDIRECIONAMENTO);
+    }
+  });
+
+  it('página do CONFAZ maior que 5 MB: não lê o resto', async () => {
+    assert.equal(LIMITE_PAGINA, 5 * 1024 * 1024);
+    // Sem content-length: o limite vale durante a leitura.
+    let entregues = 0;
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(c) {
+        entregues++;
+        c.enqueue(new Uint8Array(1024 * 1024).fill(0x20));
+        if (entregues > 50) c.close();
+      },
+    });
+    const r = await verificarST(
+      info({ versao: '0019' }),
+      falsa(() => new Response(corpo)).buscar,
+      agora,
+    );
+    assert.equal(r.estado, 'nao-verificou');
+    assert.equal(
+      r.detalhe,
+      'Não consegui verificar a planilha de ST: a página do CONFAZ passa de 5 MB.',
+    );
+    assert.ok(entregues <= 7, `leu ${entregues} MB`);
+    // Com content-length declarado acima do limite: nem começa a ler.
+    const declarada = await verificarST(
+      info({ versao: '0019' }),
+      falsa(
+        () =>
+          new Response('x', {
+            headers: { 'content-length': String(6 * 1024 * 1024) },
+          }),
+      ).buscar,
+      agora,
+    );
+    assert.equal(declarada.estado, 'nao-verificou');
   });
 });

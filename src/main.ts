@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   screen,
+  session,
   shell,
 } from 'electron';
 import { execFile } from 'node:child_process';
@@ -73,6 +74,12 @@ import {
   nomePodeSerConferencia,
 } from './nfe/avisos';
 import { problemaNomeArquivo } from './nfe/nome';
+import { lerXmlSeguro } from './seguranca/arquivo';
+import {
+  ArquivoRecusadoError,
+  problemaTamanhoNfe,
+  verificarXmlSeguro,
+} from './seguranca/xml';
 import {
   estaNaLista,
   lerRecentes,
@@ -374,10 +381,16 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     // vem de --ps-branco (#ffffff). O main não lê CSS; se o token mudar, mude aqui.
     show: false,
     backgroundColor: '#ffffff',
+    // Os padrões seguros do Electron, explícitos: janela isolada, sem Node e
+    // em sandbox, com as regras de origem do navegador. DevTools só no
+    // npm start.
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      devTools: !app.isPackaged,
     },
   });
   const j: Janela = {
@@ -578,13 +591,17 @@ function nomeRaiz(xml: string): string {
 /** Raízes de um arquivo que o app abre (NF-e ou cópia editada). */
 const RAIZES_ACEITAS = ['nfeProc', 'NFe', 'psCopiaEditada'];
 
-/** Lê um arquivo e o torna o arquivo aberto da janela `j`. */
+/**
+ * Lê um arquivo e o torna o arquivo aberto da janela `j`. `texto`: já lido
+ * por lerXmlSeguro. Arquivo grande demais ou com DOCTYPE: lança
+ * ArquivoRecusadoError, e a janela continua como estava.
+ */
 async function lerArquivoNaJanela(
   j: Janela,
   caminho: string,
   texto?: string,
 ): Promise<ArquivoAberto> {
-  const conteudo = texto ?? (await readFile(caminho, 'utf8'));
+  const conteudo = texto ?? (await lerXmlSeguro(caminho));
   j.arquivoAberto = caminho;
   j.candidato = null;
   const raiz = nomeRaiz(conteudo);
@@ -616,7 +633,14 @@ async function decidirAbertura(
     trazerParaFrente(ja);
     return { status: ja === j ? 'ja-aberto' : 'outra-janela' };
   }
-  const texto = await readFile(caminho, 'utf8');
+  let texto: string;
+  try {
+    texto = await lerXmlSeguro(caminho);
+  } catch (erro) {
+    if (erro instanceof ArquivoRecusadoError)
+      return { status: 'recusado', mensagem: erro.message };
+    throw erro;
+  }
   if (!j.arquivoAberto)
     return {
       status: 'aqui',
@@ -736,12 +760,19 @@ ipcMain.on('sem-nota', (event) => {
 // pasta dele a pasta de destino só desta janela.
 ipcMain.handle(
   'abrir-externo',
-  async (event): Promise<ArquivoExterno | null> => {
+  async (event): Promise<ArquivoExterno | ArquivoRecusado | null> => {
     const j = estadoDe(event.sender);
     const pedido = j.pedido;
     j.pedido = null;
     if (!pedido) return null;
-    const arquivo = await lerArquivoNaJanela(j, pedido.caminho);
+    let arquivo: ArquivoAberto;
+    try {
+      arquivo = await lerArquivoNaJanela(j, pedido.caminho);
+    } catch (erro) {
+      if (erro instanceof ArquivoRecusadoError)
+        return { status: 'recusado', mensagem: erro.message };
+      throw erro;
+    }
     const copia =
       pedido.sessao &&
       j.abertoEhCopia &&
@@ -995,8 +1026,11 @@ ipcMain.handle(
       if (j.arquivoAberto && mesmoCaminho(caminho, j.arquivoAberto)) continue;
       try {
         const info = await stat(caminho);
-        if (!info.isFile()) continue;
-        if (chaveDoArquivo(await readFile(caminho, 'utf8')) !== chave) continue;
+        if (!info.isFile() || problemaTamanhoNfe(info.size)) continue;
+        // Mesmas barreiras da abertura: grande demais ou com DOCTYPE não conta.
+        const texto = (await readFile(caminho)).toString('utf8');
+        if (verificarXmlSeguro(texto)) continue;
+        if (chaveDoArquivo(texto) !== chave) continue;
         achados.push({ caminho, nome, modificado: info.mtime.toISOString() });
       } catch {
         // Ilegível (sem permissão, apagado no meio): não conta.
@@ -2261,6 +2295,21 @@ ipcMain.handle(
   },
 );
 
+/**
+ * Nega todo pedido de permissão da página (câmera, microfone, notificações,
+ * localização, dispositivos USB, serial, HID...). Sem estes handlers o
+ * Electron aprova tudo. O app não usa nenhuma: a área de transferência e a
+ * impressão passam pelo processo principal.
+ */
+function negarPermissoes(): void {
+  const s = session.defaultSession;
+  s.setPermissionRequestHandler((_wc, _permissao, responder) =>
+    responder(false),
+  );
+  s.setPermissionCheckHandler(() => false);
+  s.setDevicePermissionHandler(() => false);
+}
+
 function mensagemDe(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro);
 }
@@ -2270,6 +2319,7 @@ app.whenReady().then(() => {
   if (started || !instanciaPrincipal) return;
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
+  negarPermissoes();
   criarJanela(
     arquivoInicial
       ? { caminho: arquivoInicial, modo: null, sessao: true }

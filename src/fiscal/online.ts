@@ -25,7 +25,76 @@ export const PAGINA: Record<TipoOnline, string> = {
 
 export const TEMPO_LIMITE_MS = 15_000;
 
+/** Tamanho máximo da página do CONFAZ lida na verificação (a real tem ~100 KB). */
+export const LIMITE_PAGINA = 5 * 1024 * 1024;
+
 export type Buscar = (url: string, init: RequestInit) => Promise<Response>;
+
+export const MENSAGEM_REDIRECIONAMENTO =
+  'O site oficial redirecionou para outro endereço; nada foi baixado.';
+
+/**
+ * O servidor mandou para outro endereço (3xx). As buscas usam
+ * redirect: 'manual': o endereço checado por urlPermitida é o único de onde
+ * algo é lido, e um redirecionamento para fora do site oficial não é seguido.
+ */
+export class RedirecionamentoError extends Error {
+  constructor() {
+    super(MENSAGEM_REDIRECIONAMENTO);
+    this.name = 'RedirecionamentoError';
+  }
+}
+
+/** Página maior que LIMITE_PAGINA. */
+class PaginaGrandeError extends Error {
+  constructor() {
+    super('página grande demais');
+    this.name = 'PaginaGrandeError';
+  }
+}
+
+/**
+ * Resposta de redirecionamento: 3xx (como o Node devolve com 'manual'),
+ * 'opaqueredirect' (como o Fetch do navegador devolve) ou uma resposta que
+ * veio de outro endereço mesmo assim.
+ */
+export function ehRedirecionamento(r: Response): boolean {
+  return (
+    r.type === 'opaqueredirect' ||
+    (r.status >= 300 && r.status < 400) ||
+    r.redirected
+  );
+}
+
+/** Corpo como texto (UTF-8), parando em `limite` bytes (PaginaGrandeError). */
+async function lerTextoLimitado(r: Response, limite: number): Promise<string> {
+  const declarado = Number(r.headers.get('content-length'));
+  if (Number.isFinite(declarado) && declarado > limite) {
+    void r.body?.cancel().catch(() => undefined);
+    throw new PaginaGrandeError();
+  }
+  if (!r.body) return '';
+  const leitor = r.body.getReader();
+  const partes: Uint8Array[] = [];
+  let recebido = 0;
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    recebido += value.length;
+    if (recebido > limite) {
+      void leitor.cancel().catch(() => undefined);
+      throw new PaginaGrandeError();
+    }
+    partes.push(value);
+  }
+  const bytes = new Uint8Array(recebido);
+  let pos = 0;
+  for (const p of partes) {
+    bytes.set(p, pos);
+    pos += p.length;
+  }
+  return new TextDecoder().decode(bytes);
+}
 
 export type EstadoVerificacao =
   | 'atualizado'
@@ -161,8 +230,13 @@ export async function verificarST(
   let html: string;
   try {
     const r = await buscar(PAGINA_ST, {
+      redirect: 'manual',
       signal: AbortSignal.timeout(tempoLimite),
     });
+    if (ehRedirecionamento(r)) {
+      void r.body?.cancel().catch(() => undefined);
+      return resultado('st', 'nao-verificou', MENSAGEM_REDIRECIONAMENTO, agora);
+    }
     if (!r.ok)
       return resultado(
         'st',
@@ -170,8 +244,15 @@ export async function verificarST(
         `Não consegui verificar a planilha de ST: a página do CONFAZ respondeu ${r.status}.`,
         agora,
       );
-    html = await r.text();
+    html = await lerTextoLimitado(r, LIMITE_PAGINA);
   } catch (erro) {
+    if (erro instanceof PaginaGrandeError)
+      return resultado(
+        'st',
+        'nao-verificou',
+        `Não consegui verificar a planilha de ST: a página do CONFAZ passa de ${LIMITE_PAGINA / (1024 * 1024)} MB.`,
+        agora,
+      );
     return ehSemConexao(erro)
       ? resultado(
           'st',
@@ -250,10 +331,12 @@ export async function verificarTipi(
   try {
     const r = await buscar(ARQUIVO_TIPI, {
       headers: { Range: 'bytes=0-0' },
+      redirect: 'manual',
       signal: AbortSignal.timeout(tempoLimite),
     });
     // Só os cabeçalhos interessam: descarta o corpo sem ler.
     void r.body?.cancel().catch(() => undefined);
+    if (ehRedirecionamento(r)) return falhou(MENSAGEM_REDIRECIONAMENTO);
     if (!r.ok)
       return falhou(
         `Não consegui verificar a TIPI: o site da Receita respondeu ${r.status}.`,
@@ -350,8 +433,13 @@ export async function baixarArquivo(
   if (!urlPermitida(tipo, url))
     throw new Error('endereço fora do site oficial');
   const resp = await buscar(url, {
+    redirect: 'manual',
     signal: AbortSignal.timeout(tempoLimite),
   });
+  if (ehRedirecionamento(resp)) {
+    void resp.body?.cancel().catch(() => undefined);
+    throw new RedirecionamentoError();
+  }
   if (!resp.ok) throw new Error(`o servidor respondeu ${resp.status}`);
   const declarado = Number(resp.headers.get('content-length'));
   const total = Number.isFinite(declarado) && declarado > 0 ? declarado : null;
