@@ -4,7 +4,7 @@
 // estilos nem fórmulas: usa o valor já calculado que o Excel grava no <v>.
 // As células mescladas vêm à parte (mesclas), com o valor na primeira.
 
-import { lerZip } from './zip';
+import { LimiteExcedido, lerZip } from './zip';
 
 export type ValorCelula = string | number;
 
@@ -130,13 +130,28 @@ function lerMesclas(xml: string): Mescla[] {
   return r;
 }
 
-/** "AB12" -> { linha: 11, coluna: 27 } (base zero). */
+/** Última linha e última coluna (XFD) de uma planilha do Excel. */
+export const MAX_LINHAS = 1_048_576;
+export const MAX_COLUNAS = 16_384;
+
+/**
+ * "AB12" -> { linha: 11, coluna: 27 } (base zero). Fora dos limites do
+ * Excel: LimiteExcedido (uma célula "A999999999" faria a grade ter um
+ * bilhão de linhas na memória).
+ */
 export function referencia(ref: string): { linha: number; coluna: number } {
   const m = /^([A-Z]+)(\d+)$/.exec(ref);
   if (!m) throw new Error(`xlsx: referência de célula inválida: ${ref}`);
+  const foraDoLimite = () =>
+    new LimiteExcedido(`Referência de célula fora do limite do Excel: ${ref}.`);
+  // XFD (16.384) tem 3 letras; mais que isso já passou do limite.
+  if (m[1].length > 3) throw foraDoLimite();
   let coluna = 0;
   for (const letra of m[1]) coluna = coluna * 26 + (letra.charCodeAt(0) - 64);
-  return { linha: Number(m[2]) - 1, coluna: coluna - 1 };
+  const linha = Number(m[2]);
+  if (coluna > MAX_COLUNAS || linha < 1 || linha > MAX_LINHAS)
+    throw foraDoLimite();
+  return { linha: linha - 1, coluna: coluna - 1 };
 }
 
 /** Letra da coluna (base zero): 0 -> A, 27 -> AB. */

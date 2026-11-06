@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T3 (teste de segurança): entidades externas para um compartilhamento de
+     rede (UNC) que não existe, em dois formatos. O PS Reader deve recusar
+     sem acessar a rede. -->
+<!DOCTYPE nfeProc [
+  <!ENTITY x SYSTEM "file://exemplo.invalid/x/y">
+  <!ENTITY y SYSTEM "\\exemplo.invalid\x\y">
+]>
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261100000000000000550010000000011000000010" versao="4.00">
+      <ide><natOp>Venda de teste</natOp><serie>1</serie><nNF>1</nNF></ide>
+      <emit><CNPJ>00000000000000</CNPJ><xNome>Fornecedor Inventado de Teste</xNome></emit>
+      <det nItem="1">
+        <prod><cProd>T3</cProd><xProd>&x; &y;</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>1.00</vUnCom><vProd>1.00</vProd></prod>
+      </det>
+    </infNFe>
+  </NFe>
+</nfeProc>

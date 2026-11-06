@@ -42,6 +42,7 @@ import {
   NaoEhNfeError,
   type ArquivoLido,
 } from './nfe/parser';
+import { ArquivoRecusadoError } from './seguranca/xml';
 import {
   colunasOrdenaveis,
   criterioValido,
@@ -2051,6 +2052,10 @@ async function abrirDaEscolha(
  * Ctrl+O ou arrastar). As regras de onde abrir são do processo principal.
  */
 function tratarAbertura(r: ResultadoAbrir): void {
+  if (r.status === 'recusado') {
+    mostrarMensagem(r.mensagem, 'erro');
+    return;
+  }
   if (r.status === 'aqui') {
     carregar(r.arquivo);
     return;
@@ -2074,13 +2079,21 @@ function tratarAbertura(r: ResultadoAbrir): void {
   } catch (erro) {
     void window.psApi.confirmarAbertura('cancelar', null);
     mostrarMensagem(
-      erro instanceof NaoEhNfeError
-        ? erro.message
-        : 'Não foi possível ler o arquivo.',
+      erroParaPessoa(erro) ? erro.message : 'Não foi possível ler o arquivo.',
       'erro',
     );
-    if (!(erro instanceof NaoEhNfeError)) console.error(erro);
+    if (!erroParaPessoa(erro)) console.error(erro);
   }
+}
+
+/**
+ * Erro com mensagem para a pessoa: o arquivo não é NF-e, ou foi recusado
+ * pelas barreiras de segurança (src/seguranca/xml.ts).
+ */
+function erroParaPessoa(
+  erro: unknown,
+): erro is NaoEhNfeError | ArquivoRecusadoError {
+  return erro instanceof NaoEhNfeError || erro instanceof ArquivoRecusadoError;
 }
 
 /**
@@ -2134,7 +2147,7 @@ function carregar(
     notaEl.replaceChildren();
     document.title = 'PS Reader';
     mostrarTela('vazio');
-    if (erro instanceof NaoEhNfeError) {
+    if (erroParaPessoa(erro)) {
       mostrarMensagem(erro.message, 'erro');
     } else {
       mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
@@ -2861,6 +2874,10 @@ async function abrirExterno(): Promise<void> {
     if (!(await podeSair())) return;
     const arquivo = await window.psApi.abrirExterno();
     if (arquivo === null) return;
+    if ('status' in arquivo) {
+      mostrarMensagem(arquivo.mensagem, 'erro');
+      return;
+    }
     fecharSobreposicao();
     carregar(arquivo, arquivo.modo);
     // .psxml por duplo clique: a pasta dele vale como pasta de destino só nesta
