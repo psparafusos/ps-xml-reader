@@ -4,26 +4,23 @@
 // a data da importação, as quantidades lidas e o relatório da leitura
 // (problemas de leitura separados do ignorado de propósito). Arquivo errado
 // é recusado com o que ele parece e o que fazer; planilha com segmentos não
-// lidos só entra com a confirmação da pessoa; embaixo, as decisões lembradas da
-// ferramenta "ST, MVA e CFOP" (com Apagar) e a verificação online (desligada
-// por padrão). Abre pelo rodapé do painel de conferência e pela tela
-// inicial. Tudo passa pelo processo principal (src/documentos.ts).
+// lidos só entra com a confirmação da pessoa; embaixo, quantas decisões
+// lembradas há (a lista mora na aba Decisões das Configurações) e a
+// verificação online (desligada por padrão). Mora na aba "Documentos de
+// referência" das Configurações (src/configuracoes.ts); abrirAreaDocumentos,
+// chamada pelo rodapé do painel de conferência e pela tela inicial, abre as
+// Configurações nesta aba. Tudo passa pelo processo principal
+// (src/documentos.ts).
 
 import { botao, el, icone, marcaEstado } from './dom';
-import {
-  chaveDecisao,
-  ROTULO_FINALIDADE,
-  ROTULO_LUBRIFICANTE,
-  textoMva,
-  type DecisaoLembrada,
-} from './fiscal/entrada';
 import { perguntar } from './dialogos';
 import { NOME_DOCUMENTO } from './fiscal/documentos';
 import { problemasPorAba, rotuloDocumento } from './leituraDocumentos';
 import { seloVisivel, textoVersaoNova } from './estadoDocumentos';
 import { ICONES } from './icones';
 
-let dialogo: HTMLDialogElement | null = null;
+/** A aba está montada (Configurações abertas na aba Documentos). */
+let montada = false;
 let redesenhar: ((e: EstadoDocumentos) => void) | null = null;
 let irParaCartao: ((tipo: TipoDocumento) => void) | null = null;
 let mostrarProgresso: ((p: ProgressoDocumento) => void) | null = null;
@@ -35,7 +32,15 @@ export function aoFecharErroDocumento(fn: (tipo: TipoDocumento) => void): void {
 }
 
 export function areaDocumentosAberta(): boolean {
-  return dialogo?.open === true;
+  return montada;
+}
+
+/** Quem abre as Configurações na aba Documentos (src/configuracoes.ts). */
+let abrirNaConfig: ((opcoes: OpcoesAreaDocumentos) => void) | null = null;
+export function definirAberturaDocumentos(
+  fn: (opcoes: OpcoesAreaDocumentos) => void,
+): void {
+  abrirNaConfig = fn;
 }
 
 /** Documentos mudaram (outra janela, verificação ao abrir): a área aberta se atualiza. */
@@ -81,12 +86,33 @@ const tamanho = (bytes: number) =>
     ? `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`
     : `${Math.max(1, Math.round(bytes / 1024)).toLocaleString('pt-BR')} KB`;
 
+/**
+ * Caminho antigo (pastilha da barra, tela inicial, rodapé do painel): abre
+ * as Configurações na aba Documentos de referência.
+ */
 export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
   if (areaDocumentosAberta()) {
     if (opcoes.cartao) irParaCartao?.(opcoes.cartao);
-    else dialogo?.focus();
     return;
   }
+  abrirNaConfig?.(opcoes);
+}
+
+/** Onde a aba se desenha: o corpo, o status do rodapé e o atalho para as decisões. */
+export interface HospedeDocumentos {
+  corpo: HTMLElement;
+  status: HTMLElement;
+  irParaDecisoes(): void;
+}
+
+/**
+ * Monta a área dentro das Configurações. Devolve a função que desmonta
+ * (troca de aba ou Fechar).
+ */
+export function montarAreaDocumentos(
+  hospede: HospedeDocumentos,
+  opcoes: OpcoesAreaDocumentos = {},
+): () => void {
   let estado: EstadoDocumentos | null = null;
   /** Erro da última importação, por documento: o que houve e o que fazer. */
   const erros = new Map<
@@ -104,44 +130,16 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
   /** Download do Atualizar em andamento (indicador no cartão). */
   const progresso = new Map<TipoDocumento, ProgressoDocumento>();
 
-  const titulo = el('h2', 'painel__titulo', 'Documentos de referência');
-  titulo.id = 'documentos-titulo';
-  const corpo = el('div', 'documentos__corpo');
-  const status = el('p', 'painel__status');
-  status.setAttribute('role', 'status');
-  const btnFechar = botao('botao botao--claro', el('span', '', 'Fechar'));
-  const d = el(
-    'dialog',
-    'painel painel--documentos',
-    el(
-      'header',
-      'painel__cabecalho',
-      titulo,
-      el(
-        'p',
-        'painel__dica',
-        'Os arquivos oficiais que o PS Reader usa na análise fiscal. Ficam guardados, já lidos, na pasta de dados do app.',
-      ),
-    ),
-    corpo,
-    el('footer', 'painel__rodape', status, btnFechar),
-  );
-  d.setAttribute('aria-labelledby', titulo.id);
-  dialogo = d;
-
-  const fechar = () => {
-    if (d.open) d.close();
-    d.remove();
-    dialogo = null;
+  const { corpo, status } = hospede;
+  montada = true;
+  let desmontada = false;
+  const desmontar = () => {
+    desmontada = true;
+    montada = false;
     redesenhar = null;
     irParaCartao = null;
     mostrarProgresso = null;
   };
-  btnFechar.addEventListener('click', fechar);
-  d.addEventListener('cancel', (e) => {
-    e.preventDefault();
-    fechar();
-  });
 
   /** Uma ação por vez; o foco volta ao botão de mesmo papel depois de redesenhar. */
   async function acao(
@@ -753,92 +751,24 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
     return artigo;
   }
 
-  // ---------- decisões lembradas (ferramenta ST, MVA e CFOP) ----------
+  // ---------- decisões lembradas (a lista mora na aba Decisões) ----------
 
   function decisoes(e: EstadoDocumentos): HTMLElement {
-    const textoDecisao = (d: DecisaoLembrada) =>
-      [
-        d.escolha === null
-          ? null
-          : d.escolha.tipo === 'sem-st'
-            ? 'Sem ST'
-            : d.escolha.tipo === 'apendice-xiv'
-              ? `Apêndice XIV: ${ROTULO_LUBRIFICANTE[d.escolha.lubrificante]}`
-              : d.escolha.tipo === 'manual'
-                ? `CFOP manual ${d.escolha.cfop}${d.escolha.mva === null ? '' : `, MVA ${textoMva(d.escolha.mva)}`}: ${d.escolha.motivo}`
-                : `${d.escolha.segmento}, CEST ${d.escolha.cest}`,
-        ROTULO_FINALIDADE[d.finalidade],
-      ]
-        .filter(Boolean)
-        .join(' · ');
+    const n = e.decisoes.length;
+    const gerenciar = botao('link', el('span', '', 'Gerenciar'));
+    gerenciar.dataset.foco = 'gerenciar-decisoes';
+    gerenciar.addEventListener('click', () => hospede.irParaDecisoes());
     return el(
       'section',
-      'documentos__online',
+      'documentos__online documentos__decisoes',
       el('h3', 'painel__subtitulo', 'Decisões lembradas'),
       el(
         'p',
         'documento__nota',
-        'Escolhas feitas na ferramenta "ST, MVA e CFOP", por fornecedor (raiz do CNPJ) e código do produto. Na próxima nota o item já vem resolvido.',
+        `${n === 0 ? 'Nenhuma' : n} ${n === 1 ? 'decisão lembrada' : 'decisões lembradas'}`,
+        ' · ',
+        gerenciar,
       ),
-      e.decisoes.length === 0
-        ? el('p', 'documento__vazio', 'Nenhuma decisão lembrada.')
-        : el(
-            'div',
-            'documento__tabela',
-            el(
-              'table',
-              '',
-              el(
-                'thead',
-                '',
-                el(
-                  'tr',
-                  '',
-                  el('th', '', 'Fornecedor'),
-                  el('th', '', 'Produto'),
-                  el('th', '', 'NCM'),
-                  el('th', '', 'Decisão'),
-                  el('th', '', ''),
-                ),
-              ),
-              el(
-                'tbody',
-                '',
-                ...e.decisoes.map((d) => {
-                  const chave = chaveDecisao(d.raizCnpj, d.cProd);
-                  const apagar = botao(
-                    'botao botao--claro botao--pequeno',
-                    el('span', '', 'Apagar'),
-                  );
-                  apagar.dataset.foco = `apagar-${chave}`;
-                  apagar.title = `Esquecer a decisão de ${d.cProd}`;
-                  apagar.addEventListener(
-                    'click',
-                    () =>
-                      void acao(null, async () => {
-                        await window.psApi.esquecerDecisao(chave);
-                        estado = await window.psApi.documentos();
-                        status.textContent = `Decisão de ${d.cProd} apagada.`;
-                      }),
-                  );
-                  return el(
-                    'tr',
-                    '',
-                    el(
-                      'td',
-                      '',
-                      d.fornecedor,
-                      el('span', 'documento__quando', ` (${d.raizCnpj})`),
-                    ),
-                    el('td', 'documento__valor', `${d.cProd}: ${d.xProd}`),
-                    el('td', '', d.ncm),
-                    el('td', '', textoDecisao(d)),
-                    el('td', '', apagar),
-                  );
-                }),
-              ),
-            ),
-          ),
     );
   }
 
@@ -928,6 +858,7 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
 
   function desenhar(e: EstadoDocumentos): void {
     estado = e;
+    if (desmontada) return;
     const nenhum = !e.st && !e.tipi;
     corpo.replaceChildren(
       el(
@@ -1015,14 +946,14 @@ export function abrirAreaDocumentos(opcoes: OpcoesAreaDocumentos = {}): void {
     antigo?.replaceWith(indicador(p));
   };
 
-  document.body.append(d);
-  d.showModal();
   corpo.replaceChildren(el('p', 'documento__nota', 'Carregando...'));
   void window.psApi.documentos().then((e) => {
+    if (desmontada) return;
     if (opcoes.cartao && opcoes.resultado)
       aoImportar(opcoes.cartao, opcoes.resultado);
     desenhar(e);
     if (opcoes.cartao) irParaCartao?.(opcoes.cartao);
     else corpo.querySelector<HTMLElement>('[data-foco^="atualizar-"]')?.focus();
   });
+  return desmontar;
 }

@@ -47,6 +47,23 @@ import {
 } from './nfe/perfis';
 import { MARGEM_FOLHA_MM } from './nfe/folha';
 import {
+  ferramentasDoPerfil,
+  lerFerramentas,
+  lerFerramentasPorPerfil,
+  semPerfisExcluidos,
+} from './nfe/ferramentasPerfil';
+import {
+  EXTENSAO_BACKUP,
+  importarBackup,
+  lerArquivoBackup,
+  listarDadosApp,
+  montarBackup,
+  nomeArquivoBackup,
+  resumoBackup,
+  textoBackup,
+  type Backup,
+} from './dadosApp';
+import {
   chaveDoArquivo,
   cnpjDaConfig,
   CNPJ_EMPRESA_PADRAO,
@@ -762,6 +779,8 @@ interface Config {
   diasNotaAntiga?: unknown;
   /** Notas recentes da tela inicial (src/nfe/recentes.ts), no máximo 8. */
   notasRecentes?: unknown;
+  /** Ferramentas do painel por perfil (src/nfe/ferramentasPerfil.ts). */
+  ferramentasPerfis?: unknown;
 }
 
 function caminhoConfig(): string {
@@ -1183,18 +1202,35 @@ ipcMain.handle(
     }),
 );
 
-/** Exclui um perfil (nunca o último). Excluir o ativo ativa o primeiro. */
+/**
+ * Exclui um perfil (nunca o último). Excluir o ativo ativa o primeiro. As
+ * ferramentas do perfil excluído saem da chave ferramentasPerfis.
+ */
 ipcMain.handle(
   'excluir-perfil',
-  (event, id: unknown): Promise<ResultadoPerfis> =>
-    mudarPerfis(event, (p) => {
+  async (event, id: unknown): Promise<ResultadoPerfis> => {
+    const r = await mudarPerfis(event, (p) => {
       if (p.lista.length <= 1) return 'O último perfil não pode ser excluído.';
       const i = p.lista.findIndex((x) => x.id === id);
       if (i < 0) return 'Perfil não encontrado.';
       p.lista.splice(i, 1);
       if (p.ativo === id) p.ativo = p.lista[0].id;
       return null;
-    }),
+    });
+    if (r.status === 'ok') {
+      const c = await lerConfig();
+      if (c.ferramentasPerfis !== undefined) {
+        await gravarConfig({
+          ferramentasPerfis: semPerfisExcluidos(
+            c.ferramentasPerfis,
+            r.estado.lista.map((x) => x.id),
+          ),
+        }).catch(() => {});
+        avisarTodas('ferramentas-mudou');
+      }
+    }
+    return r;
+  },
 );
 
 /**
@@ -1301,6 +1337,230 @@ ipcMain.handle(
       perfilAtivo(p).config = configPadrao();
       return null;
     });
+  },
+);
+
+// ---------- Configurações: ferramentas por perfil, avisos, dados do app e backup ----------
+
+/** Ferramentas de todos os perfis (o padrão para quem não tem nada salvo). */
+async function estadoFerramentas(): Promise<EstadoFerramentas> {
+  const p = await lerPerfis();
+  const porPerfil = lerFerramentasPorPerfil(
+    (await lerConfig()).ferramentasPerfis,
+    p.lista.map((x) => x.id),
+  );
+  return {
+    ativo: perfilAtivo(p).id,
+    lista: p.lista.map((x) => ({
+      id: x.id,
+      nome: x.nome,
+      ferramentas: ferramentasDoPerfil(porPerfil, x.id),
+    })),
+  };
+}
+
+/** Avisa todas as janelas (inclusive a que pediu) de uma mudança feita nas Configurações. */
+function avisarTodas(canal: string, ...args: unknown[]): void {
+  for (const j of abertas()) j.janela.webContents.send(canal, ...args);
+}
+
+ipcMain.handle('ferramentas-perfis', () => estadoFerramentas());
+
+ipcMain.handle(
+  'gravar-ferramentas-perfil',
+  async (
+    _event,
+    id: unknown,
+    ferramentas: unknown,
+  ): Promise<ResultadoFerramentas> => {
+    const p = await lerPerfis();
+    if (typeof id !== 'string' || !p.lista.some((x) => x.id === id))
+      return { status: 'erro', mensagem: 'Perfil não encontrado.' };
+    const porPerfil = lerFerramentasPorPerfil(
+      (await lerConfig()).ferramentasPerfis,
+      p.lista.map((x) => x.id),
+    );
+    porPerfil[id] = lerFerramentas(ferramentas);
+    try {
+      await gravarConfig({ ferramentasPerfis: porPerfil });
+    } catch (erro) {
+      return {
+        status: 'erro',
+        mensagem: `Não foi possível salvar as ferramentas: ${mensagemDe(erro)}`,
+      };
+    }
+    const estado = await estadoFerramentas();
+    avisarTodas('ferramentas-mudou');
+    return { status: 'ok', estado };
+  },
+);
+
+/** Os ajustes dos avisos lidos do config.json, com os padrões. */
+function avisosDaConfig(c: Config): ConfigAvisos {
+  return {
+    cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
+    diasAvisoVencimento: diasDaConfig(
+      c.diasAvisoVencimento,
+      DIAS_AVISO_VENCIMENTO_PADRAO,
+    ),
+    diasNotaAntiga: diasDaConfig(c.diasNotaAntiga, DIAS_NOTA_ANTIGA_PADRAO),
+  };
+}
+
+/**
+ * CNPJ da empresa e dias dos avisos, da aba Geral. CNPJ vazio volta ao
+ * padrão; valor inválido não grava nada.
+ */
+ipcMain.handle(
+  'gravar-config-avisos',
+  async (_event, p: unknown): Promise<ResultadoConfigAvisos> => {
+    const o = (typeof p === 'object' && p !== null ? p : {}) as {
+      cnpjEmpresa?: unknown;
+      diasAvisoVencimento?: unknown;
+      diasNotaAntiga?: unknown;
+    };
+    const parcial: Config = {};
+    if (o.cnpjEmpresa !== undefined) {
+      const t = texto(o.cnpjEmpresa).trim();
+      const cnpj = t === '' ? CNPJ_EMPRESA_PADRAO : cnpjDaConfig(t);
+      if (!cnpj)
+        return { status: 'erro', mensagem: 'O CNPJ precisa ter 14 dígitos.' };
+      parcial.cnpjEmpresa = cnpj;
+    }
+    for (const k of ['diasAvisoVencimento', 'diasNotaAntiga'] as const) {
+      if (o[k] === undefined) continue;
+      if (diasDaConfig(o[k], -1) === -1)
+        return {
+          status: 'erro',
+          mensagem: 'Os dias precisam ser um número inteiro de 0 a 3650.',
+        };
+      parcial[k] = o[k];
+    }
+    try {
+      await gravarConfig(parcial);
+    } catch (erro) {
+      return {
+        status: 'erro',
+        mensagem: `Não foi possível salvar: ${mensagemDe(erro)}`,
+      };
+    }
+    avisarTodas('avisos-mudou');
+    return { status: 'ok', config: avisosDaConfig(await lerConfig()) };
+  },
+);
+
+ipcMain.handle(
+  'dados-app',
+  async (): Promise<EstadoDadosApp> => ({
+    pasta: app.getPath('userData'),
+    itens: await listarDadosApp(app.getPath('userData')),
+  }),
+);
+
+ipcMain.handle('abrir-pasta-dados', async (): Promise<ResultadoAbrirPasta> => {
+  const pasta = app.getPath('userData');
+  await mkdir(pasta, { recursive: true }).catch(() => {});
+  const erro = await shell.openPath(pasta);
+  return erro
+    ? { status: 'erro', mensagem: `Não foi possível abrir a pasta: ${erro}` }
+    : { status: 'aberta' };
+});
+
+ipcMain.handle(
+  'exportar-backup',
+  async (event): Promise<ResultadoExportarConfig> => {
+    const j = estadoDe(event.sender);
+    const agora = new Date();
+    const { canceled, filePath } = await dialog.showSaveDialog(j.janela, {
+      title: 'Exportar backup',
+      defaultPath: path.join(
+        app.getPath('documents'),
+        nomeArquivoBackup(agora),
+      ),
+      filters: [{ name: 'Backup do PS Reader', extensions: [EXTENSAO_BACKUP] }],
+    });
+    if (canceled || !filePath) return { status: 'cancelado' };
+    try {
+      const b = await montarBackup(
+        app.getPath('userData'),
+        agora,
+        app.getVersion(),
+      );
+      await writeFile(filePath, textoBackup(b), 'utf8');
+      return { status: 'exportado', caminho: filePath };
+    } catch (erro) {
+      return {
+        status: 'erro',
+        mensagem: `Não foi possível exportar o backup: ${mensagemDe(erro)}`,
+      };
+    }
+  },
+);
+
+/** Backup lido e validado, esperando a confirmação (um por vez). */
+const backupsLidos = new Map<string, Backup>();
+
+ipcMain.handle('ler-backup', async (event): Promise<ResultadoLerBackup> => {
+  const j = estadoDe(event.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
+    title: 'Importar backup',
+    filters: [{ name: 'Backup do PS Reader', extensions: [EXTENSAO_BACKUP] }],
+    properties: ['openFile'],
+  });
+  if (canceled || filePaths.length === 0) return { status: 'cancelado' };
+  let b: Backup;
+  try {
+    b = await lerArquivoBackup(filePaths[0]);
+  } catch (erro) {
+    return {
+      status: 'erro',
+      mensagem: `Backup não importado; nada foi alterado. ${mensagemDe(erro)}`,
+    };
+  }
+  const token = randomUUID();
+  backupsLidos.clear();
+  backupsLidos.set(token, b);
+  const atual = await montarBackup(
+    app.getPath('userData'),
+    new Date(),
+    app.getVersion(),
+  );
+  return {
+    status: 'lido',
+    token,
+    arquivo: path.basename(filePaths[0]),
+    novo: resumoBackup(b),
+    atual: resumoBackup(atual),
+  };
+});
+
+ipcMain.handle('cancelar-backup', (_event, token: unknown) => {
+  if (typeof token === 'string') backupsLidos.delete(token);
+});
+
+ipcMain.handle(
+  'confirmar-backup',
+  async (_event, token: unknown): Promise<ResultadoImportarBackup> => {
+    const b = typeof token === 'string' ? backupsLidos.get(token) : undefined;
+    if (!b) return { status: 'cancelado' };
+    backupsLidos.delete(token as string);
+    let antes: string;
+    try {
+      antes = await importarBackup(app.getPath('userData'), b, new Date());
+    } catch (erro) {
+      return {
+        status: 'erro',
+        mensagem: `Não foi possível importar o backup: ${mensagemDe(erro)}`,
+      };
+    }
+    // Tudo mudou: as janelas releem perfis, pasta, avisos, ferramentas e
+    // documentos (as decisões e as preferências vêm junto).
+    avisarTodas('perfis-mudou', estadoDosPerfis(await lerPerfis()));
+    avisarTodas('pasta-mudou');
+    avisarTodas('avisos-mudou');
+    avisarTodas('ferramentas-mudou');
+    avisarTodas('documentos-mudou');
+    return { status: 'ok', pastaAntes: antes };
   },
 );
 

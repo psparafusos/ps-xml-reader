@@ -1,0 +1,470 @@
+/* Tela de Configurações (src/configuracoes.ts) e a engrenagem da barra preta.
+   A janela usa .painel (cabeça preta, corpo bege, rodapé) de app.css e
+   bancada.css; aqui ficam só as abas à esquerda, os cartões e os campos.
+   Só na tela: nada disto vai para o PDF nem para a impressão. */
+
+@media screen {
+  :root {
+    --largura-painel-config: 1120px;
+    --largura-abas-config: 220px;
+  }
+
+  /* ---------- engrenagem (barra da nota e faixa da tela inicial) ---------- */
+
+  .config-engrenagem {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: var(--borda) solid var(--pastilha-escura-borda);
+    border-radius: var(--pastilha-raio);
+    background: var(--pastilha-escura-fundo);
+    color: var(--ps-branco);
+    cursor: pointer;
+  }
+
+  .config-engrenagem:hover {
+    border-color: var(--ps-branco);
+  }
+
+  .config-engrenagem:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .config-engrenagem .icone {
+    width: 18px;
+    height: 18px;
+  }
+
+  .barra__pastilhas > .config-engrenagem,
+  .inicio__pastilhas > .config-engrenagem {
+    align-self: center;
+  }
+
+  /* ---------- janela ---------- */
+
+  .painel--config {
+    width: min(var(--largura-painel-config), calc(100vw - 2 * var(--esp-5)));
+    height: calc(100vh - 2 * var(--esp-5));
+  }
+
+  .config__corpo {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: var(--largura-abas-config) minmax(0, 1fr);
+  }
+
+  .config__abas {
+    display: flex;
+    flex-direction: column;
+    gap: var(--esp-1);
+    padding: var(--esp-4) var(--esp-3);
+    border-right: var(--borda) solid var(--cartao-borda);
+    background: var(--cartao-fundo);
+    overflow-y: auto;
+  }
+
+  .config__aba {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: var(--esp-2) var(--esp-3);
+    border: var(--borda) solid transparent;
+    border-radius: var(--raio);
+    background: none;
+    color: var(--cor-texto);
+    font: inherit;
+    font-size: var(--fs-md);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .config__aba:hover {
+    background: var(--bancada-fundo);
+  }
+
+  .config__aba[aria-selected='true'] {
+    border-color: var(--ps-preto);
+    background: var(--ps-amarelo);
+    color: var(--cor-texto-sobre-destaque);
+    font-weight: var(--peso-forte);
+  }
+
+  .config__aba:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-preto);
+    outline-offset: 1px;
+  }
+
+  .config__conteudo {
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--esp-4) var(--esp-5);
+  }
+
+  .config__conteudo:focus {
+    outline: none;
+  }
+
+  .config__area {
+    display: grid;
+    gap: var(--esp-4);
+    align-content: start;
+  }
+
+  /* A área de Documentos já tem o espaçamento dela. */
+  .config__conteudo[data-aba='documentos'] .config__area {
+    display: block;
+  }
+
+  .config__cartao {
+    display: grid;
+    gap: var(--esp-2);
+    padding: var(--esp-3) var(--esp-4);
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+  }
+
+  .config__cartao > .painel__subtitulo {
+    margin: 0;
+    color: var(--titulo-secao-cor);
+    font-size: var(--titulo-secao-tamanho);
+    letter-spacing: var(--titulo-secao-espaco);
+  }
+
+  .config__caminho {
+    padding: var(--esp-2) var(--esp-3);
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--raio);
+    background: var(--bancada-fundo);
+    color: var(--cor-texto-forte);
+    font-family: var(--fonte-mono, ui-monospace, 'Consolas', monospace);
+    font-size: var(--fs-sm);
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
+  .config__caminho--vazio {
+    font-family: inherit;
+    font-style: italic;
+  }
+
+  .config__campos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--esp-3);
+  }
+
+  .config__campo {
+    display: grid;
+    gap: var(--esp-1);
+    align-content: start;
+  }
+
+  .config__campo--linha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2);
+  }
+
+  .config__rotulo {
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-forte);
+  }
+
+  .config__ajuda {
+    color: var(--titulo-secao-cor);
+    font-size: var(--fs-xs);
+  }
+
+  .config__entrada {
+    min-width: 0;
+    padding: var(--esp-2) var(--esp-3);
+    border: var(--borda) solid var(--bancada-borda-forte);
+    border-radius: var(--raio);
+    background: var(--cartao-fundo);
+    color: var(--cor-texto-forte);
+    font: inherit;
+  }
+
+  .config__entrada:focus {
+    outline: none;
+    border-color: var(--ps-preto);
+    box-shadow: 0 0 0 var(--borda) var(--ps-preto);
+  }
+
+  .config__campo-dias {
+    width: 120px;
+  }
+
+  .config__busca {
+    flex: 1 1 260px;
+  }
+
+  .config__select {
+    min-width: 240px;
+  }
+
+  .config__erro {
+    margin: 0;
+  }
+
+  /* ---------- perfis ---------- */
+
+  .config__perfis {
+    display: grid;
+    gap: var(--esp-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .config__perfil {
+    display: flex;
+    align-items: center;
+    gap: var(--esp-2);
+    padding: var(--esp-2) var(--esp-3);
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--raio);
+  }
+
+  .config__perfil--ativo {
+    border-color: var(--ps-preto);
+  }
+
+  .config__perfil-nome {
+    font-weight: var(--peso-forte);
+  }
+
+  .config__selo {
+    padding: 0 var(--esp-2);
+    border-radius: var(--pastilha-raio);
+    background: var(--ps-amarelo);
+    color: var(--cor-texto-sobre-destaque);
+    font-size: var(--fs-xs);
+    font-weight: var(--peso-forte);
+  }
+
+  /* ---------- ferramentas ---------- */
+
+  .config__ferramentas .colunas-lista__item {
+    padding-top: var(--esp-2);
+    padding-bottom: var(--esp-2);
+  }
+
+  .config__ferramenta-rotulo {
+    display: grid;
+    gap: 2px;
+  }
+
+  .config__ferramenta-titulo {
+    font-weight: var(--peso-forte);
+  }
+
+  .config__campos-st {
+    display: grid;
+    gap: var(--esp-2);
+  }
+
+  /* ---------- decisões ---------- */
+
+  .config__filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--esp-2);
+  }
+
+  .config__filtro {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-2);
+    min-height: 30px;
+    padding: 0 var(--esp-3);
+    border: var(--borda) solid var(--bancada-borda-forte);
+    border-radius: var(--pastilha-raio);
+    background: var(--cartao-fundo);
+    color: var(--cor-texto);
+    font: inherit;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+
+  .config__filtro:hover {
+    border-color: var(--ps-preto);
+  }
+
+  .config__filtro[aria-pressed='true'] {
+    border-color: var(--ps-preto);
+    background: var(--ps-amarelo);
+    color: var(--cor-texto-sobre-destaque);
+    font-weight: var(--peso-forte);
+  }
+
+  .config__filtro:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-preto);
+    outline-offset: 1px;
+  }
+
+  .config__filtro-qtd {
+    min-width: 18px;
+    padding: 0 var(--esp-1);
+    border-radius: var(--pastilha-raio);
+    background: var(--bancada-fundo);
+    font-size: var(--fs-xs);
+    text-align: center;
+  }
+
+  .config__filtro[aria-pressed='true'] .config__filtro-qtd {
+    background: var(--cartao-fundo);
+  }
+
+  .config__barra-selecao {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-3);
+  }
+
+  .config__barra-selecao > .config__ajuda {
+    margin-right: auto;
+  }
+
+  .config__confirmar {
+    display: grid;
+    gap: var(--esp-2);
+    padding: var(--esp-3) var(--esp-4);
+    border: var(--borda) solid var(--aviso-erro-fundo);
+    border-left-width: var(--borda-destaque);
+    border-radius: var(--raio);
+    background: var(--cor-alerta-suave);
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-sm);
+  }
+
+  .config__confirmar[hidden] {
+    display: none;
+  }
+
+  .config__tabela {
+    max-height: none;
+  }
+
+  .config__tabela table {
+    font-size: var(--fs-sm);
+  }
+
+  .config__tabela td {
+    vertical-align: middle;
+  }
+
+  .config__col-marca {
+    width: 28px;
+  }
+
+  .config__linha--marcada td {
+    background: var(--cor-destaque-suave);
+  }
+
+  .config__nowrap {
+    white-space: nowrap;
+  }
+
+  .config__arquivo {
+    font-family: var(--fonte-mono, ui-monospace, 'Consolas', monospace);
+    white-space: nowrap;
+  }
+
+  /* ---------- dados do app ---------- */
+
+  .config__comparar {
+    max-height: none;
+    background: var(--cartao-fundo);
+  }
+
+  .config__comparar table {
+    table-layout: fixed;
+  }
+
+  .config__comparar thead th:first-child {
+    width: 160px;
+  }
+
+  .config__comparar td {
+    overflow-wrap: anywhere;
+  }
+
+  .config__comparar tbody th {
+    position: static;
+    background: none;
+    white-space: nowrap;
+  }
+
+  .config__linha--muda td:last-child {
+    font-weight: var(--peso-forte);
+  }
+
+  .config__resultado {
+    color: var(--cor-texto-forte);
+    overflow-wrap: anywhere;
+  }
+
+  /* Janela estreita (1366 com zoom, por exemplo): abas em cima. */
+  @media (max-width: 900px) {
+    .config__corpo {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .config__abas {
+      flex-direction: row;
+      flex-wrap: wrap;
+      border-right: none;
+      border-bottom: var(--borda) solid var(--cartao-borda);
+    }
+  }
+}
+
+@media screen {
+  .config__nao-muda {
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-forte);
+  }
+}
+
+@media screen {
+  /* O contorno de foco das abas só pelo teclado. */
+  .config__aba:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  .config__seletor {
+    min-width: 240px;
+  }
+
+  /* Confirmação da importação: o que acontece com cada parte. */
+  .config__comparar thead th:last-child {
+    width: 230px;
+  }
+
+  .config__acontece {
+    white-space: nowrap;
+  }
+
+  .config__parte--substitui .config__acontece,
+  .config__parte--substitui td:nth-child(3) {
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-forte);
+  }
+
+  .config__parte--nao-veio td,
+  .config__parte--local td {
+    color: var(--titulo-secao-cor);
+  }
+}

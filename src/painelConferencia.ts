@@ -38,6 +38,12 @@ export interface AcoesPainel {
   ferramentasJanela(): readonly FerramentaJanela[];
   /** CFOPs de entrada da nota (coluna "CFOP de entrada"); null sem a coluna. */
   resumoCfop(): ResumoCfop | null;
+  /**
+   * Ids das ferramentas à mostra, na ordem do perfil (as de janela própria
+   * pelo id e "cfops-entrada" para o resumo). Sem a função: todas, na ordem
+   * de sempre.
+   */
+  ordemFerramentas?(): readonly string[];
 }
 
 export interface PainelConferencia {
@@ -312,6 +318,7 @@ export function criarPainel(
             }),
           );
 
+    const ferramentas = blocosFerramentas();
     corpo.replaceChildren(
       cabecalho,
       resultado,
@@ -320,21 +327,37 @@ export function criarPainel(
         el('ul', 'conferencia__lista', ...r.verificacoes.map(linhaVerificacao)),
       ),
       secao('Precisa de você', pendencias),
-      ...(FERRAMENTAS.length + acoes.ferramentasJanela().length > 0
-        ? [
-            secao(
-              'Ferramentas',
-              el(
-                'ul',
-                'conferencia__lista',
-                ...acoes.ferramentasJanela().map(linhaFerramentaJanela),
-                ...FERRAMENTAS.map(linhaFerramenta),
-              ),
-              resumoCfops(),
-            ),
-          ]
-        : []),
+      ...(ferramentas.length > 0 ? [secao('Ferramentas', ...ferramentas)] : []),
     );
+  }
+
+  /**
+   * O conteúdo da seção Ferramentas na ordem do perfil: as linhas seguidas
+   * ficam numa lista só; o resumo de CFOPs entra onde o perfil manda.
+   */
+  function blocosFerramentas(): HTMLElement[] {
+    const janela = acoes.ferramentasJanela();
+    const ordem = acoes.ordemFerramentas?.() ?? [
+      ...janela.map((f) => f.id),
+      'cfops-entrada',
+    ];
+    const blocos: HTMLElement[] = [];
+    let lista: HTMLElement | null = null;
+    const linha = (li: HTMLLIElement) => {
+      if (!lista) blocos.push((lista = el('ul', 'conferencia__lista')));
+      lista.append(li);
+    };
+    for (const id of ordem) {
+      const fe = janela.find((f) => f.id === id);
+      if (fe) linha(linhaFerramentaJanela(fe));
+      else if (id === 'cfops-entrada') {
+        const r = resumoCfops();
+        if (r) blocos.push(r);
+        lista = null;
+      }
+    }
+    for (const fe of FERRAMENTAS) linha(linhaFerramenta(fe));
+    return blocos;
   }
 
   // ---------- resumo dos CFOPs de entrada ----------

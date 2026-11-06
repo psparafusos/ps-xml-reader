@@ -69,4 +69,12 @@ export const ICONES = {
   ],
   /** Opcional não carregado: círculo vazado. */
   estadoOpcional: ['M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z'],
+  /**
+   * Engrenagem (Configurações), no jeito da do Windows: oito dentes de topo
+   * arredondado em volta de um corpo redondo, com o furo no meio.
+   */
+  engrenagem: [
+    'M10.08 4.85L10.66 2.49A9.6 9.6 0 0 1 13.34 2.49L13.92 4.85A7.4 7.4 0 0 1 15.7 5.59L17.78 4.33A9.6 9.6 0 0 1 19.67 6.22L18.41 8.3A7.4 7.4 0 0 1 19.15 10.08L21.51 10.66A9.6 9.6 0 0 1 21.51 13.34L19.15 13.92A7.4 7.4 0 0 1 18.41 15.7L19.67 17.78A9.6 9.6 0 0 1 17.78 19.67L15.7 18.41A7.4 7.4 0 0 1 13.92 19.15L13.34 21.51A9.6 9.6 0 0 1 10.66 21.51L10.08 19.15A7.4 7.4 0 0 1 8.3 18.41L6.22 19.67A9.6 9.6 0 0 1 4.33 17.78L5.59 15.7A7.4 7.4 0 0 1 4.85 13.92L2.49 13.34A9.6 9.6 0 0 1 2.49 10.66L4.85 10.08A7.4 7.4 0 0 1 5.59 8.3L4.33 6.22A9.6 9.6 0 0 1 6.22 4.33L8.3 5.59A7.4 7.4 0 0 1 10.08 4.85z',
+    'M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0z',
+  ],
 } as const satisfies Record<string, readonly string[]>;

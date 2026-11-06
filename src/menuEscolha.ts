@@ -30,6 +30,11 @@ export interface OpcoesSeletor {
   vazio?: string;
   /** Classe a mais no botão (tamanho, largura). */
   classe?: string;
+  /**
+   * Sem o title com o valor no botão (fora das ferramentas automáticas, onde
+   * o app não mostra dicas).
+   */
+  semDica?: boolean;
   aoMudar(valor: string): void;
 }
 
@@ -96,7 +101,7 @@ export function criarMenuEscolha(container: HTMLElement): {
         'aria-label',
         atual ? `${o.rotulo}: ${atual.texto}` : o.rotulo,
       );
-      b.title = atual?.texto ?? o.vazio ?? '';
+      if (!o.semDica) b.title = atual?.texto ?? o.vazio ?? '';
     };
 
     const abrir = () => {

@@ -106,6 +106,16 @@ import {
   planoDaTabela,
 } from './folhaTabela';
 import { ICONES } from './icones';
+import {
+  abrirConfiguracoes,
+  atualizarConfiguracoes,
+  ligarConfiguracoes,
+} from './configuracoes';
+import {
+  ferramentasPadrao,
+  ferramentasVisiveis,
+  type FerramentasPerfil,
+} from './nfe/ferramentasPerfil';
 
 // ---------- utilitários de DOM ----------
 
@@ -325,6 +335,9 @@ function aplicarPerfis(estado: EstadoPerfis): void {
   perfisAtual = estado;
   atualizarSeletorPerfil();
   aplicarConfig(estado.config);
+  // O perfil ativo também escolhe as ferramentas do painel.
+  painel.atualizarFerramentas();
+  atualizarConfiguracoes();
 }
 
 /** Aplica os perfis de um resultado que deu certo e o devolve. */
@@ -1222,6 +1235,7 @@ const painel = criarPainel(painelEl, notaEl, {
     atualizarPendentes();
   },
   ferramentasJanela: () => [ferramentaST],
+  ordemFerramentas: () => ferramentasVisiveis(ferramentasAtivas()),
   resumoCfop: () => {
     const coluna = idColunaCfop();
     if (!aberto || !coluna) return null;
@@ -3278,6 +3292,7 @@ const ferramentaST: FerramentaJanela = {
       resultado: r,
       colunasAnotacao: colunasAtuais().filter((c) => c.anotacao),
       criarColuna: criarColunaAnotacao,
+      campos: ferramentasAtivas().camposST,
       aplicado: (mensagem) => {
         aplicarConfig(configAtual);
         atualizarPendentes();
@@ -3560,6 +3575,56 @@ window.psApi.aoProgressoDocumento((p) => {
   if (estadoDocumentos) desenharListaDocumentos(estadoDocumentos);
 });
 window.psApi.aoMudarDocumentos(atualizarDocumentos);
+
+// ---------- Configurações (engrenagem da barra preta) ----------
+
+/** Ferramentas do painel de cada perfil (Configurações, aba Ferramentas). */
+let ferramentasPerfis: EstadoFerramentas | null = null;
+
+/** As ferramentas do perfil ativo (o padrão até chegarem). */
+function ferramentasAtivas(): FerramentasPerfil {
+  const ativo = perfisAtual?.ativo ?? ferramentasPerfis?.ativo;
+  return (
+    ferramentasPerfis?.lista.find((p) => p.id === ativo)?.ferramentas ??
+    ferramentasPadrao()
+  );
+}
+
+function carregarFerramentas(): void {
+  window.psApi
+    .ferramentasPerfis()
+    .then((e) => {
+      ferramentasPerfis = e;
+      painel.atualizarFerramentas();
+    })
+    .catch((erro: unknown) => console.error(erro));
+}
+carregarFerramentas();
+window.psApi.aoMudarFerramentas(() => {
+  carregarFerramentas();
+  atualizarConfiguracoes();
+});
+// CNPJ e dias dos avisos mudaram (aba Geral, backup): a nota aberta refaz os avisos.
+window.psApi.aoMudarAvisos(() => {
+  window.psApi
+    .configAvisos()
+    .then((c) => {
+      configAvisos = c;
+      if (aberto && avisosProntos) atualizarAvisos();
+    })
+    .catch((erro: unknown) => console.error(erro));
+});
+window.psApi.aoMudarDocumentos(() => atualizarConfiguracoes());
+window.psApi.aoMudarPasta(() => atualizarConfiguracoes());
+ligarConfiguracoes({
+  editarColunas: () => void editarColunas(),
+  escolherPasta,
+});
+for (const id of ['btn-config-barra', 'btn-config-inicio']) {
+  const b = $(id);
+  b.append(icone(...ICONES.engrenagem));
+  b.addEventListener('click', () => abrirConfiguracoes());
+}
 atualizarDocumentos();
 // Uma página recarregada começa sem pendências.
 window.psApi.informarPendentes(false);

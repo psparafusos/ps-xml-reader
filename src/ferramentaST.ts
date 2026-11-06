@@ -21,7 +21,6 @@ import {
   FINALIDADE_PADRAO,
   FINALIDADES,
   lerCfopManual,
-  planoAplicar,
   raizCnpj,
   RESSALVA_APENDICE_XIV,
   ROTULO_FINALIDADE,
@@ -31,7 +30,6 @@ import {
 } from './fiscal/entrada';
 import {
   decisaoDaLembrada,
-  gravacoesAliquota,
   previaItem,
   type DecisaoST,
   type LinhaPrevia,
@@ -44,6 +42,7 @@ import {
 } from './explicacaoST';
 import { observacaoMvaFornecedor, sugestaoHistorico } from './historicoST';
 import { ligarDica, type Dica } from './tooltip';
+import { planoDoAplicar, type CamposST } from './nfe/ferramentasPerfil';
 import type { ColunaItem } from './nfe/colunas';
 import type { Anotacoes, Item, Nota } from './nfe/tipos';
 
@@ -66,6 +65,11 @@ export interface ContextoST {
   criarColuna(titulo: string): Promise<{ id: string } | { erro: string }>;
   /** Gravou nas anotações: a tela redesenha e avisa. */
   aplicado(mensagem: string): void;
+  /**
+   * Campos do rodapé à mostra (Configurações, aba Ferramentas). Oculto: o
+   * campo some e o Aplicar não grava aquilo. Sem o campo: os dois à mostra.
+   */
+  campos?: CamposST;
 }
 
 /** Valor da lista de colunas que pede para criar a coluna. */
@@ -117,6 +121,7 @@ function alvoDica(texto: string, dica: string): HTMLSpanElement {
 
 export function abrirFerramentaST(c: ContextoST): void {
   const { nota } = c;
+  const campos: CamposST = c.campos ?? { mva: true, aliquota: true };
   const uf = nota.emitente.endereco.UF;
   const cnpj = nota.emitente.CNPJ;
   const porItem = new Map(nota.itens.map((i) => [i.nItem, i]));
@@ -328,8 +333,8 @@ export function abrirFerramentaST(c: ContextoST): void {
         'div',
         'st__destino',
         campoCfopDestino,
-        el('div', 'st__campo', rotMva, selMva.botao),
-        el('div', 'st__campo', rotAliq, selAliq.botao),
+        campos.mva && el('div', 'st__campo', rotMva, selMva.botao),
+        campos.aliquota && el('div', 'st__campo', rotAliq, selAliq.botao),
         resumoAplicar,
       ),
       el('div', 'painel__grupo', btnCancelar, btnAplicar),
@@ -1015,27 +1020,25 @@ export function abrirFerramentaST(c: ContextoST): void {
         const criarCfop = selCfop.valor === CRIAR;
         const colCfop = await colunaDe(selCfop, COLUNA_CFOP_PADRAO);
         if (!colCfop) return;
-        const colMva = comMva.checked
+        const querMva = campos.mva && comMva.checked;
+        const colMva = querMva
           ? await colunaDe(selMva, COLUNA_MVA_PADRAO)
           : null;
-        if (comMva.checked && !colMva) return;
-        const colAliq = comAliq.checked
+        if (querMva && !colMva) return;
+        const querAliq = campos.aliquota && comAliq.checked;
+        const colAliq = querAliq
           ? await colunaDe(selAliq, COLUNA_ALIQ_PADRAO)
           : null;
-        if (comAliq.checked && !colAliq) return;
+        if (querAliq && !colAliq) return;
         const rotuloDe = (id: string, padrao: string) =>
           c.colunasAnotacao.find((col) => col.id === id)?.rotulo ?? padrao;
         const resolvidos = linhas.map(resolver);
-        const base = planoAplicar(resolvidos, c.anotacoes, colCfop, colMva);
-        const plano = {
-          ...base,
-          gravacoes: [
-            ...base.gravacoes,
-            ...(colAliq
-              ? gravacoesAliquota(resolvidos, c.anotacoes, colAliq)
-              : []),
-          ],
-        };
+        const plano = planoDoAplicar(
+          resolvidos,
+          c.anotacoes,
+          { cfop: colCfop, mva: colMva, aliquota: colAliq },
+          campos,
+        );
         const preenchidas = plano.gravacoes.filter((g) =>
           g.atual.trim(),
         ).length;

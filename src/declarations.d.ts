@@ -443,7 +443,65 @@ interface PsApi {
   areaTransferencia(
     pedido: PedidoAreaTransferencia,
   ): Promise<ResultadoAreaTransferencia>;
+  // ---------- Configurações ----------
+  /** Ferramentas do painel de cada perfil (ordem, visíveis, campos da ST). */
+  ferramentasPerfis(): Promise<EstadoFerramentas>;
+  gravarFerramentasPerfil(
+    id: string,
+    ferramentas: FerramentasPerfil,
+  ): Promise<ResultadoFerramentas>;
+  aoMudarFerramentas(callback: () => void): void;
+  /** CNPJ da empresa e dias dos avisos (aba Geral). */
+  gravarConfigAvisos(p: Partial<ConfigAvisos>): Promise<ResultadoConfigAvisos>;
+  aoMudarAvisos(callback: () => void): void;
+  /** Arquivos que o app guarda na pasta de dados. */
+  dadosApp(): Promise<EstadoDadosApp>;
+  abrirPastaDados(): Promise<ResultadoAbrirPasta>;
+  exportarBackup(): Promise<ResultadoExportarConfig>;
+  /** Escolhe e valida um .psbackup, sem gravar: devolve o que vai substituir. */
+  lerBackup(): Promise<ResultadoLerBackup>;
+  confirmarBackup(token: string): Promise<ResultadoImportarBackup>;
+  cancelarBackup(token: string): Promise<void>;
 }
+
+type FerramentasPerfil = import('./nfe/ferramentasPerfil').FerramentasPerfil;
+
+interface EstadoFerramentas {
+  ativo: string;
+  lista: { id: string; nome: string; ferramentas: FerramentasPerfil }[];
+}
+
+type ResultadoFerramentas =
+  | { status: 'ok'; estado: EstadoFerramentas }
+  | { status: 'erro'; mensagem: string };
+
+type ResultadoConfigAvisos =
+  | { status: 'ok'; config: ConfigAvisos }
+  | { status: 'erro'; mensagem: string };
+
+interface EstadoDadosApp {
+  /** A pasta de dados de verdade (app.getPath('userData')). */
+  pasta: string;
+  itens: import('./dadosApp').ItemDadosApp[];
+}
+
+type ResumoBackup = import('./dadosApp').ResumoBackup;
+
+type ResultadoLerBackup =
+  | { status: 'cancelado' }
+  | { status: 'erro'; mensagem: string }
+  | {
+      status: 'lido';
+      token: string;
+      arquivo: string;
+      novo: ResumoBackup;
+      atual: ResumoBackup;
+    };
+
+type ResultadoImportarBackup =
+  | { status: 'cancelado' }
+  | { status: 'erro'; mensagem: string }
+  | { status: 'ok'; pastaAntes: string };
 
 interface Window {
   psApi: PsApi;

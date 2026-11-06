@@ -167,4 +167,32 @@ contextBridge.exposeInMainWorld('psApi', {
     pedido: PedidoAreaTransferencia,
   ): Promise<ResultadoAreaTransferencia> =>
     ipcRenderer.invoke('area-transferencia', pedido),
+  ferramentasPerfis: (): Promise<EstadoFerramentas> =>
+    ipcRenderer.invoke('ferramentas-perfis'),
+  gravarFerramentasPerfil: (
+    id: string,
+    ferramentas: FerramentasPerfil,
+  ): Promise<ResultadoFerramentas> =>
+    ipcRenderer.invoke('gravar-ferramentas-perfil', id, ferramentas),
+  aoMudarFerramentas: (callback: () => void): void => {
+    ipcRenderer.on('ferramentas-mudou', () => callback());
+  },
+  gravarConfigAvisos: (
+    p: Partial<ConfigAvisos>,
+  ): Promise<ResultadoConfigAvisos> =>
+    ipcRenderer.invoke('gravar-config-avisos', p),
+  aoMudarAvisos: (callback: () => void): void => {
+    ipcRenderer.on('avisos-mudou', () => callback());
+  },
+  dadosApp: (): Promise<EstadoDadosApp> => ipcRenderer.invoke('dados-app'),
+  abrirPastaDados: (): Promise<ResultadoAbrirPasta> =>
+    ipcRenderer.invoke('abrir-pasta-dados'),
+  exportarBackup: (): Promise<ResultadoExportarConfig> =>
+    ipcRenderer.invoke('exportar-backup'),
+  lerBackup: (): Promise<ResultadoLerBackup> =>
+    ipcRenderer.invoke('ler-backup'),
+  confirmarBackup: (token: string): Promise<ResultadoImportarBackup> =>
+    ipcRenderer.invoke('confirmar-backup', token),
+  cancelarBackup: (token: string): Promise<void> =>
+    ipcRenderer.invoke('cancelar-backup', token),
 } satisfies PsApi);

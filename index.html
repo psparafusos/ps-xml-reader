@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/src/styles/tokens.css" />
     <link rel="stylesheet" href="/src/styles/app.css" />
     <link rel="stylesheet" href="/src/styles/bancada.css" />
+    <link rel="stylesheet" href="/src/styles/configuracoes.css" />
     <link rel="stylesheet" href="/src/styles/print.css" />
     <link rel="stylesheet" href="/src/danfe/danfe.css" />
     <script type="module" src="/src/renderer.ts"></script>
@@ -136,6 +137,14 @@
             ></div>
           </div>
         </div>
+        <!-- Engrenagem: abre as Configurações (src/configuracoes.ts). O
+             ícone vem de src/icones.ts (renderer.ts). -->
+        <button
+          id="btn-config-barra"
+          type="button"
+          class="config-engrenagem"
+          aria-label="Configurações"
+        ></button>
       </div>
       <!-- Grupos por função: navegação, modo, saída. Salvar é o único botão
            principal; os demais são secundários. Com pouco espaço, a saída
@@ -345,6 +354,12 @@
           <!-- O seletor de perfil da barra amarela vem para cá enquanto a
                tela inicial está à mostra (renderer.ts, mostrarTela). -->
           <div id="inicio-perfil" class="inicio__perfil"></div>
+          <button
+            id="btn-config-inicio"
+            type="button"
+            class="config-engrenagem"
+            aria-label="Configurações"
+          ></button>
         </div>
       </header>
 
