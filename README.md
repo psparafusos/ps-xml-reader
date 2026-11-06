@@ -106,8 +106,9 @@ existir mais, abre no padrão do Windows.
 ### Tela inicial
 
 - **Faixa preta** no topo: a logo e "PS Reader", e à direita as pastilhas dos
-  documentos de referência, com a bolinha do semáforo ("ST ok", "TIPI falta")
-  e a pastilha amarela **Perfil**, que abre o seletor de perfil (o mesmo da
+  documentos de referência, com o ícone do estado ("ST ok", "TIPI falta", "ST
+  reimportar"), cada uma um botão que abre o cartão daquele documento na tela
+  de Documentos (como na barra da nota), e a pastilha amarela **Perfil**, que abre o seletor de perfil (o mesmo da
   barra amarela da nota).
 - **Zona de soltar**, com **Abrir arquivo**.
 - **Pasta de destino**: o caminho, **Trocar** (escolhe outra pasta) e **Abrir
@@ -258,6 +259,13 @@ na largura do conteúdo, o quadro de itens cresce para os lados, até a margem
 da janela e sem passar por cima do painel de conferência; só o que ainda não
 couber rola na horizontal, com as setas nas laterais. No PDF e na impressão a
 tabela segue a folha.
+
+A Descrição mostra até 3 linhas, com reticências; numa descrição cortada,
+clicar na célula mostra o texto inteiro (a linha cresce) e clicar de novo
+recolhe (pelo teclado: Tab até ela, Enter ou espaço). Palavra comprida sem
+espaço (código de barras colado no texto, "EAN:789...;REF:...") quebra dentro
+da coluna, em vez de alargar a tabela. No PDF e na impressão a descrição sai
+inteira, quebrando dentro da coluna.
 
 ### Orientação e folha (modo Conferência)
 
@@ -456,6 +464,9 @@ numa página da web.
 A barra da nota tem três grupos. Quando falta espaço, a saída desce para uma
 segunda linha; o título da nota nunca fica mais estreito que 240 px:
 
+- Documentos de referência: as pastilhas **ST** e **TIPI** (e
+  **Combustíveis**, quando carregado), com o ícone do estado; cada uma é um
+  botão que abre o cartão daquele documento na tela de Documentos.
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
   pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
 - Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
@@ -595,8 +606,10 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
 
 - **Verificações automáticas**: uma linha por verificação (idade da nota,
   total dos itens, duplicatas, vencimentos, destinatário, nota já
-  conferida), com ✓ (certo), i (só informa), ! amarelo (aviso leve) ou !
-  vermelho (alerta forte); clicar mostra o detalhe. O título diz o
+  conferida), com o ícone do estado: check verde (certo), i cinza (só
+  informa), triângulo amarelo (aviso leve) ou x vermelho (alerta forte),
+  os mesmos ícones dos documentos de referência (src/icones.ts); clicar
+  mostra o detalhe. O título diz o
   resultado, não a pergunta: "Totais conferem" ou "Total dos itens difere em
   R$ 2,10"; "Parcelas em dia" ou "Parcela 001 vencida há 20 dias";
   "Destinatário: P S Parafusos"; "Primeira conferência desta nota" ou "Já
@@ -620,7 +633,9 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
 
 Ações que passam de meio segundo (como procurar a nota na pasta de destino
 pela rede) mostram um círculo girando no painel. O botão no topo recolhe o
-painel numa barra fina, com o ✓ ou o número de pontos. Janela larga (o
+painel: sobram só dois botões flutuantes no canto de cima da área da nota,
+**›** para abrir e, embaixo, o selo da situação (check verde, ou o número de
+pontos em vermelho), que também abre. Janela larga (o
 painel cabe na sobra à esquerda da nota, como 1920 a 100%): ele fica aberto
 ao lado, sem empurrar a nota, e a janela lembra se você recolheu. Janela
 estreita (1366, ou 1920 a 125%): começa recolhido e abre por cima da nota;

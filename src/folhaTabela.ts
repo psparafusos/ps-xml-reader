@@ -31,6 +31,17 @@ export function copiaParaFolha(
     th.removeAttribute('tabindex');
     th.removeAttribute('title');
   }
+  // A descrição da tela (cortada em 3 linhas, que abre ao clicar) sai
+  // inteira no papel, sem o foco nem o estado de aberta.
+  for (const texto of copia.querySelectorAll('.descricao__texto'))
+    for (const atr of [
+      'tabindex',
+      'role',
+      'aria-expanded',
+      'data-cortada',
+      'data-aberta',
+    ])
+      texto.removeAttribute(atr);
   if (!ids) return copia;
   const colunas = [...copia.querySelectorAll<HTMLElement>('thead th')].map(
     (th) => th.dataset.coluna ?? '',

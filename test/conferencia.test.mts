@@ -245,7 +245,9 @@ describe('vencimentos e idade da nota no resumo', () => {
     const v = ver(r, 'vencimentos');
     assert.equal(v.nivel, 'forte');
     assert.equal(v.titulo, 'Parcela 001 vencida há 20 dias');
-    assert.match(v.detalhe, /Falar com o fornecedor para prorrogar/);
+    // A frase sai uma vez só, na linha da parcela vencida.
+    assert.doesNotMatch(v.detalhe, /Falar com o fornecedor/);
+    assert.equal(v.detalhe, 'Datas contadas a partir de hoje.');
     assert.deepEqual(
       v.linhas?.map((l) => l.nivel),
       ['forte', 'leve', 'ok'],

@@ -133,8 +133,9 @@
 
   /* ---------- botões: uma família só ---------- */
 
-  /* Principal (Abrir arquivo, Aplicar, Rodar, Salvar): amarelo, texto
-     preto. Secundário (.botao--claro: Fechar, Início, Abrir pasta,
+  /* Principal (Abrir arquivo, Aplicar, Salvar): amarelo, texto preto.
+     Ferramenta (.botao--ferramenta, Rodar no painel): preto, texto branco
+     (app.css). Secundário (.botao--claro: Fechar, Início, Abrir pasta,
      Imprimir): branco, borda clara, texto preto. As cores vêm dos tokens
      --botao-* acima; aqui só a borda fina, sem o contorno preto de 2 px. */
   .botao {
@@ -469,11 +470,6 @@
     outline-offset: -1px;
   }
 
-  .docs-linha__abrir .estado-icone {
-    width: 22px;
-    height: 22px;
-  }
-
   .docs-linha__meio {
     display: grid;
     gap: 1px;
@@ -754,9 +750,11 @@
     background: var(--cartao-fundo);
   }
 
+  /* Títulos dos blocos da nota (Emitente, Itens, Totais...): negrito e na
+     cor do texto principal, como no PDF. */
   #nota .secao__titulo {
     border-bottom-color: var(--cartao-borda);
-    color: var(--titulo-secao-cor);
+    color: var(--cor-texto-forte);
     font-size: var(--titulo-secao-tamanho);
     letter-spacing: var(--titulo-secao-espaco);
   }
@@ -792,19 +790,13 @@
 
   .conferencia__recolher,
   .conferencia__expandir,
-  .conferencia__icone-trilho:not(
-    .conferencia__icone-trilho--ok,
-    .conferencia__icone-trilho--alerta
-  ) {
+  .conferencia__icone-trilho {
     border-color: var(--bancada-borda);
   }
 
   .conferencia__recolher:hover,
   .conferencia__expandir:hover,
-  .conferencia__icone-trilho:not(
-      .conferencia__icone-trilho--ok,
-      .conferencia__icone-trilho--alerta
-    ):hover {
+  .conferencia__icone-trilho:hover {
     border-color: var(--bancada-borda-forte);
     background: var(--bancada-fundo);
   }
@@ -1054,24 +1046,32 @@
     gap: var(--esp-2);
   }
 
+  /* Pastilhas dos documentos, na barra da nota e na faixa da tela inicial:
+     cada uma é um botão (abre o cartão dela). */
   .barra__documentos {
     display: inline-flex;
     align-items: center;
     gap: var(--esp-2);
-    padding: 0;
-    border: 0;
-    border-radius: var(--pastilha-raio);
-    background: none;
-    color: inherit;
-    font: inherit;
+  }
+
+  .barra__documentos .pastilha,
+  .inicio__documentos .pastilha {
+    font-family: inherit;
     cursor: pointer;
   }
 
-  .barra__documentos:hover .pastilha {
+  .barra__documentos .pastilha:hover,
+  .inicio__documentos .pastilha:hover {
     border-color: var(--ps-branco);
   }
 
-  .barra__documentos:focus-visible,
+  /* Foco por teclado: um contorno fino e claro só na pastilha focada. */
+  .barra__documentos .pastilha:focus-visible,
+  .inicio__documentos .pastilha:focus-visible {
+    outline: var(--foco-pastilha-espessura) solid var(--foco-pastilha-cor);
+    outline-offset: var(--foco-pastilha-afastamento);
+  }
+
   .barra .botao:focus-visible,
   .barra .seletor__opcao:focus-visible {
     outline: var(--botao-foco-espessura) solid var(--ps-branco);
