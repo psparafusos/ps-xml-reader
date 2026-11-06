@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 import type { AnaliseItem } from '../src/fiscal/analise.ts';
 import type { DecisaoLembrada, EscolhaST } from '../src/fiscal/entrada.ts';
 import {
+  chaveEscolha,
   observacaoMvaFornecedor,
+  rotuloEscolha,
   sugestaoHistorico,
 } from '../src/historicoST.ts';
 
@@ -172,5 +174,29 @@ describe('MVA do fornecedor x planilha', () => {
     assert.equal(observacaoMvaFornecedor(undefined, 0.5694), null);
     assert.equal(observacaoMvaFornecedor('', 0.5694), null);
     assert.equal(observacaoMvaFornecedor('40.00', null), null);
+  });
+});
+
+describe('histórico: escolha do Apêndice XIV', () => {
+  const derivado: EscolhaST = {
+    tipo: 'apendice-xiv',
+    lubrificante: 'derivado',
+  };
+  const naoDerivado: EscolhaST = {
+    tipo: 'apendice-xiv',
+    lubrificante: 'nao-derivado',
+  };
+
+  it('a chave separa derivado de não derivado', () => {
+    assert.equal(chaveEscolha(derivado), 'apendice|derivado');
+    assert.notEqual(chaveEscolha(derivado), chaveEscolha(naoDerivado));
+  });
+
+  it('o rótulo diz o grupo do lubrificante', () => {
+    assert.equal(rotuloEscolha(derivado), 'Apêndice XIV, derivado de petróleo');
+    assert.equal(
+      rotuloEscolha(naoDerivado),
+      'Apêndice XIV, não derivado de petróleo',
+    );
   });
 });

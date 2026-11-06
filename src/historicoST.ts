@@ -6,6 +6,7 @@
 import type { AnaliseItem } from './fiscal/analise';
 import {
   decisaoAplicavel,
+  ROTULO_LUBRIFICANTE,
   textoMva,
   type DecisaoLembrada,
   type EscolhaST,
@@ -17,13 +18,16 @@ export const HISTORICO_MINIMO = 2;
 /** Fração das decisões que precisa ser a mesma escolha para sugerir. */
 export const HISTORICO_LIMIAR = 0.8;
 
-/** Chave de "mesma escolha": mesma linha, Sem ST ou mesmo CFOP manual. */
+/**
+ * Chave de "mesma escolha": mesma linha, mesmo grupo do Apêndice XIV
+ * (derivado ou não derivado de petróleo), Sem ST ou mesmo CFOP manual.
+ */
 export function chaveEscolha(e: EscolhaST): string {
   switch (e.tipo) {
     case 'candidato':
       return `linha|${e.segmento}|${e.linhaPlanilha}`;
     case 'apendice-xiv':
-      return `apendice|${e.linhaPlanilha}|${e.descricao}`;
+      return `apendice|${e.lubrificante}`;
     case 'sem-st':
       return 'sem-st';
     case 'manual':
@@ -37,7 +41,7 @@ export function rotuloEscolha(e: EscolhaST): string {
     case 'candidato':
       return `${e.segmento}, CEST ${e.cest} (linha ${e.linhaPlanilha})`;
     case 'apendice-xiv':
-      return `${e.descricao} (linha ${e.linhaPlanilha} do Apêndice XIV)`;
+      return `Apêndice XIV, ${ROTULO_LUBRIFICANTE[e.lubrificante]}`;
     case 'sem-st':
       return 'Sem ST';
     case 'manual':
