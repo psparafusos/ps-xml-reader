@@ -8,7 +8,7 @@
 // A tabela não cabe no painel (300 px): abre numa janela própria, por cima
 // da nota. A análise roda no processo principal (src/documentos.ts); a
 // lógica de cada item é de src/fiscal/entrada.ts, com os campos novos do
-// motor (rótulo e troca da MVA, alíquota interna, observações) em
+// motor (rótulo da MVA, alíquota interna, observações) em
 // src/previaST.ts.
 
 import { perguntar } from './dialogos';
@@ -25,14 +25,14 @@ import {
   raizCnpj,
   RESSALVA_APENDICE_XIV,
   ROTULO_FINALIDADE,
-  textoMva,
   type EscolhaST,
+  type DecisaoLembrada,
   type Finalidade,
 } from './fiscal/entrada';
 import {
+  decisaoDaLembrada,
   gravacoesAliquota,
   previaItem,
-  type DecisaoLembradaST,
   type DecisaoST,
   type LinhaPrevia,
 } from './previaST';
@@ -129,19 +129,22 @@ export function abrirFerramentaST(c: ContextoST): void {
     const item = porItem.get(analise.nItem);
     if (!item) continue;
     analises.set(analise.nItem, analise);
-    const vale = lembrada !== null && decisaoAplicavel(analise, lembrada);
+    // Decisão antiga que só guardava a MVA-ST 2 não vale mais (a loja não
+    // tem índice de fidelização): o item fica no automático, com a MVA-ST 1.
+    const lembradaDecisao =
+      lembrada !== null && decisaoAplicavel(analise, lembrada)
+        ? decisaoDaLembrada(lembrada)
+        : null;
+    const vale = lembradaDecisao !== null;
     linhas.push({
       item,
-      decisao: vale
-        ? {
-            escolha: lembrada.escolha,
-            finalidade: lembrada.finalidade,
-            mvaJogo: (lembrada as DecisaoLembradaST).mvaJogo ?? null,
-          }
-        : { escolha: null, finalidade: FINALIDADE_PADRAO, mvaJogo: null },
+      decisao: lembradaDecisao ?? {
+        escolha: null,
+        finalidade: FINALIDADE_PADRAO,
+      },
       lembrada: vale,
       guardada: false,
-      origem: vale ? lembrada.origem : undefined,
+      origem: vale ? lembrada?.origem : undefined,
     });
   }
 
@@ -404,15 +407,14 @@ export function abrirFerramentaST(c: ContextoST): void {
       l.guardada = false;
     } else if (
       decisao.escolha === null &&
-      decisao.finalidade === FINALIDADE_PADRAO &&
-      !decisao.mvaJogo
+      decisao.finalidade === FINALIDADE_PADRAO
     ) {
       // Voltou ao automático: nada a lembrar.
       await window.psApi.esquecerDecisao(chave);
       historico.delete(chave);
       l.guardada = false;
     } else {
-      const lembrada: DecisaoLembradaST = {
+      const lembrada: DecisaoLembrada = {
         ...decisao,
         raizCnpj: raizCnpj(cnpj),
         fornecedor: nota.emitente.xNome,
@@ -431,7 +433,7 @@ export function abrirFerramentaST(c: ContextoST): void {
     await window.psApi.esquecerDecisao(chaveDecisao(cnpj, l.item.cProd));
     historico.delete(chaveDecisao(cnpj, l.item.cProd));
     l.origem = undefined;
-    l.decisao = { escolha: null, finalidade: FINALIDADE_PADRAO, mvaJogo: null };
+    l.decisao = { escolha: null, finalidade: FINALIDADE_PADRAO };
     l.lembrada = false;
     l.guardada = false;
   }
@@ -464,35 +466,10 @@ export function abrirFerramentaST(c: ContextoST): void {
     confirmar: 'Confirmar',
   };
 
-  /** MVA com o rótulo; em Autopeças, um seletor para trocar o jogo. */
-  function celulaMva(l: Linha, r: LinhaPrevia): HTMLTableCellElement {
-    const n = l.item.nItem;
+  /** MVA com o rótulo, como texto (em Autopeças, sempre a MVA-ST 1). */
+  function celulaMva(r: LinhaPrevia): HTMLTableCellElement {
     const textual = r.mva === null && r.mvaTexto !== '-';
     const td = el('td', `num st__mva${textual ? ' st__mva--texto' : ''}`);
-    if (r.mvaOpcoes.length > 1) {
-      const sel = menus.seletor({
-        rotulo: `Jogo de MVA do item ${n}`,
-        opcoes: r.mvaOpcoes.map((m) => ({
-          valor: m.rotulo,
-          texto: `${m.rotulo}: ${m.valor === null ? '-' : textoMva(m.valor)}`,
-        })),
-        valor: r.mvaRotulo ?? r.mvaOpcoes[0].rotulo,
-        classe: 'seletor-menu--pequeno st__mva-jogo',
-        aoMudar: (v) =>
-          void acao(`mva-${n}`, () =>
-            decidir(l, {
-              ...l.decisao,
-              // O padrão do motor não precisa ser lembrado.
-              mvaJogo: v === r.mvaOpcoes[0].rotulo ? null : v,
-            }),
-          ),
-      });
-      sel.botao.dataset.foco = `mva-${n}`;
-      sel.botao.title =
-        'MVA-ST 1 é a regra geral; MVA-ST 2 é para fidelização com montadora';
-      td.append(sel.botao);
-      return td;
-    }
     td.append(r.mvaTexto);
     if (r.mvaRotulo) td.append(el('span', 'st__cest', r.mvaRotulo));
     return td;
@@ -645,7 +622,7 @@ export function abrirFerramentaST(c: ContextoST): void {
               : `${a.candidatos.length} opções`),
         r.cest && el('span', 'st__cest', `CEST ${r.cest}`),
       ),
-      celulaMva(l, r),
+      celulaMva(r),
       el(
         'td',
         `st__aliq${r.aliquotaConfirmar ? ' st__aliq--confirmar' : ''}`,

@@ -6,7 +6,9 @@ import { lerTabelaST } from '../src/fiscal/st.ts';
 import { lerXlsx } from '../src/fiscal/xlsx.ts';
 import {
   baseSemProtocolos,
+  decisaoDaLembrada,
   gravacoesAliquota,
+  MOTIVO_SEM_FIDELIZACAO,
   previaItem,
   type DecisaoST,
 } from '../src/previaST.ts';
@@ -93,35 +95,89 @@ const item = (p: Partial<ItemFiscal>): ItemFiscal => ({
 const revenda: DecisaoST = { escolha: null, finalidade: 'revenda' };
 
 describe('prévia: Autopeças e a troca de MVA', () => {
+  // A loja não tem índice de fidelização: vale sempre a MVA-ST 1, sem troca.
   const a = analisarItem(item({}), 'SP', { st });
+  const c = a.candidatos[0];
 
-  it('vem com a MVA-ST 1 e a MVA-ST 2 para trocar', () => {
+  it('mostra só a MVA-ST 1, sem opção de troca', () => {
     const l = previaItem(a, 'SP', revenda);
     assert.equal(l.st, 'sim');
     assert.equal(l.mvaRotulo, 'MVA-ST 1');
     assert.equal(l.mva, 0.6066);
     assert.equal(l.mvaTexto, '60,66%');
-    assert.deepEqual(
-      l.mvaOpcoes.map((m) => [m.rotulo, m.valor]),
-      [
-        ['MVA-ST 1', 0.6066],
-        ['MVA-ST 2', 0.5555],
-      ],
-    );
+    assert.equal('mvaOpcoes' in l, false);
     assert.equal(l.precisaDeMim, false);
     assert.equal(l.cfop, '2403');
   });
 
-  it('a escolha da MVA-ST 2 troca o valor (e vai na decisão)', () => {
-    const l = previaItem(a, 'SP', { ...revenda, mvaJogo: 'MVA-ST 2' });
-    assert.equal(l.mvaRotulo, 'MVA-ST 2');
-    assert.equal(l.mva, 0.5555);
-    assert.equal(l.mvaTexto, '55,55%');
+  it('o motivo diz que é a regra geral, sem índice de fidelização', () => {
+    const l = previaItem(a, 'SP', revenda);
+    assert.equal(
+      l.motivo,
+      `Autopecas, CEST 01.001.00; ${MOTIVO_SEM_FIDELIZACAO}`,
+    );
+    assert.equal(
+      MOTIVO_SEM_FIDELIZACAO,
+      'MVA-ST 1 (regra geral; a loja não tem índice de fidelização)',
+    );
   });
 
-  it('jogo que não existe volta ao padrão', () => {
-    const l = previaItem(a, 'SP', { ...revenda, mvaJogo: 'MVA-ST 9' });
+  it('decisão antiga com a MVA-ST 2 passa a usar a MVA-ST 1', () => {
+    const antiga = { ...revenda, mvaJogo: 'MVA-ST 2' } as DecisaoST;
+    const l = previaItem(a, 'SP', antiga);
     assert.equal(l.mvaRotulo, 'MVA-ST 1');
+    assert.equal(l.mva, 0.6066);
+  });
+
+  it('lembrada que só guardava a MVA-ST 2 volta ao automático', () => {
+    const base = {
+      raizCnpj: '12345678',
+      fornecedor: 'Fornecedor Inventado Ltda',
+      cProd: 'P-1',
+      xProd: 'Tubo de borracha',
+      ncm: '40093100',
+      atualizadaEm: '2026-11-01T10:00:00.000Z',
+    };
+    assert.equal(
+      decisaoDaLembrada({ ...base, ...revenda, mvaJogo: 'MVA-ST 2' }),
+      null,
+    );
+    // Com outra decisão junto (finalidade), fica a decisão sem o jogo.
+    assert.deepEqual(
+      decisaoDaLembrada({
+        ...base,
+        escolha: null,
+        finalidade: 'uso-consumo',
+        mvaJogo: 'MVA-ST 2',
+      }),
+      { escolha: null, finalidade: 'uso-consumo' },
+    );
+  });
+
+  it('linha escolhida pela pessoa: também a MVA-ST 1, sem "confirmar"', () => {
+    const l = previaItem(a, 'SP', {
+      escolha: {
+        tipo: 'candidato',
+        segmento: c.segmento,
+        linhaPlanilha: c.linhaPlanilha,
+        cest: c.cest,
+      },
+      finalidade: 'revenda',
+    });
+    assert.equal(l.mvaRotulo, 'MVA-ST 1');
+    assert.equal(l.mvaTexto, '60,66%');
+    assert.equal(l.precisaDeMim, false);
+    assert.match(l.motivo, /a loja não tem índice de fidelização/);
+  });
+
+  it('segmento com um jogo só (Tintas): motivo sem a nota de fidelização', () => {
+    const l = previaItem(
+      analisarItem(item({ NCM: '32081010' }), 'SP', { st }),
+      'SP',
+      revenda,
+    );
+    assert.equal(l.mvaRotulo, 'MVA-ST');
+    assert.doesNotMatch(l.motivo, /fidelização/);
   });
 });
 

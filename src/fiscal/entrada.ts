@@ -16,11 +16,31 @@
 // produto. Valem na próxima nota do mesmo produto se o NCM for o mesmo (e,
 // para a linha escolhida, se ela ainda estiver entre os candidatos).
 
-import type { AnaliseItem, CandidatoAnalise } from './analise';
+import type { AnaliseItem, CandidatoAnalise, MvaJogo } from './analise';
 
 /** Motivo do item que pode ser lubrificante do Apêndice XIV (fiscal/analise.ts). */
 export const MOTIVO_APENDICE_XIV =
   'Pode ser lubrificante do Apêndice XIV (sem NCM na planilha); confirme';
+
+/**
+ * Autopeças com MVA-ST 1 e MVA-ST 2 (índice de fidelização): a 1 é a padrão.
+ * É o único segmento da planilha de Sergipe com a MVA-ST 2, e a loja não tem
+ * índice de fidelização. Fica aqui (e não em analise.ts) porque a tela usa:
+ * analise.ts puxa o leitor de .xlsx, que só roda no processo principal.
+ */
+export function jogosAutopecas(
+  c: Pick<CandidatoAnalise, 'segmento' | 'segmentoOficial' | 'mvas'>,
+): { padrao: MvaJogo; alternativa: MvaJogo } | null {
+  const seg = `${c.segmento} ${c.segmentoOficial}`
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+  if (!/autope/.test(seg)) return null;
+  if (c.mvas.length !== 2) return null;
+  const padrao = c.mvas.find((m) => /^MVA-ST\s*1$/i.test(m.rotulo));
+  const alternativa = c.mvas.find((m) => /^MVA-ST\s*2$/i.test(m.rotulo));
+  return padrao && alternativa ? { padrao, alternativa } : null;
+}
 
 /** Opção do Apêndice XIV (fiscal/combustiveis.ts lê os dois grupos). */
 export type TipoLubrificante = 'derivado' | 'nao-derivado';

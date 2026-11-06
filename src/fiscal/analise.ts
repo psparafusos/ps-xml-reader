@@ -14,7 +14,8 @@
 //   retenção pelo fornecedor. Sem ST: 1102 ou 2102.
 // - Autopeças: vale a MVA-ST 1 (regra geral). A MVA-ST 2 (índice de
 //   fidelização) é só para venda com fidelização a montadora, que não é o
-//   caso da loja; fica à parte (mvaAlternativa) para troca manual.
+//   caso da loja (ela não tem índice de fidelização). O motor ainda lê a
+//   MVA-ST 2 (mvaAlternativa, só informação); a tela não oferece a troca.
 // - A alíquota interna varia por produto: vem sempre da linha da planilha.
 // - Estados com protocolo/convênio com SE: a nota deveria trazer o ST
 //   retido. É só observação; não muda a ST nem o CFOP.
@@ -33,7 +34,7 @@ import type {
   TabelaCombustiveis,
   TipoLubrificante,
 } from './combustiveis';
-import { MOTIVO_APENDICE_XIV } from './entrada';
+import { jogosAutopecas, MOTIVO_APENDICE_XIV } from './entrada';
 
 export { MOTIVO_APENDICE_XIV };
 import {
@@ -171,7 +172,7 @@ export interface AnaliseItem {
   mva: number | null;
   /** Rótulo do jogo de onde veio a mva ("MVA-ST", "MVA-ST 1"). */
   mvaRotulo: string | null;
-  /** Outro jogo disponível para troca manual (Autopeças: MVA-ST 2). */
+  /** MVA-ST 2 de Autopeças (fidelização): só informação, a loja não usa. */
   mvaAlternativa: MvaJogo | null;
   /** Alíquota interna da linha escolhida (só com um candidato). */
   aliquotaInterna: AliquotaInternaItem | null;
@@ -619,18 +620,6 @@ function chaveSegmento(s: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
-}
-
-/** Autopeças com MVA-ST 1 e MVA-ST 2: a 1 é a padrão. */
-function jogosAutopecas(
-  c: CandidatoAnalise,
-): { padrao: MvaJogo; alternativa: MvaJogo } | null {
-  if (!/autope/.test(chaveSegmento(`${c.segmento} ${c.segmentoOficial}`)))
-    return null;
-  if (c.mvas.length !== 2) return null;
-  const padrao = c.mvas.find((m) => /^MVA-ST\s*1$/i.test(m.rotulo));
-  const alternativa = c.mvas.find((m) => /^MVA-ST\s*2$/i.test(m.rotulo));
-  return padrao && alternativa ? { padrao, alternativa } : null;
 }
 
 /**
