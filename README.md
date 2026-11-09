@@ -4,11 +4,89 @@ Aplicativo Windows de uso interno da PS Parafusos e Segurança LTDA. Lê o XML d
 uma NF-e (layout 4.00), mostra a nota em tela e salva em PDF, em dois modos:
 **Conferência** (itens, totais e anotações) e **DANFE** (A4 retrato, conforme o
 Manual de Orientação do Contribuinte). Funciona offline: a única chamada de
-rede é a verificação online dos documentos de referência, que vem desligada e
-só roda quando a pessoa liga e pede (veja Documentos de referência).
+rede é a verificação online dos documentos de referência (e o **Atualizar**
+que baixa a versão nova), que vem desligada e só roda quando a pessoa liga e
+pede (veja Documentos de referência).
 
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
+
+## Versão 1.2.4
+
+- **Configurações**: a engrenagem na faixa preta (tela inicial e tela da
+  nota) abre as Configurações dentro da janela, com seis abas: **Geral**,
+  **Perfis e colunas**, **Ferramentas**, **Documentos de referência**,
+  **Decisões lembradas** e **Dados do app** (veja Configurações).
+- **Ferramentas por perfil**: ordem, mostrar ou ocultar cada ferramenta do
+  painel e os campos do rodapé da "ST, MVA e CFOP". Campo oculto não é
+  gravado no Aplicar.
+- **Decisões lembradas** em aba própria, com busca, filtro por tipo e apagar
+  uma ou as selecionadas.
+- **Backup** (`.psbackup`): exportar e importar a configuração, os perfis,
+  as ferramentas, as preferências e as decisões lembradas.
+- As pastilhas **ST** e **TIPI** abrem a aba Documentos das Configurações já
+  no cartão do documento, com o foco nele.
+- **Acabamento visual**: ícones de estado iguais em todo o app (check verde,
+  i cinza, triângulo amarelo, x vermelho); painel recolhido vira dois botões
+  flutuantes (abrir e o selo da situação); botão **Rodar** preto; títulos
+  dos blocos da nota em negrito; planilha de ST importada sem os protocolos
+  aparece em aviso ("Reimportar"); palavra comprida da descrição quebra
+  dentro da coluna (na tela até 3 linhas, inteira ao clicar; no PDF
+  inteira); parcela vencida diz "Falar com o fornecedor" uma vez só.
+
+## Versão 1.2.3 (hotfix de segurança)
+
+- Electron 44.9.1 para 44.10.2 (correções de segurança do Chromium).
+- NF-e e `.psxml` com `<!DOCTYPE` ou `<!ENTITY` são recusados antes de
+  qualquer leitura, na janela e no processo principal.
+- Tamanho conferido antes de ler: NF-e e `.psxml` acima de 50 MB são
+  recusados.
+- Leitor de `.xlsx` com limites (64 MB por parte, 200 MB no total, 2.000
+  partes, células dentro dos limites do Excel); a planilha só é lida depois
+  de medida (até 30 MB).
+- Verificação online e **Atualizar** não seguem redirecionamento; a página
+  do CONFAZ é lida até 5 MB.
+- Permissões do navegador negadas; sandbox, `webSecurity` e ferramentas de
+  desenvolvedor configurados de forma explícita.
+
+## Versão 1.2.2
+
+- **Documentos de referência com estados visíveis**: na tela inicial, uma
+  linha por documento com o ícone do estado (ok, aviso, faltando, opcional),
+  versão, vigência e a ação ao lado (**Carregar** ou **Atualizar**). Versão
+  nova achada pela verificação online mostra "v0020 disponível"; o
+  **Atualizar** baixa só do CONFAZ e do gov.br, lê numa pasta temporária e
+  só troca o documento se a leitura passar.
+- **Apêndice XIV** lido do arquivo real do CONFAZ (aba única, apêndices
+  empilhados), com versão, UF e vigência; recusa o arquivo sem o apêndice ou
+  de outra UF. Na ferramenta, o "Sim" pergunta se o lubrificante é derivado
+  ou não derivado de petróleo.
+- **Ferramenta ST, MVA e CFOP**: explicação montada com a TIPI, as linhas
+  candidatas e a nota; "Sem ST" já marcado quando nada combina; opção
+  **Outro** (CFOP manual, com motivo obrigatório); sugestão **Pelo
+  histórico** das decisões no mesmo NCM; comparação da MVA do fornecedor
+  com a da planilha; dicas nos cabeçalhos e botões.
+- **Fim da MVA-ST 2**: em Autopeças vale só a MVA-ST 1 (a loja não tem
+  índice de fidelização). Decisões lembradas com a MVA-ST 2 passam a usar a
+  MVA-ST 1.
+- **Pasta de destino na faixa preta**: a pastilha "Salvando em" (ou
+  "Escolha onde salvar") substitui o cartão da tela inicial e os botões da
+  barra da nota.
+- Aviso de erro de documento com **X** para fechar, que volta ao estado de
+  antes da tentativa.
+- `npm start` não perde mais a tela inicial com a recarga do servidor de
+  desenvolvimento.
+
+## Versão 1.2.1
+
+- **Visual Bancada em todas as telas e janelas**: a barra da nota vai para a
+  faixa preta com filete amarelo (logo, emitente, número, pastilhas ST e
+  TIPI e perfil); painel de conferência como cartão; uma família de botões e
+  um conjunto único de ícones. O PDF e o DANFE não mudam.
+- **Lubrificantes do Apêndice XIV** (Ato COTEPE/ICMS 61/19): terceiro
+  documento de referência, opcional. Com ele carregado, NCM 2710 e 3403 fora
+  da planilha de ST vira "confirmar" na ferramenta, com a escolha lembrada
+  por fornecedor e produto.
 
 ## Versão 1.2.0
 
@@ -103,19 +181,40 @@ a zona "Anexe aqui o XML da nota" fica em destaque. O diálogo de abrir começa
 na pasta do último arquivo aberto (guardada em `config.json`); se ela não
 existir mais, abre no padrão do Windows.
 
+Arquivo acima de 50 MB, ou com `<!DOCTYPE` ou `<!ENTITY`, é recusado antes
+de ser lido, com o motivo na tela. Planilhas (`.xlsx`) são medidas antes de
+abrir: até 30 MB, com limite por parte e no total do arquivo compactado.
+
 ### Tela inicial
 
-- **Faixa preta** no topo: a logo e "PS Reader", e à direita as pastilhas dos
-  documentos de referência, com o ícone do estado ("ST ok", "TIPI falta", "ST
-  reimportar"), cada uma um botão que abre o cartão daquele documento na tela
-  de Documentos (como na barra da nota), e a pastilha amarela **Perfil**, que abre o seletor de perfil (o mesmo da
-  barra amarela da nota).
+- **Faixa preta** no topo: a logo e "PS Reader", e à direita:
+  - as pastilhas dos documentos de referência, com o ícone do estado ("ST
+    ok", "TIPI falta", "ST reimportar"), cada uma um botão que abre as
+    Configurações na aba Documentos de referência, já no cartão daquele
+    documento (como na barra da nota);
+  - a pastilha da **pasta de destino** (ver Pasta de destino, abaixo);
+  - a pastilha amarela **Perfil**, que abre o seletor de perfil (o mesmo da
+    barra da nota);
+  - a **engrenagem**, que abre as Configurações.
 - **Zona de soltar**, com **Abrir arquivo**.
-- **Pasta de destino**: o caminho, **Trocar** (escolhe outra pasta) e **Abrir
-  pasta** (no Explorer; desabilitado sem pasta escolhida, com erro se a pasta
-  não existir mais).
-- **Documentos de referência**: o que está carregado ("ST v0019 · TIPI
-  2022") e **Gerenciar**, que abre a área dos documentos.
+- **Documentos de referência**: uma linha por documento (um por coluna, ou
+  um embaixo do outro na janela estreita), com o ícone do estado, o nome, a
+  versão e a vigência ("Versão 0019, vigência a partir de ..."; na TIPI,
+  "TIPI 2022, atualizada até ...") e, quando há algo a
+  fazer, a situação ("Faltando", "v0020 disponível"). À direita, a ação:
+  **Carregar** (documento faltando ou opcional) ou **Atualizar** (versão
+  nova achada pela verificação online). Clicar na linha abre o cartão do
+  documento nas Configurações; **Gerenciar** abre a aba inteira.
+
+**Pasta de destino**: na faixa preta, antes do Perfil, na tela inicial e na
+tela da nota. Com pasta escolhida, a pastilha mostra "Salvando em: <última
+pasta>" e a seta abre um menu com o caminho completo, **Trocar pasta...** e
+**Abrir pasta no Explorer** (com erro se a pasta não existir mais). Sem pasta,
+a pastilha fica amarela, "Escolha onde salvar", e o clique abre direto o
+seletor. O caminho fica em `config.json` (chave `pastaDestino`), dentro da
+pasta de dados do app (`%APPDATA%\PS Reader`), e vale também depois de
+reabrir o app. A mesma pasta aparece na aba Geral das Configurações.
+
 - **Notas recentes**: as últimas 8 notas abertas ou salvas, a mais recente
   em cima, com fornecedor, número, quantidade de itens, último acesso ("hoje
   10:42", "ontem 16:05", "28/10 09:00") e a situação: **em conferência** (XML
@@ -184,8 +283,8 @@ no ícone fixado.
 destino do duplo clique e o título. É do app inteiro (processo principal):
 a personalização da conferência e a pasta de destino salva. Quando uma delas
 muda numa janela, as outras atualizam na hora (a tabela de itens é remontada
-com as colunas novas; o botão **Pasta de destino** mostra a pasta nova, menos
-nas janelas que têm a pasta do duplo clique).
+com as colunas novas; a pastilha da pasta de destino mostra a pasta nova,
+menos nas janelas que têm a pasta do duplo clique).
 
 Fechar uma janela com anotação não salva pergunta só por ela. Fechar o app
 (por exemplo **Fechar todas as janelas** na barra de tarefas) pergunta por
@@ -197,11 +296,11 @@ O `.xml` continua abrindo com o programa de antes no duplo clique; um `.xml`
 passado na linha de comando (`"PS Reader.exe" nota.xml`) também abre.
 
 Um `.psxml` aberto por duplo clique faz da pasta dele a pasta de destino só
-naquela janela: o botão **Pasta de destino** dela mostra essa pasta com a marca
-"só nesta janela", e um aviso explica que a pasta salva volta quando a janela
-fechar. Essa pasta fica só na memória e nunca é gravada no `config.json`.
-Escolher uma pasta no botão vence: ela vira a pasta salva e a da janela deixa
-de valer. Abrir um `.psxml` pelo **Abrir arquivo**, pelo **Abrir outro XML** ou
+naquela janela: a pastilha da pasta de destino dela mostra essa pasta com a
+marca "só nesta janela", e um aviso explica que a pasta salva volta quando a
+janela fechar. Essa pasta fica só na memória e nunca é gravada no
+`config.json`. Escolher uma pasta em **Trocar pasta...** vence: ela vira a
+pasta salva e a da janela deixa de valer. Abrir um `.psxml` pelo **Abrir arquivo**, pelo **Abrir outro XML** ou
 arrastando não muda a pasta.
 
 Na tabela de itens da conferência, a coluna **Anotação** recebe um texto livre
@@ -328,8 +427,8 @@ Se o painel tem mudanças ainda não aplicadas, uma caixa pergunta antes:
 **Aplicar e trocar** (grava no perfil atual), **Descartar e trocar** ou
 **Cancelar**. Esc ou um clique fora fecham só a lista.
 
-Sem abrir o painel, a barra amarela da nota mostra, abaixo de "NF-e nº ...
-série ...", a etiqueta **Perfil: <nome>** com uma seta. Clicar nela (ou Enter
+Sem abrir o painel, a faixa preta (da nota e da tela inicial) mostra a
+pastilha amarela **Perfil: <nome>** com uma seta. Clicar nela (ou Enter
 ou espaço, com o foco nela) abre a lista dos perfis, com o ativo marcado (✓);
 as setas navegam, Enter escolhe e Esc fecha. Clicar noutro perfil troca na hora,
 em todas as janelas, e mostra o aviso "Perfil <nome> ativo". No fim da lista,
@@ -461,12 +560,14 @@ enquanto o app está aberto. A impressão e o PDF saem sempre em 100%, e o DANFE
 é sempre paginado em 100%. Com zoom alto o DANFE pode rolar na horizontal, como
 numa página da web.
 
-A barra da nota tem três grupos. Quando falta espaço, a saída desce para uma
-segunda linha; o título da nota nunca fica mais estreito que 240 px:
+A barra da nota fica na faixa preta com filete amarelo: a logo, o emitente e
+o número da nota; as pastilhas **ST** e **TIPI** (e **Combustíveis**, quando
+carregado), com o ícone do estado, cada uma um botão que abre as
+Configurações no cartão daquele documento; a pastilha da pasta de destino; a
+pastilha **Perfil**; a engrenagem das Configurações; e, à direita, os grupos
+de ações. Quando falta espaço, a saída desce para uma segunda linha; o
+título da nota nunca fica mais estreito que 240 px:
 
-- Documentos de referência: as pastilhas **ST** e **TIPI** (e
-  **Combustíveis**, quando carregado), com o ícone do estado; cada uma é um
-  botão que abre o cartão daquele documento na tela de Documentos.
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
   pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
 - Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
@@ -474,11 +575,6 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
   passar o mouse (e para o leitor de tela): "O DANFE só é gerado a partir do
   XML original."
 - Saída:
-  - **Pasta de destino**: escolhe a pasta onde os arquivos são gravados e
-    mostra a pasta onde o Salvar vai gravar. O caminho fica em `config.json`
-    (chave `pastaDestino`), dentro da pasta de dados do app
-    (`%APPDATA%\PS Reader`), e vale também depois de reabrir o app. Colado
-    nele, **Abrir pasta**, igual ao da tela inicial.
   - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual (na
     Conferência, já na orientação calculada para a tabela). Se a
     impressora padrão for de cupom, avisa antes; Cancelar não abre o diálogo. A
@@ -487,11 +583,11 @@ segunda linha; o título da nota nunca fica mais estreito que 240 px:
     Positivo não) e TM-T seguido de dígitos (EPSON TM-T20X-II).
   - **Salvar**, o único botão principal: na Conferência grava só a cópia
     editada (`.psxml`); no DANFE, só o PDF. Enquanto grava, mostra
-    "Salvando...". O Salvar grava sempre na pasta mostrada no botão **Pasta
-    de destino**. Com um `.psxml` aberto que está nessa mesma pasta, grava
+    "Salvando...". O Salvar grava sempre na pasta mostrada na pastilha da
+    pasta de destino. Com um `.psxml` aberto que está nessa mesma pasta, grava
     por cima dele sem perguntar (é o próprio arquivo aberto); se ele está em
     outra pasta, ou se o aberto é o XML original, grava o `.psxml` com o nome
-    padrão na pasta do botão e o aberto fica como está. Se esse `.psxml` já
+    padrão na pasta da pastilha e o aberto fica como está. Se esse `.psxml` já
     existe, pergunta **Substituir**, **Salvar cópia...** ou **Cancelar** (ver
     Salvar cópia).
   - A seta colada no Salvar abre um menu com **Salvar PDF** (o PDF do modo
@@ -628,8 +724,9 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
   até a linha, destaca a linha e põe o foco na caixa CFOP de entrada dela.
   Valores com poucos itens (até 10% dos preenchidos, no mínimo 1, havendo
   outro valor) ficam em destaque.
-- **Rodapé**: o semáforo dos documentos de referência ("● ST ok · ● TIPI
-  falta"); clicar abre a área deles.
+
+A ordem das ferramentas e quais aparecem são do perfil (Configurações, aba
+Ferramentas).
 
 Ações que passam de meio segundo (como procurar a nota na pasta de destino
 pela rede) mostram um círculo girando no painel. O botão no topo recolhe o
@@ -675,9 +772,12 @@ modo DANFE.
 
 ### Documentos de referência
 
-A área **Documentos de referência** abre pelo rodapé do painel de conferência
-e pelo botão da tela inicial. O app vem sem documentos; na primeira vez a área
-explica o que carregar e para quê. Um cartão por documento:
+Os documentos ficam na aba **Documentos de referência** das Configurações.
+Ela abre pela engrenagem, pelas pastilhas ST e TIPI (já no cartão daquele
+documento, com o foco nele), pelas linhas e pelo **Gerenciar** da tela
+inicial, e pelo atalho da ferramenta ST quando falta a planilha. O app vem
+sem documentos; na primeira vez a aba explica o que carregar e para quê. Um
+cartão por documento:
 
 - **Planilha de ST de Sergipe**: o `.xlsx` da página de Sergipe do Portal
   Nacional da Substituição Tributária (CONFAZ). Necessária para a ferramenta
@@ -685,14 +785,24 @@ explica o que carregar e para quê. Um cartão por documento:
 - **TIPI**: o `tipi.xlsx` da página da TIPI no site da Receita Federal, ou o
   texto `.txt` extraído do PDF. Sem ela, a ferramenta roda sem conferir NCM
   e IPI.
-- **Planilha de derivados de petróleo**: opcional, ainda não usada pelo app;
-  por enquanto não há importação.
+- **Lubrificantes do Apêndice XIV** (Ato COTEPE/ICMS 61/19): opcional. A
+  planilha do CONFAZ com os apêndices empilhados numa aba só; o app acha o
+  Apêndice XIV, os grupos (derivado e não derivado de petróleo), as colunas
+  Internas e Interestaduais e as alíquotas, e guarda versão, UF e vigência.
+  Arquivo sem o apêndice, ou de UF que não é Sergipe, é recusado. Com ele
+  carregado, NCM 2710 e 3403 fora da planilha de ST vira "confirmar" na
+  ferramenta.
 
-Cada cartão mostra o semáforo e o rótulo da situação, o nome do arquivo em
+Cada cartão mostra o ícone e o rótulo da situação, o nome do arquivo em
 uso com um **X** para remover o documento (com confirmação; sem a planilha de
 ST, a ferramenta volta a pedir o arquivo), a versão e a vigência, a data da
-importação, as quantidades lidas e os botões **Atualizar** e **Ver relatório
-da leitura**.
+importação, as quantidades lidas e os botões **Atualizar** (baixa do site
+oficial), **Trocar arquivo** e **Ver relatório da leitura**. Planilha de ST
+importada por uma versão antiga, sem os protocolos, aparece em aviso
+("Reimportar") no cartão, na tela inicial e na pastilha.
+
+Erro ao carregar ou atualizar um documento aparece num aviso com **X**;
+fechar volta ao estado de antes da tentativa.
 
 O relatório separa duas coisas:
 
@@ -704,11 +814,12 @@ O relatório separa duas coisas:
   célula, motivo e conteúdo.
 
 Com só ignorados, o rótulo é verde "Carregado"; com problema de verdade,
-amarelo "Carregado com N problemas". O semáforo do cartão, do rodapé do
-painel e da tela inicial é verde (ok), amarelo (problemas de leitura,
-segmentos incompletos ou versão nova disponível) ou vermelho (faltando, ou
-arquivo incompatível sem nenhum documento carregado), sempre com o texto ao
-lado.
+amarelo "Carregado com N problemas". O ícone do estado, no cartão, nas
+pastilhas e na tela inicial, é o check verde (ok), o triângulo amarelo
+(problemas de leitura, segmentos incompletos, reimportar ou versão nova
+disponível), o x vermelho (faltando, ou arquivo incompatível sem nenhum
+documento carregado) ou o círculo vazado (opcional, não carregado), sempre
+com o texto ao lado.
 
 Ao importar, o arquivo é lido e conferido antes de trocar o anterior:
 
@@ -729,7 +840,8 @@ baixado pelo app, a data e o tamanho do servidor). O resumo da leitura
 (ignorados, problemas e os segmentos incompletos da planilha de ST) fica em
 `st-leitura.json` e `tipi-leitura.json`, na mesma pasta.
 
-**Verificação online** (embaixo, na mesma área): o interruptor vem desligado e,
+**Verificação online** (embaixo, na mesma aba, e também na aba Geral): o
+interruptor vem desligado e,
 com ele desligado, o app nunca acessa a internet. Ligado, aparecem **Verificar
 agora** e a opção **Verificar ao abrir o app** (também desligada). Nada roda em
 segundo plano fora disso. A rede fica só no processo principal, com tempo
@@ -737,8 +849,11 @@ limite e uma requisição por documento:
 
 - Planilha de ST: lê a página do CONFAZ de Sergipe, acha a maior "Versão 00XX"
   e compara pelo número (a 0018 e a 0019 têm a mesma vigência). Com versão
-  nova, oferece **Baixar e importar**, que passa pela mesma conferência da
-  importação.
+  nova, a tela inicial mostra "v0020 disponível" e o cartão oferece
+  **Atualizar**: o app baixa (só de endereço https do CONFAZ ou do gov.br,
+  sem seguir redirecionamento), lê numa pasta temporária com a mesma
+  conferência da importação e só troca o documento carregado se a leitura
+  passar.
 - TIPI: pede só o primeiro byte do `tipi.xlsx` (o site da Receita recusa o
   pedido só de cabeçalhos) e compara o tamanho, e a data quando o servidor
   informa, com o guardado na importação. Sem como comparar (TIPI carregada do
@@ -762,8 +877,32 @@ filtro **Só os que precisam de mim** deixa só o que pede decisão. O que vem d
 TIPI (NCM que não existe, IPI diferente: "conferir exceções") aparece como
 observação, não como erro.
 
-- **Confirmar**: quando mais de uma linha da planilha serve, a pessoa escolhe
-  entre os candidatos ou marca **Sem ST**, com os motivos à vista.
+- **Confirmar**: quando mais de uma linha da planilha serve, a caixa "Item
+  N: qual linha da planilha vale?" mostra a linha da TIPI e uma explicação
+  montada com a TIPI, as linhas candidatas e a nota (CEST e ST retido). A
+  pessoa escolhe entre os candidatos, marca **Sem ST** ou usa **Outro**.
+  **Sem ST** já vem marcado quando a descrição da TIPI e as das linhas não
+  têm palavra em comum e a nota veio sem CEST e sem ST retido.
+- **Outro** (CFOP manual): o CFOP (começando por 1, 2 ou 3), a MVA se
+  quiser e o motivo, obrigatório. Vira decisão lembrada, aparece como "CFOP
+  manual" na prévia e ganha uma marca no resumo de CFOPs do painel.
+- **Pelo histórico**: quando o mesmo NCM (8 dígitos) já tem 2 ou mais
+  decisões lembradas e pelo menos 80% delas na mesma escolha, aparece a
+  opção "Pelo histórico" com **Usar** (nunca já marcada); abaixo de 80%,
+  "Histórico dividido".
+- **Apêndice XIV**: com os lubrificantes carregados, o item de NCM 2710 ou
+  3403 fora da planilha de ST pergunta "Sim" ou "Não"; o "Sim" pede derivado
+  ou não derivado de petróleo, e a MVA vem da coluna (interna,
+  interestadual ou pela alíquota da nota), com a ressalva da contabilidade
+  no motivo.
+- **Autopeças**: vale só a MVA-ST 1, e o motivo diz "MVA-ST 1 (regra geral;
+  a loja não tem índice de fidelização)". A MVA-ST 2 é só para fidelização
+  com montadora, que a loja não tem.
+- **MVA do fornecedor**: a MVA da nota (`pMVAST`) é comparada com a da
+  planilha; diferença acima de 0,01 ponto entra no motivo como observação.
+- **Dicas**: cabeçalhos, botões e o selo "lembrado" têm dica no visual do
+  app, que abre depois de 400 ms com o mouse ou com o foco do teclado (o
+  foco vale mais que o mouse) e fecha com Esc.
 - **Finalidade** por item (padrão revenda), de um item ou de vários marcados
   de uma vez. CFOP pela tabela da loja (1 = fornecedor de Sergipe, 2 = de
   fora):
@@ -779,18 +918,66 @@ observação, não como erro.
   A MVA só é calculada na revenda; nas outras finalidades com ST aparece
   "confirmar com a contabilidade".
 
-- **Decisões lembradas**: cada escolha (linha da planilha, sem ST,
-  finalidade) fica guardada por raiz do CNPJ do fornecedor (8 dígitos) e
-  código do produto, em `decisoes.json` na mesma pasta dos documentos. Na
-  próxima nota o item já vem resolvido, marcado **lembrado**, com
-  **desfazer**. Vale para o mesmo NCM e enquanto a linha escolhida existir na
-  planilha. A área de documentos lista as decisões, com **Apagar**.
+- **Decisões lembradas**: cada escolha (linha da planilha, sem ST, Apêndice
+  XIV, CFOP manual, finalidade) fica guardada por raiz do CNPJ do fornecedor
+  (8 dígitos) e código do produto, em `decisoes.json` na mesma pasta dos
+  documentos. Na próxima nota o item já vem resolvido, marcado **lembrado**,
+  com **desfazer**. Vale para o mesmo NCM e enquanto a linha escolhida
+  existir na planilha. A lista fica nas Configurações, aba Decisões
+  lembradas.
 - **Aplicar**: grava o CFOP numa coluna de anotação, por padrão **CFOP de
   entrada**; se ela não existir no perfil, o app oferece criar na hora. Sem
-  coluna de destino, não aplica. Opcional: gravar a MVA em outra coluna.
-  Célula já preenchida com outro valor: o app pergunta antes (padrão: não
-  substituir). Item sem CFOP definido fica como está. Grava só nas anotações
-  (o `.psxml` ao salvar); o XML original nunca muda.
+  coluna de destino, não aplica. No rodapé, opcionais: **Gravar a MVA em** e
+  **Gravar a alíquota interna em** outra coluna; cada perfil escolhe se
+  esses campos aparecem (Configurações, aba Ferramentas), e campo oculto não
+  é gravado. Célula já preenchida com outro valor: o app pergunta antes
+  (padrão: não substituir). Item sem CFOP definido fica como está. Grava só
+  nas anotações (o `.psxml` ao salvar); o XML original nunca muda.
+
+## Configurações
+
+A engrenagem na faixa preta (tela inicial e tela da nota) abre as
+Configurações dentro da própria janela, com as abas à esquerda. Ao abrir, o
+foco vai para o conteúdo; aberta pelo cartão de um documento, o foco segue
+para o cartão. Seis abas:
+
+- **Geral**: a pasta de destino (a mesma da pastilha "Salvando em", com
+  **Trocar pasta...** e **Abrir pasta no Explorer**); **Empresa e avisos da
+  nota**: CNPJ da empresa (vazio volta ao padrão), **Aviso de vencimento
+  (dias)** (padrão 15) e **Nota antiga (dias)** (padrão 30), as chaves
+  `cnpjEmpresa`, `diasAvisoVencimento` e `diasNotaAntiga` do `config.json`;
+  e a **Verificação online**, com **Verificar ao abrir o app**.
+- **Perfis e colunas**: os perfis e **Abrir o editor de colunas** (ver
+  Perfis de configuração).
+- **Ferramentas**: por perfil, quais ferramentas aparecem na seção
+  Ferramentas do painel (**ST, MVA e CFOP** e **CFOPs de entrada**) e em que
+  ordem (arrastar pela alça ou setas para cima e para baixo nela), e os
+  campos do rodapé da "ST, MVA e CFOP" (**Gravar a MVA em**, **Gravar a
+  alíquota interna em**). O CFOP é sempre gravado. As mudanças valem na hora.
+  Fica na chave `ferramentasPerfis` do `config.json`, fora dos perfis, para
+  o arquivo de um perfil exportado não mudar; excluir um perfil apaga a
+  entrada dele.
+- **Documentos de referência**: os cartões dos documentos e a verificação
+  online (ver Documentos de referência).
+- **Decisões lembradas**: as escolhas feitas na ferramenta, com busca
+  (fornecedor, produto ou NCM), filtro por tipo, **Apagar** em cada uma e
+  **Apagar as selecionadas**, com confirmação na própria página. Apagada, a
+  ferramenta volta a perguntar na próxima nota daquele produto.
+- **Dados do app**: a pasta dos dados (`%APPDATA%\PS Reader`), com **Abrir
+  pasta dos dados**, a tabela **O que o app guarda** e o **Backup**.
+
+**Backup**: **Exportar backup** grava `PS Reader - backup <data>.psbackup`
+(JSON) com os perfis, as ferramentas por perfil, o CNPJ, os dias dos avisos,
+as preferências (verificação online) e as decisões lembradas. Os documentos
+fiscais (planilha de ST, TIPI, lubrificantes) ficam de fora: são públicos e
+se carregam ou baixam de novo. **Importar backup** recusa arquivo acima de
+5 MB, valida o arquivo inteiro antes de mexer em qualquer coisa e mostra uma
+tabela com cada parte, o que veio no backup e o que acontece ("Substitui",
+"Não veio no backup: fica como está"). A pasta de destino e as notas
+recentes deste computador nunca mudam. Com **Importar e substituir**, o app
+copia os arquivos atuais para `antes-da-importacao-<data>` dentro da pasta
+de dados (ficam as 3 mais novas) e só então grava as partes que vieram; a
+que não veio fica como está.
 
 ## Cópia editada (.psxml)
 
@@ -915,13 +1102,25 @@ src/
   nfe/resumoCfop.ts  contagem dos CFOPs de entrada por valor, para o painel
   nfe/recentes.ts    notas recentes da tela inicial: lista, situação e último acesso
   nfe/ferramentas.ts ferramentas do painel (Rodar, prévia, Aplicar; e as de janela própria)
+  nfe/ferramentasPerfil.ts ferramentas do painel por perfil: ordem, visíveis, campos do rodapé
   painelConferencia.ts painel de conferência à esquerda da nota
   ferramentaST.ts    janela da ferramenta ST, MVA e CFOP (prévia, decisões, Aplicar)
-  areaDocumentos.ts  área Documentos de referência (cartões, relatório, verificação online)
+  previaST.ts        linhas da prévia da ferramenta ST (MVA, alíquota, motivo)
+  explicacaoST.ts    explicação da escolha da linha e sugestão de "Sem ST"
+  historicoST.ts     sugestão pelo histórico do NCM e comparação da MVA do fornecedor
+  tooltip.ts         dicas no visual do app (atraso, foco do teclado, Esc)
+  configuracoes.ts   tela de Configurações (as seis abas)
+  filtroDecisoes.ts  busca e filtro por tipo das decisões lembradas
+  dadosApp.ts        o que o app guarda e o backup (.psbackup)
+  areaDocumentos.ts  aba Documentos de referência (cartões, relatório, verificação online)
+  estadoDocumentos.ts estado visível de cada documento (ícone, texto, versão nova)
+  icones.ts          conjunto único de ícones, inclusive os de estado
+  onlineSimulado.ts  gancho de desenvolvimento para testar a verificação online sem rede
   documentos.ts      documentos no processo principal: importação, rede, análise, decisões
   fiscal/xlsx.ts     leitor mínimo de .xlsx (com fiscal/zip.ts)
   fiscal/st.ts       planilha de ST de Sergipe (Portal ST do CONFAZ)
   fiscal/tipi.ts     TIPI: texto do PDF e tipi.xlsx
+  fiscal/combustiveis.ts lubrificantes do Apêndice XIV (Ato COTEPE/ICMS 61/19)
   fiscal/analise.ts  análise fiscal por item (ST, MVA, CFOP de revenda, TIPI)
   fiscal/base.ts     base normalizada: importar, validar, gravar e carregar cada documento
   fiscal/documentos.ts situação, resumo e pontos não entendidos de cada documento
