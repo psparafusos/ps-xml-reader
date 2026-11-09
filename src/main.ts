@@ -75,8 +75,12 @@ import {
 } from './nfe/avisos';
 import { problemaNomeArquivo } from './nfe/nome';
 import {
-  ehArquivoAtePrazo,
+  ESPERA_CAMINHO_MS,
+  comLimite,
+  escolherCandidato,
+  existeOuSemResposta,
   lerXmlSeguro,
+  mensagemSemResposta,
   problemaCaminhoSolto,
 } from './seguranca/arquivo';
 import { opcoesPerigosas } from './seguranca/argumentos';
@@ -139,14 +143,24 @@ function candidatosDosArgumentos(argv: string[], pasta: string): string[] {
 }
 
 /**
- * O primeiro candidato que é um arquivo. Cada um tem até 2 s para responder
- * (stat assíncrono): unidade de rede fora do ar não prende o processo
- * principal nem as outras janelas.
+ * Pedido de abrir vindo do duplo clique: o primeiro candidato que é um
+ * arquivo (cada um tem até 2 s para responder, sem prender o processo
+ * principal nem as outras janelas). Se nenhum é, mas algum não respondeu, o
+ * pedido leva a mensagem da pasta de rede (a pessoa pediu para abrir).
  */
-async function primeiroArquivo(candidatos: string[]): Promise<string | null> {
-  for (const caminho of candidatos)
-    if (await ehArquivoAtePrazo(caminho)) return caminho;
-  return null;
+async function pedidoDosCandidatos(
+  candidatos: string[],
+): Promise<PedidoArquivo | null> {
+  const escolha = await escolherCandidato(candidatos);
+  if (!escolha) return null;
+  return {
+    caminho: escolha.caminho,
+    modo: null,
+    sessao: true,
+    ...(escolha.semResposta
+      ? { recusa: mensagemSemResposta(escolha.caminho) }
+      : {}),
+  };
 }
 
 /** Candidatos da linha de comando (duplo clique com o app fechado). */
@@ -185,9 +199,10 @@ app.on('second-instance', (_event, argv, pasta, dados) => {
   const candidatos = recebidos
     ? candidatosDosArgumentos(['', ...recebidos], pasta)
     : candidatosDosArgumentos(argv, pasta);
-  void primeiroArquivo(candidatos).then((arquivo) => {
-    if (arquivo) {
-      entregarArquivo(arquivo, { modo: null, sessao: true });
+  void pedidoDosCandidatos(candidatos).then((pedido) => {
+    if (pedido) {
+      const { caminho, ...resto } = pedido;
+      entregarArquivo(caminho, resto);
       return;
     }
     // Sem arquivo: só traz o app para a frente.
@@ -312,6 +327,11 @@ interface PedidoArquivo {
   modo: ModoImpressao | null;
   /** Duplo clique: um .psxml faz da pasta dele a pasta desta janela. */
   sessao: boolean;
+  /**
+   * O arquivo já foi recusado antes de chegar à janela (pasta de rede que
+   * não respondeu): a janela só mostra esta mensagem, sem ler nada.
+   */
+  recusa?: string;
 }
 
 /**
@@ -807,6 +827,7 @@ tratar(
     const pedido = j.pedido;
     j.pedido = null;
     if (!pedido) return null;
+    if (pedido.recusa) return { status: 'recusado', mensagem: pedido.recusa };
     let arquivo: ArquivoAberto;
     try {
       arquivo = await lerArquivoNaJanela(j, pedido.caminho);
@@ -904,8 +925,13 @@ registrarDocumentos();
 /** Notas recentes com a marca de quais arquivos ainda existem. */
 async function listaRecentes(): Promise<NotaRecenteTela[]> {
   const lista = lerRecentes((await lerConfig()).notasRecentes);
+  // Checagem de fundo: pasta de rede que não responde em 2 s fica em
+  // silêncio e a nota continua clicável (o clique mostra a mensagem).
   return Promise.all(
-    lista.map(async (r) => ({ ...r, existe: await existe(r.caminho) })),
+    lista.map(async (r) => ({
+      ...r,
+      existe: await existeOuSemResposta(r.caminho),
+    })),
   );
 }
 
@@ -1055,19 +1081,22 @@ tratar(
     if (typeof nNF !== 'string') return [];
     const { caminho: pasta } = await pastaEfetiva(j);
     if (!pasta) return [];
-    let nomes: string[];
+    // Checagem de fundo: pasta de rede que não responde em 2 s fica em
+    // silêncio (nenhuma nota conferida achada).
+    let nomes: string[] | null;
     try {
-      nomes = await readdir(pasta);
+      nomes = await comLimite(readdir(pasta), ESPERA_CAMINHO_MS, null);
     } catch {
       return [];
     }
+    if (!nomes) return [];
     const achados: ArquivoConferido[] = [];
     for (const nome of nomes.filter((n) => nomePodeSerConferencia(n, nNF))) {
       const caminho = path.join(pasta, nome);
       if (j.arquivoAberto && mesmoCaminho(caminho, j.arquivoAberto)) continue;
       try {
-        const info = await stat(caminho);
-        if (!info.isFile() || problemaTamanhoNfe(info.size)) continue;
+        const info = await comLimite(stat(caminho), ESPERA_CAMINHO_MS, null);
+        if (!info || !info.isFile() || problemaTamanhoNfe(info.size)) continue;
         // Mesmas barreiras da abertura: grande demais ou com DOCTYPE não conta.
         const texto = (await readFile(caminho)).toString('utf8');
         if (verificarXmlSeguro(texto)) continue;
@@ -2339,12 +2368,7 @@ app.whenReady().then(async () => {
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
   negarPermissoes();
-  const arquivoInicial = await primeiroArquivo(candidatosIniciais);
-  criarJanela(
-    arquivoInicial
-      ? { caminho: arquivoInicial, modo: null, sessao: true }
-      : null,
-  );
+  criarJanela(await pedidoDosCandidatos(candidatosIniciais));
   // Só se a pessoa ligou a verificação online e o "verificar ao abrir".
   void verificarAoAbrir();
 
