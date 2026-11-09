@@ -923,11 +923,11 @@ export function montarAreaDocumentos(
       ?.closest<HTMLElement>('article');
     if (!artigo) return;
     artigo.scrollIntoView({ block: 'start' });
-    artigo
-      .querySelector<HTMLElement>(
+    (
+      artigo.querySelector<HTMLElement>(
         `[data-foco="baixar-${tipo}"], [data-foco="atualizar-${tipo}"]`,
-      )
-      ?.focus({ preventScroll: true });
+      ) ?? artigo.querySelector<HTMLElement>('button')
+    )?.focus({ preventScroll: true });
   };
   mostrarProgresso = (p) => {
     if (!progresso.has(p.tipo)) return;

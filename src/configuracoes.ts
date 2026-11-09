@@ -276,8 +276,10 @@ export function abrirConfiguracoes(
   d.showModal();
   mostrar(aba, docs);
   // Ao abrir, o foco vai para o conteúdo (sem contorno): nenhuma aba fica
-  // com o contorno de foco parado. Tab e Shift+Tab seguem dali.
-  if (!docs?.cartao) conteudo.focus({ preventScroll: true });
+  // com o contorno de foco parado. Tab e Shift+Tab seguem dali. Aberta no
+  // cartão de um documento (pastilha ST/TIPI), a área leva o foco ao cartão
+  // quando ele chegar.
+  conteudo.focus({ preventScroll: true });
 }
 
 interface Hospede {

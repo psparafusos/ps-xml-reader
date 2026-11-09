@@ -3425,7 +3425,7 @@ function botoesDocumento(e: EstadoDocumentos): HTMLButtonElement[] {
     b.dataset.tipo = p.tipo;
     b.setAttribute(
       'aria-label',
-      `${p.texto}. Abrir ${NOME_DOCUMENTO[p.tipo]} na tela de Documentos.`,
+      `${p.texto}. Abrir ${NOME_DOCUMENTO[p.tipo]} nas Configurações, aba Documentos de referência.`,
     );
     b.addEventListener('click', () => abrirDocumento(p.tipo));
     return b;
