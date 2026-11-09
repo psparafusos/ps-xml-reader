@@ -29,6 +29,87 @@ ul {
   margin: 0;
 }
 
+/* ---------- seleção de texto (só na tela) ---------- */
+
+/* Interface não seleciona: barra, cabeças de janela, abas, botões, rótulos,
+   títulos, menus, selos, painel de conferência, tela inicial e dicas. Só os
+   dados selecionam (como antes): campos de digitação, caminhos, a nota,
+   versão e vigência dos documentos, relatórios, erros e avisos, a explicação da ST, as decisões lembradas e a
+   tabela de Dados do app. Três regras: a base, os dados e, dentro dos
+   dados, as peças de interface que voltam a não selecionar. O PDF e a
+   impressão não mudam (fora da mídia screen). Diálogo e popover vão para a
+   camada de cima e não herdam do body: entram na base. */
+@media screen {
+  body,
+  dialog,
+  [popover] {
+    user-select: none;
+  }
+
+  /* Campos de digitação, a nota (Conferência e DANFE), caminhos e nomes de
+     arquivo, versão e vigência dos documentos, erros e avisos, relatórios de leitura, explicação da ST e as
+     tabelas das Configurações (decisões lembradas e Dados do app). */
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable='false']),
+  .nota,
+  .danfe,
+  .pasta-rapida__caminho,
+  .modo__arquivo,
+  .config__caminho,
+  .config__arquivo,
+  .documento__arquivo strong,
+  .documento__info--selecionavel dd,
+  .mensagem,
+  .caixa-dialogo__texto,
+  .caixa-dialogo__pasta,
+  .caixa-dialogo__erro,
+  .painel__erro,
+  .painel__aviso,
+  .perfis-menu__erro,
+  .documento__erro,
+  .docs-linha__erro-texto,
+  .st__aviso,
+  .config__resultado,
+  .documento__relatorio,
+  .st__explicacao,
+  .config__tabela td {
+    user-select: text;
+  }
+
+  /* Dentro dos dados: títulos, rótulos, cabeçalhos de tabela, botões,
+     menus e dicas continuam sem seleção (no DANFE, os textos fixos). */
+  :is(
+    h1,
+    h2,
+    h3,
+    h4,
+    dt,
+    legend,
+    caption,
+    button,
+    th,
+    label,
+    summary,
+    [role='tab'],
+    [role='menu'],
+    [role='tooltip'],
+    .dica,
+    .secao__titulo,
+    .titulo-secao,
+    .campo__rotulo,
+    .dc__rotulo,
+    .dq__titulo,
+    .canhoto__nfe,
+    .cab__titulo,
+    .cab__subtitulo,
+    .cab__tipos,
+    .cab__consulta
+  ) {
+    user-select: none;
+  }
+}
+
 /* ---------- ícones e botões ---------- */
 
 .icone {
@@ -1295,7 +1376,6 @@ ul {
    Contraste medido nos testes. */
 .tabela--itens th[data-ordenavel] {
   cursor: pointer;
-  user-select: none;
 }
 
 .tabela--itens th[data-ordenavel]:hover {

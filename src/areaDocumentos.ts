@@ -189,10 +189,17 @@ export function montarAreaDocumentos(
 
   // ---------- cartões ----------
 
-  function linhaInfo(rotulo: string, valor: string): HTMLElement {
+  /** Linha rótulo/valor; `selecionavel` deixa o valor selecionar (app.css). */
+  function linhaInfo(
+    rotulo: string,
+    valor: string,
+    selecionavel = false,
+  ): HTMLElement {
     return el(
       'div',
-      'documento__info',
+      selecionavel
+        ? 'documento__info documento__info--selecionavel'
+        : 'documento__info',
       el('dt', '', rotulo),
       el('dd', '', valor),
     );
@@ -714,9 +721,13 @@ export function montarAreaDocumentos(
         el(
           'dl',
           'documento__dados',
-          linhaInfo('Versão', versao),
+          linhaInfo('Versão', versao, true),
           vigencia &&
-            linhaInfo(tipo === 'tipi' ? 'Atualização' : 'Vigência', vigencia),
+            linhaInfo(
+              tipo === 'tipi' ? 'Atualização' : 'Vigência',
+              vigencia,
+              true,
+            ),
           linhaInfo(
             'Importado',
             `${dataHora(info.importadoEm)} (${tamanho(info.tamanhoArquivo)})`,
