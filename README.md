@@ -1074,11 +1074,12 @@ não faz chamada de rede.
 
 ## Outros comandos
 
-| Comando             | O que faz                          |
-| ------------------- | ---------------------------------- |
-| `npm run typecheck` | Verifica os tipos TypeScript       |
-| `npm run lint`      | Roda oxlint e confere a formatação |
-| `npm test`          | Roda os testes automáticos         |
+| Comando               | O que faz                                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`   | Verifica os tipos TypeScript                                                                                                     |
+| `npm run lint`        | Roda oxlint e confere a formatação                                                                                               |
+| `npm test`            | Roda os testes automáticos                                                                                                       |
+| `npm run test:janela` | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal |
 
 ## Estrutura
 

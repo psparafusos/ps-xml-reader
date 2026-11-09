@@ -3,14 +3,14 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
-  ipcMain,
   Menu,
   screen,
   session,
   shell,
 } from 'electron';
+import { ouvir, tratar } from './ipcSeguro';
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   access,
   constants,
@@ -74,7 +74,12 @@ import {
   nomePodeSerConferencia,
 } from './nfe/avisos';
 import { problemaNomeArquivo } from './nfe/nome';
-import { lerXmlSeguro } from './seguranca/arquivo';
+import {
+  ehArquivoAtePrazo,
+  lerXmlSeguro,
+  problemaCaminhoSolto,
+} from './seguranca/arquivo';
+import { opcoesPerigosas } from './seguranca/argumentos';
 import {
   ArquivoRecusadoError,
   problemaTamanhoNfe,
@@ -96,6 +101,17 @@ if (started) {
   app.quit();
 }
 
+// Opções que dariam controle do app por fora (depuração remota, inspetor,
+// opções do V8, outra pasta de dados): no app instalado, sai antes de criar
+// janela (src/seguranca/argumentos.ts). No npm start valem, para testar.
+const opcoesRecusadas = app.isPackaged ? opcoesPerigosas(process.argv) : [];
+if (opcoesRecusadas.length > 0) {
+  console.error(`Opções recusadas: ${opcoesRecusadas.join(' ')}`);
+  app.exit(1);
+}
+/** O app está saindo antes de começar (evento do Squirrel ou opção recusada). */
+const saindo = started || opcoesRecusadas.length > 0;
+
 // O mesmo AUMID que o Squirrel grava nos atalhos, para a barra de tarefas
 // juntar o atalho fixado e a janela aberta: com.squirrel.<id>.<exe>, com o id
 // do pacote (name do MakerSquirrel, PSXmlReader) e o nome do executável sem
@@ -107,55 +123,93 @@ app.setAppUserModelId(
 // ---------- arquivo passado na linha de comando (duplo clique) ----------
 
 /**
- * Arquivo a abrir nos argumentos: o primeiro caminho .psxml ou .xml que existe
- * no disco. Ignora as opções (--squirrel-firstrun, as do Chromium) e o resto
- * que o npm start passa (o executável do Electron, a pasta do app), que não
- * são arquivos com essas extensões. Relativo vale a partir de `pasta`.
+ * Caminhos candidatos nos argumentos: os .psxml e .xml, na ordem. Ignora as
+ * opções (--squirrel-firstrun, as do Chromium) e o resto que o npm start
+ * passa (o executável do Electron, a pasta do app), que não são arquivos com
+ * essas extensões. Relativo vale a partir de `pasta`. Não toca no disco.
  */
-function arquivoDosArgumentos(argv: string[], pasta: string): string | null {
-  for (const arg of argv.slice(1)) {
-    if (arg.startsWith('-')) continue;
-    const ext = path.extname(arg).toLowerCase();
-    if (ext !== EXTENSAO && ext !== '.xml') continue;
-    const caminho = path.resolve(pasta, arg);
-    try {
-      if (statSync(caminho).isFile()) return caminho;
-    } catch {
-      // Não existe: ignora.
-    }
-  }
+function candidatosDosArgumentos(argv: string[], pasta: string): string[] {
+  return argv
+    .slice(1)
+    .filter((arg) => !arg.startsWith('-'))
+    .filter((arg) =>
+      [EXTENSAO, '.xml'].includes(path.extname(arg).toLowerCase()),
+    )
+    .map((arg) => path.resolve(pasta, arg));
+}
+
+/**
+ * O primeiro candidato que é um arquivo. Cada um tem até 2 s para responder
+ * (stat assíncrono): unidade de rede fora do ar não prende o processo
+ * principal nem as outras janelas.
+ */
+async function primeiroArquivo(candidatos: string[]): Promise<string | null> {
+  for (const caminho of candidatos)
+    if (await ehArquivoAtePrazo(caminho)) return caminho;
   return null;
 }
 
-/** Arquivo da linha de comando (duplo clique com o app fechado). */
-const arquivoInicial = started
-  ? null
-  : arquivoDosArgumentos(process.argv, process.cwd());
+/** Candidatos da linha de comando (duplo clique com o app fechado). */
+const candidatosIniciais = saindo
+  ? []
+  : candidatosDosArgumentos(process.argv, process.cwd());
 
 // Instância única: um processo só, com várias janelas. Se o app já está
-// aberto, o arquivo vai para ele (evento second-instance) e esta instância
-// sai. O caminho vai em additionalData, porque o argv que chega lá pode vir
-// reordenado.
+// aberto, os caminhos vão para ele (evento second-instance) e esta instância
+// sai. Vão em additionalData, porque o argv que chega lá pode vir
+// reordenado. `arquivo` (o primeiro) é o que as versões até a 1.2.4 leem.
 const instanciaPrincipal =
-  !started && app.requestSingleInstanceLock({ arquivo: arquivoInicial });
-if (!started && !instanciaPrincipal) app.quit();
+  !saindo &&
+  app.requestSingleInstanceLock({
+    arquivo: candidatosIniciais[0] ?? null,
+    arquivos: candidatosIniciais,
+  });
+if (!saindo && !instanciaPrincipal) app.quit();
+
+/** Caminhos de additionalData: a lista nova ou o `arquivo` das versões antigas. */
+function candidatosRecebidos(dados: unknown): string[] | null {
+  const d = (typeof dados === 'object' && dados !== null ? dados : {}) as {
+    arquivos?: unknown;
+    arquivo?: unknown;
+  };
+  if (Array.isArray(d.arquivos))
+    return d.arquivos.filter((a): a is string => typeof a === 'string');
+  return typeof d.arquivo === 'string' ? [d.arquivo] : null;
+}
 
 // Duplo clique com o app aberto: o arquivo segue as regras de entregarArquivo
 // (janela que já o tem, janela vazia ou janela nova). Um .psxml aberto assim
 // faz da pasta dele a pasta de destino só daquela janela.
 app.on('second-instance', (_event, argv, pasta, dados) => {
-  const pedido = (dados as { arquivo?: unknown } | null)?.arquivo;
-  const arquivo =
-    typeof pedido === 'string'
-      ? arquivoDosArgumentos(['', pedido], pasta)
-      : arquivoDosArgumentos(argv, pasta);
-  if (arquivo) {
-    entregarArquivo(arquivo, { modo: null, sessao: true });
-    return;
-  }
-  // Sem arquivo: só traz o app para a frente.
-  const j = janelaEmFoco();
-  if (j) trazerParaFrente(j);
+  const recebidos = candidatosRecebidos(dados);
+  const candidatos = recebidos
+    ? candidatosDosArgumentos(['', ...recebidos], pasta)
+    : candidatosDosArgumentos(argv, pasta);
+  void primeiroArquivo(candidatos).then((arquivo) => {
+    if (arquivo) {
+      entregarArquivo(arquivo, { modo: null, sessao: true });
+      return;
+    }
+    // Sem arquivo: só traz o app para a frente.
+    const j = janelaEmFoco();
+    if (j) trazerParaFrente(j);
+  });
+});
+
+// Proteções para toda página que o app criar (as janelas de nota e qualquer
+// outra que venha a existir): nenhuma navegação para fora, nenhum quadro
+// navegando, nenhuma janela nova e nenhum <webview>. O app é offline e tem
+// uma página só. A única exceção é a recarga do Vite no npm start.
+app.on('web-contents-created', (_event, wc) => {
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  wc.on('will-navigate', (event, url) => {
+    if (!recargaDoDesenvolvimento(url)) event.preventDefault();
+  });
+  wc.on('will-frame-navigate', (event) => {
+    if (!(event.isMainFrame && recargaDoDesenvolvimento(event.url)))
+      event.preventDefault();
+  });
+  wc.on('will-attach-webview', (event) => event.preventDefault());
 });
 
 // 10 mm em polegadas. printToPDF recebe margens em polegadas.
@@ -416,16 +470,7 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     janela.show();
   });
 
-  // O app é offline: não abre janelas do navegador nem navega para fora.
-  janela.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  // Exceção só no npm start: o plugin Vite do Forge recarrega a página quando
-  // termina de compilar o preload, às vezes logo depois de a janela abrir.
-  // Barrar essa recarga cancelava a carga em andamento e a tela inicial
-  // ficava sem documentos, pastilhas e perfil.
-  janela.webContents.on('will-navigate', (event, url) => {
-    if (recargaDoDesenvolvimento(url)) return;
-    event.preventDefault();
-  });
+  // Navegação e janelas novas: barradas em app.on('web-contents-created').
 
   // Todo pedido de fechar passa pelo lote (pedirFechamento), que pergunta
   // nas janelas com anotações não salvas e só então libera. A janela mais
@@ -515,7 +560,7 @@ function perguntarFechar(j: Janela): Promise<boolean> {
   });
 }
 
-ipcMain.on('resposta-fechar', (event, pode: unknown) => {
+ouvir('resposta-fechar', (event, pode: unknown) => {
   const resolver = respostasFechar.get(event.sender.id);
   respostasFechar.delete(event.sender.id);
   resolver?.(pode === true);
@@ -569,7 +614,7 @@ async function processarLote(): Promise<void> {
   }
 }
 
-ipcMain.on('anotacoes-pendentes', (event, pendentes: unknown) => {
+ouvir('anotacoes-pendentes', (event, pendentes: unknown) => {
   const j = janelas.get(event.sender.id);
   if (j) j.pendentes = pendentes === true;
 });
@@ -680,7 +725,7 @@ async function pastaInicialAbertura(): Promise<string | null> {
   return (await Promise.race([existe, limite])) ? ultimaPastaAbertura : null;
 }
 
-ipcMain.handle('abrir-arquivo', async (event): Promise<ResultadoAbrir> => {
+tratar('abrir-arquivo', async (event): Promise<ResultadoAbrir> => {
   const j = estadoDe(event.sender);
   const inicial = await pastaInicialAbertura();
   const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
@@ -696,17 +741,14 @@ ipcMain.handle('abrir-arquivo', async (event): Promise<ResultadoAbrir> => {
 });
 
 // Arrastar e soltar: o renderer só conhece o caminho do arquivo solto.
-ipcMain.handle(
+tratar(
   'abrir-caminho',
   async (event, caminho: unknown): Promise<ResultadoAbrir> => {
-    if (
-      typeof caminho !== 'string' ||
-      !path.isAbsolute(caminho) ||
-      !EXTENSOES_ABERTURA.includes(path.extname(caminho).toLowerCase())
-    ) {
-      throw new Error('Selecione um arquivo .xml ou .psxml.');
-    }
-    return decidirAbertura(estadoDe(event.sender), caminho);
+    // Só arquivo comum, com a extensão certa: nada de \\?\, \\.\, link
+    // simbólico ou pasta. O tamanho é conferido em decidirAbertura.
+    const problema = await problemaCaminhoSolto(caminho, EXTENSOES_ABERTURA);
+    if (problema) return { status: 'recusado', mensagem: problema };
+    return decidirAbertura(estadoDe(event.sender), caminho as string);
   },
 );
 
@@ -717,7 +759,7 @@ ipcMain.handle(
  * Nova janela leva o arquivo para uma janela nova e esta volta a ficar
  * vazia (o renderer volta para a tela inicial).
  */
-ipcMain.handle(
+tratar(
   'confirmar-abertura',
   async (
     event,
@@ -747,7 +789,7 @@ ipcMain.handle(
 );
 
 /** A janela voltou para a tela inicial (Início ou arquivo que não abriu). */
-ipcMain.on('sem-nota', (event) => {
+ouvir('sem-nota', (event) => {
   const j = janelas.get(event.sender.id);
   if (!j) return;
   j.arquivoAberto = null;
@@ -758,7 +800,7 @@ ipcMain.on('sem-nota', (event) => {
 // Nova janela): o renderer pede ao abrir e depois de cada aviso
 // 'arquivo-externo'. null se não há. Um .psxml aberto por duplo clique faz da
 // pasta dele a pasta de destino só desta janela.
-ipcMain.handle(
+tratar(
   'abrir-externo',
   async (event): Promise<ArquivoExterno | ArquivoRecusado | null> => {
     const j = estadoDe(event.sender);
@@ -853,7 +895,7 @@ async function lerConfig(): Promise<Config> {
   }
 }
 
-ipcMain.handle('versao', (): string => app.getVersion());
+tratar('versao', (): string => app.getVersion());
 
 registrarDocumentos();
 
@@ -882,10 +924,10 @@ function mudarRecentes(
   });
 }
 
-ipcMain.handle('recentes', () => listaRecentes());
+tratar('recentes', () => listaRecentes());
 
 // A nota aberta (ou o .psxml que esta janela acabou de salvar) entra no topo.
-ipcMain.handle('registrar-recente', async (event, dados: unknown) => {
+tratar('registrar-recente', async (event, dados: unknown) => {
   const j = estadoDe(event.sender);
   const d = (typeof dados === 'object' && dados !== null ? dados : {}) as {
     [k: string]: unknown;
@@ -914,7 +956,7 @@ ipcMain.handle('registrar-recente', async (event, dados: unknown) => {
 });
 
 // Só abre o que está na lista (o caminho não vem livre da tela).
-ipcMain.handle(
+tratar(
   'abrir-recente',
   async (event, caminho: unknown): Promise<ResultadoAbrir> => {
     const lista = lerRecentes((await lerConfig()).notasRecentes);
@@ -925,7 +967,7 @@ ipcMain.handle(
 );
 
 // Sem caminho: limpa a lista toda. Com caminho: tira só aquela entrada.
-ipcMain.handle('limpar-recentes', async (_event, caminho: unknown) => {
+tratar('limpar-recentes', async (_event, caminho: unknown) => {
   await mudarRecentes((lista) =>
     typeof caminho === 'string' ? removerRecente(lista, caminho) : [],
   );
@@ -933,7 +975,7 @@ ipcMain.handle('limpar-recentes', async (_event, caminho: unknown) => {
 });
 
 /** Ajustes dos avisos da nota no config.json, com os padrões. */
-ipcMain.handle('config-avisos', async (): Promise<ConfigAvisos> => {
+tratar('config-avisos', async (): Promise<ConfigAvisos> => {
   const c = await lerConfig();
   return {
     cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
@@ -994,7 +1036,7 @@ const mesmoCaminho = (a: string, b: string) =>
 const mesmaPasta = (a: string, b: string) =>
   path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
-ipcMain.handle(
+tratar(
   'pasta-destino',
   (event): Promise<PastaDestino> => pastaEfetiva(estadoDe(event.sender)),
 );
@@ -1005,7 +1047,7 @@ ipcMain.handle(
  * antigo. Só lê os nomes da pasta; abre apenas os que têm _NF<número> no
  * nome. Sem pasta, ou pasta inacessível: lista vazia.
  */
-ipcMain.handle(
+tratar(
   'buscar-conferidos',
   async (event, chave: unknown, nNF: unknown): Promise<ArquivoConferido[]> => {
     const j = estadoDe(event.sender);
@@ -1046,7 +1088,7 @@ ipcMain.handle(
  * Abre numa janela nova um .psxml achado por buscar-conferidos (direto na
  * Conferência). Já aberto em alguma janela: ela vem para a frente.
  */
-ipcMain.handle('abrir-conferido', (event, caminho: unknown): boolean => {
+tratar('abrir-conferido', (event, caminho: unknown): boolean => {
   const j = estadoDe(event.sender);
   if (typeof caminho !== 'string' || !j.conferidos.has(caminho)) return false;
   const ja = janelaComArquivo(caminho);
@@ -1057,23 +1099,20 @@ ipcMain.handle('abrir-conferido', (event, caminho: unknown): boolean => {
 
 // Abre a pasta de destino no Explorer. shell.openPath devolve "" quando abre e
 // a mensagem de erro quando não abre.
-ipcMain.handle(
-  'abrir-pasta-destino',
-  async (event): Promise<ResultadoAbrirPasta> => {
-    const efetiva = await pastaEfetiva(estadoDe(event.sender));
-    const pasta = efetiva.caminho;
-    if (!pasta)
-      return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
-    if (!(await ehPasta(pasta)))
-      return { status: 'erro', mensagem: pastaSumiu(efetiva) };
-    const erro = await shell.openPath(pasta);
-    return erro
-      ? { status: 'erro', mensagem: `Não foi possível abrir a pasta: ${erro}` }
-      : { status: 'aberta' };
-  },
-);
+tratar('abrir-pasta-destino', async (event): Promise<ResultadoAbrirPasta> => {
+  const efetiva = await pastaEfetiva(estadoDe(event.sender));
+  const pasta = efetiva.caminho;
+  if (!pasta)
+    return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
+  if (!(await ehPasta(pasta)))
+    return { status: 'erro', mensagem: pastaSumiu(efetiva) };
+  const erro = await shell.openPath(pasta);
+  return erro
+    ? { status: 'erro', mensagem: `Não foi possível abrir a pasta: ${erro}` }
+    : { status: 'aberta' };
+});
 
-ipcMain.handle('escolher-pasta', async (event): Promise<string | null> => {
+tratar('escolher-pasta', async (event): Promise<string | null> => {
   const j = estadoDe(event.sender);
   const janela = j.janela;
   const atual = (await pastaEfetiva(j)).caminho;
@@ -1178,13 +1217,13 @@ async function mudarPerfis(
 
 const texto = (v: unknown) => (typeof v === 'string' ? v : '');
 
-ipcMain.handle(
+tratar(
   'perfis',
   async (): Promise<EstadoPerfis> => estadoDosPerfis(await lerPerfis()),
 );
 
 /** Aplicar no editor de colunas: grava no perfil ativo. */
-ipcMain.handle(
+tratar(
   'gravar-config-conferencia',
   (event, config: unknown): Promise<ResultadoPerfis> =>
     mudarPerfis(event, (p) => {
@@ -1193,7 +1232,7 @@ ipcMain.handle(
     }),
 );
 
-ipcMain.handle(
+tratar(
   'ativar-perfil',
   (event, id: unknown): Promise<ResultadoPerfis> =>
     mudarPerfis(event, (p) => {
@@ -1204,7 +1243,7 @@ ipcMain.handle(
 );
 
 /** Perfil novo, cópia do ativo, que passa a ser o ativo. */
-ipcMain.handle(
+tratar(
   'criar-perfil',
   (event, nome: unknown): Promise<ResultadoPerfis> =>
     mudarPerfis(event, (p) => {
@@ -1222,7 +1261,7 @@ ipcMain.handle(
     }),
 );
 
-ipcMain.handle(
+tratar(
   'renomear-perfil',
   (event, id: unknown, nome: unknown): Promise<ResultadoPerfis> =>
     mudarPerfis(event, (p) => {
@@ -1240,7 +1279,7 @@ ipcMain.handle(
  * Exclui um perfil (nunca o último). Excluir o ativo ativa o primeiro. As
  * ferramentas do perfil excluído saem da chave ferramentasPerfis.
  */
-ipcMain.handle(
+tratar(
   'excluir-perfil',
   async (event, id: unknown): Promise<ResultadoPerfis> => {
     const r = await mudarPerfis(event, (p) => {
@@ -1272,66 +1311,60 @@ ipcMain.handle(
  * usuário escolher. Pasta de destino, última pasta e janela são da máquina e
  * ficam de fora.
  */
-ipcMain.handle(
-  'exportar-perfil',
-  async (event): Promise<ResultadoExportarConfig> => {
-    const j = estadoDe(event.sender);
-    const perfil = perfilAtivo(await lerPerfis());
-    const { canceled, filePath } = await dialog.showSaveDialog(j.janela, {
-      title: 'Exportar perfil',
-      defaultPath: path.join(
-        app.getPath('documents'),
-        nomeArquivoPerfil(perfil.nome),
-      ),
-      filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
-    });
-    if (canceled || !filePath) return { status: 'cancelado' };
-    try {
-      await writeFile(filePath, textoArquivoPerfil(perfil), 'utf8');
-      return { status: 'exportado', caminho: filePath };
-    } catch (erro) {
-      return {
-        status: 'erro',
-        mensagem: `Não foi possível exportar o perfil: ${mensagemDe(erro)}`,
-      };
-    }
-  },
-);
+tratar('exportar-perfil', async (event): Promise<ResultadoExportarConfig> => {
+  const j = estadoDe(event.sender);
+  const perfil = perfilAtivo(await lerPerfis());
+  const { canceled, filePath } = await dialog.showSaveDialog(j.janela, {
+    title: 'Exportar perfil',
+    defaultPath: path.join(
+      app.getPath('documents'),
+      nomeArquivoPerfil(perfil.nome),
+    ),
+    filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
+  });
+  if (canceled || !filePath) return { status: 'cancelado' };
+  try {
+    await writeFile(filePath, textoArquivoPerfil(perfil), 'utf8');
+    return { status: 'exportado', caminho: filePath };
+  } catch (erro) {
+    return {
+      status: 'erro',
+      mensagem: `Não foi possível exportar o perfil: ${mensagemDe(erro)}`,
+    };
+  }
+});
 
 /**
  * Importar: lê o arquivo escolhido e valida tudo, sem gravar. Aceita um
  * perfil exportado ou a configuração da Parte A. `existe`: já há um perfil
  * com esse nome (o renderer pergunta se substitui ou mantém os dois).
  */
-ipcMain.handle(
-  'importar-perfil',
-  async (event): Promise<ResultadoImportarPerfil> => {
-    const j = estadoDe(event.sender);
-    const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
-      title: 'Importar perfil',
-      filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
-      properties: ['openFile'],
-    });
-    if (canceled || filePaths.length === 0) return { status: 'cancelado' };
-    try {
-      const perfil = lerArquivoPerfil(await readFile(filePaths[0], 'utf8'));
-      const existe = perfilComNome(perfil.nome, (await lerPerfis()).lista);
-      return { status: 'lido', perfil, existe: existe !== null };
-    } catch (erro) {
-      return {
-        status: 'erro',
-        mensagem: `Perfil não importado; nada foi alterado. ${mensagemDe(erro)}`,
-      };
-    }
-  },
-);
+tratar('importar-perfil', async (event): Promise<ResultadoImportarPerfil> => {
+  const j = estadoDe(event.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
+    title: 'Importar perfil',
+    filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || filePaths.length === 0) return { status: 'cancelado' };
+  try {
+    const perfil = lerArquivoPerfil(await readFile(filePaths[0], 'utf8'));
+    const existe = perfilComNome(perfil.nome, (await lerPerfis()).lista);
+    return { status: 'lido', perfil, existe: existe !== null };
+  } catch (erro) {
+    return {
+      status: 'erro',
+      mensagem: `Perfil não importado; nada foi alterado. ${mensagemDe(erro)}`,
+    };
+  }
+});
 
 /**
  * Acrescenta o perfil lido no importar. Nome repetido: `substituir` troca o
  * conteúdo do perfil com esse nome; `manter` acrescenta como "<nome> (2)".
  * O perfil ativo continua o mesmo (se for o substituído, aplica o novo).
  */
-ipcMain.handle(
+tratar(
   'adicionar-perfil',
   (event, perfil: unknown, modo: unknown): Promise<ResultadoPerfis> =>
     mudarPerfis(event, (p) => {
@@ -1352,7 +1385,7 @@ ipcMain.handle(
 );
 
 /** Volta o perfil ativo ao padrão (o nome fica), depois de confirmar. */
-ipcMain.handle(
+tratar(
   'restaurar-config',
   async (event): Promise<ResultadoPerfis | { status: 'cancelado' }> => {
     const j = estadoDe(event.sender);
@@ -1398,9 +1431,9 @@ function avisarTodas(canal: string, ...args: unknown[]): void {
   for (const j of abertas()) j.janela.webContents.send(canal, ...args);
 }
 
-ipcMain.handle('ferramentas-perfis', () => estadoFerramentas());
+tratar('ferramentas-perfis', () => estadoFerramentas());
 
-ipcMain.handle(
+tratar(
   'gravar-ferramentas-perfil',
   async (
     _event,
@@ -1445,7 +1478,7 @@ function avisosDaConfig(c: Config): ConfigAvisos {
  * CNPJ da empresa e dias dos avisos, da aba Geral. CNPJ vazio volta ao
  * padrão; valor inválido não grava nada.
  */
-ipcMain.handle(
+tratar(
   'gravar-config-avisos',
   async (_event, p: unknown): Promise<ResultadoConfigAvisos> => {
     const o = (typeof p === 'object' && p !== null ? p : {}) as {
@@ -1483,7 +1516,7 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle(
+tratar(
   'dados-app',
   async (): Promise<EstadoDadosApp> => ({
     pasta: app.getPath('userData'),
@@ -1491,7 +1524,7 @@ ipcMain.handle(
   }),
 );
 
-ipcMain.handle('abrir-pasta-dados', async (): Promise<ResultadoAbrirPasta> => {
+tratar('abrir-pasta-dados', async (): Promise<ResultadoAbrirPasta> => {
   const pasta = app.getPath('userData');
   await mkdir(pasta, { recursive: true }).catch(() => {});
   const erro = await shell.openPath(pasta);
@@ -1500,41 +1533,35 @@ ipcMain.handle('abrir-pasta-dados', async (): Promise<ResultadoAbrirPasta> => {
     : { status: 'aberta' };
 });
 
-ipcMain.handle(
-  'exportar-backup',
-  async (event): Promise<ResultadoExportarConfig> => {
-    const j = estadoDe(event.sender);
-    const agora = new Date();
-    const { canceled, filePath } = await dialog.showSaveDialog(j.janela, {
-      title: 'Exportar backup',
-      defaultPath: path.join(
-        app.getPath('documents'),
-        nomeArquivoBackup(agora),
-      ),
-      filters: [{ name: 'Backup do PS Reader', extensions: [EXTENSAO_BACKUP] }],
-    });
-    if (canceled || !filePath) return { status: 'cancelado' };
-    try {
-      const b = await montarBackup(
-        app.getPath('userData'),
-        agora,
-        app.getVersion(),
-      );
-      await writeFile(filePath, textoBackup(b), 'utf8');
-      return { status: 'exportado', caminho: filePath };
-    } catch (erro) {
-      return {
-        status: 'erro',
-        mensagem: `Não foi possível exportar o backup: ${mensagemDe(erro)}`,
-      };
-    }
-  },
-);
+tratar('exportar-backup', async (event): Promise<ResultadoExportarConfig> => {
+  const j = estadoDe(event.sender);
+  const agora = new Date();
+  const { canceled, filePath } = await dialog.showSaveDialog(j.janela, {
+    title: 'Exportar backup',
+    defaultPath: path.join(app.getPath('documents'), nomeArquivoBackup(agora)),
+    filters: [{ name: 'Backup do PS Reader', extensions: [EXTENSAO_BACKUP] }],
+  });
+  if (canceled || !filePath) return { status: 'cancelado' };
+  try {
+    const b = await montarBackup(
+      app.getPath('userData'),
+      agora,
+      app.getVersion(),
+    );
+    await writeFile(filePath, textoBackup(b), 'utf8');
+    return { status: 'exportado', caminho: filePath };
+  } catch (erro) {
+    return {
+      status: 'erro',
+      mensagem: `Não foi possível exportar o backup: ${mensagemDe(erro)}`,
+    };
+  }
+});
 
 /** Backup lido e validado, esperando a confirmação (um por vez). */
 const backupsLidos = new Map<string, Backup>();
 
-ipcMain.handle('ler-backup', async (event): Promise<ResultadoLerBackup> => {
+tratar('ler-backup', async (event): Promise<ResultadoLerBackup> => {
   const j = estadoDe(event.sender);
   const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
     title: 'Importar backup',
@@ -1568,11 +1595,11 @@ ipcMain.handle('ler-backup', async (event): Promise<ResultadoLerBackup> => {
   };
 });
 
-ipcMain.handle('cancelar-backup', (_event, token: unknown) => {
+tratar('cancelar-backup', (_event, token: unknown) => {
   if (typeof token === 'string') backupsLidos.delete(token);
 });
 
-ipcMain.handle(
+tratar(
   'confirmar-backup',
   async (_event, token: unknown): Promise<ResultadoImportarBackup> => {
     const b = typeof token === 'string' ? backupsLidos.get(token) : undefined;
@@ -1894,7 +1921,7 @@ function opcoesDoRenderer(v: unknown): {
  * um .psxml com o nome padrão; se ele já existir, volta 'existe' (o renderer
  * pergunta) e o arquivo aberto fica como está.
  */
-ipcMain.handle(
+tratar(
   'salvar',
   async (
     event,
@@ -1936,7 +1963,7 @@ ipcMain.handle(
  * renderer calculou para a tabela caber. `opcoes.nome`: grava com esse nome
  * (Salvar cópia), em vez de <base>_Conferencia.pdf.
  */
-ipcMain.handle(
+tratar(
   'salvar-pdf-conferencia',
   async (
     event,
@@ -1956,7 +1983,7 @@ ipcMain.handle(
 );
 
 // DANFE: só o PDF (PDF_DANFE: o Electron imprime sem margem).
-ipcMain.handle(
+tratar(
   'salvar-danfe',
   async (
     event,
@@ -2005,7 +2032,7 @@ const TIPOS_COPIA: Record<TipoCopia, { sufixo: string; extensao: string }> = {
  * copia3... se já existir na pasta de destino em uso. `daEscolha`: o arquivo
  * é o XML da escolha por cima da nota.
  */
-ipcMain.handle(
+tratar(
   'sugerir-copia',
   async (
     event,
@@ -2039,7 +2066,7 @@ ipcMain.handle(
  * Nome que já existe: volta 'existe' (o renderer pergunta). Depois de gravar,
  * a janela passa a trabalhar na cópia: os próximos Salvar vão para ela.
  */
-ipcMain.handle(
+tratar(
   'salvar-copia',
   async (
     event,
@@ -2139,7 +2166,7 @@ const OPCOES_IMPRESSAO: Record<
   },
 };
 
-ipcMain.handle(
+tratar(
   'imprimir',
   async (
     event,
@@ -2210,7 +2237,7 @@ function itemValido(i: unknown): i is ItemMenuCopia {
  * ou chave); quem monta o menu e escreve na área de transferência é este
  * processo.
  */
-ipcMain.handle(
+tratar(
   'area-transferencia',
   async (event, pedido: unknown): Promise<ResultadoAreaTransferencia> => {
     if (typeof pedido !== 'object' || pedido === null)
@@ -2314,12 +2341,14 @@ function mensagemDe(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro);
 }
 
-app.whenReady().then(() => {
-  // Evento do Squirrel ou segunda instância: o app está saindo, sem janela.
-  if (started || !instanciaPrincipal) return;
+app.whenReady().then(async () => {
+  // Evento do Squirrel, opção recusada ou segunda instância: o app está
+  // saindo, sem janela.
+  if (saindo || !instanciaPrincipal) return;
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
   negarPermissoes();
+  const arquivoInicial = await primeiroArquivo(candidatosIniciais);
   criarJanela(
     arquivoInicial
       ? { caminho: arquivoInicial, modo: null, sessao: true }

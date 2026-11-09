@@ -37,6 +37,7 @@ import {
   resumoCombustiveis,
   resumoST,
   resumoTipi,
+  validarInfoDocumento,
   type InfoDocumento,
   type ServidorDocumento,
   type TipoDocumento,
@@ -211,14 +212,20 @@ function lerJson(pasta: string, arq: string): unknown {
   return JSON.parse(readFileSync(join(pasta, arq), 'utf8'));
 }
 
-/** Metadados de um documento; null se não foi importado ou está em outro formato. */
+/**
+ * Metadados de um documento; null se não foi importado, está em outro
+ * formato ou tem algum campo inválido (validarInfoDocumento).
+ */
 export function lerInfoDocumento(
   tipo: TipoDocumento,
   pasta: string,
 ): InfoDocumento | null {
   try {
-    const info = lerJson(pasta, arqInfo(tipo)) as InfoDocumento;
-    return info.formato === FORMATO_BASE && info.tipo === tipo ? info : null;
+    return validarInfoDocumento(
+      lerJson(pasta, arqInfo(tipo)),
+      tipo,
+      FORMATO_BASE,
+    );
   } catch {
     return null;
   }

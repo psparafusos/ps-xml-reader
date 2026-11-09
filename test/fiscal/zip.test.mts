@@ -44,10 +44,63 @@ describe('zip: limites contra bomba de descompactação (T13)', () => {
     const dados = zipBinario([
       { nome: 'xl/worksheets/sheet1.xml', dados: zeros, metodo: 8, comprimido },
     ]);
+    // Preguiçoso: abrir não descomprime nada; pedir a parte, sim. O tamanho
+    // declarado (70 MB) já passa do limite: recusa sem descomprimir.
+    const aberto = lerZip(dados);
     assert.throws(
-      () => lerZip(dados),
+      () => aberto.get('xl/worksheets/sheet1.xml'),
       recusa(/^A planilha descomprimida passa do limite de 64 MB por parte\.$/),
     );
+  });
+
+  it('zip que declara 1 KB e esconde 70 MB: para no declarado, sem ocupar a memória', () => {
+    const zeros = new Uint8Array(70 * MB);
+    const dados = zipBinario([
+      {
+        nome: 'xl/worksheets/sheet1.xml',
+        dados: zeros,
+        metodo: 8,
+        comprimido: deflateRawSync(zeros),
+        declarado: 1024,
+      },
+    ]);
+    assert.throws(
+      () => lerZip(dados).get('xl/worksheets/sheet1.xml'),
+      /não tem o tamanho que o arquivo declara \(1024 bytes\)/,
+    );
+  });
+
+  it('zip que declara mais do que tem também é recusado', () => {
+    const dados = zipBinario([
+      { nome: 'a.xml', dados: Buffer.from('<a/>'), metodo: 8, declarado: 999 },
+    ]);
+    assert.throws(() => lerZip(dados).get('a.xml'), /não tem o tamanho/);
+  });
+
+  it('só descomprime a parte pedida: a bomba ao lado nunca é aberta', () => {
+    const zeros = new Uint8Array(70 * MB);
+    const dados = zipBinario([
+      {
+        nome: 'bomba.xml',
+        dados: zeros,
+        metodo: 8,
+        comprimido: deflateRawSync(zeros),
+        declarado: 1024,
+      },
+      { nome: 'pequena.xml', dados: Buffer.from('<p/>'), metodo: 8 },
+    ]);
+    const z = lerZip(dados);
+    assert.deepEqual(z.nomes(), ['bomba.xml', 'pequena.xml']);
+    assert.equal(Buffer.from(z.get('pequena.xml')!).toString('utf8'), '<p/>');
+    assert.equal(z.get('nao-existe.xml'), undefined);
+  });
+
+  it('parte que passa do fim do arquivo: erro de formato ao abrir', () => {
+    const dados = Buffer.from(zip({ 'a.xml': '<a>'.repeat(1000) }));
+    // Tamanho comprimido no diretório central maior que o arquivo inteiro.
+    const central = dados.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    dados.writeUInt32LE(dados.length * 2, central + 20);
+    assert.throws(() => lerZip(dados), /está cortado/);
   });
 
   it('partes pequenas que somadas passam do total: recusa', () => {
@@ -62,7 +115,10 @@ describe('zip: limites contra bomba de descompactação (T13)', () => {
       comprimido,
     }));
     assert.throws(
-      () => lerZip(zipBinario(entradas), limites),
+      () => {
+        const aberto = lerZip(zipBinario(entradas), limites);
+        for (const n of aberto.nomes()) aberto.get(n);
+      },
       recusa(/^A planilha descomprimida passa do limite de 3 MB no total\.$/),
     );
   });
@@ -72,7 +128,10 @@ describe('zip: limites contra bomba de descompactação (T13)', () => {
     const dados = zipBinario([
       { nome: 'grande.xml', dados: new Uint8Array(2 * MB), metodo: 0 },
     ]);
-    assert.throws(() => lerZip(dados, limites), LimiteExcedido);
+    assert.throws(
+      () => lerZip(dados, limites).get('grande.xml'),
+      LimiteExcedido,
+    );
   });
 
   it('mais de 2.000 partes: recusa sem descomprimir nenhuma', () => {
