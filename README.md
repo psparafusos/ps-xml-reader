@@ -11,6 +11,37 @@ pede (veja Documentos de referência).
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
 
+## Versão 1.2.5
+
+- **Seleção de texto**: a interface (botões, títulos, rótulos, menus, dicas
+  e diálogos) não é selecionável; os dados são (campos e itens da nota e do
+  DANFE, caminhos e nomes de arquivo, versão e vigência dos documentos, erros
+  e avisos, relatórios, explicação da ST e tabelas das Configurações).
+  Ctrl+A na tela da nota seleciona só a nota. PDF e impressão sem mudança.
+- **Segurança, etapa 1**:
+  - Zip preguiçoso: o leitor de `.xlsx` lê só o diretório central e
+    descomprime cada parte quando ela é pedida, conferindo o tamanho
+    declarado antes e depois.
+  - Navegação, quadros, janelas novas e `<webview>` bloqueados em toda
+    página.
+  - O app instalado sai antes de abrir janela quando recebe opções perigosas
+    (`--remote-debugging-port`, `--remote-debugging-pipe`, `--inspect`,
+    `--js-flags`, `--user-data-dir`).
+  - Os canais entre a janela e o processo principal só atendem o quadro
+    principal da página do app.
+  - Arquivo solto (linha de comando, duplo clique) conferido: só arquivo
+    comum, sem link, pasta ou caminho de dispositivo.
+  - Pasta de rede que não responde: prazo de 2 s; quando a pessoa pede para
+    abrir, aparece a mensagem "a pasta de rede não respondeu em 2 segundos".
+    As checagens de fundo usam o mesmo prazo, em silêncio.
+  - Os dados dos documentos de referência são conferidos campo a campo ao
+    serem lidos do disco.
+  - `npm run test:janela`: o app numa janela oculta com NF-e inventadas de
+    ataque; o texto delas tem de aparecer literal.
+- **Leitor de XML genérico**: o motor (decodificação, leitor próprio sem
+  DTD, árvore compacta e busca) já está pronto e testado, ainda sem tela.
+- oxfmt 0.78.0 (só na máquina de desenvolvimento; muda só a formatação).
+
 ## Versão 1.2.4
 
 - **Configurações**: a engrenagem na faixa preta (tela inicial e tela da
@@ -1146,6 +1177,15 @@ src/
   danfe/danfe.ts     montagem dos quadros e paginação do DANFE
   danfe/code128.ts   código de barras CODE-128C (tabela, DV, barras)
   danfe/danfe.css    layout do DANFE em mm/pt, tela e impressão
+  ipcSeguro.ts       envoltório de todos os canais do IPC (confere o remetente)
+  seguranca/argumentos.ts opções de linha de comando perigosas recusadas no app instalado
+  seguranca/remetente.ts  quem pode falar com o processo principal (quadro principal do app)
+  xml/decodificar.ts leitor genérico: bytes -> texto (BOM, UTF-16, declaração, windows-1252)
+  xml/leitor.ts      leitor genérico: XML próprio, sem recursão e sem DTD
+  xml/arvore.ts      leitor genérico: árvore compacta em colunas (typed arrays)
+  xml/busca.ts       leitor genérico: busca nos nomes, atributos e textos
+  xml/limites.ts     leitor genérico: árvore até 20 MB, só texto até 100 MB
+test/janela/         app numa janela oculta com NF-e inventadas de ataque (npm run test:janela)
 index.html           estrutura da página
 assets/              ícone do app (ps-reader.ico) e logo da PS
 forge.config.mts     configuração do Electron Forge (instalador Squirrel)
