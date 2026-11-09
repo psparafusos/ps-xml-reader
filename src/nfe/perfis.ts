@@ -74,11 +74,7 @@ export function novoIdPerfil(perfis: NomePerfil[]): string {
 
 /** Nome sem acento e em minúsculas, para comparar nomes repetidos. */
 const chaveNome = (nome: string) =>
-  nome
-    .trim()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+  nome.trim().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** O perfil com este nome (sem contar acento e maiúscula), se houver. */
 export function perfilComNome<T extends NomePerfil>(

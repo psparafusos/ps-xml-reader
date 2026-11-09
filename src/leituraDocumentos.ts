@@ -310,10 +310,7 @@ export type Reconhecido =
   | 'texto';
 
 const normal = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const RE_COMBUSTIVEIS = /cotepe|pmpf|preco medio ponderado|combustive/;
 const RE_TIPI =

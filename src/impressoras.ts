@@ -22,10 +22,7 @@ export const PADROES_IMPRESSORA_CUPOM: readonly RegExp[] = [
 ];
 
 const semAcento = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export function ehImpressoraCupom(nome: string): boolean {
   const n = semAcento(nome);

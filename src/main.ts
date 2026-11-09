@@ -1036,9 +1036,8 @@ const mesmoCaminho = (a: string, b: string) =>
 const mesmaPasta = (a: string, b: string) =>
   path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
-tratar(
-  'pasta-destino',
-  (event): Promise<PastaDestino> => pastaEfetiva(estadoDe(event.sender)),
+tratar('pasta-destino', (event): Promise<PastaDestino> =>
+  pastaEfetiva(estadoDe(event.sender)),
 );
 
 /**
@@ -1217,9 +1216,8 @@ async function mudarPerfis(
 
 const texto = (v: unknown) => (typeof v === 'string' ? v : '');
 
-tratar(
-  'perfis',
-  async (): Promise<EstadoPerfis> => estadoDosPerfis(await lerPerfis()),
+tratar('perfis', async (): Promise<EstadoPerfis> =>
+  estadoDosPerfis(await lerPerfis()),
 );
 
 /** Aplicar no editor de colunas: grava no perfil ativo. */
@@ -1232,33 +1230,29 @@ tratar(
     }),
 );
 
-tratar(
-  'ativar-perfil',
-  (event, id: unknown): Promise<ResultadoPerfis> =>
-    mudarPerfis(event, (p) => {
-      if (!p.lista.some((x) => x.id === id)) return 'Perfil não encontrado.';
-      p.ativo = id as string;
-      return null;
-    }),
+tratar('ativar-perfil', (event, id: unknown): Promise<ResultadoPerfis> =>
+  mudarPerfis(event, (p) => {
+    if (!p.lista.some((x) => x.id === id)) return 'Perfil não encontrado.';
+    p.ativo = id as string;
+    return null;
+  }),
 );
 
 /** Perfil novo, cópia do ativo, que passa a ser o ativo. */
-tratar(
-  'criar-perfil',
-  (event, nome: unknown): Promise<ResultadoPerfis> =>
-    mudarPerfis(event, (p) => {
-      const n = texto(nome).trim();
-      const problema = problemaNomePerfil(n, p.lista);
-      if (problema) return problema;
-      const id = novoIdPerfil(p.lista);
-      p.lista.push({
-        id,
-        nome: n,
-        config: structuredClone(perfilAtivo(p).config),
-      });
-      p.ativo = id;
-      return null;
-    }),
+tratar('criar-perfil', (event, nome: unknown): Promise<ResultadoPerfis> =>
+  mudarPerfis(event, (p) => {
+    const n = texto(nome).trim();
+    const problema = problemaNomePerfil(n, p.lista);
+    if (problema) return problema;
+    const id = novoIdPerfil(p.lista);
+    p.lista.push({
+      id,
+      nome: n,
+      config: structuredClone(perfilAtivo(p).config),
+    });
+    p.ativo = id;
+    return null;
+  }),
 );
 
 tratar(
@@ -1516,13 +1510,10 @@ tratar(
   },
 );
 
-tratar(
-  'dados-app',
-  async (): Promise<EstadoDadosApp> => ({
-    pasta: app.getPath('userData'),
-    itens: await listarDadosApp(app.getPath('userData')),
-  }),
-);
+tratar('dados-app', async (): Promise<EstadoDadosApp> => ({
+  pasta: app.getPath('userData'),
+  itens: await listarDadosApp(app.getPath('userData')),
+}));
 
 tratar('abrir-pasta-dados', async (): Promise<ResultadoAbrirPasta> => {
   const pasta = app.getPath('userData');
