@@ -3,11 +3,12 @@
 // detalhe ao clicar), o que precisa da pessoa (Qtd recebida diferente, que
 // leva à linha), as ferramentas (seção escondida enquanto não houver
 // nenhuma) e, no rodapé, a situação dos documentos de referência ("Base:
-// ST ✓ · TIPI ✓"), que abre a área deles. Recolhe numa barra fina de ícones. Janela larga: fica aberto ao
-// lado da nota, sem empurrá-la, e lembra se a pessoa recolheu. Janela
-// estreita: começa recolhido e abre por cima da nota.
+// ST ✓ · TIPI ✓"), que abre a área deles. Recolhido, sobram só dois botões
+// flutuantes no canto da área da nota: abrir e o selo da situação. Janela
+// larga: fica aberto ao lado da nota, sem empurrá-la, e lembra se a pessoa
+// recolheu. Janela estreita: começa recolhido e abre por cima da nota.
 
-import { botao, el, icone } from './dom';
+import { botao, el, icone, iconeSinal } from './dom';
 import { criarIndicador, type Indicador } from './indicador';
 import type { Conferido } from './nfe/avisos';
 import {
@@ -24,7 +25,7 @@ import {
   type PreviaFerramenta,
 } from './nfe/ferramentas';
 import type { ResumoCfop } from './nfe/resumoCfop';
-import { ICONES } from './icones';
+import { ICONES, type SinalEstado } from './icones';
 
 export interface AcoesPainel {
   abrirConferido(c: Conferido): void;
@@ -58,21 +59,18 @@ export interface PainelConferencia {
   indicador: Indicador;
 }
 
-const ICONE_OK = 'M5 12l5 5 9-10';
-const ICONE_ALERTA = ['M12 7v6', 'M12 17h.01'];
-const ICONE_INFO = ['M12 11v6', 'M12 7h.01'];
+/** Ícone de cada nível (src/icones.ts): check verde, i cinza, triângulo amarelo, x vermelho. */
+const SINAL_NIVEL: Record<NivelVerificacao, SinalEstado> = {
+  ok: 'ok',
+  info: 'info',
+  leve: 'aviso',
+  forte: 'erro',
+};
 
-/** Sinal de cada nível: ✓ verde, i cinza, ! amarelo (leve), ! vermelho. */
-function sinal(nivel: NivelVerificacao): HTMLElement {
-  return el(
-    'span',
-    `conferencia__sinal conferencia__sinal--${nivel}`,
-    nivel === 'ok'
-      ? icone(ICONE_OK)
-      : nivel === 'info'
-        ? icone(...ICONE_INFO)
-        : icone(...ICONE_ALERTA),
-  );
+function sinal(nivel: NivelVerificacao): SVGSVGElement {
+  const svg = iconeSinal(SINAL_NIVEL[nivel]);
+  svg.classList.add('conferencia__sinal');
+  return svg;
 }
 
 const ROTULO_NIVEL: Record<NivelVerificacao, string> = {
@@ -147,24 +145,25 @@ export function criarPainel(
     aplicarEstado(focar ? 'trilho' : undefined);
   }
 
-  // ---------- barra fina (recolhido) ----------
+  // ---------- recolhido: dois botões flutuantes ----------
 
   function desenharTrilho(r: ResumoConferencia | null): void {
     const pontos = r?.pontos ?? 0;
     const expandir = botao(
-      'conferencia__expandir',
+      'conferencia__expandir conferencia__flutuante',
       icone(...ICONES.setaDireita),
       el('span', 'conferencia__so-leitor', 'Abrir o painel de conferência'),
     );
     expandir.title = 'Abrir o painel de conferência';
     expandir.setAttribute('aria-expanded', 'false');
     expandir.setAttribute('aria-controls', corpo.id);
+    // O selo: check verde (tudo certo) ou o número de pontos em vermelho.
     const situacao = botao(
-      `conferencia__icone-trilho conferencia__icone-trilho--${r === null ? 'carregando' : pontos === 0 ? 'ok' : 'alerta'}`,
+      `conferencia__icone-trilho conferencia__flutuante conferencia__icone-trilho--${r === null ? 'carregando' : pontos === 0 ? 'ok' : 'alerta'}`,
       r === null
         ? el('span', 'conferencia__giro')
         : pontos === 0
-          ? icone(ICONE_OK)
+          ? iconeSinal('ok')
           : el('span', 'conferencia__contagem', String(pontos)),
     );
     situacao.title =
@@ -262,11 +261,7 @@ export function criarPainel(
       `conferencia__resultado conferencia__resultado--${estado}`,
       r === null
         ? el('span', 'conferencia__giro')
-        : el(
-            'span',
-            'conferencia__resultado-sinal',
-            r.pontos === 0 ? icone(ICONE_OK) : icone(...ICONE_ALERTA),
-          ),
+        : iconeSinal(r.pontos === 0 ? 'ok' : 'erro'),
       el(
         'span',
         'conferencia__resultado-texto',
@@ -297,11 +292,7 @@ export function criarPainel(
             ...r.pendencias.map((p) => {
               const b = botao(
                 'conferencia__pendencia',
-                el(
-                  'span',
-                  'conferencia__sinal conferencia__sinal--alerta',
-                  icone(...ICONE_ALERTA),
-                ),
+                sinal('forte'),
                 el(
                   'span',
                   'conferencia__pendencia-textos',
@@ -463,7 +454,7 @@ export function criarPainel(
   /** Ferramenta com janela própria: Rodar mostra o processando (passando de 500 ms) e abre a janela. */
   function linhaFerramentaJanela(fe: FerramentaJanela): HTMLLIElement {
     const rodar = botao(
-      'botao botao--principal botao--pequeno',
+      'botao botao--ferramenta botao--pequeno',
       el('span', '', 'Rodar'),
     );
     rodar.disabled = !fe.podeRodar();
@@ -497,7 +488,7 @@ export function criarPainel(
   function linhaFerramenta(fe: Ferramenta): HTMLLIElement {
     const previa = previas.get(fe.id);
     const rodar = botao(
-      'botao botao--claro botao--pequeno',
+      'botao botao--ferramenta botao--pequeno',
       el('span', '', previa ? 'Rodar de novo' : 'Rodar'),
     );
     const aplicar = botao(

@@ -51,24 +51,34 @@ export const ICONES = {
     'M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1',
     'M5 19h12.5a1.5 1.5 0 0 0 1.4-1l2-5.6a1 1 0 0 0-.9-1.4H8.1a1.5 1.5 0 0 0-1.4 1z',
   ],
-  // Estados dos documentos de referência (src/estadoDocumentos.ts): a forma
-  // vem primeiro (círculo ou triângulo), a marca depois.
-  /** Ok: check em círculo. */
-  estadoOk: ['M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z', 'M8 12.5l2.7 2.7L16 9.8'],
-  /** Aviso: triângulo com exclamação. */
+  // Ícones de estado, os mesmos em todo o app (verificações do painel, selos
+  // dos documentos, pastilhas da barra, lista da tela inicial): a forma
+  // cheia vem primeiro (círculo de raio 10 ou triângulo, os dois com cerca
+  // de 20 de largura), a marca depois, centrada no meio da forma. Cor,
+  // tamanho e traço vêm do CSS (.icone-estado, tokens --icone-estado-*);
+  // dom.ts, iconeSinal, desenha.
+  /** Ok: check verde. */
+  estadoOk: ['M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z', 'M7.5 12.3l3 3 6-6'],
+  /** Informativo: "i" cinza. */
+  estadoInfo: [
+    'M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z',
+    'M12 11v5.4',
+    'M12 7.8v.01',
+  ],
+  /** Aviso: triângulo amarelo com exclamação (centrada no miolo do triângulo). */
   estadoAviso: [
     'M10.3 4.2a2 2 0 0 1 3.4 0l7.6 13.2a2 2 0 0 1-1.7 3H4.4a2 2 0 0 1-1.7-3z',
-    'M12 9.5v4.5',
-    'M12 17.2v.1',
+    'M12 9.4v4.4',
+    'M12 17.1v.01',
   ],
-  /** Faltando: x em círculo. */
-  estadoFaltando: [
-    'M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z',
-    'M9.2 9.2l5.6 5.6',
-    'M14.8 9.2l-5.6 5.6',
+  /** Erro: x vermelho. */
+  estadoErro: [
+    'M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z',
+    'M8.9 8.9l6.2 6.2',
+    'M15.1 8.9l-6.2 6.2',
   ],
-  /** Opcional não carregado: círculo vazado. */
-  estadoOpcional: ['M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z'],
+  /** Opcional não carregado: só o círculo, vazado. */
+  estadoOpcional: ['M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z'],
   /**
    * Engrenagem (Configurações), no jeito da do Windows: oito dentes de topo
    * arredondado em volta de um corpo redondo, com o furo no meio.
@@ -78,3 +88,19 @@ export const ICONES = {
     'M15 12a3 3 0 1 1-6 0a3 3 0 0 1 6 0z',
   ],
 } as const satisfies Record<string, readonly string[]>;
+
+/**
+ * Os quatro estados que o app mostra com ícone (e o opcional, vazado): ok,
+ * informativo, aviso e erro. Quem tem estado próprio (nível da verificação,
+ * situação do documento) converte para um destes.
+ */
+export type SinalEstado = 'ok' | 'info' | 'aviso' | 'erro' | 'opcional';
+
+/** Ícone de cada estado. */
+export const ICONE_SINAL = {
+  ok: 'estadoOk',
+  info: 'estadoInfo',
+  aviso: 'estadoAviso',
+  erro: 'estadoErro',
+  opcional: 'estadoOpcional',
+} as const satisfies Record<SinalEstado, keyof typeof ICONES>;

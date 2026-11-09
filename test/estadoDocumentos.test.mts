@@ -10,7 +10,7 @@ import {
   seloVisivel,
   textoVersaoNova,
 } from '../src/estadoDocumentos.ts';
-import { ICONES } from '../src/icones.ts';
+import { ICONE_SINAL, ICONES } from '../src/icones.ts';
 
 // Dados inventados: nenhuma planilha real.
 const info = (p: Partial<InfoDocumento> = {}): InfoDocumento => ({
@@ -62,28 +62,72 @@ function estado(p: Partial<EstadoDocumentos> = {}): EstadoDocumentos {
 }
 
 describe('estado dos documentos: mapa para ícone e cor', () => {
-  it('cada estado tem o seu ícone e a sua cor', () => {
+  it('cada estado usa o ícone de estado do app', () => {
+    // Os mesmos ícones do painel de conferência: faltando é o x vermelho
+    // (erro), opcional o círculo vazado.
     assert.deepEqual(VISUAL_ESTADO, {
-      ok: { icone: 'estadoOk', cor: 'var(--semaforo-verde)' },
-      aviso: { icone: 'estadoAviso', cor: 'var(--semaforo-amarelo)' },
-      faltando: { icone: 'estadoFaltando', cor: 'var(--semaforo-vermelho)' },
-      opcional: { icone: 'estadoOpcional', cor: 'var(--cor-icone)' },
+      ok: 'ok',
+      aviso: 'aviso',
+      faltando: 'erro',
+      opcional: 'opcional',
     });
   });
 
-  it('os ícones existem em icones.ts com a forma certa', () => {
-    const circulo = 'M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z';
-    // Check em círculo, x em círculo, círculo vazado: o círculo primeiro.
+  it('os ícones de estado existem em icones.ts com a forma certa', () => {
+    const circulo = 'M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z';
+    assert.deepEqual(ICONE_SINAL, {
+      ok: 'estadoOk',
+      info: 'estadoInfo',
+      aviso: 'estadoAviso',
+      erro: 'estadoErro',
+      opcional: 'estadoOpcional',
+    });
+    // Check, i e x no mesmo círculo: o círculo primeiro, a marca depois.
     assert.equal(ICONES.estadoOk[0], circulo);
     assert.equal(ICONES.estadoOk.length, 2);
-    assert.equal(ICONES.estadoFaltando[0], circulo);
-    assert.equal(ICONES.estadoFaltando.length, 3);
+    assert.equal(ICONES.estadoInfo[0], circulo);
+    assert.equal(ICONES.estadoInfo.length, 3);
+    assert.equal(ICONES.estadoErro[0], circulo);
+    assert.equal(ICONES.estadoErro.length, 3);
     assert.deepEqual(ICONES.estadoOpcional, [circulo]);
     // Triângulo: começa no alto (12, ~4) e fecha.
     assert.match(ICONES.estadoAviso[0], /^M10\.3 4\.2.*z$/);
     assert.equal(ICONES.estadoAviso.length, 3);
-    for (const v of Object.values(VISUAL_ESTADO))
-      assert.ok(v.icone in ICONES, v.icone);
+  });
+
+  it('a marca fica centrada no círculo', () => {
+    // Caixa dos pontos de cada marca (só M, L, l e v): centro em x = 12 e
+    // y = 12, com até 0,4 de folga no vertical (o check desce um pouco
+    // para parecer no meio).
+    const pontos = (d: string): [number, number][] => {
+      const ps: [number, number][] = [];
+      let x = 0;
+      let y = 0;
+      for (const [, cmd, args] of d.matchAll(/([MLlv])([^MLlv]*)/g)) {
+        // Números do SVG: "3 3 6-6" são quatro (o sinal separa).
+        const n = (args.match(/-?\d*\.?\d+/g) ?? []).map(Number);
+        if (cmd === 'v') {
+          y += n[0];
+          ps.push([x, y]);
+          continue;
+        }
+        for (let i = 0; i < n.length; i += 2) {
+          x = cmd === 'l' ? x + n[i] : n[i];
+          y = cmd === 'l' ? y + n[i + 1] : n[i + 1];
+          ps.push([x, y]);
+        }
+      }
+      return ps;
+    };
+    for (const nome of ['estadoOk', 'estadoInfo', 'estadoErro'] as const) {
+      const ps = ICONES[nome].slice(1).flatMap(pontos);
+      const xs = ps.map((p) => p[0]);
+      const ys = ps.map((p) => p[1]);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      assert.ok(Math.abs(cx - 12) <= 0.05, `${nome}: x ${cx}`);
+      assert.ok(Math.abs(cy - 12) <= 0.4, `${nome}: y ${cy}`);
+    }
   });
 
   it('as cores do semáforo viram estados', () => {
@@ -199,6 +243,50 @@ describe('estado dos documentos: pastilhas da barra', () => {
     assert.deepEqual(
       comComb.map((p) => p.texto),
       ['ST ok', 'TIPI ok', 'Combustíveis ok'],
+    );
+  });
+});
+
+describe('estado dos documentos: ST para reimportar', () => {
+  // Planilha importada antes da leitura das colunas de estados.
+  const e = estado({
+    st: info(),
+    tipi: info({ tipo: 'tipi' }),
+    stSemProtocolos: true,
+  });
+
+  it('o selo, a linha e a pastilha mostram o aviso', () => {
+    assert.deepEqual(seloVisivel('st', e), {
+      estado: 'aviso',
+      texto: 'Reimportar',
+    });
+    const st = linhasDocumentos(e)[0];
+    assert.equal(st.estado, 'aviso');
+    assert.equal(st.situacao, 'Reimportar');
+    assert.deepEqual(
+      pastilhasDocumentos(e).map((p) => [p.estado, p.texto]),
+      [
+        ['aviso', 'ST reimportar'],
+        ['ok', 'TIPI ok'],
+      ],
+    );
+  });
+
+  it('com versão nova, o selo segue pedindo para reimportar', () => {
+    const comNova = estado({
+      ...e,
+      preferencias: { verificacaoOnline: true, verificarAoAbrir: false },
+      verificacao: { st: nova, tipi: null },
+    });
+    const st = linhasDocumentos(comNova)[0];
+    assert.equal(st.situacao, 'Reimportar');
+    assert.equal(st.versaoNova, true);
+  });
+
+  it('sem planilha de ST, nada a reimportar', () => {
+    assert.equal(
+      seloVisivel('st', estado({ stSemProtocolos: true })).texto,
+      'Faltando',
     );
   });
 });

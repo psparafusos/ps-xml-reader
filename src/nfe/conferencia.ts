@@ -163,7 +163,8 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
       parcelas.length === 0
         ? 'A nota não tem duplicatas.'
         : vencidas > 0
-          ? 'Falar com o fornecedor para prorrogar.'
+          ? // "Falar com o fornecedor" fica só na linha da parcela vencida.
+            'Datas contadas a partir de hoje.'
           : `Nenhuma parcela vencida. Datas contadas a partir de hoje.`,
     linhas: parcelas.map((x) => ({
       texto: x.texto,

@@ -104,6 +104,25 @@ ul {
   justify-content: center;
 }
 
+/* Ferramenta (Rodar, Rodar de novo, no painel de conferência): preto com
+   texto branco, em qualquer visual. Diferente do principal (Salvar,
+   Aplicar), que é a ação de gravar. */
+.botao--ferramenta {
+  border-color: var(--botao-ferramenta-fundo);
+  background: var(--botao-ferramenta-fundo);
+  color: var(--botao-ferramenta-texto);
+}
+
+.botao--ferramenta:hover:not(:disabled) {
+  border-color: var(--botao-ferramenta-fundo-hover);
+  background: var(--botao-ferramenta-fundo-hover);
+}
+
+.botao--ferramenta:active:not(:disabled) {
+  border-color: var(--botao-ferramenta-fundo-pressionado);
+  background: var(--botao-ferramenta-fundo-pressionado);
+}
+
 .botao--grande {
   padding: var(--esp-3) var(--esp-6);
   font-size: var(--fs-lg);
@@ -626,8 +645,19 @@ ul {
   font-size: var(--fs-sm);
 }
 
+/* Recolhido: sem a faixa; só os dois botões flutuantes (abrir e o selo),
+   no canto de cima da área da nota. A caixa não pega cliques fora deles. */
 .conferencia[data-estado='recolhido'] {
+  bottom: auto;
   width: var(--largura-trilho-conferencia);
+  border: 0;
+  background: none;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.conferencia[data-estado='recolhido'] .conferencia__trilho > * {
+  pointer-events: auto;
 }
 
 .conferencia[data-layout='sobre'][data-estado='aberto'] {
@@ -721,9 +751,11 @@ ul {
   color: var(--cor-texto);
 }
 
-.conferencia__resultado-sinal .icone {
-  width: 20px;
-  height: 20px;
+/* No resultado (fundo verde ou vermelho) o ícone vai invertido: a forma
+   branca e a marca na cor do estado. */
+.conferencia__resultado .icone-estado {
+  --icone-estado-marca: var(--icone-estado-cor-base);
+  --icone-estado-cor: var(--ps-branco);
 }
 
 .conferencia__subtitulo {
@@ -771,7 +803,7 @@ ul {
   background: var(--cor-alerta-suave);
 }
 
-.conferencia__linha .icone:last-child {
+.conferencia__linha > .icone:last-child {
   width: 14px;
   height: 14px;
   margin-left: auto;
@@ -781,39 +813,9 @@ ul {
   font-weight: var(--peso-medio);
 }
 
-/* ✓ verde ou ! no círculo de alerta. */
+/* Sinal de cada verificação: o ícone de estado do app (.icone-estado). */
 .conferencia__sinal {
-  display: inline-grid;
   flex: none;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  color: var(--ps-branco);
-}
-
-.conferencia__sinal .icone {
-  width: 14px;
-  height: 14px;
-}
-
-.conferencia__sinal--ok {
-  background: var(--cor-ok);
-}
-
-.conferencia__sinal--alerta,
-.conferencia__sinal--forte {
-  background: var(--aviso-erro-fundo);
-}
-
-/* Aviso leve: amarelo com o ! preto; informativo: cinza. */
-.conferencia__sinal--leve {
-  background: var(--cor-destaque);
-  color: var(--cor-texto-sobre-destaque);
-}
-
-.conferencia__sinal--info {
-  background: var(--cor-icone);
 }
 
 .conferencia__verificacao--leve .conferencia__linha {
@@ -835,6 +837,11 @@ ul {
   display: flex;
   align-items: flex-start;
   gap: var(--esp-2);
+}
+
+/* O ícone na altura da primeira linha do texto. */
+.conferencia__parcela .conferencia__sinal {
+  margin-top: calc((1lh - var(--icone-estado)) / 2);
 }
 
 .conferencia__parcela--forte {
@@ -883,15 +890,22 @@ ul {
   gap: var(--esp-2);
 }
 
-/* Barra fina do painel recolhido: abrir, a situação (✓ ou o número de
-   pontos) e o indicador de processando. */
+/* Recolhido: abrir, o selo da situação (check verde ou o número de pontos
+   em vermelho) e o indicador de processando, um embaixo do outro. */
 .conferencia__trilho {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--esp-2);
   width: 100%;
-  padding: var(--esp-3) 0;
+}
+
+/* Botões flutuantes: redondos, brancos, com sombra leve. */
+.conferencia__flutuante {
+  border-color: var(--cor-borda-suave);
+  border-radius: 50%;
+  background: var(--ps-branco);
+  box-shadow: var(--sombra-flutuante);
 }
 
 .conferencia__trilho[hidden],
@@ -899,35 +913,19 @@ ul {
   display: none;
 }
 
-.conferencia__icone-trilho--ok {
-  border-color: var(--cor-ok);
-  background: var(--cor-ok);
-  color: var(--cor-texto-sobre-ok);
-}
-
-.conferencia__icone-trilho--alerta {
-  border-color: var(--aviso-erro-fundo);
+/* O número de pontos: branco numa bolinha vermelha, do tamanho do ícone. */
+.conferencia__contagem {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--icone-estado);
+  height: var(--icone-estado);
+  padding: 0 var(--esp-1);
+  border-radius: var(--pastilha-raio, 999px);
   background: var(--aviso-erro-fundo);
   color: var(--aviso-erro-texto);
-}
-
-/* No hover, o ✓ e o número mantêm o fundo verde ou vermelho (o amarelo
-   claro dos outros botões apagava o ícone branco): só a borda preta e um
-   leve escurecimento. */
-.conferencia__icone-trilho--ok:hover {
-  border-color: var(--ps-preto);
-  background: var(--cor-ok);
-  filter: brightness(0.9);
-}
-
-.conferencia__icone-trilho--alerta:hover {
-  border-color: var(--ps-preto);
-  background: var(--aviso-erro-fundo);
-  filter: brightness(0.9);
-}
-
-.conferencia__contagem {
+  font-size: var(--fs-xs);
   font-weight: var(--peso-forte);
+  line-height: 1;
 }
 
 /* Processando: só aparece quando uma ação passa de 500 ms (indicador.ts). */
@@ -1253,11 +1251,40 @@ ul {
 }
 
 /* A descrição fica com o espaço que sobra, mas nunca abaixo de cerca de 30
-   caracteres: se não couber, a tabela rola na horizontal. */
+   caracteres: se não couber, a tabela rola na horizontal. Palavra comprida
+   sem espaço (código de barras colado no texto, "EAN:789...;REF:...") quebra
+   dentro da coluna: sem isso ela alargava a coluna e a tabela inteira. */
 .tabela--itens .col-descricao {
   width: 100%;
   min-width: var(--largura-minima-descricao);
   color: var(--cor-texto-forte);
+  overflow-wrap: anywhere;
+}
+
+/* Na tela, no máximo 3 linhas, com reticências. Cortada, clicar na célula
+   mostra o texto inteiro e clicar de novo recolhe (renderer.ts,
+   celulaDescricao); o foco por teclado abre com Enter ou espaço. */
+.tabela--itens .descricao__texto {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--linhas-descricao);
+  line-clamp: var(--linhas-descricao);
+}
+
+.tabela--itens .descricao__texto[data-aberta] {
+  display: block;
+  -webkit-line-clamp: none;
+  line-clamp: none;
+}
+
+.tabela--itens td.col-descricao:has(.descricao__texto[data-cortada]) {
+  cursor: pointer;
+}
+
+.tabela--itens .descricao__texto:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: var(--botao-foco-afastamento);
 }
 
 /* ---------- ordenar ---------- */
@@ -2022,10 +2049,13 @@ body.pdf-previa #pdf-previa {
   white-space: nowrap;
 }
 
+/* No papel a descrição sai inteira, quebrando dentro da coluna (também a
+   palavra comprida sem espaço), sem reticências. */
 .tabela--folha .col-descricao {
   width: 100%;
   min-width: var(--largura-minima-descricao);
   color: var(--cor-texto-forte);
+  overflow-wrap: anywhere;
 }
 
 /* Só a seta da coluna ordenada, no texto. */
@@ -3452,19 +3482,55 @@ body.pdf-previa #pdf-previa {
   white-space: nowrap;
 }
 
-.estado-icone {
-  width: 18px;
-  height: 18px;
+/* Ícone de estado (src/icones.ts, dom.ts iconeSinal), o mesmo em todo o
+   app: a forma cheia na cor do estado e a marca por cima, centrada. Ok:
+   check verde; informativo: i cinza; aviso: triângulo amarelo com a
+   exclamação preta; erro: x vermelho; opcional: o círculo vazado. */
+.icone-estado {
+  --icone-estado-cor: var(--icone-estado-cor-base);
+  flex: none;
+  width: var(--icone-estado);
+  height: var(--icone-estado);
 }
 
-/* Aviso: o triângulo cheio no amarelo e a exclamação escura, para ler no
-   cartão branco e na barra preta. */
-.estado-icone--aviso path:first-child {
-  fill: var(--semaforo-amarelo);
+.icone-estado path:first-child {
+  fill: var(--icone-estado-cor);
+  stroke: none;
 }
 
-.estado-icone--aviso path:not(:first-child) {
-  stroke: var(--cor-texto-forte);
+.icone-estado path:not(:first-child) {
+  stroke: var(--icone-estado-marca);
+  stroke-width: var(--icone-estado-traco);
+}
+
+.icone-estado--ok {
+  --icone-estado-cor-base: var(--cor-ok);
+  --icone-estado-marca: var(--ps-branco);
+}
+
+.icone-estado--info {
+  --icone-estado-cor-base: var(--cor-icone);
+  --icone-estado-marca: var(--ps-branco);
+}
+
+.icone-estado--aviso {
+  --icone-estado-cor-base: var(--ps-amarelo);
+  --icone-estado-marca: var(--ps-preto);
+}
+
+.icone-estado--erro {
+  --icone-estado-cor-base: var(--semaforo-vermelho);
+  --icone-estado-marca: var(--ps-branco);
+}
+
+.icone-estado--opcional {
+  --icone-estado-cor-base: var(--cor-icone);
+}
+
+.icone-estado--opcional path:first-child {
+  fill: none;
+  stroke: var(--icone-estado-cor);
+  stroke-width: var(--icone-estado-traco-vazado);
 }
 
 .estado__texto {

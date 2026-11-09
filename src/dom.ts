@@ -2,7 +2,7 @@
 // por append (vira nó de texto), nunca por innerHTML.
 
 import { VISUAL_ESTADO, type EstadoVisivel } from './estadoDocumentos';
-import { ICONES } from './icones';
+import { ICONE_SINAL, ICONES, type SinalEstado } from './icones';
 
 export type Filho = Node | string | null | undefined | false;
 
@@ -121,15 +121,23 @@ export function navegarMenu(
 }
 
 /**
+ * Ícone de estado do app (ok, informativo, aviso, erro, opcional): o mesmo
+ * desenho, tamanho e traço em todo lugar, com a cor do estado (CSS,
+ * .icone-estado--*). Só desenho: o texto do estado fica ao lado ou no
+ * aria-label de quem o usa.
+ */
+export function iconeSinal(sinal: SinalEstado): SVGSVGElement {
+  const svg = icone(...ICONES[ICONE_SINAL[sinal]]);
+  svg.classList.add('icone-estado', `icone-estado--${sinal}`);
+  return svg;
+}
+
+/**
  * Ícone do estado de um documento de referência (ok, aviso, faltando,
- * opcional), na cor do estado (src/estadoDocumentos.ts).
+ * opcional), pelo mapa de src/estadoDocumentos.ts.
  */
 export function iconeEstado(estado: EstadoVisivel): SVGSVGElement {
-  const v = VISUAL_ESTADO[estado];
-  const svg = icone(...ICONES[v.icone]);
-  svg.classList.add('estado-icone', `estado-icone--${estado}`);
-  svg.style.color = v.cor;
-  return svg;
+  return iconeSinal(VISUAL_ESTADO[estado]);
 }
 
 /** Ícone do estado com o texto curto ao lado (nunca só a cor). */

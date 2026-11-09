@@ -894,6 +894,52 @@ const ITENS_MINIATURA = 40;
  * tabela da tela (guarda os tbody para reordenar e a própria tabela); sem
  * ele, é uma cópia (miniatura ou medida da folha) que não mexe no estado.
  */
+/**
+ * Descrição na tabela da tela: no máximo 3 linhas, com reticências (CSS,
+ * .descricao__texto). Clicar na célula de uma descrição cortada mostra o
+ * texto inteiro (a linha cresce); clicar de novo recolhe. Pelo teclado, o
+ * texto cortado recebe foco e abre com Enter ou espaço.
+ */
+function celulaDescricao(td: HTMLTableCellElement, texto: string): HTMLElement {
+  td.append(el('span', 'descricao__texto', texto));
+  return td;
+}
+
+/** Vigia a largura da tabela da tela (uma por vez). */
+let vigiaDescricoes: ResizeObserver | null = null;
+
+/** Alterna a descrição inteira da célula (só se ela estava cortada). */
+function alternarDescricao(td: HTMLElement): void {
+  const texto = td.querySelector<HTMLElement>('.descricao__texto');
+  if (!texto || texto.dataset.cortada === undefined) return;
+  const aberta = texto.dataset.aberta === undefined;
+  texto.toggleAttribute('data-aberta', aberta);
+  texto.setAttribute('aria-expanded', String(aberta));
+}
+
+/**
+ * Marca as descrições que passam de 3 linhas (cursor de clique, foco e
+ * aria-expanded). Refeito quando a largura da tabela muda.
+ */
+function marcarDescricoesCortadas(tabela: HTMLElement): void {
+  for (const texto of tabela.querySelectorAll<HTMLElement>(
+    '.descricao__texto',
+  )) {
+    const aberta = texto.dataset.aberta !== undefined;
+    const cortada = aberta || texto.scrollHeight > texto.clientHeight + 1;
+    texto.toggleAttribute('data-cortada', cortada);
+    if (cortada) {
+      texto.tabIndex = 0;
+      texto.setAttribute('role', 'button');
+      texto.setAttribute('aria-expanded', String(aberta));
+    } else {
+      texto.removeAttribute('tabindex');
+      texto.removeAttribute('role');
+      texto.removeAttribute('aria-expanded');
+    }
+  }
+}
+
 function montarTabelaItens(
   colunasConfig: ColunaItem[],
   itens: Item[],
@@ -947,7 +993,9 @@ function montarTabelaItens(
         ...colunas.map((c) =>
           c.anotacao
             ? celulaAnotacao(i, c, celula('td', c), fonte)
-            : celula('td', c, c.valor(i)),
+            : guardar && c.id === 'descricao'
+              ? celulaDescricao(celula('td', c), c.valor(i))
+              : celula('td', c, c.valor(i)),
         ),
       ),
     );
@@ -963,7 +1011,27 @@ function montarTabelaItens(
   });
 
   const tabela = el('table', 'tabela tabela--itens', thead, ...corpos);
-  if (guardar) tabelaItensEl = tabela;
+  if (guardar) {
+    tabelaItensEl = tabela;
+    tabela.addEventListener('click', (e) => {
+      const td = (e.target as Element).closest<HTMLElement>('td.col-descricao');
+      // Texto selecionado com o mouse: não abre nem fecha.
+      if (td && !window.getSelection()?.toString()) alternarDescricao(td);
+    });
+    tabela.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const texto = (e.target as Element).closest('.descricao__texto');
+      const td = texto?.closest<HTMLElement>('td.col-descricao');
+      if (!td) return;
+      e.preventDefault();
+      alternarDescricao(td);
+    });
+    vigiaDescricoes?.disconnect();
+    vigiaDescricoes = new ResizeObserver(() =>
+      marcarDescricoesCortadas(tabela),
+    );
+    vigiaDescricoes.observe(tabela);
+  }
   return tabela;
 }
 
@@ -3320,12 +3388,13 @@ const ferramentaST: FerramentaJanela = {
   },
 };
 
-// Documentos de referência: pastilhas da barra e da faixa da tela inicial
-// e a lista do cartão "Documentos de referência" (uma linha por documento,
-// com o ícone do estado). Mudou (importação em outra janela, verificação ao
-// abrir), atualiza tudo.
+// Documentos de referência: pastilhas da barra da nota e da faixa da tela
+// inicial (cada uma um botão que abre o cartão do documento), e a lista do cartão
+// "Documentos de referência" (uma linha por documento, com o ícone do
+// estado). Mudou (importação em outra janela, verificação ao abrir),
+// atualiza tudo.
 const btnDocumentos = $('btn-documentos') as HTMLButtonElement;
-const btnBarraDocumentos = $('barra-documentos') as HTMLButtonElement;
+const barraDocumentos = $('barra-documentos');
 const listaDocumentos = $('documentos-lista');
 const inicioDocumentos = $('inicio-documentos');
 /** Download do Atualizar em andamento, por documento. */
@@ -3335,14 +3404,32 @@ const erroDocumentos = new Map<TipoDocumento, string>();
 /** Atualizar ou Carregar desta janela em andamento. */
 const ocupadoDocumentos = new Set<TipoDocumento>();
 
-function pastilhasDocumento(e: EstadoDocumentos): HTMLElement[] {
-  return pastilhasDocumentos(e).map((p) =>
-    el(
-      'span',
+/**
+ * Pastilha de documento clicada (barra da nota ou faixa da tela inicial): o
+ * único lugar que decide o que abre. Hoje, a tela de Documentos no cartão
+ * dele.
+ */
+function abrirDocumento(tipo: TipoDocumento): void {
+  abrirAreaDocumentos({ cartao: tipo });
+}
+
+/** Pastilhas das duas barras: um botão por documento, que abre o cartão dele. */
+function botoesDocumento(e: EstadoDocumentos): HTMLButtonElement[] {
+  return pastilhasDocumentos(e).map((p) => {
+    const b = el(
+      'button',
       `pastilha pastilha--documento pastilha--${p.estado}`,
       marcaEstado(p.estado, p.texto),
-    ),
-  );
+    );
+    b.type = 'button';
+    b.dataset.tipo = p.tipo;
+    b.setAttribute(
+      'aria-label',
+      `${p.texto}. Abrir ${NOME_DOCUMENTO[p.tipo]} na tela de Documentos.`,
+    );
+    b.addEventListener('click', () => abrirDocumento(p.tipo));
+    return b;
+  });
 }
 
 const porcentagem = (p: ProgressoDocumento) =>
@@ -3568,14 +3655,15 @@ function atualizarDocumentos(): void {
     .documentos()
     .then((e) => {
       estadoDocumentos = e;
-      btnBarraDocumentos.replaceChildren(...pastilhasDocumento(e));
-      inicioDocumentos.replaceChildren(...pastilhasDocumento(e));
-      btnBarraDocumentos.setAttribute(
-        'aria-label',
-        `Documentos de referência: ${pastilhasDocumentos(e)
-          .map((p) => p.texto)
-          .join(', ')}`,
-      );
+      // Redesenhar tira o foco do botão: devolve à pastilha do mesmo documento.
+      for (const grupo of [barraDocumentos, inicioDocumentos]) {
+        const focado = grupo.contains(document.activeElement)
+          ? (document.activeElement as HTMLElement).dataset.tipo
+          : undefined;
+        grupo.replaceChildren(...botoesDocumento(e));
+        if (focado)
+          grupo.querySelector<HTMLElement>(`[data-tipo="${focado}"]`)?.focus();
+      }
       desenharListaDocumentos(e);
       atualizarAreaDocumentos(e);
       // As decisões lembradas marcam os CFOPs manuais no resumo do painel.
@@ -3584,7 +3672,6 @@ function atualizarDocumentos(): void {
     .catch((erro: unknown) => console.error(erro));
 }
 btnDocumentos.addEventListener('click', () => abrirAreaDocumentos());
-btnBarraDocumentos.addEventListener('click', () => abrirAreaDocumentos());
 window.psApi.aoProgressoDocumento((p) => {
   progressoAreaDocumentos(p);
   if (!ocupadoDocumentos.has(p.tipo)) return;

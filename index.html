@@ -32,14 +32,15 @@
         >
       </div>
       <div class="barra__pastilhas">
-        <!-- Situação dos documentos de referência; abre a área deles. Uma
-             pastilha por documento (renderer.ts, atualizarDocumentos). -->
-        <button
+        <!-- Situação dos documentos de referência: uma pastilha por
+             documento, cada uma um botão que abre o cartão dele na área de
+             Documentos (renderer.ts, atualizarDocumentos). -->
+        <div
           id="barra-documentos"
-          type="button"
           class="barra__documentos"
-          title="Documentos de referência"
-        ></button>
+          role="group"
+          aria-label="Documentos de referência"
+        ></div>
         <!-- Pasta de destino: pastilha antes do Perfil, na barra e na faixa da
              tela inicial (renderer.ts, mostrarTela e atualizarPasta). Com
              pasta, "Salvando em: <última pasta>" abre o menu (caminho
@@ -348,7 +349,14 @@
           </div>
         </div>
         <div class="inicio__pastilhas">
-          <span id="inicio-documentos" class="inicio__documentos"></span>
+          <!-- Pastilhas dos documentos: botões, como na barra da nota
+               (renderer.ts, atualizarDocumentos). -->
+          <div
+            id="inicio-documentos"
+            class="inicio__documentos"
+            role="group"
+            aria-label="Documentos de referência"
+          ></div>
           <!-- A pastilha da pasta de destino vem para cá na tela inicial. -->
           <div id="inicio-pasta" class="inicio__pasta"></div>
           <!-- O seletor de perfil da barra amarela vem para cá enquanto a

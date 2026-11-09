@@ -47,6 +47,10 @@
   --pastilha-raio: 999px;
   --pastilha-escura-fundo: #2a2a2a;
   --pastilha-escura-borda: #3d3d3d;
+  /* Foco por teclado nas pastilhas da faixa preta: fino e claro. */
+  --foco-pastilha-cor: rgb(255 255 255 / 0.7);
+  --foco-pastilha-espessura: 2px;
+  --foco-pastilha-afastamento: 2px;
   --titulo-secao-tamanho: 11px;
   --titulo-secao-espaco: 0.6px;
   --titulo-secao-cor: #6b6b6b;
@@ -98,6 +102,11 @@
   --raio: 6px;
   --icone: 18px;
   --icone-traco: 2;
+  /* Ícone de estado (ok, informativo, aviso, erro): um tamanho só no app
+     inteiro; traço da marca e do círculo vazado na grade de 24. */
+  --icone-estado: 20px;
+  --icone-estado-traco: 2.4;
+  --icone-estado-traco-vazado: 1.8;
   --largura-conteudo: 1200px;
   --largura-rotulo-total: 180px;
   --largura-minima-campo: 200px;
@@ -110,6 +119,8 @@
   --esp-campo-anotacao: 2px var(--esp-2);
   /* Descrição da tabela de itens: nunca menos que cerca de 30 caracteres. */
   --largura-minima-descricao: 30ch;
+  /* Na tela, a descrição mostra até tantas linhas (clicar mostra o resto). */
+  --linhas-descricao: 3;
   --largura-modo-opcao: 220px;
   /* Miniatura A4 na escolha de modo: acompanha a altura da janela para a
      tela caber sem rolagem também em 1366 x 768 a 125%. */
@@ -145,6 +156,15 @@
     var(--ps-branco)
   );
   --botao-pri-fundo-pressionado: #000000;
+  /* Ferramenta (Rodar): preto com texto branco, nos dois visuais. */
+  --botao-ferramenta-fundo: var(--ps-preto);
+  --botao-ferramenta-texto: var(--ps-branco);
+  --botao-ferramenta-fundo-hover: color-mix(
+    in srgb,
+    var(--ps-preto) 82%,
+    var(--ps-branco)
+  );
+  --botao-ferramenta-fundo-pressionado: #000000;
   --botao-foco: var(--ps-preto);
   --botao-foco-espessura: 3px;
   --botao-foco-afastamento: 2px;
@@ -176,6 +196,8 @@
   --aviso-info-texto: var(--ps-branco);
   --aviso-duracao: 1500ms;
   --sombra-aviso: 0 6px 24px rgb(0 0 0 / 0.25);
+  /* Botões flutuantes do painel recolhido. */
+  --sombra-flutuante: 0 2px 8px rgb(0 0 0 / 0.16);
   --largura-menu: 300px;
   --largura-menu-salvar: 180px;
   --largura-menu-perfis: 340px;

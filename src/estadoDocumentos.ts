@@ -5,7 +5,7 @@
 
 import { NOME_DOCUMENTO, type TipoDocumento } from './fiscal/documentos';
 import type { ResultadoVerificacao } from './fiscal/online';
-import type { ICONES } from './icones';
+import type { SinalEstado } from './icones';
 import {
   seloDocumento,
   semaforoDocumento,
@@ -19,18 +19,16 @@ import {
  */
 export type EstadoVisivel = 'ok' | 'aviso' | 'faltando' | 'opcional';
 
-export interface VisualEstado {
-  /** Chave em ICONES (src/icones.ts). */
-  icone: keyof typeof ICONES;
-  /** Cor do ícone (token de tokens.css). */
-  cor: string;
-}
-
-export const VISUAL_ESTADO: Record<EstadoVisivel, VisualEstado> = {
-  ok: { icone: 'estadoOk', cor: 'var(--semaforo-verde)' },
-  aviso: { icone: 'estadoAviso', cor: 'var(--semaforo-amarelo)' },
-  faltando: { icone: 'estadoFaltando', cor: 'var(--semaforo-vermelho)' },
-  opcional: { icone: 'estadoOpcional', cor: 'var(--cor-icone)' },
+/**
+ * Ícone de cada estado, do conjunto único de src/icones.ts (a cor vem do
+ * CSS, .icone-estado--*): ok é o check verde, aviso o triângulo amarelo,
+ * faltando o x vermelho e opcional o círculo vazado.
+ */
+export const VISUAL_ESTADO: Record<EstadoVisivel, SinalEstado> = {
+  ok: 'ok',
+  aviso: 'aviso',
+  faltando: 'erro',
+  opcional: 'opcional',
 };
 
 const DA_COR: Record<CorSemaforo | 'neutra', EstadoVisivel> = {
@@ -82,6 +80,18 @@ export function textoVersaoNova(
   return partes.join(', ');
 }
 
+/**
+ * Planilha de ST importada antes da leitura das colunas de estados: sem os
+ * protocolos, a ferramenta não mostra as observações de protocolo. O cartão
+ * pede para reimportar, e o selo, a lista e a pastilha mostram o aviso.
+ */
+export function precisaReimportar(
+  tipo: TipoDocumento,
+  e: EstadoDocumentos,
+): boolean {
+  return tipo === 'st' && e.st !== null && e.stSemProtocolos;
+}
+
 /** Selo do cartão (tela de Documentos): estado, texto. */
 export function seloVisivel(
   tipo: TipoDocumento,
@@ -96,7 +106,16 @@ export function seloVisivel(
     verificacaoVisivel(tipo, e),
     e.recusado[tipo],
   );
+  // Problemas de leitura continuam com o texto deles (já são aviso).
+  if (precisaReimportar(tipo, e) && !problemasDeLeitura(tipo, e))
+    return { estado: 'aviso', texto: 'Reimportar' };
   return { estado: estadoDaCor(s.cor), texto: s.texto };
+}
+
+/** A leitura do documento teve problemas ou segmentos incompletos. */
+function problemasDeLeitura(tipo: TipoDocumento, e: EstadoDocumentos): boolean {
+  const l = e.leitura[tipo];
+  return !!l && (l.totalProblemas > 0 || l.segmentosIncompletos.length > 0);
 }
 
 export interface LinhaDocumento {
@@ -137,15 +156,16 @@ export function detalheVersao(
 /** Uma linha por documento, na ordem da tela de Documentos. */
 export function linhasDocumentos(e: EstadoDocumentos): LinhaDocumento[] {
   return (['st', 'tipi', 'combustiveis'] as const).map((tipo) => {
-    const nova = textoVersaoNova(tipo, e);
     const selo = seloVisivel(tipo, e);
+    // Reimportar vale mais que a versão nova (o Atualizar continua à mostra).
+    const nova = selo.texto === 'Reimportar' ? null : textoVersaoNova(tipo, e);
     return {
       tipo,
       nome: NOME_DOCUMENTO[tipo],
       estado: nova ? 'aviso' : selo.estado,
       situacao: nova ?? selo.texto,
       detalhe: detalheVersao(tipo, e),
-      versaoNova: nova !== null,
+      versaoNova: textoVersaoNova(tipo, e) !== null,
     };
   });
 }
@@ -168,6 +188,8 @@ export function pastilhasDocumentos(e: EstadoDocumentos): PastilhaDocumento[] {
       verificacaoVisivel(tipo, e),
       e.recusado[tipo],
     );
+    if (s.cor === 'verde' && precisaReimportar(tipo, e))
+      return { tipo, estado: 'aviso', texto: `${SIGLA[tipo]} reimportar` };
     return {
       tipo,
       estado: estadoDaCor(s.cor),
