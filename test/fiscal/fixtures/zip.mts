@@ -21,6 +21,8 @@ export interface EntradaZip {
    * grande sem comprimir de novo.
    */
   comprimido?: Uint8Array;
+  /** Tamanho descomprimido gravado no zip (para testar zip que mente). */
+  declarado?: number;
 }
 
 /** Monta um .zip com bytes e método de cada entrada. */
@@ -28,7 +30,8 @@ export function zipBinario(entradas: EntradaZip[]): Uint8Array {
   const locais: Buffer[] = [];
   const centrais: Buffer[] = [];
   let pos = 0;
-  for (const { nome, dados, metodo, comprimido } of entradas) {
+  for (const { nome, dados, metodo, comprimido, declarado } of entradas) {
+    const tam = declarado ?? dados.length;
     const corpo = Buffer.from(
       metodo === 8 ? (comprimido ?? deflateRawSync(dados)) : dados,
     );
@@ -40,7 +43,7 @@ export function zipBinario(entradas: EntradaZip[]): Uint8Array {
     local.writeUInt16LE(metodo, 8);
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(corpo.length, 18);
-    local.writeUInt32LE(dados.length, 22);
+    local.writeUInt32LE(tam, 22);
     local.writeUInt16LE(n.length, 26);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
@@ -49,7 +52,7 @@ export function zipBinario(entradas: EntradaZip[]): Uint8Array {
     central.writeUInt16LE(metodo, 10);
     central.writeUInt32LE(crc, 16);
     central.writeUInt32LE(corpo.length, 20);
-    central.writeUInt32LE(dados.length, 24);
+    central.writeUInt32LE(tam, 24);
     central.writeUInt16LE(n.length, 28);
     central.writeUInt32LE(pos, 42);
     locais.push(local, n, corpo);

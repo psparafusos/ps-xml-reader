@@ -71,6 +71,110 @@ export interface InfoDocumento {
   servidor: ServidorDocumento | null;
 }
 
+const ehTexto = (v: unknown): v is string => typeof v === 'string';
+const ehNumero = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v);
+const ehData = (v: unknown): v is string =>
+  ehTexto(v) && !Number.isNaN(Date.parse(v));
+const ehObjeto = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function lerServidor(v: unknown): ServidorDocumento | null | undefined {
+  if (v === null) return null;
+  if (!ehObjeto(v)) return undefined;
+  const { url, data, tamanho, versao, baixadoEm } = v;
+  if (!ehTexto(url) || !ehData(baixadoEm)) return undefined;
+  if (data !== null && !ehData(data)) return undefined;
+  if (tamanho !== null && !(ehNumero(tamanho) && tamanho >= 0))
+    return undefined;
+  if (versao !== null && !ehTexto(versao)) return undefined;
+  return { url, data, tamanho, versao, baixadoEm };
+}
+
+/**
+ * Metadados de um documento lidos do <tipo>-info.json, conferidos campo a
+ * campo: só volta o objeto (com exatamente os campos conhecidos) se todos
+ * tiverem o tipo certo; senão null, e o documento conta como não importado.
+ * Um arquivo adulterado ou corrompido nunca chega à tela nem à análise com
+ * um campo de outro tipo.
+ */
+export function validarInfoDocumento(
+  v: unknown,
+  tipo: TipoDocumento,
+  formato: number,
+): InfoDocumento | null {
+  if (!ehObjeto(v) || v.formato !== formato || v.tipo !== tipo) return null;
+  const {
+    arquivo,
+    tipoArquivo,
+    tamanhoArquivo,
+    importadoEm,
+    versao,
+    vigencia,
+    quantidades,
+    naoEntendidos,
+    totalNaoEntendidos,
+    observacoes,
+  } = v;
+  if (!ehTexto(arquivo) || (tipoArquivo !== 'xlsx' && tipoArquivo !== 'txt'))
+    return null;
+  if (!ehNumero(tamanhoArquivo) || tamanhoArquivo < 0) return null;
+  if (!ehData(importadoEm) || !ehTexto(versao) || !ehTexto(vigencia))
+    return null;
+  if (
+    !Array.isArray(quantidades) ||
+    !quantidades.every(
+      (q) => ehObjeto(q) && ehTexto(q.rotulo) && ehNumero(q.valor),
+    )
+  )
+    return null;
+  if (
+    !Array.isArray(naoEntendidos) ||
+    naoEntendidos.length > LIMITE_PONTOS ||
+    !naoEntendidos.every(
+      (p) =>
+        ehObjeto(p) &&
+        ehTexto(p.aba) &&
+        ehTexto(p.celula) &&
+        ehTexto(p.valor) &&
+        ehTexto(p.motivo),
+    )
+  )
+    return null;
+  if (
+    !ehNumero(totalNaoEntendidos) ||
+    !Number.isInteger(totalNaoEntendidos) ||
+    totalNaoEntendidos < 0
+  )
+    return null;
+  if (!Array.isArray(observacoes) || !observacoes.every(ehTexto)) return null;
+  const servidor = lerServidor(v.servidor);
+  if (servidor === undefined) return null;
+  return {
+    formato,
+    tipo,
+    arquivo,
+    tipoArquivo,
+    tamanhoArquivo,
+    importadoEm,
+    versao,
+    vigencia,
+    quantidades: quantidades.map((q) => ({
+      rotulo: q.rotulo as string,
+      valor: q.valor as number,
+    })),
+    naoEntendidos: naoEntendidos.map((p) => ({
+      aba: p.aba as string,
+      celula: p.celula as string,
+      valor: p.valor as string,
+      motivo: p.motivo as string,
+    })),
+    totalNaoEntendidos,
+    observacoes: [...observacoes],
+    servidor,
+  };
+}
+
 export type SituacaoDocumento = 'faltando' | 'carregado' | 'com-pontos';
 
 export const LIMITE_PONTOS = 200;

@@ -16,11 +16,11 @@ import {
   BrowserWindow,
   app,
   dialog,
-  ipcMain,
   net,
   shell,
   type WebContents,
 } from 'electron';
+import { tratar } from './ipcSeguro';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -623,11 +623,11 @@ const FILTROS: Record<TipoDocumento, Electron.FileFilter[]> = {
 };
 
 export function registrarDocumentos(): void {
-  ipcMain.handle('documentos', () => estado());
+  tratar('documentos', () => estado());
 
-  ipcMain.handle('analisar-st', (_event, pedido: unknown) => analisar(pedido));
+  tratar('analisar-st', (_event, pedido: unknown) => analisar(pedido));
 
-  ipcMain.handle('lembrar-decisao', async (_event, d: unknown) => {
+  tratar('lembrar-decisao', async (_event, d: unknown) => {
     if (!decisaoValida(d)) return false;
     await mudarDecisoes((todas) => {
       todas[chaveDecisao(d.raizCnpj, d.cProd)] = d;
@@ -636,7 +636,7 @@ export function registrarDocumentos(): void {
     return true;
   });
 
-  ipcMain.handle('esquecer-decisao', async (_event, chave: unknown) => {
+  tratar('esquecer-decisao', async (_event, chave: unknown) => {
     if (typeof chave !== 'string') return false;
     await mudarDecisoes((todas) => {
       delete todas[chave];
@@ -645,7 +645,7 @@ export function registrarDocumentos(): void {
     return true;
   });
 
-  ipcMain.handle(
+  tratar(
     'importar-documento',
     async (event, tipo: unknown): Promise<ResultadoImportarDocumento> => {
       if (!ehTipo(tipo)) return { status: 'cancelado' };
@@ -685,7 +685,7 @@ export function registrarDocumentos(): void {
   );
 
   // Planilha com segmentos não lidos: a pessoa confirmou que pode usar o resto.
-  ipcMain.handle(
+  tratar(
     'confirmar-parcial',
     async (_event, token: unknown): Promise<ResultadoImportarDocumento> => {
       const p = typeof token === 'string' ? pendentes.get(token) : undefined;
@@ -713,7 +713,7 @@ export function registrarDocumentos(): void {
 
   // Aviso de erro fechado pela pessoa: a recusa some e o documento volta ao
   // estado de antes da tentativa (o carregado, "Faltando" ou "Opcional").
-  ipcMain.handle(
+  tratar(
     'descartar-recusa',
     async (_event, tipo: unknown): Promise<EstadoDocumentos> => {
       if (ehTipo(tipo) && recusado.delete(tipo)) avisarJanelas();
@@ -721,12 +721,12 @@ export function registrarDocumentos(): void {
     },
   );
 
-  ipcMain.handle('cancelar-parcial', (_event, token: unknown) => {
+  tratar('cancelar-parcial', (_event, token: unknown) => {
     if (typeof token === 'string') pendentes.delete(token);
   });
 
   // Remover: o documento volta a "faltando" (a ferramenta pede o arquivo).
-  ipcMain.handle(
+  tratar(
     'remover-documento',
     async (_event, tipo: unknown): Promise<EstadoDocumentos> => {
       if (ehTipo(tipo)) {
@@ -742,7 +742,7 @@ export function registrarDocumentos(): void {
     },
   );
 
-  ipcMain.handle(
+  tratar(
     'preferencias-documentos',
     async (_event, p: unknown): Promise<EstadoDocumentos> => {
       const atual = await lerPreferencias();
@@ -768,15 +768,12 @@ export function registrarDocumentos(): void {
     },
   );
 
-  ipcMain.handle(
-    'verificar-documentos',
-    async (): Promise<EstadoDocumentos> => {
-      if ((await lerPreferencias()).verificacaoOnline) await verificarAgora();
-      return estado();
-    },
-  );
+  tratar('verificar-documentos', async (): Promise<EstadoDocumentos> => {
+    if ((await lerPreferencias()).verificacaoOnline) await verificarAgora();
+    return estado();
+  });
 
-  ipcMain.handle(
+  tratar(
     'baixar-documento',
     async (_event, tipo: unknown): Promise<ResultadoImportarDocumento> => {
       if (!ehTipoOnline(tipo) || !(await lerPreferencias()).verificacaoOnline)
@@ -786,7 +783,7 @@ export function registrarDocumentos(): void {
   );
 
   // Só as páginas oficiais conhecidas; nada vindo da tela.
-  ipcMain.handle('abrir-pagina-documento', async (_event, tipo: unknown) => {
+  tratar('abrir-pagina-documento', async (_event, tipo: unknown) => {
     if (ehTipoOnline(tipo)) await shell.openExternal(PAGINA[tipo]);
   });
 }

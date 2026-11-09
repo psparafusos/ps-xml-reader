@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T11: HTML e javascript: em infCpl e em obsCont/xTexto.
+     NF-e INVENTADA para o test:janela (dados fictícios, sem valor fiscal). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261100000000000000550010000000011000000010" versao="4.00">
+      <ide><cUF>35</cUF><cNF>00000001</cNF><natOp>Venda de teste</natOp><mod>55</mod><serie>1</serie><nNF>1</nNF><dhEmi>2026-11-01T10:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb></ide>
+      <emit><CNPJ>00000000000000</CNPJ><xNome>Fornecedor Inventado de Teste</xNome><xFant>INVENTADO</xFant><enderEmit><xLgr>Rua de Teste</xLgr><nro>1</nro><xBairro>Centro</xBairro><xMun>Cidade Teste</xMun><UF>SP</UF><CEP>00000000</CEP></enderEmit><IE>000000000</IE></emit>
+      <dest><CNPJ>00000000000000</CNPJ><xNome>Destinatario Inventado</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Cidade Teste</xMun><UF>SE</UF><CEP>00000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>T11</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAFUSO INVENTADO T11</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>1.00</vUnCom><vProd>1.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>1.0000</qTrib><vUnTrib>1.00</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>1.00</vBC><pICMS>18.00</pICMS><vICMS>0.18</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>1.00</vBC><vICMS>0.00</vICMS><vST>0.00</vST><vProd>1.00</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>1.00</vNF></ICMSTot></total>
+      <transp><modFrete>9</modFrete></transp>
+      <infAdic>
+        <infCpl>&lt;script&gt;alert(1)&lt;/script&gt; <![CDATA[<img src=x onerror=alert(1)>]]> javascript:alert(1)</infCpl>
+        <obsCont xCampo="&lt;b&gt;campo&lt;/b&gt;"><xTexto>&lt;img src=x onerror=alert(2)&gt;</xTexto></obsCont>
+      </infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><chNFe>35261100000000000000550010000000011000000010</chNFe><dhRecbto>2026-11-01T10:01:00-03:00</dhRecbto><nProt>000000000000000</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>
