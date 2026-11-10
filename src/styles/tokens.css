@@ -124,7 +124,6 @@
   /* O título da nota na barra nunca fica mais estreito que isto: antes disso
      os botões descem para a segunda linha. */
   --largura-minima-titulo: 240px;
-  --largura-dica: 280px;
   --largura-aviso: 480px;
   --largura-seta: 1.4em;
   --tamanho-limpar: 26px;

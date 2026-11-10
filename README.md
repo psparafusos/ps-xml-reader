@@ -628,9 +628,9 @@ título da nota nunca fica mais estreito que 240 px:
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
   pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
 - Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
-  Com um `.psxml` aberto, a opção DANFE fica desabilitada, com a explicação ao
-  passar o mouse (e para o leitor de tela): "O DANFE só é gerado a partir do
-  XML original."
+  Com um `.psxml` aberto, a opção DANFE fica indisponível: clicar nela mostra
+  o diálogo do app "DANFE indisponível", com "O DANFE só é gerado a partir do
+  XML original da nota." e só o botão OK.
 - Saída:
   - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual (na
     Conferência, já na orientação calculada para a tabela). Se a

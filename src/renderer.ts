@@ -1659,18 +1659,28 @@ function preencherBarra(n: Nota): void {
 
 /**
  * Cópia editada: o DANFE só sai do XML original. A opção continua visível e
- * focável (aria-disabled, não disabled), com a explicação no texto de ajuda
- * (#dica-danfe), que aparece ao passar o mouse ou com o foco e é a descrição
- * para o leitor de tela.
+ * focável (aria-disabled, não disabled); clicar nela mostra o motivo num
+ * diálogo do app (avisarSemDanfe), sem dica ao passar o mouse.
  */
 function atualizarSeletorDanfe(): void {
-  if (aberto?.lido.copiaEditada) {
+  if (aberto?.lido.copiaEditada)
     btnModoDanfe.setAttribute('aria-disabled', 'true');
-    btnModoDanfe.setAttribute('aria-describedby', 'dica-danfe');
-  } else {
-    btnModoDanfe.removeAttribute('aria-disabled');
-    btnModoDanfe.removeAttribute('aria-describedby');
-  }
+  else btnModoDanfe.removeAttribute('aria-disabled');
+}
+
+/** Diálogo do DANFE indisponível (cópia editada aberta): só OK. */
+const AVISO_SEM_DANFE = {
+  titulo: 'DANFE indisponível',
+  texto: 'O DANFE só é gerado a partir do XML original da nota.',
+} as const;
+
+async function avisarSemDanfe(): Promise<void> {
+  await perguntar({
+    titulo: AVISO_SEM_DANFE.titulo,
+    texto: AVISO_SEM_DANFE.texto,
+    botoes: [{ rotulo: 'OK', valor: 'ok', principal: true }],
+    cancelar: 'ok',
+  });
 }
 
 /**
@@ -3056,7 +3066,10 @@ btnModoConferencia.addEventListener('click', () => {
   if (modoAtual !== 'conferencia') mostrarConferencia();
 });
 btnModoDanfe.addEventListener('click', () => {
-  if (btnModoDanfe.getAttribute('aria-disabled') === 'true') return;
+  if (btnModoDanfe.getAttribute('aria-disabled') === 'true') {
+    void avisarSemDanfe();
+    return;
+  }
   if (modoAtual !== 'danfe') mostrarDanfe();
 });
 btnInicio.addEventListener('click', () => void irParaInicio());

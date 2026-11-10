@@ -93,7 +93,6 @@ ul {
     [role='tab'],
     [role='menu'],
     [role='tooltip'],
-    .dica,
     .secao__titulo,
     .titulo-secao,
     .campo__rotulo,
@@ -510,32 +509,6 @@ ul {
 
 .barra__modo {
   position: relative;
-}
-
-/* Texto de ajuda da opção indisponível (cópia editada: sem DANFE). */
-.dica {
-  display: none;
-  position: absolute;
-  top: calc(100% + var(--esp-2));
-  right: 0;
-  z-index: 30;
-  width: max-content;
-  max-width: var(--largura-dica);
-  padding: var(--esp-2) var(--esp-3);
-  border-radius: var(--raio);
-  background: var(--ps-preto);
-  color: var(--ps-branco);
-  font-size: var(--fs-sm);
-  font-weight: var(--peso-normal);
-  box-shadow: var(--sombra-aviso);
-  pointer-events: none;
-}
-
-.barra__modo:has(
-    #btn-modo-danfe[aria-disabled='true']:is(:hover, :focus-visible)
-  )
-  .dica {
-  display: block;
 }
 
 /* Seletor de duas posições (Conferência | DANFE): a opção ativa fica
@@ -3649,8 +3622,8 @@ ul {
   font-weight: var(--peso-forte);
 }
 
-/* Dica (src/tooltip.ts): no lugar do title nativo. Popover: fica por cima
-   das janelas modais. A classe .dica (sem DANFE na barra) é outra. */
+/* Dica (src/tooltip.ts), só na ferramenta ST, MVA e CFOP. Popover: fica
+   por cima das janelas modais. */
 .dica-flutuante {
   position: fixed;
   inset: auto;

@@ -974,6 +974,69 @@ async function principal() {
     },
   );
 
+  await caso(
+    '2D: DANFE com .psxml aberto mostra o diálogo do app, só com OK, e não há caixa preta',
+    async () => {
+      const copiaEditada = path.join(notas, 't2d-copia-editada.psxml');
+      fs.copyFileSync(
+        path.join(FIXTURES, 't12-anotacao-html.psxml'),
+        copiaEditada,
+      );
+      abrir(copiaEditada);
+      await aguardar(visivel('nota'));
+      await fecharAvisosDaNota();
+      const antes = await avaliar(`(() => {
+        const b = document.getElementById('btn-modo-danfe');
+        return {
+          caixa: !!document.getElementById('dica-danfe') || !!document.querySelector('.dica, [role="tooltip"]'),
+          indisponivel: b.getAttribute('aria-disabled'),
+          descrito: b.getAttribute('aria-describedby'),
+        };
+      })()`);
+      confere(!antes.caixa, 'a caixa preta do DANFE continua na página');
+      confere(antes.indisponivel === 'true', 'o DANFE não está indisponível');
+      confere(antes.descrito === null, `aria-describedby: ${antes.descrito}`);
+      await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog[open]')`,
+        5000,
+        'clicar no DANFE não abriu o diálogo',
+      );
+      const d = await avaliar(`(() => {
+        const d = document.querySelector('dialog[open]');
+        return {
+          titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent,
+          texto: d.querySelector('.caixa-dialogo__texto')?.textContent,
+          botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()),
+          foco: document.activeElement?.textContent?.trim(),
+        };
+      })()`);
+      confere(d.titulo === 'DANFE indisponível', `título: ${d.titulo}`);
+      confere(
+        d.texto === 'O DANFE só é gerado a partir do XML original da nota.',
+        `texto: ${d.texto}`,
+      );
+      confere(
+        d.botoes.length === 1 && d.botoes[0] === 'OK',
+        `botões: ${d.botoes.join(', ')}`,
+      );
+      confere(d.foco === 'OK', `foco em: ${d.foco}`);
+      const semTitulo = await avaliar(comTitle);
+      confere(semTitulo.length === 0, `title com o diálogo: ${semTitulo}`);
+      confere(await clicarNoDialogo('OK'), 'sem OK');
+      await espera(300);
+      confere(
+        !(await avaliar(`!!document.querySelector('dialog[open]')`)),
+        'o diálogo não fechou',
+      );
+      confere(
+        (await avaliar(visivel('nota'))) && !(await avaliar(visivel('danfe'))),
+        'saiu da Conferência',
+      );
+      await inicio();
+    },
+  );
+
   await caso('T8: 100 mil níveis de aninhamento (DOMParser)', async () => {
     const t0 = Date.now();
     abrir(profundo);
