@@ -9,6 +9,8 @@ import {
   shell,
 } from 'electron';
 import { ouvir, tratar } from './ipcSeguro';
+import { registrarEsquemaApp, servirEsquemaApp } from './protocoloApp';
+import { PAGINA_INICIAL } from './seguranca/protocolo';
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
@@ -115,6 +117,10 @@ if (opcoesRecusadas.length > 0) {
 }
 /** O app está saindo antes de começar (evento do Squirrel ou opção recusada). */
 const saindo = started || opcoesRecusadas.length > 0;
+
+// A tela vem do protocolo próprio app://ps/ (src/protocoloApp.ts), não de
+// file://. O esquema precisa ser registrado antes de o app ficar pronto.
+registrarEsquemaApp();
 
 // O mesmo AUMID que o Squirrel grava nos atalhos, para a barra de tarefas
 // juntar o atalho fixado e a janela aberta: com.squirrel.<id>.<exe>, com o id
@@ -504,13 +510,9 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     if (abertas().every((o) => o.ordem >= j.ordem)) guardarJanela(janela);
   });
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    janela.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    janela.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
-  }
+  // npm start: servidor do Vite. Empacotado: app://ps/index.html, servido só
+  // da pasta do renderer (src/protocoloApp.ts).
+  janela.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL || PAGINA_INICIAL);
   return j;
 }
 
@@ -2368,6 +2370,7 @@ app.whenReady().then(async () => {
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
   negarPermissoes();
+  if (!MAIN_WINDOW_VITE_DEV_SERVER_URL) servirEsquemaApp();
   criarJanela(await pedidoDosCandidatos(candidatosIniciais));
   // Só se a pessoa ligou a verificação online e o "verificar ao abrir".
   void verificarAoAbrir();

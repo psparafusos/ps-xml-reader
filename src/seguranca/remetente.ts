@@ -11,9 +11,9 @@ export interface Remetente {
 
 /**
  * true se o remetente é o quadro principal e a URL dele é a página do app
- * (`pagina`): mesmo protocolo, mesma origem e mesmo caminho; consulta e
- * âncora não importam. Página de arquivo (file://) compara o caminho sem
- * diferenciar maiúsculas, como o Windows.
+ * (`pagina`): mesmo esquema, mesmo host (com a porta) e mesmo caminho;
+ * consulta e âncora não importam. Página de arquivo (file://) compara o
+ * caminho sem diferenciar maiúsculas, como o Windows.
  */
 export function remetenteValido(r: Remetente, pagina: string): boolean {
   if (!r.principal || !r.url) return false;
@@ -25,13 +25,15 @@ export function remetenteValido(r: Remetente, pagina: string): boolean {
   } catch {
     return false;
   }
-  if (de.protocol !== app.protocol) return false;
+  if (de.protocol !== app.protocol || de.host !== app.host) return false;
   if (app.protocol === 'file:') {
     return (
-      de.host === app.host &&
       decodeURIComponent(de.pathname).toLowerCase() ===
-        decodeURIComponent(app.pathname).toLowerCase()
+      decodeURIComponent(app.pathname).toLowerCase()
     );
   }
-  return de.origin === app.origin && de.pathname === app.pathname;
+  // app://ps/ (o app empacotado) e http://localhost (npm start). Esquema,
+  // host (com a porta) e caminho: a origem do URL do Node é "null" para
+  // esquemas próprios como app:, então não serve para comparar.
+  return de.pathname === app.pathname;
 }

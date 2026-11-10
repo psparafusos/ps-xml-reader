@@ -5,8 +5,8 @@
 // cópias temporárias dos arquivos de teste. Confere a tela por
 // executeJavaScript, sem porta de depuração. Nenhum teste aciona Copiar.
 //
-// Casos (test/janela/fixtures, NF-e inventadas): T6, T8 (gerado aqui), T9,
-// T10, T11 e T12 do plano de segurança.
+// Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, e T6, T8
+// (gerado aqui), T9, T10, T11 e T12 do plano de segurança.
 'use strict';
 
 const { app, session } = require('electron');
@@ -59,7 +59,7 @@ app.on('browser-window-created', (_e, w) => {
 const rede = [];
 app.whenReady().then(() => {
   session.defaultSession.webRequest.onBeforeRequest((d, cb) => {
-    if (!/^(file|data|devtools|chrome-extension):/.test(d.url))
+    if (!/^(app|file|data|devtools|chrome-extension):/.test(d.url))
       rede.push(d.url);
     cb({});
   });
@@ -167,6 +167,76 @@ async function principal() {
   const preparar = `window.__alertas = 0; window.alert = () => { window.__alertas++; }; true`;
   await avaliar(preparar);
   const base = await avaliar(SONDA);
+
+  await caso(
+    'app://: a tela vem do protocolo próprio e nada sai da pasta',
+    async () => {
+      const tela = await avaliar(`(() => {
+      const logo = document.querySelector('.inicio__logo, .barra__logo');
+      return {
+        url: location.href,
+        scripts: [...document.querySelectorAll('script[src]')].map((s) => s.src),
+        estilos: [...document.styleSheets].map((s) => ({
+          href: s.href,
+          regras: s.cssRules.length,
+        })),
+        logo: logo ? { src: logo.src, largura: logo.naturalWidth } : null,
+      };
+    })()`);
+      confere(tela.url === 'app://ps/index.html', `página em ${tela.url}`);
+      confere(
+        tela.scripts.length > 0 &&
+          tela.scripts.every((s) => s.startsWith('app://ps/assets/')),
+        `scripts: ${tela.scripts.join(' ')}`,
+      );
+      confere(
+        tela.estilos.some(
+          (s) =>
+            s.href && s.href.startsWith('app://ps/assets/') && s.regras > 0,
+        ),
+        `estilos: ${JSON.stringify(tela.estilos)}`,
+      );
+      confere(
+        tela.logo &&
+          tela.logo.src.startsWith('app://ps/') &&
+          tela.logo.largura > 0,
+        `logo: ${JSON.stringify(tela.logo)}`,
+      );
+      // Pedidos de dentro da página: só a tela é servida, com o tipo certo;
+      // fuga e pasta dão 404, sem corpo.
+      const respostas = await avaliar(`(async () => {
+      const pedir = async (u) => {
+        try {
+          const r = await fetch(u);
+          return { u, status: r.status, tipo: r.headers.get('content-type'), corpo: (await r.text()).length };
+        } catch (e) {
+          return { u, erro: String(e) };
+        }
+      };
+      return Promise.all([
+        'app://ps/index.html',
+        'app://ps/assets/..%2f..%2fbuild%2fmain.cjs',
+        'app://ps/..%5c..%5cbuild%5cmain.cjs',
+        'app://ps/C%3A%5CWindows%5Cwin.ini',
+        'app://ps/%5C%5Cexemplo.invalid%5Cx.js',
+        'app://ps/assets/',
+        'app://ps/../../build/main.cjs',
+        'app://ps/nao-existe.js',
+      ].map(pedir));
+    })()`);
+      const [pagina, ...fugas] = respostas;
+      confere(
+        pagina.status === 200 && pagina.tipo === 'text/html; charset=utf-8',
+        `index.html: ${JSON.stringify(pagina)}`,
+      );
+      for (const f of fugas)
+        confere(
+          f.status === 404 && f.corpo === 0,
+          `deveria dar 404: ${JSON.stringify(f)}`,
+        );
+      confere(rede.length === 0, `pedidos de rede: ${rede.join(' ')}`);
+    },
+  );
 
   await caso(
     'T6: xml-stylesheet é ignorado e nada vai para a rede',

@@ -6,17 +6,12 @@
 // app nunca chega aos handlers.
 
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { PAGINA_INICIAL } from './seguranca/protocolo';
 import { remetenteValido } from './seguranca/remetente';
 
 /** URL da página do app: a mesma que criarJanela carrega. */
 export function paginaDoApp(): string {
-  return MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? MAIN_WINDOW_VITE_DEV_SERVER_URL
-    : pathToFileURL(
-        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-      ).href;
+  return MAIN_WINDOW_VITE_DEV_SERVER_URL || PAGINA_INICIAL;
 }
 
 function remetenteDoApp(event: IpcMainEvent | IpcMainInvokeEvent): boolean {

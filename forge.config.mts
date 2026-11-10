@@ -62,6 +62,9 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      // A tela vem do protocolo próprio app:// (src/protocoloApp.ts), não de
+      // file://: os privilégios extras do file:// não fazem falta.
+      [FuseV1Options.GrantFileProtocolExtraPrivileges]: false,
     }),
   ],
 };
