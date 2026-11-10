@@ -2382,3 +2382,12 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+// ---------- leitor de XML genérico (parte 1): início do bloco ----------
+// Canais da tela do leitor (leitor-xml-*), registrados pelo envoltório
+// src/ipcSeguro.ts em src/leitorXml/principal.ts. A tela ainda não está na
+// navegação: abre só pela rota interna, desligada no app empacotado.
+import { registrarLeitorXml } from './leitorXml/principal';
+
+registrarLeitorXml();
+// ---------- leitor de XML genérico (parte 1): fim do bloco ----------

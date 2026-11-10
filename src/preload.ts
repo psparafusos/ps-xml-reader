@@ -196,3 +196,20 @@ contextBridge.exposeInMainWorld('psApi', {
   cancelarBackup: (token: string): Promise<void> =>
     ipcRenderer.invoke('cancelar-backup', token),
 } satisfies PsApi);
+
+// ---------- leitor de XML genérico (parte 1): início do bloco ----------
+// Ponte própria da tela do leitor (src/leitorXml/tela.ts). Nenhuma função
+// recebe caminho: o processo principal guarda o arquivo de cada janela.
+import type { PsLeitorXmlApi } from './leitorXml/tipos';
+
+contextBridge.exposeInMainWorld('psLeitorXml', {
+  carregar: () => ipcRenderer.invoke('leitor-xml-carregar'),
+  texto: () => ipcRenderer.invoke('leitor-xml-texto'),
+  abrirNoBlocoDeNotas: () => ipcRenderer.invoke('leitor-xml-bloco-de-notas'),
+  fechar: () => ipcRenderer.invoke('leitor-xml-fechar'),
+  escolherNaRotaInterna: () => ipcRenderer.invoke('leitor-xml-escolher'),
+  aoMostrar: (callback: () => void): void => {
+    ipcRenderer.on('leitor-xml-mostrar', () => callback());
+  },
+} satisfies PsLeitorXmlApi);
+// ---------- leitor de XML genérico (parte 1): fim do bloco ----------
