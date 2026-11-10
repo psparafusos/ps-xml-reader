@@ -31,6 +31,8 @@ import { montarCopia } from './nfe/copia';
 import { destinoAnotacao, type TeclaAnotacao } from './nfe/navegacao';
 import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
 import {
+  A4,
+  mmParaPx,
   ROTULO_ORIENTACAO,
   type Orientacao,
   type PlanoFolha,
@@ -44,12 +46,17 @@ import {
 } from './nfe/parser';
 import { ArquivoRecusadoError } from './seguranca/xml';
 import {
+  ARRANJOS_FOLHAS,
   AVISO_SAIR,
   MENSAGEM_PSXML_INTERNET,
+  ROTULO_FOLHAS,
   ROTULO_USAR_CONFERENCIA,
   TEXTO_FAIXA,
+  orientacaoDaFolha,
   pedeAviso,
+  zoomParaLargura,
   type AcaoNota,
+  type ArranjoFolhas,
 } from './nfe/leituraProtegida';
 import {
   colunasOrdenaveis,
@@ -447,7 +454,6 @@ const itensMenuPerfil = (): HTMLButtonElement[] => [
 function atualizarSeletorPerfil(): void {
   if (!perfisAtual) return;
   perfilNome.textContent = perfisAtual.nomeAtivo;
-  btnPerfil.title = `Perfil de colunas: ${perfisAtual.nomeAtivo}. Clique para trocar`;
   if (!menuPerfil.hidden) fecharMenuPerfil();
 }
 
@@ -472,7 +478,6 @@ async function abrirMenuPerfil(): Promise<void> {
     b.type = 'button';
     b.setAttribute('role', 'menuitemradio');
     b.setAttribute('aria-checked', String(ativo));
-    b.title = p.nome;
     b.addEventListener('click', () => void trocarPerfil(p.id, ativo));
     return b;
   });
@@ -849,7 +854,6 @@ function controleOrdenar(): HTMLElement {
   const limpar = el('button', 'ordenar__limpar', icone(...ICONES.fechar));
   limpar.type = 'button';
   limpar.setAttribute('aria-label', 'Voltar à ordem da nota');
-  limpar.title = 'Voltar à ordem da nota';
   mostrarOrdemAtual(botao, limpar);
   limparOrdem = limpar;
   limpar.addEventListener('click', () => {
@@ -997,7 +1001,6 @@ function montarTabelaItens(
         th.dataset.coluna = c.id;
         th.tabIndex = 0;
         th.setAttribute('aria-sort', 'none');
-        th.title = 'Ordenar por esta coluna';
         th.addEventListener('click', () => ordenarPelaColuna(c.id));
         th.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -1114,7 +1117,10 @@ async function prepararFolha(
     'table.tabela--itens',
   );
   if (!secaoItens || !tabela) return 'retrato';
-  const plano = planoDaTabela(tabela, configAtual.orientacao);
+  const plano = planoDaTabela(
+    tabela,
+    orientacaoDaFolha(orientacaoLeitura, configAtual.orientacao),
+  );
   if (plano.partes.length > 1) {
     const nome = ROTULO_ORIENTACAO[plano.orientacao].toLowerCase();
     const r = await perguntar({
@@ -1412,6 +1418,10 @@ const avisoTipos = $('aviso-tipos');
 const avisoPasta = $('aviso-pasta');
 const btnZoom = $('btn-zoom') as HTMLButtonElement;
 const btnZoomValor = $('btn-zoom-valor');
+const faixaFolhas = $('faixa-folhas');
+const seletorFolhas = $('seletor-folhas');
+const faixaOrientacao = $('faixa-orientacao');
+const seletorOrientacaoLeitura = $('seletor-orientacao-leitura');
 
 /** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
@@ -1420,6 +1430,16 @@ let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
  * processo principal ao abrir; sai da leitura só pelo aviso (liberarEdicao).
  */
 let leitura: LeituraNota = 'edicao';
+/**
+ * Folhas do DANFE na leitura protegida (só a tela). Fica para a próxima nota
+ * desta janela, como o zoom.
+ */
+let arranjoFolhas: ArranjoFolhas = 'uma';
+/**
+ * Orientação da Conferência escolhida na faixa da leitura: vale só para a
+ * nota aberta nesta janela (tela, PDF e impressão); null: a do perfil.
+ */
+let orientacaoLeitura: Orientacao | null = null;
 let pastaDestino: string | null = null;
 
 /**
@@ -1456,13 +1476,11 @@ function mostrarSucesso(
   avisoTexto.textContent = texto;
   avisoArquivo.hidden = !arquivo;
   avisoNome.textContent = arquivo ? encurtarNoMeio(arquivo.nome) : '';
-  avisoNome.title = arquivo?.nome ?? '';
   avisoTipos.textContent = arquivo?.tipos ?? '';
   avisoTipos.hidden = !arquivo?.tipos;
   avisoPasta.textContent = arquivo?.pasta
     ? `em ${abreviarCaminho(arquivo.pasta)}`
     : '';
-  avisoPasta.title = arquivo?.pasta ?? '';
   avisoPasta.hidden = !arquivo?.pasta;
   const duracao = arquivo ? DURACAO_AVISO_SALVO_MS : DURACAO_AVISO_MS;
   aviso.style.setProperty('--aviso-duracao', `${duracao}ms`);
@@ -1539,6 +1557,7 @@ function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
     btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
   }
   window.scrollTo(0, 0);
+  atualizarVistaLeitura();
   aplicarZoom();
   painel.ajustarLayout();
   if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
@@ -1574,7 +1593,6 @@ function aplicarZoom(): void {
   const pct = `${Math.round(z * 100)}%`;
   btnZoomValor.textContent = pct;
   btnZoom.setAttribute('aria-label', `Zoom em ${pct}. Restaurar 100%`);
-  btnZoom.title = 'Restaurar o tamanho normal (Ctrl+0)';
   // O zoom muda a largura da nota: o painel pode deixar de caber ao lado.
   painel.ajustarLayout();
 }
@@ -1582,6 +1600,11 @@ function aplicarZoom(): void {
 /** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
 function mudarZoom(passo: -1 | 0 | 1): void {
   if (!areaZoom()) return;
+  // Zoom à mão no "Ajustar à largura": volta para Uma, a partir do zoom de agora.
+  if (modoAtual === 'danfe' && arranjoFolhas === 'largura') {
+    arranjoFolhas = 'uma';
+    atualizarVistaLeitura();
+  }
   const atual = zoomPorModo[modoAtual];
   let novo = 1;
   if (passo === 1) novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9) ?? atual;
@@ -1936,6 +1959,7 @@ function carregar(
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
     leitura = arquivo.leitura;
+    orientacaoLeitura = null;
     aplicarLeitura();
     salvoAgora = null;
     ultimoRecente = '';
@@ -1978,6 +2002,7 @@ function carregar(
     window.psApi.informarSemNota();
     aberto = null;
     leitura = 'edicao';
+    orientacaoLeitura = null;
     aplicarLeitura();
     conferenciaMontada = false;
     danfeMontado = false;
@@ -2099,7 +2124,6 @@ function desenharRecentes(lista: NotaRecenteTela[]): void {
       if (!r.existe) {
         const limpar = el('button', 'link link--pequeno', 'Limpar');
         limpar.type = 'button';
-        limpar.title = `Tirar ${r.caminho} da lista`;
         limpar.addEventListener('click', () => {
           void window.psApi
             .limparRecentes(r.caminho)
@@ -2115,7 +2139,6 @@ function desenharRecentes(lista: NotaRecenteTela[]): void {
       }
       const abrirBtn = el('button', 'recentes__abrir', conteudo, situacao);
       abrirBtn.type = 'button';
-      abrirBtn.title = r.caminho;
       abrirBtn.addEventListener('click', () => void abrirRecente(r.caminho));
       return el('li', 'recentes__item', abrirBtn);
     }),
@@ -2315,7 +2338,106 @@ function aplicarLeitura(): void {
   ))
     c.readOnly = protegida;
   atualizarTextoSalvar();
+  atualizarVistaLeitura();
 }
+
+// Folhas do DANFE (Uma, Lado a lado, Ajustar à largura) e orientação da
+// Conferência (Retrato, Paisagem), na faixa da leitura protegida.
+const botoesFolhas = ARRANJOS_FOLHAS.map((a) => {
+  const b = el('button', 'seletor__opcao', ROTULO_FOLHAS[a]);
+  b.type = 'button';
+  b.dataset.folhas = a;
+  b.addEventListener('click', () => escolherFolhas(a));
+  return b;
+});
+seletorFolhas.append(...botoesFolhas);
+
+const botoesOrientacaoLeitura = (['retrato', 'paisagem'] as const).map((o) => {
+  const b = el('button', 'seletor__opcao', ROTULO_ORIENTACAO[o]);
+  b.type = 'button';
+  b.dataset.orientacao = o;
+  b.addEventListener('click', () => {
+    orientacaoLeitura = o;
+    atualizarVistaLeitura();
+  });
+  return b;
+});
+seletorOrientacaoLeitura.append(...botoesOrientacaoLeitura);
+
+/**
+ * Orientação que a folha da Conferência vai ter: a escolhida na faixa ou,
+ * sem escolha, a do perfil (na Automática, a que a tabela da tela pede,
+ * pela mesma conta do PDF).
+ */
+function orientacaoDaConferencia(): Orientacao {
+  if (orientacaoLeitura) return orientacaoLeitura;
+  if (configAtual.orientacao !== 'automatica') return configAtual.orientacao;
+  const tabela = notaEl.querySelector<HTMLTableElement>(
+    '.secao--itens table.tabela--itens',
+  );
+  if (!tabela || notaEl.hidden) return 'retrato';
+  return planoDaTabela(tabela, 'automatica').orientacao;
+}
+
+/**
+ * Mostra os controles da faixa do modo em que a tela está (folhas no DANFE,
+ * orientação na Conferência), marca a opção em uso e arruma as folhas do
+ * DANFE. Fora da leitura protegida, o DANFE fica com uma folha embaixo da
+ * outra.
+ */
+function atualizarVistaLeitura(): void {
+  const protegida = aberto !== null && leitura === 'protegida';
+  faixaFolhas.hidden = !protegida || modoAtual !== 'danfe';
+  faixaOrientacao.hidden = !protegida || modoAtual !== 'conferencia';
+  danfeEl.dataset.folhas = protegida ? arranjoFolhas : 'uma';
+  for (const b of botoesFolhas)
+    b.setAttribute('aria-pressed', String(b.dataset.folhas === arranjoFolhas));
+  if (!faixaOrientacao.hidden) {
+    const atual = orientacaoDaConferencia();
+    for (const b of botoesOrientacaoLeitura)
+      b.setAttribute('aria-pressed', String(b.dataset.orientacao === atual));
+  }
+  if (protegida && arranjoFolhas === 'largura') calcularZoomLargura();
+}
+
+/**
+ * "Ajustar à largura": o zoom do DANFE que faz uma folha ocupar a largura da
+ * janela. Só guarda o valor; quem chama aplica (aplicarZoom).
+ */
+function calcularZoomLargura(): void {
+  const estilo = getComputedStyle(danfeEl);
+  const recuo =
+    (parseFloat(estilo.paddingLeft) || 0) +
+    (parseFloat(estilo.paddingRight) || 0);
+  zoomPorModo.danfe = zoomParaLargura(
+    document.documentElement.clientWidth,
+    mmParaPx(A4.largura),
+    recuo,
+  );
+}
+
+/** Troca o arranjo das folhas do DANFE (só a tela). */
+function escolherFolhas(a: ArranjoFolhas): void {
+  if (a === arranjoFolhas) return;
+  // Saindo do "Ajustar à largura", a folha volta ao tamanho normal.
+  if (arranjoFolhas === 'largura') zoomPorModo.danfe = 1;
+  arranjoFolhas = a;
+  atualizarVistaLeitura();
+  aplicarZoom();
+}
+
+// A janela mudou de largura: o "Ajustar à largura" acompanha.
+window.addEventListener('resize', () => {
+  if (
+    aberto &&
+    leitura === 'protegida' &&
+    arranjoFolhas === 'largura' &&
+    modoAtual === 'danfe'
+  ) {
+    calcularZoomLargura();
+    aplicarZoom();
+  }
+});
 
 /**
  * Antes de uma ação que edita: na leitura protegida, o aviso dentro do app
@@ -2343,6 +2465,7 @@ async function liberarEdicao(acao: AcaoNota): Promise<boolean> {
     return false;
   }
   leitura = 'edicao';
+  orientacaoLeitura = null;
   aplicarLeitura();
   return true;
 }
@@ -2779,6 +2902,7 @@ async function irParaInicio(): Promise<void> {
 function limparNota(): void {
   aberto = null;
   leitura = 'edicao';
+  orientacaoLeitura = null;
   aplicarLeitura();
   // Respostas atrasadas da busca de avisos não valem mais.
   geracaoAvisos++;
@@ -3209,7 +3333,6 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     ),
   );
   abrir.type = 'button';
-  abrir.title = `Abrir ${l.nome} na tela de Documentos`;
   abrir.setAttribute(
     'aria-label',
     `${l.nome}: ${[l.situacao, l.detalhe].filter(Boolean).join(', ')}. Abrir na tela de Documentos.`,
@@ -3233,7 +3356,6 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     );
     b.disabled = ocupado;
     b.dataset.foco = 'acao';
-    b.title = `Baixar a versão nova do site oficial (a ${l.nome} atual só é trocada se a nova for lida)`;
     b.addEventListener(
       'click',
       () =>
@@ -3248,7 +3370,6 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     );
     b.disabled = ocupado;
     b.dataset.foco = 'acao';
-    b.title = `Escolher o arquivo da ${l.nome}`;
     b.addEventListener(
       'click',
       () =>
@@ -3285,7 +3406,6 @@ function avisoErroDocumento(
 ): HTMLElement {
   const fechar = botao('fechar-aviso', icone(...ICONES.fechar));
   fechar.dataset.foco = 'fechar-erro';
-  fechar.title = 'Fechar o aviso';
   fechar.setAttribute('aria-label', `Fechar o aviso de erro de ${nome}`);
   fechar.addEventListener('click', () => {
     erroDocumentos.delete(tipo);

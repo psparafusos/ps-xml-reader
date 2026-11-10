@@ -154,7 +154,6 @@ export function criarPainel(
       icone(...ICONES.setaDireita),
       el('span', 'conferencia__so-leitor', 'Abrir o painel de conferência'),
     );
-    expandir.title = 'Abrir o painel de conferência';
     expandir.setAttribute('aria-expanded', 'false');
     expandir.setAttribute('aria-controls', corpo.id);
     // O selo: check verde (tudo certo) ou o número de pontos em vermelho.
@@ -166,9 +165,10 @@ export function criarPainel(
           ? iconeSinal('ok')
           : el('span', 'conferencia__contagem', String(pontos)),
     );
-    situacao.title =
-      r === null ? 'Conferindo a nota' : r.titulo.replace(' · ', ', ');
-    situacao.setAttribute('aria-label', situacao.title);
+    situacao.setAttribute(
+      'aria-label',
+      r === null ? 'Conferindo a nota' : r.titulo.replace(' · ', ', '),
+    );
     for (const b of [expandir, situacao])
       b.addEventListener('click', () => abrir());
     trilho.replaceChildren(expandir, situacao, processando());
@@ -215,7 +215,6 @@ export function criarPainel(
         icone(...ICONES.externo),
         el('span', '', 'Abrir em nova janela'),
       );
-      b.title = `Abrir ${c.nome} numa janela nova`;
       b.addEventListener('click', () => acoes.abrirConferido(c));
       detalhe.append(b);
     }
@@ -250,7 +249,6 @@ export function criarPainel(
       icone(...ICONES.setaEsquerda),
       el('span', 'conferencia__so-leitor', 'Recolher o painel'),
     );
-    recolherBtn.title = 'Recolher o painel';
     recolherBtn.setAttribute('aria-expanded', 'true');
     recolherBtn.setAttribute('aria-controls', corpo.id);
     recolherBtn.addEventListener('click', () => recolher());
@@ -300,7 +298,6 @@ export function criarPainel(
                   el('span', 'conferencia__pendencia-detalhe', p.detalhe),
                 ),
               );
-              b.title = `Ir para o item ${p.nItem} na tabela`;
               b.addEventListener('click', () => {
                 if (!aoLado) recolher(false);
                 acoes.irParaItem(p.nItem);
@@ -390,15 +387,6 @@ export function criarPainel(
       b.setAttribute('aria-expanded', String(aberto));
       b.setAttribute('aria-controls', listaId);
       b.dataset.cfop = g.valor;
-      b.title = [
-        g.destaque
-          ? 'Poucos itens com este CFOP: confira se é isso mesmo'
-          : 'Ver os itens',
-        g.manuais > 0 &&
-          `${g.manuais} ${g.manuais === 1 ? 'item com CFOP informado' : 'itens com CFOP informado'} à mão (opção "Outro")`,
-      ]
-        .filter(Boolean)
-        .join('\n');
       b.addEventListener('click', () => {
         cfopAberto = aberto ? null : g.valor;
         desenharCorpo(resumoAtual);
@@ -416,7 +404,6 @@ export function criarPainel(
             el('span', '', i.xProd),
             i.manual && el('span', 'conferencia__cfop-manual', 'manual'),
           );
-          item.title = `Ir para o item ${i.nItem} na tabela${i.manual ? ' (CFOP manual, opção "Outro")' : ''}`;
           item.addEventListener('click', () => {
             if (!aoLado) recolher(false);
             acoes.irParaItem(i.nItem, 'cfop');

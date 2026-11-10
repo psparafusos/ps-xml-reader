@@ -343,7 +343,6 @@ export function montarAreaDocumentos(
   ) {
     const fecharErro = botao('fechar-aviso', icone(...ICONES.fechar));
     fecharErro.dataset.foco = `fechar-erro-${tipo}`;
-    fecharErro.title = 'Fechar o aviso';
     fecharErro.setAttribute(
       'aria-label',
       `Fechar o aviso de erro de ${NOME_DOCUMENTO[tipo]}`,
@@ -487,9 +486,6 @@ export function montarAreaDocumentos(
         el('span', '', temInfo ? 'Atualizar' : 'Baixar e importar'),
       );
       b.dataset.foco = `baixar-${tipo}`;
-      b.title = temInfo
-        ? `Baixar a versão nova do site oficial (a ${NOME_DOCUMENTO[tipo]} atual só é trocada se a nova for lida)`
-        : `Baixar do site oficial e importar`;
       b.addEventListener(
         'click',
         () =>
@@ -517,7 +513,6 @@ export function montarAreaDocumentos(
         icone(...ICONES.externo),
         el('span', '', 'Abrir no navegador'),
       );
-      b.title = r.pagina;
       b.addEventListener(
         'click',
         () => void window.psApi.abrirPaginaDocumento(tipo),
@@ -564,9 +559,6 @@ export function montarAreaDocumentos(
       el('span', '', info ? 'Trocar arquivo' : 'Carregar'),
     );
     btnAtualizar.dataset.foco = `atualizar-${tipo}`;
-    btnAtualizar.title = info
-      ? `Carregar outro arquivo no lugar deste (o atual só é trocado se o novo for reconhecido)`
-      : `Escolher o arquivo da ${NOME_DOCUMENTO[tipo]}`;
     btnAtualizar.addEventListener(
       'click',
       () =>
@@ -637,7 +629,6 @@ export function montarAreaDocumentos(
     if (info) {
       const remover = botao('documento__remover', icone(...ICONES.fechar));
       remover.dataset.foco = `remover-${tipo}`;
-      remover.title = `Remover ${info.arquivo}`;
       remover.setAttribute(
         'aria-label',
         `Remover ${NOME_DOCUMENTO[tipo]} (${info.arquivo})`,

@@ -21,7 +21,6 @@ import {
 import type { Anotacoes, Item } from './nfe/tipos';
 import {
   descreverPlano,
-  formatarPt,
   ORIENTACOES_CONFIG,
   ROTULO_ORIENTACAO,
   type PlanoFolha,
@@ -404,21 +403,16 @@ export function abrirEditorColunas(
     icone(...ICONES.mais),
     el('span', '', 'Novo perfil'),
   );
-  btnNovoPerfil.title = 'Novo perfil, começando igual ao perfil ativo';
   const btnImportar = botao(
     'perfis-menu__acao',
     icone(...ICONES.salvar),
     el('span', '', 'Importar'),
   );
-  btnImportar.title =
-    'Acrescenta um perfil exportado (ou uma configuração antiga) à lista';
   const btnExportar = botao(
     'perfis-menu__acao',
     icone(...ICONES.enviar),
     el('span', '', 'Exportar perfil ativo'),
   );
-  btnExportar.title =
-    'Exporta o perfil ativo (como está salvo) para um arquivo .json';
   const menuPerfis = el(
     'div',
     'perfis-menu',
@@ -607,7 +601,6 @@ export function abrirEditorColunas(
       'aria-label',
       `Mover ${c.rotulo}. Use as setas para cima e para baixo.`,
     );
-    alca.title = 'Arraste para mudar a ordem';
 
     const li = el(
       'li',
@@ -623,7 +616,6 @@ export function abrirEditorColunas(
     if (extra) {
       const remover = botao('colunas-lista__remover', icone(...ICONES.fechar));
       remover.setAttribute('aria-label', `Remover a anotação ${c.rotulo}`);
-      remover.title = 'Remover esta anotação';
       remover.addEventListener('click', () => {
         rascunho.anotacoes = rascunho.anotacoes.filter((a) => a.id !== c.id);
         rascunho.colunas = rascunho.colunas.filter((x) => x.id !== c.id);
@@ -670,7 +662,6 @@ export function abrirEditorColunas(
       'aria-label',
       `Largura da coluna ${c.rotulo}: ${ROTULO_LARGURA[atual]}`,
     );
-    b.title = 'Largura da caixa de anotação, na tela e na folha';
     b.addEventListener('click', () => {
       if (donoMenuLargura === b) fecharMenuLargura();
       else abrirMenuLargura(b, c);
@@ -827,7 +818,6 @@ export function abrirEditorColunas(
           el('span', '', t),
         );
         b.disabled = rascunho.anotacoes.some((a) => a.id === idDaAnotacao(t));
-        b.title = b.disabled ? 'Já está na lista' : `Adicionar a coluna ${t}`;
         b.addEventListener('click', () => criarAnotacao(t));
         return b;
       }),
@@ -927,11 +917,6 @@ export function abrirEditorColunas(
     const { plano, daNota } = medida;
     indicador.textContent = descreverPlano(plano);
     indicador.dataset.cabe = String(plano.partes.length === 1);
-    const deQuem = daNota ? 'A tabela da nota aberta' : 'A tabela de exemplo';
-    indicador.title =
-      plano.partes.length > 1
-        ? `${deQuem}, mesmo com a fonte em 7 pt, sai dividida em ${plano.partes.length} partes, cada uma numa folha.`
-        : `${deQuem}: fonte na folha em ${formatarPt(plano.fontePt)} pt.`;
     miniatura.replaceChildren(desenharMiniatura(tabelaFolha, plano, daNota));
   }
 
@@ -952,7 +937,6 @@ export function abrirEditorColunas(
       el('span', 'perfis-menu__texto', p.nome),
     );
     if (ativo) nome.setAttribute('aria-current', 'true');
-    nome.title = ativo ? 'Perfil ativo' : `Usar o perfil ${p.nome}`;
     nome.addEventListener('click', () => {
       if (ativo) return;
       fecharMenu();
@@ -963,7 +947,6 @@ export function abrirEditorColunas(
       icone('M4 20h4L19 9l-4-4L4 16z', 'M13 7l4 4'),
     );
     lapis.setAttribute('aria-label', `Renomear o perfil ${p.nome}`);
-    lapis.title = 'Renomear';
     const ultimo = estado.lista.length <= 1;
     const lixeira = botao(
       'perfis-menu__icone',
@@ -976,9 +959,6 @@ export function abrirEditorColunas(
       ),
     );
     lixeira.setAttribute('aria-label', `Excluir o perfil ${p.nome}`);
-    lixeira.title = ultimo
-      ? 'O último perfil não pode ser excluído'
-      : 'Excluir';
     lixeira.disabled = ultimo;
     const li = el(
       'li',

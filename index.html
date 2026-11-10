@@ -121,7 +121,6 @@
               aria-haspopup="menu"
               aria-expanded="false"
               aria-controls="menu-perfil"
-              title="Trocar o perfil de colunas"
             >
               <span class="perfil-rapido__rotulo">Perfil:</span>
               <span id="perfil-nome" class="perfil-rapido__nome"></span>
@@ -163,7 +162,6 @@
             id="btn-abrir-outro"
             type="button"
             class="botao botao--claro"
-            title="Abrir outro arquivo (Ctrl+O)"
             aria-keyshortcuts="Control+O"
           >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -203,7 +201,6 @@
             id="btn-imprimir"
             type="button"
             class="botao botao--claro"
-            title="Imprimir (Ctrl+P)"
             aria-keyshortcuts="Control+P"
           >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -223,7 +220,6 @@
               id="btn-salvar"
               type="button"
               class="botao botao--principal salvar-grupo__principal"
-              title="Salvar (Ctrl+S)"
               aria-keyshortcuts="Control+S"
             >
               <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -241,7 +237,6 @@
               aria-expanded="false"
               aria-controls="menu-salvar"
               aria-label="Mais opções de salvar"
-              title="Salvar PDF ou Salvar cópia"
             >
               <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" />
@@ -289,6 +284,32 @@
           <path d="M8 11V8a4 4 0 0 1 8 0v3" />
         </svg>
         <span id="faixa-leitura-texto" class="faixa-leitura__texto"></span>
+        <!-- Só a tela desta janela: as folhas do DANFE (Uma, Lado a lado,
+             Ajustar à largura) e a orientação da Conferência (vale também
+             para o PDF e a impressão; não grava no perfil). Os botões vêm do
+             renderer. -->
+        <div class="faixa-leitura__vista">
+          <div id="faixa-folhas" class="faixa-leitura__grupo" hidden>
+            <span id="rotulo-folhas" class="faixa-leitura__rotulo">Folhas</span>
+            <div
+              id="seletor-folhas"
+              class="seletor faixa-leitura__seletor"
+              role="group"
+              aria-labelledby="rotulo-folhas"
+            ></div>
+          </div>
+          <div id="faixa-orientacao" class="faixa-leitura__grupo" hidden>
+            <span id="rotulo-orientacao-leitura" class="faixa-leitura__rotulo"
+              >Orientação</span
+            >
+            <div
+              id="seletor-orientacao-leitura"
+              class="seletor faixa-leitura__seletor"
+              role="group"
+              aria-labelledby="rotulo-orientacao-leitura"
+            ></div>
+          </div>
+        </div>
         <button
           id="btn-usar-conferencia"
           type="button"
@@ -414,7 +435,6 @@
                 type="button"
                 class="botao botao--amarelo botao--grande"
                 aria-describedby="vazio-formatos"
-                title="Abrir arquivo (Ctrl+O)"
                 aria-keyshortcuts="Control+O"
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">

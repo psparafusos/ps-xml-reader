@@ -1011,6 +1011,11 @@
     border-top: var(--bancada-faixa-linha) solid var(--ps-amarelo);
   }
 
+  /* A faixa é clara: o contorno de foco branco da barra preta sumiria. */
+  .barra .faixa-leitura .botao:focus-visible {
+    outline-color: var(--ps-preto);
+  }
+
   .barra__logo {
     flex: none;
     width: 36px;

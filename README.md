@@ -281,6 +281,18 @@ arrastar, a nota recente e o duplo clique no Explorer.
   **Salvar** vira **Salvar PDF** e grava na pasta de destino, com a mesma
   regra de nome e de arquivo que já existe). O painel de avisos continua
   visível.
+- Na faixa, só na tela desta janela:
+  - no DANFE, **Folhas**: **Uma** (uma folha embaixo da outra, como fora da
+    leitura), **Lado a lado** (quantas couberem na largura) e **Ajustar à
+    largura** (uma folha ocupando a largura da janela, que acompanha quando a
+    janela muda de tamanho). Mudar o zoom à mão (Ctrl com +, - ou 0, ou a
+    roda do mouse) sai do Ajustar à largura e volta para **Uma**. O arranjo
+    fica para a próxima nota aberta em leitura nesta janela, como o zoom. O
+    PDF e a impressão saem sempre uma folha A4 por página;
+  - na Conferência, **Orientação**: **Retrato** ou **Paisagem**. Vem marcada
+    a do perfil (na Automática, a que a tabela pede) e vale para a tela e
+    para o PDF e a impressão que saírem dela. Não grava no perfil e vale só
+    para a nota aberta: outra nota, ou sair da leitura, volta à do perfil.
 - As colunas de anotação ficam travadas. Clicar ou digitar numa anotação, o
   **Editar colunas** (também pelo **Gerenciar perfis...**), o **Salvar
   cópia...** e a
@@ -298,6 +310,9 @@ arrastar, a nota recente e o duplo clique no Explorer.
   como num anexo de e-mail ou num download), abre em leitura protegida, com
   o aviso "Esta cópia editada (.psxml) veio da internet e abriu em leitura
   protegida.".
+- O XML da NF-e com a marca da internet segue o perfil (**Abrir notas em**):
+  quase toda nota chega por e-mail ou download, e o XML original nunca é
+  alterado. A marca só muda a abertura do `.psxml`.
 
 ### Várias janelas
 

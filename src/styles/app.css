@@ -277,6 +277,55 @@ ul {
   font-weight: var(--peso-forte);
 }
 
+/* Folhas do DANFE e orientação da Conferência, à direita do texto, antes do
+   Usar a Conferência. Janela estreita: descem para a linha de baixo. */
+.faixa-leitura {
+  flex-wrap: wrap;
+}
+
+.faixa-leitura__vista {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-3);
+  margin-left: auto;
+}
+
+.faixa-leitura__grupo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+
+.faixa-leitura__grupo[hidden] {
+  display: none;
+}
+
+.faixa-leitura__rotulo {
+  font-size: var(--fs-sm);
+}
+
+.faixa-leitura__seletor {
+  display: inline-flex;
+}
+
+.faixa-leitura__seletor .seletor__opcao {
+  padding: var(--esp-1) var(--esp-3);
+  font-size: var(--fs-sm);
+}
+
+/* DANFE com as folhas lado a lado (leitura protegida, só a tela): quantas
+   couberem na largura, de cima para baixo. No papel, print.css e danfe.css
+   voltam a uma folha por página. */
+@media screen {
+  .danfe[data-folhas='lado'] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: safe center;
+    align-items: flex-start;
+  }
+}
+
 /* Anotações travadas na leitura protegida: o campo mostra o texto, mas
    digitar ou clicar pede o aviso para sair da leitura. */
 .anotacao__campo:read-only {

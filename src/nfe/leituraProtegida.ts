@@ -8,6 +8,7 @@
 // trava as anotações e pede o aviso antes de qualquer ação que edita.
 
 import type { AbrirNotasEm } from './ferramentasPerfil';
+import type { Orientacao, OrientacaoConfig } from './folha';
 
 /** Como a nota está aberta na janela. */
 export type Leitura = 'protegida' | 'edicao';
@@ -98,3 +99,57 @@ export const AVISO_SAIR = {
 /** Recusa do processo principal ao gravar o .psxml numa janela protegida. */
 export const MENSAGEM_RECUSA_GRAVAR =
   'Esta nota está em leitura protegida. Para salvar a cópia (.psxml), saia da leitura protegida.';
+
+// ---------- folhas e orientação (só a tela da leitura) ----------
+
+/**
+ * Como as folhas do DANFE ficam na tela da leitura protegida: uma embaixo da
+ * outra, lado a lado (quantas couberem na largura) ou uma ocupando a largura
+ * da janela. Só a tela: o papel e o PDF saem sempre uma folha A4 por página.
+ */
+export type ArranjoFolhas = 'uma' | 'lado' | 'largura';
+
+export const ARRANJOS_FOLHAS: readonly ArranjoFolhas[] = [
+  'uma',
+  'lado',
+  'largura',
+];
+
+export const ROTULO_FOLHAS: Record<ArranjoFolhas, string> = {
+  uma: 'Uma',
+  lado: 'Lado a lado',
+  largura: 'Ajustar à largura',
+};
+
+/** Limites do zoom do "Ajustar à largura" (janela muito estreita ou larga). */
+export const ZOOM_LARGURA_MIN = 0.25;
+export const ZOOM_LARGURA_MAX = 3;
+
+/**
+ * Zoom para uma folha de `larguraFolha` px (em 100%), com `recuo` px de
+ * espaço dos dois lados somados (o recuo também cresce com o zoom), caber em
+ * `larguraArea` px. Arredondado para baixo em centésimos (nunca passa da
+ * largura) e preso entre os limites. Área ou folha sem medida: 1.
+ */
+export function zoomParaLargura(
+  larguraArea: number,
+  larguraFolha: number,
+  recuo: number,
+): number {
+  const total = larguraFolha + Math.max(0, recuo);
+  if (!(larguraArea > 0) || !(total > 0)) return 1;
+  const z = Math.floor((larguraArea / total) * 100) / 100;
+  return Math.min(ZOOM_LARGURA_MAX, Math.max(ZOOM_LARGURA_MIN, z));
+}
+
+/**
+ * Orientação da folha da Conferência: a escolhida na faixa da leitura
+ * protegida (vale só nesta janela, para a tela e o PDF ou a impressão que
+ * saírem dela; não grava no perfil) ou, sem escolha, a do perfil.
+ */
+export function orientacaoDaFolha(
+  escolhaNaLeitura: Orientacao | null,
+  doPerfil: OrientacaoConfig,
+): OrientacaoConfig {
+  return escolhaNaLeitura ?? doPerfil;
+}

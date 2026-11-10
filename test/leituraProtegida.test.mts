@@ -1,6 +1,7 @@
 // Regras da leitura protegida (src/nfe/leituraProtegida.ts): o que abre em
 // leitura (perfil e marca da internet), o que pode ser feito nela e os
-// textos combinados. Mais a leitura da marca Zone.Identifier com disco falso.
+// textos combinados. Mais a leitura da marca Zone.Identifier com disco falso,
+// as folhas do DANFE e a orientação da Conferência na leitura.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
@@ -11,14 +12,20 @@ import {
 } from '../src/nfe/ferramentasPerfil.ts';
 import { veioDaInternet } from '../src/seguranca/arquivo.ts';
 import {
+  ARRANJOS_FOLHAS,
   AVISO_SAIR,
   MENSAGEM_PSXML_INTERNET,
   MENSAGEM_RECUSA_GRAVAR,
+  ROTULO_FOLHAS,
   ROTULO_USAR_CONFERENCIA,
   TEXTO_FAIXA,
+  ZOOM_LARGURA_MAX,
+  ZOOM_LARGURA_MIN,
   leituraAoAbrir,
+  orientacaoDaFolha,
   pedeAviso,
   zonaDaInternet,
+  zoomParaLargura,
   type AcaoNota,
 } from '../src/nfe/leituraProtegida.ts';
 
@@ -176,5 +183,47 @@ describe('ferramentas por perfil: "Abrir notas em"', () => {
         validarFerramentasPorPerfil({ p1: { ordem, abrirEm: 'sim' } }, ['p1']),
       /Abrir notas em/,
     );
+  });
+});
+
+describe('leitura protegida: folhas e orientação (só a tela)', () => {
+  it('os três arranjos, com os rótulos combinados', () => {
+    assert.deepEqual(ARRANJOS_FOLHAS, ['uma', 'lado', 'largura']);
+    assert.deepEqual(
+      ARRANJOS_FOLHAS.map((a) => ROTULO_FOLHAS[a]),
+      ['Uma', 'Lado a lado', 'Ajustar à largura'],
+    );
+  });
+
+  it('ajustar à largura: a folha e o recuo cabem na área', () => {
+    // Folha de 794 px com 48 px de recuo numa área de 1684 px: 2x.
+    assert.equal(zoomParaLargura(1684, 794, 48), 2);
+    // Arredonda para baixo: nunca passa da largura.
+    const z = zoomParaLargura(1000, 794, 48);
+    assert.equal(z, 1.18);
+    assert.ok(z * (794 + 48) <= 1000);
+  });
+
+  it('ajustar à largura: preso entre os limites', () => {
+    assert.equal(zoomParaLargura(50, 794, 48), ZOOM_LARGURA_MIN);
+    assert.equal(zoomParaLargura(100000, 794, 48), ZOOM_LARGURA_MAX);
+  });
+
+  it('ajustar à largura: sem medida, fica em 100%', () => {
+    assert.equal(zoomParaLargura(0, 794, 48), 1);
+    assert.equal(zoomParaLargura(Number.NaN, 794, 48), 1);
+    assert.equal(zoomParaLargura(1000, 0, 0), 1);
+    // Recuo negativo não conta.
+    assert.equal(zoomParaLargura(1588, 794, -10), 2);
+  });
+
+  it('orientação: a escolhida na faixa vale mais que a do perfil', () => {
+    assert.equal(orientacaoDaFolha('paisagem', 'retrato'), 'paisagem');
+    assert.equal(orientacaoDaFolha('retrato', 'automatica'), 'retrato');
+  });
+
+  it('orientação: sem escolha na faixa, a do perfil (Automática inclusive)', () => {
+    assert.equal(orientacaoDaFolha(null, 'automatica'), 'automatica');
+    assert.equal(orientacaoDaFolha(null, 'paisagem'), 'paisagem');
   });
 });
