@@ -72,7 +72,33 @@ function desenhar(): void {
   rotulo.textContent = a.rotulo;
   etapa.textContent = a.etapa;
   btnCancelar.disabled = false;
+  hospedar();
   cartao.hidden = false;
+}
+
+/**
+ * Um <dialog> modal aberto (Configurações, por exemplo) fica na camada de
+ * cima e deixa inerte tudo o que está fora dele: o cartão vai para dentro
+ * do modal mais recente, para aparecer e o Cancelar funcionar. Sem modal,
+ * fica no body.
+ */
+function hospedar(): void {
+  const modais = [...document.querySelectorAll('dialog')].filter(
+    (d) => d.open && d.matches(':modal'),
+  );
+  const destino: HTMLElement = modais.at(-1) ?? document.body;
+  if (cartao.parentElement === destino) return;
+  destino.append(cartao);
+  // O modal fechou com o cartão dentro: volta para o body.
+  if (destino !== document.body)
+    destino.addEventListener(
+      'close',
+      () => {
+        document.body.append(cartao);
+        desenhar();
+      },
+      { once: true },
+    );
 }
 
 api.aoInicio(({ id, rotulo: r }) => {

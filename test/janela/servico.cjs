@@ -1,33 +1,21 @@
 // Casos do test:janela para o serviço de leitura pesada (parte 2), com o
-// utilityProcess de verdade. Enquanto a entrada do Vite não está no
-// forge.config.mts, prepararServico() monta o servicoPesado.cjs ao lado do
-// main.cjs com o Vite do projeto (o mesmo que o Forge vai fazer). Arquivos
-// inventados, gerados aqui e apagados no fim. Nenhum caso aciona Copiar.
+// utilityProcess de verdade: o servicoPesado.cjs que o Forge monta ao lado
+// do main.cjs. Arquivos inventados, gerados aqui e apagados no fim. Nenhum
+// caso aciona Copiar.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
 const NOME_SERVICO = 'PS Reader: leitura pesada';
-
-/** Monta o filho em .vite/build/servicoPesado.cjs. */
-async function prepararServico(raiz) {
-  const { build } = await import('vite');
-  await build({
-    configFile: false,
-    logLevel: 'warn',
-    build: {
-      ssr: path.join(raiz, 'src', 'servico', 'servicoPesado.ts'),
-      outDir: path.join(raiz, '.vite', 'build'),
-      emptyOutDir: false,
-      minify: false,
-      target: 'node22',
-      rollupOptions: {
-        output: { format: 'cjs', entryFileNames: 'servicoPesado.cjs' },
-      },
-    },
-  });
-}
+const FILHO = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  '.vite',
+  'build',
+  'servicoPesado.cjs',
+);
 
 /** XML inventado de `mb` megabytes, escrito em blocos. */
 function gerarXml(alvo, mb) {
@@ -63,6 +51,10 @@ async function casosServico(c) {
     electronApp
       .getAppMetrics()
       .find((m) => m.type === 'Utility' && m.name === NOME_SERVICO);
+  const filhosDoServico = () =>
+    electronApp
+      .getAppMetrics()
+      .filter((m) => m.type === 'Utility' && m.name === NOME_SERVICO);
   const abrir = (caminho) => app.emit('leitor-xml-rota-interna', caminho);
   const fechar = async () => {
     await avaliar(
@@ -96,6 +88,13 @@ async function casosServico(c) {
   const xml90 = gerarXml(path.join(notas, 'lote-90mb.xml'), 90);
 
   try {
+    await caso(
+      'Serviço: o Forge montou o filho ao lado do main.cjs',
+      async () => {
+        confere(fs.existsSync(FILHO), `não achei ${FILHO}`);
+      },
+    );
+
     await caso(
       'Serviço: XML grande inventado lido no utilityProcess, com andamento',
       async () => {
@@ -167,6 +166,107 @@ async function casosServico(c) {
       await pequenoFunciona();
     });
 
+    await caso(
+      'Serviço: importação com Configurações aberta: cartão por cima e Cancelar mantém o anterior',
+      async () => {
+        // TIPI inventada grande (texto), para a leitura passar de 0,3 s.
+        const base = fs.readFileSync(
+          path.join(__dirname, '..', 'fiscal', 'fixtures', 'tipi-trecho.txt'),
+          'utf8',
+        );
+        const extra = [];
+        for (let i = 0; i < 250000; i++) {
+          const pos = 3210 + Math.floor(i / 10000);
+          extra.push(
+            `${pos}.${String(Math.floor(i / 100) % 100).padStart(2, '0')}.${String(i % 100).padStart(2, '0')} Produto inventado ${i + 1} 3,25`,
+          );
+        }
+        const tipi = path.join(notas, 'tipi-inventada.txt');
+        fs.writeFileSync(tipi, `${base}\n${extra.join('\n')}\n`);
+        // Só no teste: o diálogo de abrir do Windows devolve a TIPI inventada.
+        const { dialog } = require('electron');
+        const original = dialog.showOpenDialog;
+        dialog.showOpenDialog = async () => ({
+          canceled: false,
+          filePaths: [tipi],
+        });
+        const infoTipi = path.join(
+          electronApp.getPath('userData'),
+          'documentos',
+          'tipi-info.json',
+        );
+        const tinhaAntes = fs.existsSync(infoTipi)
+          ? fs.readFileSync(infoTipi, 'utf8')
+          : null;
+        try {
+          await avaliar(`document.getElementById('btn-inicio')?.click(); true`);
+          await aguardar(
+            `!!document.getElementById('btn-documentos') && !document.getElementById('vazio').hidden`,
+            10000,
+            'tela inicial',
+          );
+          // Os casos de NF-e deixam avisos "Nota de outra empresa" abertos.
+          await avaliar(
+            `[...document.querySelectorAll('dialog[open] button')].filter((b) => b.textContent.trim() === 'Entendi').forEach((b) => b.click()); true`,
+          );
+          await avaliar(
+            `document.getElementById('btn-documentos').click(); true`,
+          );
+          await aguardar(
+            `!!document.querySelector('dialog[open] [data-foco="atualizar-tipi"]')`,
+            10000,
+            'Configurações aberta',
+          );
+          await avaliar(
+            `document.querySelector('[data-foco="atualizar-tipi"]').click(); true`,
+          );
+          await aguardar(
+            cartaoVisivel,
+            20000,
+            'o cartão de andamento não apareceu',
+          );
+          const toque = await avaliar(`(() => {
+          const c = document.querySelector('.servico-progresso');
+          const b = c.querySelector('button');
+          const r = b.getBoundingClientRect();
+          const alvo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return { dentroDoModal: !!c.closest('dialog:modal'), noBotao: alvo === b || b.contains(alvo) };
+        })()`);
+          confere(toque.dentroDoModal, 'o cartão não foi para dentro do modal');
+          confere(
+            toque.noBotao,
+            'o Cancelar está coberto (teste de toque não chega nele)',
+          );
+          await avaliar(
+            `document.querySelector('.servico-progresso button').click(); true`,
+          );
+          await aguardar(`!${cartaoVisivel}`, 10000, 'o cartão não sumiu');
+          await espera(500);
+          const agora = fs.existsSync(infoTipi)
+            ? fs.readFileSync(infoTipi, 'utf8')
+            : null;
+          confere(agora === tinhaAntes, 'a TIPI mudou depois de cancelar');
+          await avaliar(
+            `[...document.querySelectorAll('dialog[open] button')].find((b) => b.textContent.trim() === 'Fechar')?.click(); true`,
+          );
+          await aguardar(
+            `!document.querySelector('dialog[open] [data-foco="atualizar-tipi"]')`,
+            5000,
+            'fechar Configurações',
+          );
+          confere(
+            await avaliar(
+              `document.querySelector('.servico-progresso').parentElement === document.body`,
+            ),
+            'o cartão não voltou para o body depois de fechar o modal',
+          );
+        } finally {
+          dialog.showOpenDialog = original;
+          fs.rmSync(tipi, { force: true });
+        }
+      },
+    );
+
     await caso('Serviço: Cancelar no cartão de andamento', async () => {
       abrir(xml90);
       await aguardar(
@@ -190,14 +290,25 @@ async function casosServico(c) {
 
     await caso('Serviço: filho morto no meio da leitura', async () => {
       abrir(xml90);
-      let filho = null;
+      // O app.getAppMetrics() ainda pode listar o filho encerrado no caso
+      // anterior: tenta cada processo do serviço até achar o vivo.
+      let morto = false;
       const limite = Date.now() + 20000;
-      while (!filho && Date.now() < limite) {
-        if (await avaliar(cartaoVisivel)) filho = filhoDoServico();
-        await espera(50);
+      while (!morto && Date.now() < limite) {
+        if (await avaliar(cartaoVisivel)) {
+          for (const m of filhosDoServico()) {
+            try {
+              process.kill(m.pid);
+              morto = true;
+              break;
+            } catch {
+              // Já tinha saído: tenta o próximo.
+            }
+          }
+        }
+        if (!morto) await espera(50);
       }
-      confere(filho, 'o filho não apareceu durante a leitura');
-      process.kill(filho.pid);
+      confere(morto, 'o filho não apareceu durante a leitura');
       const t = await aguardarEstado('parou no meio', 15000);
       confere(t.includes('A leitura parou no meio. Tente de novo.'), t);
       await fechar();
@@ -209,4 +320,4 @@ async function casosServico(c) {
   }
 }
 
-module.exports = { prepararServico, casosServico };
+module.exports = { casosServico };

@@ -44,6 +44,13 @@ const config: ForgeConfig = {
           config: 'vite.preload.config.mts',
           target: 'preload',
         },
+        {
+          // Serviço de leitura pesada (utilityProcess): sai como
+          // .vite/build/servicoPesado.cjs, ao lado do main.cjs.
+          entry: 'src/servico/servicoPesado.ts',
+          config: 'vite.main.config.mts',
+          target: 'main',
+        },
       ],
       renderer: [
         {
@@ -62,6 +69,9 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      // A tela vem do protocolo próprio app:// (src/protocoloApp.ts), não de
+      // file://: os privilégios extras do file:// não fazem falta.
+      [FuseV1Options.GrantFileProtocolExtraPrivileges]: false,
     }),
   ],
 };
