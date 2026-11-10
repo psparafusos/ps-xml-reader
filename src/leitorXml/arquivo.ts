@@ -12,7 +12,7 @@ import {
   mensagemSemResposta,
 } from '../seguranca/arquivo';
 import { avaliarTamanho, LIMITE_TEXTO_BYTES } from '../xml/limites';
-import { prepararLeitura } from '../xml/preparar';
+import { prepararLeitura, type EtapaPreparo } from '../xml/preparar';
 import type { InfoArquivo, MotivoRecusa, ResultadoLeitorXml } from './tipos';
 
 export const MENSAGEM_EM_USO_LEITOR =
@@ -59,6 +59,7 @@ export async function lerParaLeitor(
   caminho: string,
   disco: DiscoLeitor = discoReal,
   prazo = ESPERA_CAMINHO_MS,
+  aoEtapa: (etapa: EtapaPreparo | 'lendo') => void = () => {},
 ): Promise<LeituraParaTela> {
   const arquivo: InfoArquivo = {
     nome: path.basename(caminho),
@@ -88,6 +89,7 @@ export async function lerParaLeitor(
 
   let bytes: Uint8Array;
   try {
+    aoEtapa('lendo');
     bytes = await disco.ler(caminho);
   } catch (erro) {
     const { motivo, mensagem } = erroDeDisco(erro);
@@ -99,7 +101,7 @@ export async function lerParaLeitor(
     return recusa('grande', avaliarTamanho(bytes.byteLength).mensagem ?? '');
   }
 
-  const preparo = prepararLeitura(bytes);
+  const preparo = prepararLeitura(bytes, aoEtapa);
   if (!preparo.ok) return recusa(preparo.motivo, preparo.mensagem);
   const { texto, ok: _ok, ...leitura } = preparo;
   return { resultado: { status: 'ok', arquivo, leitura }, texto };

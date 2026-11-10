@@ -94,17 +94,26 @@ function abasXlsx(dados: Uint8Array) {
 }
 
 /**
- * Lê e valida o arquivo e, se for reconhecido, grava em `pasta` no lugar do
- * documento anterior. `servidor`: o arquivo veio da verificação online.
+ * Documento lido e validado, pronto para gravar: o que vai para o
+ * <tipo>.json e o resumo que entra no <tipo>-info.json. Só dados simples:
+ * passa do serviço de leitura pesada (utilityProcess) para o principal.
  */
-export function importarDocumento(
+export interface DocumentoPreparado {
+  tipo: TipoDocumento;
+  tipoArquivo: 'xlsx' | 'txt';
+  tamanhoArquivo: number;
+  resumo: ReturnType<typeof resumoST>;
+  gravar: unknown;
+}
+
+/**
+ * Lê e valida o arquivo, sem gravar nada (puro: roda no serviço de leitura
+ * pesada). Formato não reconhecido lança ErroFormato.
+ */
+export function prepararDocumento(
   tipo: TipoDocumento,
   dados: Uint8Array,
-  nomeArquivo: string,
-  pasta: string,
-  agora: Date = new Date(),
-  servidor: ServidorDocumento | null = null,
-): InfoDocumento {
+): DocumentoPreparado {
   let gravar: unknown;
   let resumo;
   let tipoArquivo: 'xlsx' | 'txt';
@@ -145,12 +154,45 @@ export function importarDocumento(
     resumo = resumoTipi(tipi, tipoArquivo);
     gravar = { relatorio: tipi.relatorio, ncms: [...tipi.porNcm.values()] };
   }
+  return { tipo, tipoArquivo, tamanhoArquivo: dados.length, resumo, gravar };
+}
+
+/**
+ * Lê e valida o arquivo e, se for reconhecido, grava em `pasta` no lugar do
+ * documento anterior. `servidor`: o arquivo veio da verificação online.
+ */
+export function importarDocumento(
+  tipo: TipoDocumento,
+  dados: Uint8Array,
+  nomeArquivo: string,
+  pasta: string,
+  agora: Date = new Date(),
+  servidor: ServidorDocumento | null = null,
+): InfoDocumento {
+  return gravarDocumento(
+    prepararDocumento(tipo, dados),
+    nomeArquivo,
+    pasta,
+    agora,
+    servidor,
+  );
+}
+
+/** Grava um documento já preparado em `pasta`, no lugar do anterior. */
+export function gravarDocumento(
+  preparado: DocumentoPreparado,
+  nomeArquivo: string,
+  pasta: string,
+  agora: Date = new Date(),
+  servidor: ServidorDocumento | null = null,
+): InfoDocumento {
+  const { tipo, tipoArquivo, tamanhoArquivo, resumo, gravar } = preparado;
   const info: InfoDocumento = {
     formato: FORMATO_BASE,
     tipo,
     arquivo: nomeArquivo,
     tipoArquivo,
-    tamanhoArquivo: dados.length,
+    tamanhoArquivo,
     importadoEm: agora.toISOString(),
     ...resumo,
     servidor,
@@ -181,17 +223,28 @@ export function importarSeLeituraPassar(
   agora: Date = new Date(),
   servidor: ServidorDocumento | null = null,
 ): InfoDocumento {
+  return gravarSeLeituraPassar(
+    prepararDocumento(tipo, dados),
+    nomeArquivo,
+    pasta,
+    agora,
+    servidor,
+  );
+}
+
+/** importarSeLeituraPassar com o documento já preparado. */
+export function gravarSeLeituraPassar(
+  preparado: DocumentoPreparado,
+  nomeArquivo: string,
+  pasta: string,
+  agora: Date = new Date(),
+  servidor: ServidorDocumento | null = null,
+): InfoDocumento {
+  const tipo = preparado.tipo;
   mkdirSync(pasta, { recursive: true });
   const temp = mkdtempSync(join(pasta, '.atualizar-'));
   try {
-    const info = importarDocumento(
-      tipo,
-      dados,
-      nomeArquivo,
-      temp,
-      agora,
-      servidor,
-    );
+    const info = gravarDocumento(preparado, nomeArquivo, temp, agora, servidor);
     // Dados primeiro e a info por último, como em importarDocumento.
     renameSync(join(temp, arqDados(tipo)), join(pasta, arqDados(tipo)));
     renameSync(join(temp, arqInfo(tipo)), join(pasta, arqInfo(tipo)));

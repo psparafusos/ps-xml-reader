@@ -579,8 +579,12 @@ function mostrarEstado(titulo: string | null, ...linhasEstado: string[]): void {
 
 function travarResto(sim: boolean): void {
   if (sim) {
+    // O cartão de andamento do serviço (com o Cancelar) fica de fora.
     inertes = [...document.body.children].filter(
-      (e) => e !== raiz && !(e as HTMLElement).inert,
+      (e) =>
+        e !== raiz &&
+        !(e as HTMLElement).inert &&
+        !(e as HTMLElement).hasAttribute('data-fora-do-leitor'),
     );
     for (const e of inertes) (e as HTMLElement).inert = true;
   } else {
@@ -596,6 +600,10 @@ function mostrarRecusa(
   caminhoArquivo.textContent = r.arquivo.caminho;
   if (r.arquivo.tamanho !== null)
     mostrarInfo([formatarTamanho(r.arquivo.tamanho)]);
+  if (r.motivo === 'cancelado') {
+    mostrarEstado('Leitura cancelada', 'Para ver o arquivo, abra de novo.');
+    return;
+  }
   const extra =
     r.motivo === 'grande'
       ? [DICA_GRANDE]

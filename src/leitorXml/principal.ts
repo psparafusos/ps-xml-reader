@@ -1,7 +1,8 @@
-// Lado do processo principal da tela do leitor genérico de XML (parte 1).
-// Canais leitor-xml-*, todos pelo envoltório src/ipcSeguro.ts. O caminho do
+// Lado do processo principal da tela do leitor genérico de XML. Canais
+// leitor-xml-*, todos pelo envoltório src/ipcSeguro.ts. O caminho do
 // arquivo fica aqui, por janela: a tela nunca manda caminho, só pede
-// "o arquivo desta janela".
+// "o arquivo desta janela". A leitura roda no serviço de leitura pesada
+// (src/servico/principal.ts), com andamento e Cancelar na janela.
 //
 // Rota interna, ainda fora da navegação: o test:janela emite no app o
 // evento 'leitor-xml-rota-interna' com o caminho; no npm start, Ctrl+Shift+L
@@ -10,9 +11,12 @@
 
 import { app, BrowserWindow, dialog, type WebContents } from 'electron';
 import { execFile } from 'node:child_process';
+import path from 'node:path';
 import { problemaCaminhoSolto } from '../seguranca/arquivo';
 import { tratar } from '../ipcSeguro';
-import { comandoBlocoDeNotas, lerParaLeitor } from './arquivo';
+import { executarNaJanela } from '../servico/principal';
+import { mensagemDoDesfecho } from '../servico/supervisor';
+import { comandoBlocoDeNotas, type LeituraParaTela } from './arquivo';
 import type { ResultadoBlocoDeNotas, ResultadoLeitorXml } from './tipos';
 
 interface EstadoLeitor {
@@ -53,8 +57,37 @@ export function registrarLeitorXml(): void {
   tratar('leitor-xml-carregar', async (event): Promise<ResultadoLeitorXml> => {
     const estado = porJanela.get(event.sender.id);
     if (!estado) return { status: 'sem-arquivo' };
-    const { resultado, texto } = await lerParaLeitor(estado.caminho);
-    estado.texto = texto;
+    const arquivo = {
+      nome: path.basename(estado.caminho),
+      caminho: estado.caminho,
+      tamanho: null,
+    };
+    // O arquivo pode ter virado atalho ou sumido desde que foi escolhido.
+    const problema = await problemaCaminhoSolto(estado.caminho, ['.xml']);
+    if (problema) {
+      return {
+        status: 'recusado',
+        arquivo,
+        motivo: 'erro',
+        mensagem: problema,
+      };
+    }
+    const desfecho = await executarNaJanela(
+      event.sender,
+      { tipo: 'xml', caminho: estado.caminho },
+      `Lendo ${arquivo.nome}`,
+    );
+    if (desfecho.status !== 'ok') {
+      return {
+        status: 'recusado',
+        arquivo,
+        motivo: desfecho.status === 'cancelado' ? 'cancelado' : 'erro',
+        mensagem: mensagemDoDesfecho(desfecho),
+      };
+    }
+    const { resultado, texto } = desfecho.resultado as LeituraParaTela;
+    // A janela pode ter fechado o leitor enquanto lia.
+    if (porJanela.get(event.sender.id) === estado) estado.texto = texto;
     return resultado;
   });
 

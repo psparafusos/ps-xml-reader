@@ -50,12 +50,19 @@ export type ResultadoPreparo = LeituraPreparada | LeituraRecusada;
 const RE_DOCTYPE = /<!DOCTYPE[\s>[]/;
 const TIPO_DOCTYPE = TIPOS.indexOf('doctype');
 
+/** Etapa do preparo (para quem mostra o andamento). */
+export type EtapaPreparo = 'decodificando' | 'arvore' | 'linhas';
+
 /** Prepara os bytes do arquivo para a tela. */
-export function prepararLeitura(bytes: Uint8Array): ResultadoPreparo {
+export function prepararLeitura(
+  bytes: Uint8Array,
+  aoEtapa: (etapa: EtapaPreparo) => void = () => {},
+): ResultadoPreparo {
   const tamanho = avaliarTamanho(bytes.byteLength);
   if (tamanho.modo === 'recusado') {
     return { ok: false, motivo: 'grande', mensagem: tamanho.mensagem ?? '' };
   }
+  aoEtapa('decodificando');
   const dec = decodificarXml(bytes);
   if (!dec.ok) return { ok: false, motivo: dec.motivo, mensagem: dec.mensagem };
   const texto = dec.texto;
@@ -64,6 +71,7 @@ export function prepararLeitura(bytes: Uint8Array): ResultadoPreparo {
   let semArvore: LeituraPreparada['semArvore'] =
     tamanho.modo === 'arvore' ? null : 'tamanho';
   if (tamanho.modo === 'arvore') {
+    aoEtapa('arvore');
     const leitura = lerXml(texto);
     if (leitura.profundidadeExcedida) semArvore = 'profundidade';
     else arvore = leitura;
@@ -82,6 +90,8 @@ export function prepararLeitura(bytes: Uint8Array): ResultadoPreparo {
     doctype = RE_DOCTYPE.test(texto.slice(0, 64 * 1024));
   }
 
+  aoEtapa('linhas');
+  const linhas = formatarTexto(texto);
   return {
     ok: true,
     modo: arvore ? 'arvore' : 'texto',
@@ -96,7 +106,7 @@ export function prepararLeitura(bytes: Uint8Array): ResultadoPreparo {
     controles: arvore ? arvore.controles : contarControles(texto),
     doctype,
     arvore,
-    linhas: formatarTexto(texto),
+    linhas,
     texto,
   };
 }

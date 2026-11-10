@@ -19,6 +19,7 @@ export type MotivoRecusa =
   | 'em-uso'
   | 'sem-resposta'
   | 'nao-encontrado'
+  | 'cancelado'
   | 'erro';
 
 /** A leitura sem o texto (o texto vem à parte, em leitor-xml-texto). */

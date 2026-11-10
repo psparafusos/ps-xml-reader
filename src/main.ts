@@ -2391,3 +2391,12 @@ import { registrarLeitorXml } from './leitorXml/principal';
 
 registrarLeitorXml();
 // ---------- leitor de XML genérico (parte 1): fim do bloco ----------
+
+// ---------- serviço de leitura pesada (parte 2): início do bloco ----------
+// Leituras pesadas num utilityProcess (src/servico/): XML genérico, NF-e
+// grande e planilhas de referência. Aqui só o canal do Cancelar e o
+// encerramento do filho ao sair; quem lê chama src/servico/principal.ts.
+import { registrarServico } from './servico/principal';
+
+registrarServico();
+// ---------- serviço de leitura pesada (parte 2): fim do bloco ----------

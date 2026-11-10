@@ -213,3 +213,22 @@ contextBridge.exposeInMainWorld('psLeitorXml', {
   },
 } satisfies PsLeitorXmlApi);
 // ---------- leitor de XML genérico (parte 1): fim do bloco ----------
+
+// ---------- serviço de leitura pesada (parte 2): início do bloco ----------
+// Andamento e Cancelar das leituras no utilityProcess (src/servico/), para o
+// cartão de src/servico/progresso.ts. Só o id da leitura vai e volta.
+import type { PsServicoApi } from './servico/ponte';
+
+contextBridge.exposeInMainWorld('psServico', {
+  aoInicio: (callback) => {
+    ipcRenderer.on('servico-inicio', (_e, a) => callback(a));
+  },
+  aoProgresso: (callback) => {
+    ipcRenderer.on('servico-progresso', (_e, p) => callback(p));
+  },
+  aoFim: (callback) => {
+    ipcRenderer.on('servico-fim', (_e, f) => callback(f));
+  },
+  cancelar: (id: number) => ipcRenderer.invoke('servico-cancelar', id),
+} satisfies PsServicoApi);
+// ---------- serviço de leitura pesada (parte 2): fim do bloco ----------

@@ -6,8 +6,9 @@
 // executeJavaScript, sem porta de depuração. Nenhum teste aciona Copiar.
 //
 // Casos (test/janela/fixtures, NF-e inventadas): T6, T8 (gerado aqui), T9,
-// T10, T11 e T12 do plano de segurança; e a tela do leitor genérico de XML
-// (leitorXml.cjs, XML inventado gerado no teste).
+// T10, T11 e T12 do plano de segurança; a tela do leitor genérico de XML
+// (leitorXml.cjs) e o serviço de leitura pesada (servico.cjs), com XML
+// inventado gerado no teste.
 'use strict';
 
 const { app, session } = require('electron');
@@ -15,6 +16,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { casosLeitorXml } = require('./leitorXml.cjs');
+const { casosServico, prepararServico } = require('./servico.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -326,7 +328,9 @@ async function principal() {
     },
   );
 
-  // Tela do leitor genérico de XML (parte 1), pela rota interna.
+  // Tela do leitor genérico de XML (parte 1), pela rota interna, já lendo
+  // pelo serviço de leitura pesada (parte 2), que precisa do filho montado.
+  await prepararServico(RAIZ);
   await casosLeitorXml({
     app,
     notas,
@@ -337,6 +341,16 @@ async function principal() {
     espera,
     rede,
     sonda: SONDA,
+  });
+  await casosServico({
+    app,
+    notas,
+    caso,
+    avaliar,
+    aguardar,
+    confere,
+    espera,
+    rede,
   });
 }
 
