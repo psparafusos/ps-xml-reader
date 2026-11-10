@@ -1001,6 +1001,16 @@
     box-shadow: none;
   }
 
+  /* Com a faixa da leitura protegida, o filete amarelo passa para cima dela:
+     barra preta, filete, faixa clara. */
+  .barra:has(> .faixa-leitura:not([hidden])) {
+    border-bottom: none;
+  }
+
+  .faixa-leitura {
+    border-top: var(--bancada-faixa-linha) solid var(--ps-amarelo);
+  }
+
   .barra__logo {
     flex: none;
     width: 36px;

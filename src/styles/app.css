@@ -246,6 +246,45 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- leitura protegida: faixa na base da barra ---------- */
+
+/* Última peça da barra, ocupando a largura toda (sem o recuo da barra). A
+   altura da barra (--altura-barra) já inclui a faixa: o painel e a nota
+   descem junto. Interface: não seleciona (regra da seleção, acima). */
+.faixa-leitura {
+  order: 99;
+  /* A largura da barra mais o recuo dos dois lados (as margens negativas
+     abaixo levam a faixa até as bordas). */
+  flex: 0 0 calc(100% + 2 * var(--esp-5));
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  margin: 0 calc(-1 * var(--esp-5)) calc(-1 * var(--esp-3));
+  padding: var(--esp-2) var(--esp-5);
+  background: var(--cor-destaque-suave);
+  color: var(--cor-texto-forte);
+}
+
+.faixa-leitura[hidden] {
+  display: none;
+}
+
+.faixa-leitura__icone {
+  flex: none;
+}
+
+.faixa-leitura__texto {
+  font-weight: var(--peso-forte);
+}
+
+/* Anotações travadas na leitura protegida: o campo mostra o texto, mas
+   digitar ou clicar pede o aviso para sair da leitura. */
+.anotacao__campo:read-only {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
+}
+
 /* ---------- barra superior ---------- */
 
 /* Uma linha quando cabe. Quando falta espaço, a saída (pasta, imprimir,

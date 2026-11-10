@@ -44,6 +44,13 @@ import {
 } from './nfe/parser';
 import { ArquivoRecusadoError } from './seguranca/xml';
 import {
+  AVISO_SAIR,
+  ROTULO_USAR_CONFERENCIA,
+  TEXTO_FAIXA,
+  pedeAviso,
+  type AcaoNota,
+} from './nfe/leituraProtegida';
+import {
   colunasOrdenaveis,
   criterioValido,
   descreverOrdem,
@@ -503,8 +510,13 @@ async function trocarPerfil(id: string, jaAtivo: boolean): Promise<void> {
 }
 
 btnPerfil.addEventListener('click', () => {
-  if (menuPerfil.hidden) void abrirMenuPerfil();
-  else fecharMenuPerfil();
+  if (!menuPerfil.hidden) {
+    fecharMenuPerfil();
+    return;
+  }
+  void (async () => {
+    if (await liberarEdicao('perfil')) await abrirMenuPerfil();
+  })();
 });
 menuPerfil.addEventListener('keydown', (e) =>
   navegarMenu(e, itensMenuPerfil(), fecharMenuPerfil),
@@ -635,6 +647,26 @@ function celulaAnotacao(
     td.append(campoTexto, espelho);
     return td;
   }
+  // Leitura protegida: o campo fica só para ler. Clicar nele ou digitar
+  // pede o aviso; com Continuar, a anotação segue normal nesse campo.
+  campoTexto.readOnly = leitura === 'protegida' && aberto !== null;
+  const pedirEdicao = (e: Event) => {
+    e.preventDefault();
+    void liberarEdicao('anotar').then((ok) => {
+      if (ok) campoTexto.focus();
+    });
+  };
+  campoTexto.addEventListener('mousedown', (e) => {
+    if (campoTexto.readOnly) pedirEdicao(e);
+  });
+  campoTexto.addEventListener('keydown', (e) => {
+    if (!campoTexto.readOnly) return;
+    const edita =
+      (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) ||
+      e.key === 'Backspace' ||
+      e.key === 'Delete';
+    if (edita) pedirEdicao(e);
+  });
   // Ao entrar no campo o texto fica selecionado (o mouse não desfaz a seleção
   // no clique que deu o foco).
   let focoPeloMouse = false;
@@ -878,7 +910,11 @@ function controleOrdenar(): HTMLElement {
   editar.type = 'button';
   editar.id = 'btn-editar-colunas';
   editar.setAttribute('aria-haspopup', 'dialog');
-  editar.addEventListener('click', () => void editarColunas());
+  editar.addEventListener('click', () => {
+    void (async () => {
+      if (await liberarEdicao('editar-colunas')) await editarColunas();
+    })();
+  });
   return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar, editar);
 }
 
@@ -1361,6 +1397,8 @@ const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
+const faixaLeitura = $('faixa-leitura');
+const btnUsarConferencia = $('btn-usar-conferencia') as HTMLButtonElement;
 const btnSalvarMais = $('btn-salvar-mais') as HTMLButtonElement;
 const menuSalvar = $('menu-salvar');
 const btnSalvarPdf = $('btn-salvar-pdf') as HTMLButtonElement;
@@ -1376,6 +1414,11 @@ const btnZoomValor = $('btn-zoom-valor');
 
 /** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
+/**
+ * Como a nota aberta está: leitura protegida (só ver) ou edição. Vem do
+ * processo principal ao abrir; sai da leitura só pelo aviso (liberarEdicao).
+ */
+let leitura: LeituraNota = 'edicao';
 let pastaDestino: string | null = null;
 
 /**
@@ -1485,6 +1528,7 @@ function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
   painelEl.hidden = tela !== 'nota';
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
+    atualizarTextoSalvar();
     document.body.dataset.modo = modoAtual;
     // Seletor de duas posições: aria-pressed marca a opção ativa.
     btnModoConferencia.setAttribute(
@@ -1890,6 +1934,8 @@ function carregar(
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
+    leitura = arquivo.leitura;
+    aplicarLeitura();
     salvoAgora = null;
     ultimoRecente = '';
     conferenciaMontada = false;
@@ -1923,6 +1969,8 @@ function carregar(
     // pode mais ser salva, então volta para a tela inicial.
     window.psApi.informarSemNota();
     aberto = null;
+    leitura = 'edicao';
+    aplicarLeitura();
     conferenciaMontada = false;
     danfeMontado = false;
     danfeEl.replaceChildren();
@@ -2222,17 +2270,82 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
   ]) {
     b.disabled = bloquear;
   }
-  btnSalvarTexto.textContent = bloquear && salvando ? 'Salvando...' : 'Salvar';
+  if (bloquear && salvando) btnSalvarTexto.textContent = 'Salvando...';
+  else atualizarTextoSalvar();
   if (!bloquear) retomarExterno();
 }
 
 /**
- * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF.
+ * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF. Na
+ * leitura protegida, o PDF do modo (a nota só para ver não grava o .psxml).
  * O PDF da Conferência e a cópia ficam no menu da seta ao lado do botão.
  */
 function salvar(): Promise<boolean> {
-  return modoAtual === 'danfe' ? salvarDanfe() : salvarConferencia();
+  if (modoAtual === 'danfe') return salvarDanfe();
+  if (aberto && leitura === 'protegida') return salvarPdfConferencia();
+  return salvarConferencia();
 }
+
+/** "Salvar PDF" na leitura protegida (o Salvar grava o PDF); senão "Salvar". */
+function atualizarTextoSalvar(): void {
+  btnSalvarTexto.textContent =
+    aberto && leitura === 'protegida' ? 'Salvar PDF' : 'Salvar';
+}
+
+// ---------- leitura protegida ----------
+
+/**
+ * Mostra o estado da leitura: a faixa no alto, a marca no body (CSS) e as
+ * anotações travadas (o campo mostra o texto e não aceita digitação).
+ */
+function aplicarLeitura(): void {
+  const protegida = aberto !== null && leitura === 'protegida';
+  faixaLeitura.hidden = !protegida;
+  document.body.dataset.leitura = protegida ? 'protegida' : 'edicao';
+  for (const c of notaEl.querySelectorAll<HTMLInputElement>(
+    'input.anotacao__campo',
+  ))
+    c.readOnly = protegida;
+  atualizarTextoSalvar();
+}
+
+/**
+ * Antes de uma ação que edita: na leitura protegida, o aviso dentro do app
+ * ("Ficar na leitura" com o foco, "Continuar"). Continuar avisa o processo
+ * principal, que passa a aceitar gravar o .psxml, e a ação segue. true: pode
+ * fazer a ação; false: a pessoa ficou na leitura.
+ */
+async function liberarEdicao(acao: AcaoNota): Promise<boolean> {
+  if (!aberto || !pedeAviso(acao, leitura)) return true;
+  const resposta = await perguntar<'ficar' | 'continuar'>({
+    titulo: AVISO_SAIR.titulo,
+    texto: AVISO_SAIR.texto,
+    botoes: [
+      { rotulo: AVISO_SAIR.ficar, valor: 'ficar' },
+      { rotulo: AVISO_SAIR.continuar, valor: 'continuar', principal: true },
+    ],
+    cancelar: 'ficar',
+    foco: 'ficar',
+  });
+  if (resposta !== 'continuar') return false;
+  try {
+    if (!(await window.psApi.sairDaLeitura())) return false;
+  } catch (erro) {
+    console.error(erro);
+    return false;
+  }
+  leitura = 'edicao';
+  aplicarLeitura();
+  return true;
+}
+
+faixaLeitura.querySelector('.faixa-leitura__texto')!.textContent = TEXTO_FAIXA;
+btnUsarConferencia.textContent = ROTULO_USAR_CONFERENCIA;
+btnUsarConferencia.addEventListener('click', () => {
+  void (async () => {
+    if (await liberarEdicao('usar-conferencia')) mostrarConferencia();
+  })();
+});
 
 /** "Salvar PDF" do menu: o PDF do modo em que a tela está. */
 function salvarPdf(): Promise<boolean> {
@@ -2655,6 +2768,8 @@ async function irParaInicio(): Promise<void> {
 /** Tira a nota desta janela e volta para a tela inicial (sem perguntar). */
 function limparNota(): void {
   aberto = null;
+  leitura = 'edicao';
+  aplicarLeitura();
   // Respostas atrasadas da busca de avisos não valem mais.
   geracaoAvisos++;
   avisosProntos = false;
@@ -2836,7 +2951,9 @@ btnSalvarPdf.addEventListener('click', () => {
 });
 btnSalvarCopia.addEventListener('click', () => {
   fecharMenuSalvar();
-  void salvarCopia();
+  void (async () => {
+    if (await liberarEdicao('salvar-copia')) await salvarCopia();
+  })();
 });
 menuSalvar.addEventListener('keydown', (e) => {
   const ops = [btnSalvarPdf, btnSalvarCopia];
@@ -2920,6 +3037,7 @@ const ferramentaST: FerramentaJanela = {
     return null;
   },
   podeRodar: () => aberto !== null && estadoDocumentos?.st != null,
+  antesDeRodar: () => liberarEdicao('ferramenta'),
   rodar: async () => {
     if (!aberto) return;
     const nota = aberto.lido.nota;

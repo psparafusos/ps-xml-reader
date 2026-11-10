@@ -274,6 +274,27 @@
           </div>
         </div>
       </nav>
+      <!-- Leitura protegida (src/nfe/leituraProtegida.ts): a NF-e aberta só
+           para ver. Abaixo do filete amarelo; o texto e o botão vêm do
+           renderer. Usar a Conferência pergunta antes de sair da leitura. -->
+      <div id="faixa-leitura" class="faixa-leitura" hidden>
+        <svg
+          class="icone faixa-leitura__icone"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z"
+          />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        <span id="faixa-leitura-texto" class="faixa-leitura__texto"></span>
+        <button
+          id="btn-usar-conferencia"
+          type="button"
+          class="botao botao--claro botao--pequeno faixa-leitura__botao"
+        ></button>
+      </div>
     </header>
 
     <!-- Painel de conferência, à esquerda da nota (só na Conferência e só

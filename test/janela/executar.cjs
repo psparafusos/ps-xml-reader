@@ -367,6 +367,193 @@ async function principal() {
     },
   );
 
+  // Parte 2B: leitura protegida.
+  // O aviso da leitura pelo título; os avisos de abertura da nota (nota de
+  // outra empresa, já conferida) são outros diálogos e são fechados antes.
+  const dialogoAberto = `[...document.querySelectorAll('dialog[open] .caixa-dialogo__titulo')].some((t) => t.textContent === 'Sair da leitura protegida?')`;
+  const fecharAvisosDaNota = async () => {
+    await espera(800);
+    await avaliar(`(() => {
+      for (const d of document.querySelectorAll('dialog[open]'))
+        if (d.querySelector('.caixa-dialogo__titulo')?.textContent !== 'Sair da leitura protegida?')
+          d.dispatchEvent(new Event('cancel', { cancelable: true }));
+      return true;
+    })()`);
+    await espera(300);
+  };
+  const clicarNoDialogo = (rotulo) =>
+    avaliar(`(() => {
+      const b = [...document.querySelectorAll('dialog[open] button')]
+        .find((x) => x.textContent.trim() === ${JSON.stringify(rotulo)});
+      if (!b) return false;
+      b.click();
+      return true;
+    })()`);
+  const psxmlNoDestino = () =>
+    fs.readdirSync(destino).filter((n) => n.toLowerCase().endsWith('.psxml'));
+
+  await caso(
+    '2B: XML abre em leitura protegida: faixa, anotações travadas, só ver',
+    async () => {
+      abrir(outra);
+      await aguardar(visivel('danfe'));
+      await fecharAvisosDaNota();
+      confere(await avaliar(visivel('faixa-leitura')), 'sem a faixa');
+      confere(
+        (await avaliar(
+          `document.getElementById('faixa-leitura-texto').textContent`,
+        )) === 'Leitura protegida: só visualização.',
+        'texto da faixa',
+      );
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-usar-conferencia').textContent`,
+        )) === 'Usar a Conferência',
+        'botão da faixa',
+      );
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-salvar-texto').textContent`,
+        )) === 'Salvar PDF',
+        'o Salvar não virou Salvar PDF',
+      );
+      // Trocar para a Conferência é só ver: sem aviso, anotações travadas.
+      await avaliar(`document.getElementById('btn-modo-conferencia').click()`);
+      await aguardar(visivel('nota'));
+      await espera(300);
+      confere(!(await avaliar(dialogoAberto)), 'trocar de modo pediu aviso');
+      await fecharAvisosDaNota();
+      confere(
+        await avaliar(
+          `(() => { const c = [...document.querySelectorAll('input.anotacao__campo')]; return c.length > 0 && c.every((x) => x.readOnly); })()`,
+        ),
+        'anotações não estão travadas',
+      );
+      confere(
+        await avaliar(visivel('painel-conferencia')),
+        'o painel de avisos sumiu na leitura',
+      );
+    },
+  );
+
+  await caso(
+    '2B: o processo principal recusa gravar o .psxml numa janela protegida',
+    async () => {
+      const antes = psxmlNoDestino().length;
+      const r1 = await avaliar(`window.psApi.salvar('<x/>', null)`);
+      const r2 = await avaliar(`window.psApi.salvarCopia('<x/>', 'teste-2b')`);
+      for (const r of [r1, r2])
+        confere(
+          r.status === 'erro' && /leitura protegida/.test(r.mensagem),
+          `resposta: ${JSON.stringify(r)}`,
+        );
+      confere(psxmlNoDestino().length === antes, 'um .psxml foi gravado');
+    },
+  );
+
+  await caso(
+    '2B: na leitura, Salvar grava o PDF na pasta de destino, sem .psxml',
+    async () => {
+      const antes = psxmlNoDestino().length;
+      await avaliar(`document.getElementById('btn-salvar').click()`);
+      const limite = Date.now() + 20000;
+      let pdf = null;
+      while (!pdf && Date.now() < limite) {
+        pdf =
+          fs.readdirSync(destino).find((n) => n.endsWith('_Conferencia.pdf')) ??
+          null;
+        await espera(200);
+      }
+      confere(pdf, 'o PDF da Conferência não foi gravado');
+      confere(psxmlNoDestino().length === antes, 'o Salvar gravou .psxml');
+      await espera(800);
+    },
+  );
+
+  await caso(
+    '2B: ação que edita pede o aviso; "Ficar na leitura" vem com o foco e mantém a leitura',
+    async () => {
+      // Editar colunas.
+      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
+      await aguardar(dialogoAberto, 5000, 'o aviso não abriu');
+      const aviso = await avaliar(`(() => {
+        const d = document.querySelector('dialog[open]');
+        return {
+          titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent,
+          texto: d.querySelector('.caixa-dialogo__texto')?.textContent,
+          foco: document.activeElement?.textContent?.trim(),
+          botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()),
+        };
+      })()`);
+      confere(
+        aviso.texto ===
+          'Você vai sair da leitura protegida e começar a editar. O XML original não muda; o que você fizer fica numa cópia (.psxml).',
+        `texto: ${aviso.texto}`,
+      );
+      confere(aviso.foco === 'Ficar na leitura', `foco em: ${aviso.foco}`);
+      confere(
+        aviso.botoes.includes('Continuar'),
+        `botões: ${aviso.botoes.join(', ')}`,
+      );
+      confere(
+        await clicarNoDialogo('Ficar na leitura'),
+        'sem Ficar na leitura',
+      );
+      await espera(300);
+      confere(await avaliar(visivel('faixa-leitura')), 'saiu da leitura');
+      confere(
+        !(await avaliar(
+          `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
+        )),
+        'o editor de colunas abriu mesmo assim',
+      );
+      // Clicar numa anotação.
+      await avaliar(`(() => {
+        const c = document.querySelector('input.anotacao__campo');
+        c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        return true;
+      })()`);
+      await aguardar(dialogoAberto, 5000, 'clicar na anotação não pediu aviso');
+      await clicarNoDialogo('Ficar na leitura');
+      await espera(300);
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => x.readOnly)`,
+        ),
+        'a anotação destravou sem Continuar',
+      );
+      // Ferramenta ST (com a planilha faltando, Rodar fica desabilitado; a
+      // regra da ferramenta é testada em test/leituraProtegida.test.mts).
+    },
+  );
+
+  await caso(
+    '2B: "Usar a Conferência" e Continuar saem da leitura para editar',
+    async () => {
+      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
+      await aguardar(dialogoAberto, 5000, 'o aviso não abriu');
+      confere(await clicarNoDialogo('Continuar'), 'sem Continuar');
+      await aguardar(`!${visivel('faixa-leitura')}`, 5000, 'a faixa não sumiu');
+      confere(await avaliar(visivel('nota')), 'não ficou na Conferência');
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
+        ),
+        'as anotações continuam travadas',
+      );
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-salvar-texto').textContent`,
+        )) === 'Salvar',
+        'o Salvar continua como Salvar PDF',
+      );
+      // Agora o processo principal aceita gravar o .psxml desta janela.
+      const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
+      confere(r.status === 'salvo', `resposta: ${JSON.stringify(r)}`);
+      await inicio();
+    },
+  );
+
   await caso('T8: 100 mil níveis de aninhamento (DOMParser)', async () => {
     const t0 = Date.now();
     abrir(profundo);
@@ -481,6 +668,17 @@ async function principal() {
       confere(
         !texto.includes('não deve aparecer'),
         'coluna com id estranho apareceu',
+      );
+      // .psxml é a cópia de trabalho: abre em edição, sem a faixa da leitura.
+      confere(
+        !(await avaliar(visivel('faixa-leitura'))),
+        'o .psxml abriu em leitura protegida',
+      );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('input.anotacao__campo')].every((c) => !c.readOnly)`,
+        ),
+        'as anotações do .psxml estão travadas',
       );
       // .psxml aberto por duplo clique: a pasta dele é a pasta de destino desta
       // janela, e Salvar regrava a própria cópia (a temporária, nunca o fixture).

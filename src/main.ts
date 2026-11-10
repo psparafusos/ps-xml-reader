@@ -75,6 +75,7 @@ import {
   diasDaConfig,
   nomePodeSerConferencia,
 } from './nfe/avisos';
+import { leituraAoAbrir, MENSAGEM_RECUSA_GRAVAR } from './nfe/leituraProtegida';
 import { problemaNomeArquivo } from './nfe/nome';
 import {
   ESPERA_CAMINHO_MS,
@@ -355,6 +356,11 @@ interface Janela {
    */
   arquivoAberto: string | null;
   abertoEhCopia: boolean;
+  /**
+   * A nota está em leitura protegida (src/nfe/leituraProtegida.ts): o .psxml
+   * não é gravado até a pessoa sair da leitura (canal sair-da-leitura).
+   */
+  protegida: boolean;
   /** O renderer tem anotações alteradas e não salvas. */
   pendentes: boolean;
   /** Já perguntou e pode fechar: o próximo close não é barrado. */
@@ -476,6 +482,7 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     ordem: proximaOrdem++,
     arquivoAberto: null,
     abertoEhCopia: false,
+    protegida: false,
     pendentes: false,
     liberada: false,
     pastaSessao: null,
@@ -669,6 +676,8 @@ async function lerArquivoNaJanela(
   j.arquivoAberto = caminho;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
+  const leitura = leituraAoAbrir(j.abertoEhCopia);
+  j.protegida = leitura === 'protegida';
   // Aberto com sucesso (é NF-e ou cópia editada): a pasta dele vira o ponto de
   // partida do próximo diálogo de abrir. Falha ao gravar não impede a abertura.
   if (RAIZES_ACEITAS.includes(raiz)) {
@@ -676,7 +685,7 @@ async function lerArquivoNaJanela(
       () => {},
     );
   }
-  return { nome: path.basename(caminho), texto: conteudo };
+  return { nome: path.basename(caminho), texto: conteudo, leitura };
 }
 
 /**
@@ -770,6 +779,19 @@ ouvir('sem-nota', (event) => {
   if (!j) return;
   j.arquivoAberto = null;
   j.abertoEhCopia = false;
+  j.protegida = false;
+});
+
+/**
+ * A pessoa escolheu Continuar no aviso da leitura protegida: a nota desta
+ * janela passa a ser editada (o .psxml pode ser gravado). Não há volta para
+ * a leitura na mesma janela; para reler protegido, abre-se o arquivo de novo.
+ */
+tratar('sair-da-leitura', (event): boolean => {
+  const j = estadoDe(event.sender);
+  if (!j.arquivoAberto) return false;
+  j.protegida = false;
+  return true;
 });
 
 // Arquivo pedido de fora para esta janela (duplo clique, linha de comando,
@@ -1903,6 +1925,9 @@ tratar(
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
     }
     const j = estadoDe(event.sender);
+    // Leitura protegida: o .psxml só depois de a pessoa sair da leitura.
+    if (j.protegida)
+      return { status: 'erro', mensagem: MENSAGEM_RECUSA_GRAVAR };
     const copiaAberta = j.abertoEhCopia ? j.arquivoAberto : null;
     const r = await gravarSaidas(
       event,
@@ -2036,6 +2061,8 @@ tratar(
     const problema = problemaNomeArquivo(limpo);
     if (problema) return { status: 'erro', mensagem: problema };
     const j = estadoDe(event.sender);
+    if (j.protegida)
+      return { status: 'erro', mensagem: MENSAGEM_RECUSA_GRAVAR };
     const aberto = j.arquivoAberto;
     const efetiva = await pastaEfetiva(j);
     if (

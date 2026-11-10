@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('psApi', {
   abrirSolto: (arquivo: File): Promise<ResultadoAbrir> =>
     ipcRenderer.invoke('abrir-caminho', webUtils.getPathForFile(arquivo)),
   informarSemNota: (): void => ipcRenderer.send('sem-nota'),
+  sairDaLeitura: (): Promise<boolean> => ipcRenderer.invoke('sair-da-leitura'),
   aoMudarPerfis: (callback: (estado: EstadoPerfis) => void): void => {
     ipcRenderer.on('perfis-mudou', (_e, estado: EstadoPerfis) =>
       callback(estado),

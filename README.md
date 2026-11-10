@@ -266,6 +266,30 @@ Um XML da NF-e abre direto no **DANFE**; um `.psxml` abre direto na
 modo. Se a nota não tem DANFE no PS Reader (contingência ou outro modelo),
 ela abre na **Conferência** com o motivo numa mensagem.
 
+### Leitura protegida
+
+O XML da NF-e abre em **leitura protegida**, só para ver, como o Word com um
+arquivo baixado. Uma faixa abaixo da barra diz "Leitura protegida: só
+visualização." e tem o botão **Usar a Conferência**.
+
+- Na leitura funcionam: trocar entre **Conferência** e **DANFE**, zoom,
+  ordenar, selecionar e copiar texto, **Imprimir** e **Salvar PDF** (o
+  **Salvar** vira **Salvar PDF** e grava na pasta de destino, com a mesma
+  regra de nome e de arquivo que já existe). O painel de avisos continua
+  visível.
+- As colunas de anotação ficam travadas. Clicar ou digitar numa anotação, o
+  **Editar colunas**, o seletor de perfil, o **Salvar cópia...** e a
+  ferramenta **ST, MVA e CFOP** mostram um aviso: "Você vai sair da leitura
+  protegida e começar a editar. O XML original não muda; o que você fizer
+  fica numa cópia (.psxml)." **Ficar na leitura** vem com o foco (Enter e Esc
+  ficam); **Continuar** sai da leitura e a ação segue. **Usar a Conferência**
+  faz a mesma pergunta e abre a Conferência para editar.
+- Não há volta para a leitura na mesma janela: para reler protegido, abra o
+  arquivo de novo.
+- O processo principal guarda o modo de cada janela e recusa gravar o
+  `.psxml` de uma janela em leitura protegida, mesmo que a tela peça.
+- O `.psxml` é a cópia de trabalho e abre em edição, sem a faixa.
+
 ### Várias janelas
 
 Cada janela tem a sua nota. O app continua sendo um processo só (instância

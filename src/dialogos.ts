@@ -65,6 +65,12 @@ export function perguntar<T extends string>(opcoes: {
   texto: string;
   botoes: BotaoDialogo<T>[];
   cancelar: T;
+  /**
+   * Botão que recebe o foco ao abrir. Sem ele, o principal (ou o primeiro).
+   * Serve para uma ação que muda o modo, como sair da leitura protegida,
+   * em que Enter não deve confirmar sem querer.
+   */
+  foco?: T;
 }): Promise<T> {
   return new Promise((resolve) => {
     const { d, fim } = novaCaixa(
@@ -88,7 +94,9 @@ export function perguntar<T extends string>(opcoes: {
     d.append(el('footer', 'caixa-dialogo__botoes', ...botoes));
     document.body.append(d);
     d.showModal();
-    const i = opcoes.botoes.findIndex((b) => b.principal);
+    const comFoco = opcoes.botoes.findIndex((b) => b.valor === opcoes.foco);
+    const i =
+      comFoco >= 0 ? comFoco : opcoes.botoes.findIndex((b) => b.principal);
     botoes[i >= 0 ? i : 0]?.focus();
   });
 }
