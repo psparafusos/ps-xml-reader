@@ -58,11 +58,6 @@ contextBridge.exposeInMainWorld('psApi', {
   // principal lê o arquivo e guarda o caminho.
   abrirSolto: (arquivo: File): Promise<ResultadoAbrir> =>
     ipcRenderer.invoke('abrir-caminho', webUtils.getPathForFile(arquivo)),
-  confirmarAbertura: (
-    destino: 'aqui' | 'nova' | 'cancelar',
-    modo: ModoImpressao | null,
-  ): Promise<ArquivoAberto | null> =>
-    ipcRenderer.invoke('confirmar-abertura', destino, modo),
   informarSemNota: (): void => ipcRenderer.send('sem-nota'),
   aoMudarPerfis: (callback: (estado: EstadoPerfis) => void): void => {
     ipcRenderer.on('perfis-mudou', (_e, estado: EstadoPerfis) =>
@@ -92,9 +87,7 @@ contextBridge.exposeInMainWorld('psApi', {
   sugerirCopia: (
     base: string | null,
     tipo: TipoCopia,
-    daEscolha = false,
-  ): Promise<SugestaoCopia> =>
-    ipcRenderer.invoke('sugerir-copia', base, tipo, daEscolha),
+  ): Promise<SugestaoCopia> => ipcRenderer.invoke('sugerir-copia', base, tipo),
   salvarCopia: (
     textoCopia: string,
     nome: string,
@@ -104,22 +97,14 @@ contextBridge.exposeInMainWorld('psApi', {
   salvarPdfConferencia: (
     base: string | null,
     paisagem: boolean,
-    daEscolha = false,
     opcoes: OpcoesSalvar = {},
   ): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke(
-      'salvar-pdf-conferencia',
-      base,
-      paisagem,
-      daEscolha,
-      opcoes,
-    ),
+    ipcRenderer.invoke('salvar-pdf-conferencia', base, paisagem, opcoes),
   salvarDanfe: (
     base: string | null,
-    daEscolha = false,
     opcoes: OpcoesSalvar = {},
   ): Promise<ResultadoSalvarDanfe> =>
-    ipcRenderer.invoke('salvar-danfe', base, daEscolha, opcoes),
+    ipcRenderer.invoke('salvar-danfe', base, opcoes),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
   configAvisos: (): Promise<ConfigAvisos> =>
     ipcRenderer.invoke('config-avisos'),

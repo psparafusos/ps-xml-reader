@@ -55,7 +55,7 @@ type ResultadoSalvarDanfe =
  * Arquivo pedido de fora para esta janela (duplo clique, Nova janela).
  * `pastaSessao`: a pasta do .psxml aberto por duplo clique, que passou a ser
  * a pasta de destino só desta janela; null se esta abertura não mudou a
- * pasta. `modo`: abrir direto nele (Nova janela pela tela de escolha).
+ * pasta. `modo`: abrir direto nele (nota já conferida: Conferência).
  */
 type ArquivoExterno = ArquivoAberto & {
   pastaSessao: string | null;
@@ -72,13 +72,12 @@ type ArquivoRecusado = { status: 'recusado'; mensagem: string };
 /**
  * O que aconteceu ao pedir para abrir um arquivo nesta janela:
  * - aqui: abriu nesta janela (estava na tela inicial);
- * - escolher: XML com nota aberta; mostrar a escolha por cima da nota;
- * - nova-janela: abriu numa janela nova (.psxml com nota aberta);
+ * - nova-janela: abriu numa janela nova (havia nota aberta nesta);
  * - outra-janela / ja-aberto: o arquivo já estava aberto (aquela janela veio
  *   para a frente, ou é esta mesma).
  */
 type ResultadoAbrir =
-  | { status: 'aqui' | 'escolher'; arquivo: ArquivoAberto }
+  | { status: 'aqui'; arquivo: ArquivoAberto }
   | { status: 'nova-janela' | 'outra-janela' | 'ja-aberto' | 'cancelado' }
   | ArquivoRecusado;
 
@@ -332,14 +331,6 @@ interface PsApi {
   abrirArquivo(): Promise<ResultadoAbrir>;
   /** Arquivo solto na janela (arrastar e soltar): mesmas regras do botão. */
   abrirSolto(arquivo: File): Promise<ResultadoAbrir>;
-  /**
-   * Resposta à escolha por cima da nota: abrir aqui (devolve o arquivo), numa
-   * janela nova no modo escolhido, ou cancelar.
-   */
-  confirmarAbertura(
-    destino: 'aqui' | 'nova' | 'cancelar',
-    modo: ModoImpressao | null,
-  ): Promise<ArquivoAberto | null>;
   /** A janela voltou para a tela inicial (sem nota aberta). */
   informarSemNota(): void;
   /** Os perfis (ou o perfil ativo, ou a configuração dele) mudaram em outra janela. */
@@ -376,11 +367,7 @@ interface PsApi {
    * Nome sugerido do Salvar cópia (<base>_Conferencia_copiaN ou
    * <base>_DANFE_copiaN, sem extensão) e a pasta onde ele vai.
    */
-  sugerirCopia(
-    base: string | null,
-    tipo: TipoCopia,
-    daEscolha?: boolean,
-  ): Promise<SugestaoCopia>;
+  sugerirCopia(base: string | null, tipo: TipoCopia): Promise<SugestaoCopia>;
   /**
    * Grava a cópia <nome>.psxml na pasta de destino; depois a janela trabalha
    * nela.
@@ -397,16 +384,14 @@ interface PsApi {
   salvarPdfConferencia(
     base: string | null,
     paisagem: boolean,
-    daEscolha?: boolean,
     opcoes?: OpcoesSalvar,
   ): Promise<ResultadoSalvarDanfe>;
   /**
    * Grava só <base>_DANFE.pdf (da tela atual, A4 sem margem) na pasta de
-   * destino. `daEscolha`: o PDF é do XML da escolha por cima da nota.
+   * destino.
    */
   salvarDanfe(
     base: string | null,
-    daEscolha?: boolean,
     opcoes?: OpcoesSalvar,
   ): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */

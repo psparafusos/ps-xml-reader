@@ -261,29 +261,10 @@ reabrir o app. A mesma pasta aparece na aba Geral das Configurações.
 Em 1366 a 125% (ou janela estreita), a grade passa de três para duas colunas,
 com as notas recentes embaixo.
 
-Um XML da NF-e abre a tela de escolha de modo: no topo, fornecedor (nome
-fantasia ou razão social), número e série, data de emissão, valor total e
-quantidade de itens, e o nome do arquivo em letra menor. Cada opção mostra a
-miniatura da primeira página da nota naquele modo, gerada da nota aberta (só a
-primeira página, depois que a tela aparece). Se a nota não suporta DANFE, a
-opção aparece desabilitada com o motivo. Um `.psxml` pula essa tela e abre
-direto na **Conferência**.
-
-Ao passar o mouse sobre a miniatura da prévia (ou com o foco de teclado nela),
-ela fica desfocada e semitransparente, com dois botões: **Abrir aqui** (abre nesta janela, naquele
-modo) e **Nova janela** (abre numa janela nova, naquele modo; esta volta para a
-tela inicial). Clicar na própria prévia é o mesmo que **Abrir aqui**. Na tela de
-escolha de uma janela vazia, **Abrir aqui** fica em destaque; na escolha por
-cima de uma nota aberta (ver Várias janelas), **Nova janela**. O mouse sobre
-**Salvar PDF** ou sobre o nome do modo, embaixo da miniatura, não liga o
-efeito.
-
-Embaixo de cada miniatura, **Salvar PDF** grava só o PDF daquele modo na pasta
-de destino (`<FORNECEDOR>_NF<número>_Conferencia.pdf` ou `..._DANFE.pdf`), sem
-entrar no modo. Sem pasta escolhida, pede a pasta antes. Se o PDF já existe,
-faz a mesma pergunta de Substituir, Salvar cópia ou Cancelar (ver Salvar
-cópia). Se a nota não suporta DANFE, o **Salvar PDF** do DANFE fica
-desabilitado.
+Um XML da NF-e abre direto no **DANFE**; um `.psxml` abre direto na
+**Conferência**. Os botões **Conferência** e **DANFE** da barra trocam de
+modo. Se a nota não tem DANFE no PS Reader (contingência ou outro modelo),
+ela abre na **Conferência** com o motivo numa mensagem.
 
 ### Várias janelas
 
@@ -295,14 +276,11 @@ Cada janela tem a sua nota. O app continua sendo um processo só (instância
 - Janela na tela inicial (sem nota): é reaproveitada.
 - Duplo clique num `.psxml` (com o app fechado ou aberto): abre direto na
   **Conferência**, numa janela vazia ou numa janela nova.
-- `.psxml` pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: janela
-  nova, direto na **Conferência**.
-- XML pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: a tela de
-  escolha aparece por cima da nota, que fica como estava, com **Abrir aqui** e
-  **Nova janela** sobre as prévias (**Nova janela** em destaque). **Abrir aqui**
-  troca a nota desta janela e, com anotação não salva, pergunta antes. Os
-  **Salvar PDF** das prévias continuam e gravam o PDF do XML da escolha, sem
-  mexer na nota de baixo. **Voltar à nota** (ou Esc) fecha a escolha.
+- XML ou `.psxml` pelo **Abrir outro XML** (ou arrastado) com uma nota
+  aberta: janela nova (o XML no **DANFE**, o `.psxml` na **Conferência**), e a
+  nota desta janela fica como estava. Arquivo recusado (grande demais, com
+  DOCTYPE, pasta de rede que não responde) mostra a mensagem nesta janela e
+  nenhuma janela nova abre.
 
 Janelas novas abrem deslocadas 32 px da anterior; se passarem da área de
 trabalho do monitor, voltam para o canto dele. O tamanho e a posição lembrados
@@ -584,8 +562,8 @@ O atalho aparece no texto de ajuda do botão. Se o botão não está na tela ou 
 desabilitado (por exemplo Ctrl+S na tela inicial, ou durante um salvamento), o
 atalho não faz nada. Na anotação, Ctrl+C, Ctrl+V e Ctrl+X seguem normais.
 
-O zoom vale só na área do documento (conferência e DANFE), não na barra nem nas
-telas inicial e de escolha, nos níveis do navegador (50% a 200%). Fora de 100%
+O zoom vale só na área do documento (conferência e DANFE), não na barra nem na
+tela inicial, nos níveis do navegador (50% a 200%). Fora de 100%
 aparece no canto o botão **Restaurar 100%**. Cada modo guarda o seu zoom
 enquanto o app está aberto. A impressão e o PDF saem sempre em 100%, e o DANFE
 é sempre paginado em 100%. Com zoom alto o DANFE pode rolar na horizontal, como
@@ -648,7 +626,7 @@ nome novo.
 ### Arquivo que já existe e Salvar cópia
 
 Quando o arquivo a gravar já existe na pasta de destino (o `.psxml` do Salvar,
-o PDF da Conferência ou do DANFE, ou o **Salvar PDF** das prévias), uma caixa
+o PDF da Conferência ou do DANFE), uma caixa
 no visual do app pergunta: **Substituir**, **Salvar cópia...** ou
 **Cancelar**. Regravar o `.psxml` aberto na própria pasta dele não pergunta.
 

@@ -329,7 +329,7 @@ function guardarJanela(janela: BrowserWindow): void {
 /** Arquivo que a janela vai abrir assim que o renderer pedir. */
 interface PedidoArquivo {
   caminho: string;
-  /** Abre direto neste modo (Nova janela pela tela de escolha); null: o normal. */
+  /** Abre direto neste modo (nota já conferida: Conferência); null: o normal. */
   modo: ModoImpressao | null;
   /** Duplo clique: um .psxml faz da pasta dele a pasta desta janela. */
   sessao: boolean;
@@ -367,8 +367,6 @@ interface Janela {
   pastaSessao: string | null;
   /** Arquivo a entregar ao renderer (abrir-externo). */
   pedido: PedidoArquivo | null;
-  /** XML lido para a escolha por cima da nota (Abrir aqui ou Nova janela). */
-  candidato: string | null;
   /** .psxml achados pela busca de nota já conferida: só esses o renderer abre. */
   conferidos: Set<string>;
   /** Último .psxml salvo por esta janela (vai para as notas recentes). */
@@ -482,7 +480,6 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     liberada: false,
     pastaSessao: null,
     pedido,
-    candidato: null,
     conferidos: new Set(),
     ultimoSalvo: null,
   };
@@ -670,7 +667,6 @@ async function lerArquivoNaJanela(
 ): Promise<ArquivoAberto> {
   const conteudo = texto ?? (await lerXmlSeguro(caminho));
   j.arquivoAberto = caminho;
-  j.candidato = null;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
   // Aberto com sucesso (é NF-e ou cópia editada): a pasta dele vira o ponto de
@@ -687,9 +683,10 @@ async function lerArquivoNaJanela(
  * Abrir arquivo pelo botão, Ctrl+O ou arrastando para a janela `j`:
  * - já aberto em alguma janela: ela vem para a frente;
  * - `j` na tela inicial: abre nela;
- * - .psxml com nota aberta: janela nova, direto na Conferência;
- * - XML com nota aberta: a tela de escolha aparece por cima da nota, com
- *   Abrir aqui e Nova janela (confirmar-abertura).
+ * - com nota aberta: janela nova (XML no DANFE, .psxml na Conferência),
+ *   e a nota desta janela fica como está.
+ * O arquivo é lido antes (lerXmlSeguro): recusado, a mensagem aparece nesta
+ * janela e nenhuma janela nova abre.
  */
 async function decidirAbertura(
   j: Janela,
@@ -713,15 +710,8 @@ async function decidirAbertura(
       status: 'aqui',
       arquivo: await lerArquivoNaJanela(j, caminho, texto),
     };
-  if (nomeRaiz(texto) === 'psCopiaEditada') {
-    criarJanela({ caminho, modo: null, sessao: false });
-    return { status: 'nova-janela' };
-  }
-  j.candidato = caminho;
-  return {
-    status: 'escolher',
-    arquivo: { nome: path.basename(caminho), texto },
-  };
+  criarJanela({ caminho, modo: null, sessao: false });
+  return { status: 'nova-janela' };
 }
 
 /** Tempo máximo para conferir se a última pasta ainda existe (rede fora). */
@@ -771,42 +761,6 @@ tratar(
     const problema = await problemaCaminhoSolto(caminho, EXTENSOES_ABERTURA);
     if (problema) return { status: 'recusado', mensagem: problema };
     return decidirAbertura(estadoDe(event.sender), caminho as string);
-  },
-);
-
-/**
- * Resposta à tela de escolha. Por cima de uma nota (há candidato): Abrir aqui
- * (o renderer já perguntou sobre anotações não salvas), Nova janela (no modo
- * escolhido) ou Cancelar. Numa janela vazia (o arquivo já é desta janela):
- * Nova janela leva o arquivo para uma janela nova e esta volta a ficar
- * vazia (o renderer volta para a tela inicial).
- */
-tratar(
-  'confirmar-abertura',
-  async (
-    event,
-    destino: unknown,
-    modo: unknown,
-  ): Promise<ArquivoAberto | null> => {
-    const j = estadoDe(event.sender);
-    const daJanela = !j.candidato && destino === 'nova';
-    const caminho = daJanela ? j.arquivoAberto : j.candidato;
-    j.candidato = null;
-    if (!caminho || destino === 'cancelar') return null;
-    if (destino === 'aqui') {
-      j.pastaSessao = null;
-      return lerArquivoNaJanela(j, caminho);
-    }
-    if (daJanela) {
-      j.arquivoAberto = null;
-      j.abertoEhCopia = false;
-    }
-    criarJanela({
-      caminho,
-      modo: modo === 'danfe' || modo === 'conferencia' ? modo : null,
-      sessao: false,
-    });
-    return null;
   },
 );
 
@@ -1752,11 +1706,6 @@ type Saida =
 interface OpcoesGravar {
   /** Destinos que são o próprio arquivo aberto: regrava sem perguntar. */
   semPergunta?: (destino: string) => boolean;
-  /**
-   * Usa o XML da tela de escolha por cima da nota (Salvar PDF das prévias)
-   * em vez do arquivo aberto na janela.
-   */
-  doCandidato?: boolean;
   /** O renderer já perguntou e a pessoa escolheu Substituir. */
   substituir?: boolean;
 }
@@ -1782,11 +1731,10 @@ async function gravarSaidas(
   | { status: 'erro'; mensagem: string }
 > {
   const semPergunta = opcoes.semPergunta ?? (() => false);
-  const doCandidato = opcoes.doCandidato === true;
   const j = estadoDe(event.sender);
   const janela = j.janela;
-  const arquivoAberto = doCandidato ? j.candidato : j.arquivoAberto;
-  const abertoEhCopia = doCandidato ? false : j.abertoEhCopia;
+  const arquivoAberto = j.arquivoAberto;
+  const abertoEhCopia = j.abertoEhCopia;
   if (!arquivoAberto) {
     return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
   }
@@ -1981,7 +1929,7 @@ tratar(
 );
 
 /**
- * PDF da Conferência (menu do Salvar e tela de escolha), na orientação que o
+ * PDF da Conferência (menu do Salvar), na orientação que o
  * renderer calculou para a tabela caber. `opcoes.nome`: grava com esse nome
  * (Salvar cópia), em vez de <base>_Conferencia.pdf.
  */
@@ -1991,17 +1939,9 @@ tratar(
     event,
     base: unknown,
     paisagem: unknown,
-    daEscolha: unknown,
     opcoes: unknown,
   ): Promise<ResultadoSalvarDanfe> =>
-    salvarPdf(
-      event,
-      base,
-      daEscolha,
-      opcoes,
-      '_Conferencia',
-      pdfConferencia(paisagem),
-    ),
+    salvarPdf(event, base, opcoes, '_Conferencia', pdfConferencia(paisagem)),
 );
 
 // DANFE: só o PDF (PDF_DANFE: o Electron imprime sem margem).
@@ -2010,17 +1950,15 @@ tratar(
   async (
     event,
     base: unknown,
-    daEscolha: unknown,
     opcoes: unknown,
   ): Promise<ResultadoSalvarDanfe> =>
-    salvarPdf(event, base, daEscolha, opcoes, '_DANFE', PDF_DANFE),
+    salvarPdf(event, base, opcoes, '_DANFE', PDF_DANFE),
 );
 
 /** Grava um PDF (<base><sufixo>.pdf ou o nome da cópia) na pasta de destino. */
 async function salvarPdf(
   event: Electron.IpcMainInvokeEvent,
   base: unknown,
-  daEscolha: unknown,
   opcoes: unknown,
   sufixo: '_Conferencia' | '_DANFE',
   pdf: Electron.PrintToPDFOptions,
@@ -2036,7 +1974,7 @@ async function salvarPdf(
     (pasta, b) => [
       { destino: path.join(pasta, `${nome ?? `${b}${sufixo}`}.pdf`), pdf },
     ],
-    { doCandidato: daEscolha === true, substituir },
+    { substituir },
   );
   if (r.status !== 'salvo') return r;
   return { status: 'salvo', pdf: r.destinos[0] };
@@ -2051,19 +1989,13 @@ const TIPOS_COPIA: Record<TipoCopia, { sufixo: string; extensao: string }> = {
 
 /**
  * Nome sugerido do Salvar cópia: <base><sufixo>_copia1, ou copia2,
- * copia3... se já existir na pasta de destino em uso. `daEscolha`: o arquivo
- * é o XML da escolha por cima da nota.
+ * copia3... se já existir na pasta de destino em uso.
  */
 tratar(
   'sugerir-copia',
-  async (
-    event,
-    base: unknown,
-    tipo: unknown,
-    daEscolha: unknown,
-  ): Promise<SugestaoCopia> => {
+  async (event, base: unknown, tipo: unknown): Promise<SugestaoCopia> => {
     const j = estadoDe(event.sender);
-    const arquivo = daEscolha === true ? j.candidato : j.arquivoAberto;
+    const arquivo = j.arquivoAberto;
     if (!arquivo) return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
     const efetiva = await pastaEfetiva(j);
     const pasta = efetiva.caminho;

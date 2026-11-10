@@ -5,8 +5,9 @@
 // cópias temporárias dos arquivos de teste. Confere a tela por
 // executeJavaScript, sem porta de depuração. Nenhum teste aciona Copiar.
 //
-// Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, e T6, T8
-// (gerado aqui), T9, T10, T11 e T12 do plano de segurança.
+// Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, a
+// abertura direta (parte 2A: sem a tela de escolha), e T6, T8 (gerado aqui),
+// T9, T10, T11 e T12 do plano de segurança.
 'use strict';
 
 const { app, session } = require('electron');
@@ -120,6 +121,15 @@ async function caso(nome, fn) {
   } catch (erro) {
     resultados.push({ nome, ok: false, erro: String(erro && erro.stack) });
     console.log(`FALHA ${nome}\n  ${String(erro && erro.message)}`);
+    // Volta ao estado de partida, para o caso seguinte não falhar junto:
+    // fecha as janelas que sobraram e leva esta para a tela inicial.
+    const { BrowserWindow } = require('electron');
+    for (const w of BrowserWindow.getAllWindows())
+      if (w !== janela) w.destroy();
+    await avaliar(`document.getElementById('btn-inicio')?.click(); true`).catch(
+      () => {},
+    );
+    await espera(800);
   }
 }
 
@@ -127,10 +137,11 @@ function confere(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-/** Abre DANFE e Conferência a partir da tela de escolha e devolve as sondas. */
+/**
+ * O XML abre direto no DANFE: confere o DANFE, passa para a Conferência pelo
+ * botão da barra e devolve as sondas dos dois.
+ */
 async function verDanfeEConferencia() {
-  await aguardar(visivel('modo'));
-  await avaliar(`document.getElementById('btn-danfe').click()`);
   await aguardar(visivel('danfe'));
   await espera(500);
   const danfe = await avaliar(SONDA);
@@ -249,6 +260,109 @@ async function principal() {
       semInjecao(v.danfe, base, 'DANFE');
       semInjecao(v.conferencia, base, 'Conferência');
       confere(rede.length === 0, `pedidos de rede: ${rede.join(' ')}`);
+      await inicio();
+    },
+  );
+
+  // Parte 2A: a tela "Como deseja abrir a nota?" não existe mais.
+  const outra = path.join(notas, 't2a-outra-nota.xml');
+  // Outra chave de acesso: a lista de recentes guarda uma entrada por chave.
+  fs.writeFileSync(
+    outra,
+    fs
+      .readFileSync(primeiro, 'utf8')
+      .replaceAll(
+        '35261100000000000000550010000000011000000010',
+        '35261100000000000000550010000000021000000020',
+      ),
+  );
+
+  await caso(
+    '2A: o XML abre direto no DANFE, sem a tela de escolha',
+    async () => {
+      abrir(outra);
+      await aguardar(visivel('danfe'));
+      confere(
+        !(await avaliar(`!!document.getElementById('modo')`)),
+        'a tela de escolha ainda existe na página',
+      );
+      confere(
+        !(await avaliar(
+          `document.body.innerText.includes('Como deseja abrir')`,
+        )),
+        'o texto da tela de escolha aparece',
+      );
+      confere(
+        await avaliar(`document.body.dataset.modo === 'danfe'`),
+        'não abriu no modo DANFE',
+      );
+      // Entra nas notas recentes (o próximo caso abre por elas).
+      await aguardar(
+        `window.psApi.recentes().then((l) => l.some((r) => r.caminho === ${JSON.stringify(outra)}))`,
+        15000,
+        'a nota não entrou nas recentes',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    '2A: com uma nota aberta, outro arquivo abre numa janela nova',
+    async () => {
+      const { BrowserWindow } = require('electron');
+      abrir(primeiro);
+      await aguardar(visivel('danfe'));
+      const antes = new Set(BrowserWindow.getAllWindows());
+      // Nota recente clicada: o mesmo caminho do botão Abrir no processo
+      // principal (decidirAbertura).
+      const r = await avaliar(
+        `window.psApi.abrirRecente(${JSON.stringify(outra)})`,
+      );
+      confere(r.status === 'nova-janela', `resultado: ${JSON.stringify(r)}`);
+      let nova = null;
+      const limite = Date.now() + 15000;
+      while (!nova && Date.now() < limite) {
+        nova = BrowserWindow.getAllWindows().find((w) => !antes.has(w)) ?? null;
+        await espera(100);
+      }
+      confere(nova, 'nenhuma janela nova abriu');
+      const naNova = (js) => nova.webContents.executeJavaScript(js, true);
+      const limiteNova = Date.now() + 15000;
+      let danfeNaNova = false;
+      while (!danfeNaNova && Date.now() < limiteNova) {
+        danfeNaNova = await naNova(visivel('danfe')).catch(() => false);
+        await espera(100);
+      }
+      confere(danfeNaNova, 'a janela nova não abriu no DANFE');
+      // A nota desta janela continua aberta, como estava.
+      confere(await avaliar(visivel('danfe')), 'a nota desta janela saiu');
+      nova.destroy();
+      await inicio();
+    },
+  );
+
+  await caso(
+    '2A: nota sem DANFE (contingência) abre na Conferência com o motivo',
+    async () => {
+      const contingencia = path.join(notas, 't2a-contingencia.xml');
+      fs.writeFileSync(
+        contingencia,
+        fs
+          .readFileSync(primeiro, 'utf8')
+          .replace('<tpEmis>1</tpEmis>', '<tpEmis>5</tpEmis>'),
+      );
+      abrir(contingencia);
+      await aguardar(visivel('nota'));
+      await aguardar(
+        `${visivel('mensagem')} && document.getElementById('mensagem-texto').textContent.includes('Mostrando a Conferência')`,
+      );
+      const msg = await avaliar(
+        `document.getElementById('mensagem-texto').textContent`,
+      );
+      confere(/contingência/.test(msg), `mensagem: ${msg}`);
+      await avaliar(
+        `document.getElementById('mensagem-fechar')?.click(); true`,
+      );
       await inicio();
     },
   );

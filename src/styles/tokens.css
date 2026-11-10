@@ -67,7 +67,6 @@
   --botao-perigo-hover: #8f1c13;
   /* Fundo escurecido atrás das janelas (dialog). */
   --fundo-modal: rgb(0 0 0 / 0.35);
-  --fundo-modal-forte: rgb(0 0 0 / 0.45);
 
   /* Tipografia */
   --fonte:
@@ -121,10 +120,6 @@
   --largura-minima-descricao: 30ch;
   /* Na tela, a descrição mostra até tantas linhas (clicar mostra o resto). */
   --linhas-descricao: 3;
-  --largura-modo-opcao: 220px;
-  /* Miniatura A4 na escolha de modo: acompanha a altura da janela para a
-     tela caber sem rolagem também em 1366 x 768 a 125%. */
-  --altura-miniatura: clamp(120px, 32vh, 300px);
   --largura-caminho: 320px;
   /* O título da nota na barra nunca fica mais estreito que isto: antes disso
      os botões descem para a segunda linha. */
@@ -202,10 +197,6 @@
   --largura-menu-salvar: 180px;
   --largura-menu-perfis: 340px;
   --largura-caixa-dialogo: 520px;
-  /* Escolha por cima da nota: prévia sob os botões Abrir aqui / Nova janela. */
-  --desfoque-previa: 3px;
-  --opacidade-previa: 0.45;
-  --largura-acao-previa: 150px;
   /* Painel Editar colunas */
   --largura-painel: 1280px;
   /* Área Documentos de referência. */

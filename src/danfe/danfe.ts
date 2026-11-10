@@ -889,17 +889,8 @@ function corpoCabe(fl: Folha): boolean {
 /**
  * Monta o DANFE em `container` (que precisa estar visível, para as medições).
  * Devolve o total de folhas.
- *
- * `soPrimeiraFolha` (miniatura da tela de escolha): monta só a folha 1, igual
- * à do DANFE inteiro, e para no primeiro item que não cabe. Sem as outras
- * folhas o total não é conhecido; se a nota não termina na folha 1, o número
- * sai como "FOLHA 1".
  */
-export function montarDanfe(
-  container: HTMLElement,
-  d: DadosDanfe,
-  { soPrimeiraFolha = false } = {},
-): number {
+export function montarDanfe(container: HTMLElement, d: DadosDanfe): number {
   container.replaceChildren();
   const cols = colunas(d);
   const folhas: Folha[] = [];
@@ -923,7 +914,6 @@ export function montarDanfe(
 
   // Itens: cada um entra na folha atual e é medido já renderizado.
   let atual = primeira;
-  let cortada = false;
   for (const item of d.itens) {
     const corpo = corpoItem(item, cols);
     let p = atual.produtos!;
@@ -932,21 +922,9 @@ export function montarDanfe(
     const vazia = p.tabela.tBodies.length === 1;
     if (vazia) continue; // não cabe nem sozinho: fica (não há como dividir)
     corpo.remove();
-    if (soPrimeiraFolha) {
-      cortada = true;
-      break;
-    }
     atual = adicionar(novaFolha(d, cols, { primeira: false, produtos: true }));
     p = atual.produtos!;
     p.tabela.append(corpo);
-  }
-
-  if (soPrimeiraFolha) {
-    preencherColunas(primeira.produtos!, cols);
-    const completa = !cortada && restantes.length === 0;
-    primeira.numero.textContent = completa ? 'FOLHA 1/1' : 'FOLHA 1';
-    primeira.raiz.dataset.folha = '1';
-    return 1;
   }
 
   // Continuação das informações complementares: primeiro no espaço que sobra

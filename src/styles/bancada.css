@@ -759,11 +759,6 @@
     letter-spacing: var(--titulo-secao-espaco);
   }
 
-  /* A tela de escolha do modo também no fundo bege. */
-  .modo:not(.modo--sobreposta) {
-    background: var(--bancada-fundo);
-  }
-
   /* ---------- painel de conferência: um cartão branco ---------- */
 
   /* Solto da barra e da borda da janela, como os cartões da tela inicial. A
