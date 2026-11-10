@@ -270,15 +270,20 @@ ela abre na **Conferência** com o motivo numa mensagem.
 
 O XML da NF-e abre em **leitura protegida**, só para ver, como o Word com um
 arquivo baixado. Uma faixa abaixo da barra diz "Leitura protegida: só
-visualização." e tem o botão **Usar a Conferência**.
+visualização." e tem o botão **Usar a Conferência**. Cada perfil escolhe
+como as notas abrem em **Abrir notas em** (Configurações, aba Ferramentas):
+**Leitura protegida** (o padrão) ou **Conferência**, que abre o XML direto
+na Conferência, com as anotações liberadas. Vale para o botão Abrir, o
+arrastar, a nota recente e o duplo clique no Explorer.
 
-- Na leitura funcionam: trocar entre **Conferência** e **DANFE**, zoom,
-  ordenar, selecionar e copiar texto, **Imprimir** e **Salvar PDF** (o
+- Na leitura funcionam: trocar entre **Conferência** e **DANFE**, trocar de
+  perfil (só muda a visualização), zoom, ordenar, selecionar e copiar texto, **Imprimir** e **Salvar PDF** (o
   **Salvar** vira **Salvar PDF** e grava na pasta de destino, com a mesma
   regra de nome e de arquivo que já existe). O painel de avisos continua
   visível.
 - As colunas de anotação ficam travadas. Clicar ou digitar numa anotação, o
-  **Editar colunas**, o seletor de perfil, o **Salvar cópia...** e a
+  **Editar colunas** (também pelo **Gerenciar perfis...**), o **Salvar
+  cópia...** e a
   ferramenta **ST, MVA e CFOP** mostram um aviso: "Você vai sair da leitura
   protegida e começar a editar. O XML original não muda; o que você fizer
   fica numa cópia (.psxml)." **Ficar na leitura** vem com o foco (Enter e Esc
@@ -288,7 +293,11 @@ visualização." e tem o botão **Usar a Conferência**.
   arquivo de novo.
 - O processo principal guarda o modo de cada janela e recusa gravar o
   `.psxml` de uma janela em leitura protegida, mesmo que a tela peça.
-- O `.psxml` é a cópia de trabalho e abre em edição, sem a faixa.
+- O `.psxml` é a cópia de trabalho e abre em edição, sem a faixa. Se ele
+  veio da internet (a marca `Zone.Identifier` do Windows com zona 3 ou 4,
+  como num anexo de e-mail ou num download), abre em leitura protegida, com
+  o aviso "Esta cópia editada (.psxml) veio da internet e abriu em leitura
+  protegida.".
 
 ### Várias janelas
 
@@ -986,7 +995,9 @@ para o cartão. Seis abas:
   Ferramentas do painel (**ST, MVA e CFOP** e **CFOPs de entrada**) e em que
   ordem (arrastar pela alça ou setas para cima e para baixo nela), e os
   campos do rodapé da "ST, MVA e CFOP" (**Gravar a MVA em**, **Gravar a
-  alíquota interna em**). O CFOP é sempre gravado. As mudanças valem na hora.
+  alíquota interna em**). O CFOP é sempre gravado. Também **Abrir notas em**:
+  **Leitura protegida** (padrão) ou **Conferência** (ver Leitura protegida).
+  As mudanças valem na hora.
   Fica na chave `ferramentasPerfis` do `config.json`, fora dos perfis, para
   o arquivo de um perfil exportado não mudar; excluir um perfil apaga a
   entrada dele.

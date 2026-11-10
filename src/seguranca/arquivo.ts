@@ -14,6 +14,7 @@
 
 import { access, lstat, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { zonaDaInternet } from '../nfe/leituraProtegida';
 import {
   ArquivoRecusadoError,
   problemaTamanhoNfe,
@@ -185,6 +186,31 @@ export async function existeOuSemResposta(
     ms,
     true,
   );
+}
+
+/**
+ * O arquivo tem a marca de baixado da internet? Lê o fluxo alternativo
+ * Zone.Identifier (NTFS) em até `ms`. Sem o fluxo (arquivo local, pendrive
+ * FAT, sem permissão) ou sem resposta: false. Aceita o texto em UTF-8 ou em
+ * UTF-16 (com BOM), como o Windows grava.
+ */
+export async function veioDaInternet(
+  caminho: string,
+  ms = ESPERA_CAMINHO_MS,
+  ler: (caminho: string) => Promise<Uint8Array> = (c) => readFile(c),
+): Promise<boolean> {
+  const bytes = await comLimite(
+    ler(`${caminho}:Zone.Identifier`).catch(() => null),
+    ms,
+    null,
+  );
+  if (!bytes || bytes.byteLength > 64 * 1024) return false;
+  const b = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const texto =
+    b[0] === 0xff && b[1] === 0xfe
+      ? b.subarray(2).toString('utf16le')
+      : b.toString('utf8');
+  return zonaDaInternet(texto);
 }
 
 /** Caminho de dispositivo do Windows: \\?\..., \\.\... (ou com barras /). */

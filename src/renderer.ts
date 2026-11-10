@@ -45,6 +45,7 @@ import {
 import { ArquivoRecusadoError } from './seguranca/xml';
 import {
   AVISO_SAIR,
+  MENSAGEM_PSXML_INTERNET,
   ROTULO_USAR_CONFERENCIA,
   TEXTO_FAIXA,
   pedeAviso,
@@ -485,7 +486,9 @@ async function abrirMenuPerfil(): Promise<void> {
   gerenciar.setAttribute('role', 'menuitem');
   gerenciar.addEventListener('click', () => {
     fecharMenuPerfil();
-    void editarColunas(true);
+    void (async () => {
+      if (await liberarEdicao('editar-colunas')) await editarColunas(true);
+    })();
   });
   menuPerfil.replaceChildren(
     ...itens,
@@ -509,14 +512,12 @@ async function trocarPerfil(id: string, jaAtivo: boolean): Promise<void> {
   else mostrarMensagem(r.mensagem, 'erro');
 }
 
+// Trocar de perfil vale também na leitura protegida (só muda a
+// visualização); o Gerenciar perfis do menu abre o Editar colunas e pede o
+// aviso.
 btnPerfil.addEventListener('click', () => {
-  if (!menuPerfil.hidden) {
-    fecharMenuPerfil();
-    return;
-  }
-  void (async () => {
-    if (await liberarEdicao('perfil')) await abrirMenuPerfil();
-  })();
+  if (menuPerfil.hidden) void abrirMenuPerfil();
+  else fecharMenuPerfil();
 });
 menuPerfil.addEventListener('keydown', (e) =>
   navegarMenu(e, itensMenuPerfil(), fecharMenuPerfil),
@@ -1953,8 +1954,15 @@ function carregar(
         ? lido.ordem
         : ORDEM_NOTA;
     document.title = 'PS Reader';
-    if (lido.copiaEditada || modoInicial === 'conferencia') {
+    // Cópia editada, nota já conferida ou perfil que abre as notas na
+    // Conferência (em edição): direto na Conferência.
+    if (
+      lido.copiaEditada ||
+      modoInicial === 'conferencia' ||
+      leitura === 'edicao'
+    ) {
       mostrarConferencia();
+      if (arquivo.daInternet) mostrarMensagem(MENSAGEM_PSXML_INTERNET, 'info');
       return;
     }
     const { motivo } = lerDadosDanfe(arquivo.texto);
@@ -2680,7 +2688,9 @@ async function abrirExterno(): Promise<void> {
     // carregar, que esconde as mensagens).
     if (arquivo.pastaSessao) {
       atualizarPasta(arquivo.pastaSessao, true);
-      if (aberto)
+      // Vindo da internet, fica o aviso da leitura protegida (o .psxml só é
+      // gravado depois de sair dela); a pastilha mostra a pasta da sessão.
+      if (aberto && !arquivo.daInternet)
         mostrarMensagem(
           `Nesta janela os arquivos serão salvos em ${arquivo.pastaSessao}, a pasta do arquivo aberto. Sua pasta salva volta quando você fechar esta janela.`,
           'info',

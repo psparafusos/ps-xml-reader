@@ -33,7 +33,9 @@ import {
   FERRAMENTAS_PAINEL,
   ID_FERRAMENTA_ST,
   moverFerramenta,
+  ROTULO_ABRIR_EM,
   ROTULO_CAMPO_ST,
+  type AbrirNotasEm,
   type CamposST,
   type FerramentasPerfil,
 } from './nfe/ferramentasPerfil';
@@ -576,6 +578,7 @@ function abaFerramentas({ area, status }: Hospede): void {
   const lista = el('ul', 'colunas-lista config__ferramentas');
   lista.setAttribute('aria-label', 'Ferramentas do painel, na ordem');
   const campos = el('div', 'config__campos-st');
+  const abrirEm = el('div', 'config__abrir-em');
 
   const atualFerr = (): FerramentasPerfil | null =>
     estado?.lista.find((p) => p.id === perfilId)?.ferramentas ?? null;
@@ -618,6 +621,7 @@ function abaFerramentas({ area, status }: Hospede): void {
           x.id === id ? { ...x, visivel: marca.checked } : { ...x },
         ),
         camposST: { ...f.camposST },
+        abrirEm: f.abrirEm,
       };
       void gravar(
         nova,
@@ -706,6 +710,7 @@ function abaFerramentas({ area, status }: Hospede): void {
           (a, b) => ordem.indexOf(a.id) - ordem.indexOf(b.id),
         ),
         camposST: { ...f.camposST },
+        abrirEm: f.abrirEm,
       };
       if (nova.ordem.some((x, i) => x.id !== f.ordem[i].id))
         void gravar(nova, 'Ordem das ferramentas salva.');
@@ -731,6 +736,7 @@ function abaFerramentas({ area, status }: Hospede): void {
             {
               ordem: f.ordem.map((x) => ({ ...x })),
               camposST: { ...f.camposST, [k]: v },
+              abrirEm: f.abrirEm,
             },
             `"${ROTULO_CAMPO_ST[k]}" ${v ? 'aparece' : 'oculto'} na ferramenta ST, MVA e CFOP.`,
             `campo-${k}`,
@@ -756,7 +762,60 @@ function abaFerramentas({ area, status }: Hospede): void {
           )
         : '',
     );
+    abrirEm.replaceChildren(...opcoesAbrirEm(f));
     if (foco) area.querySelector<HTMLElement>(`[data-foco="${foco}"]`)?.focus();
+  }
+
+  /** As duas opções, como botões de rádio, para o perfil escolhido. */
+  function opcoesAbrirEm(f: FerramentasPerfil): HTMLElement[] {
+    const opcoes: { valor: AbrirNotasEm; ajuda: string }[] = [
+      {
+        valor: 'leitura',
+        ajuda:
+          'Só para ver: DANFE, Conferência, imprimir e salvar PDF. Para anotar, a faixa da leitura oferece Usar a Conferência.',
+      },
+      {
+        valor: 'conferencia',
+        ajuda:
+          'Direto na Conferência, com as anotações liberadas, como antes da leitura protegida.',
+      },
+    ];
+    const grupo = el(
+      'div',
+      'config__opcoes',
+      ...opcoes.map(({ valor, ajuda }) => {
+        const radio = el('input', 'config__radio');
+        radio.type = 'radio';
+        radio.name = 'config-abrir-em';
+        radio.value = valor;
+        radio.id = `config-abrir-em-${valor}`;
+        radio.checked = f.abrirEm === valor;
+        radio.dataset.foco = `abrir-em-${valor}`;
+        radio.addEventListener('change', () => {
+          if (!radio.checked) return;
+          void gravar(
+            { ...f, ordem: f.ordem.map((x) => ({ ...x })), abrirEm: valor },
+            `Neste perfil, as notas abrem em: ${ROTULO_ABRIR_EM[valor]}.`,
+            `abrir-em-${valor}`,
+          );
+        });
+        const rotulo = el(
+          'label',
+          'config__opcao',
+          radio,
+          el(
+            'span',
+            'config__opcao-textos',
+            el('span', 'config__ferramenta-titulo', ROTULO_ABRIR_EM[valor]),
+            el('span', 'config__ajuda', ajuda),
+          ),
+        );
+        return rotulo;
+      }),
+    );
+    grupo.setAttribute('role', 'radiogroup');
+    grupo.setAttribute('aria-label', 'Abrir notas em');
+    return [grupo];
   }
 
   area.replaceChildren(
@@ -775,6 +834,15 @@ function abaFerramentas({ area, status }: Hospede): void {
       ),
       lista,
       erro,
+    ),
+    cartao(
+      'Abrir notas em',
+      el(
+        'p',
+        'documento__nota',
+        'Por perfil (o escolhido acima): como um XML de NF-e abre, pelo botão Abrir, ao arrastar, pela nota recente e no duplo clique no Explorer. A cópia editada (.psxml) abre na Conferência, a não ser que tenha vindo da internet: aí abre em leitura protegida.',
+      ),
+      abrirEm,
     ),
     cartao('ST, MVA e CFOP: campos do rodapé', campos),
     camadaMenus,

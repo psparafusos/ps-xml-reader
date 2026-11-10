@@ -7,8 +7,10 @@
 //
 // No config.json, chave "ferramentasPerfis" (fora dos perfis, para o arquivo
 // exportado de um perfil e uma versão anterior do app continuarem iguais):
-//   { "<id do perfil>": { ordem: [{ id, visivel }], camposST: { mva, aliquota } } }
-// Perfil sem entrada: o padrão (as duas ferramentas, os dois campos).
+//   { "<id do perfil>": { ordem: [{ id, visivel }], camposST: { mva, aliquota },
+//                         abrirEm: "leitura" | "conferencia" } }
+// Perfil sem entrada: o padrão (as duas ferramentas, os dois campos, notas
+// abertas em leitura protegida).
 
 import { planoAplicar, type PlanoAplicar } from '../fiscal/entrada';
 import { gravacoesAliquota, type LinhaPrevia } from '../previaST';
@@ -53,9 +55,24 @@ export interface FerramentaNaOrdem {
   visivel: boolean;
 }
 
+/**
+ * Como um XML de NF-e abre neste perfil: em leitura protegida (só ver, o
+ * padrão) ou direto na Conferência, para editar.
+ */
+export type AbrirNotasEm = 'leitura' | 'conferencia';
+
+export const ROTULO_ABRIR_EM: Record<AbrirNotasEm, string> = {
+  leitura: 'Leitura protegida',
+  conferencia: 'Conferência',
+};
+
+const ehAbrirEm = (v: unknown): v is AbrirNotasEm =>
+  v === 'leitura' || v === 'conferencia';
+
 export interface FerramentasPerfil {
   ordem: FerramentaNaOrdem[];
   camposST: CamposST;
+  abrirEm: AbrirNotasEm;
 }
 
 const IDS: readonly string[] = FERRAMENTAS_PAINEL.map((f) => f.id);
@@ -69,13 +86,15 @@ export function ferramentasPadrao(): FerramentasPerfil {
   return {
     ordem: FERRAMENTAS_PAINEL.map((f) => ({ id: f.id, visivel: true })),
     camposST: { mva: true, aliquota: true },
+    abrirEm: 'leitura',
   };
 }
 
 /**
  * Lê o que veio do config.json ou da tela, sem lançar: id desconhecido ou
  * repetido sai, ferramenta que faltou entra no fim (visível), campo que não
- * é booleano fica no padrão (à mostra).
+ * é booleano fica no padrão (à mostra), "Abrir notas em" desconhecido fica
+ * em leitura protegida.
  */
 export function lerFerramentas(v: unknown): FerramentasPerfil {
   const padrao = ferramentasPadrao();
@@ -96,6 +115,7 @@ export function lerFerramentas(v: unknown): FerramentasPerfil {
       mva: typeof c.mva === 'boolean' ? c.mva : true,
       aliquota: typeof c.aliquota === 'boolean' ? c.aliquota : true,
     },
+    abrirEm: ehAbrirEm(v.abrirEm) ? v.abrirEm : 'leitura',
   };
 }
 
@@ -140,7 +160,7 @@ export function moverFerramenta(
   if (i < 0 || j < 0 || j >= ordem.length) return { ...f, ordem };
   const [movida] = ordem.splice(i, 1);
   ordem.splice(j, 0, movida);
-  return { ordem, camposST: { ...f.camposST } };
+  return { ordem, camposST: { ...f.camposST }, abrirEm: f.abrirEm };
 }
 
 /**
@@ -168,10 +188,10 @@ export function planoDoAplicar(
 /**
  * Validação estrita da chave "ferramentasPerfis" vinda de fora (backup):
  * cada entrada precisa ser de um perfil de `idsPerfis`, com a ordem só de
- * ferramentas conhecidas, sem repetir, e as marcas booleanas. Campo que esta
- * versão não conhece fica de fora sem recusar (uma versão nova pode guardar
- * mais coisas por perfil, como a futura "Abrir notas em"). Lança Error com o
- * motivo, em português.
+ * ferramentas conhecidas, sem repetir, as marcas booleanas e o "Abrir notas
+ * em" (leitura ou conferencia), quando vier. Campo que esta versão não
+ * conhece fica de fora sem recusar (uma versão nova pode guardar mais coisas
+ * por perfil). Lança Error com o motivo, em português.
  */
 export function validarFerramentasPorPerfil(
   v: unknown,
@@ -203,6 +223,8 @@ export function validarFerramentasPorPerfil(
           'Os campos da ferramenta ST de um perfil estão inválidos.',
         );
     }
+    if (f.abrirEm !== undefined && !ehAbrirEm(f.abrirEm))
+      throw new Error('O "Abrir notas em" de um perfil está inválido.');
     r[id] = lerFerramentas(f);
   }
   return r;

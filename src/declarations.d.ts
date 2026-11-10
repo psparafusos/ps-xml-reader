@@ -26,6 +26,8 @@ interface ArquivoAberto {
   texto: string;
   /** Decidido pelo processo principal (src/nfe/leituraProtegida.ts). */
   leitura: LeituraNota;
+  /** Cópia editada com a marca de baixado da internet (abriu protegida). */
+  daInternet?: boolean;
 }
 
 /**

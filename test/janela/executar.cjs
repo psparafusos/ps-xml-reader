@@ -554,6 +554,124 @@ async function principal() {
     },
   );
 
+  // Parte 2C: seletor de perfil livre, "Abrir notas em" por perfil e .psxml
+  // vindo da internet.
+  await caso(
+    '2C: na leitura, o seletor de perfil abre sem aviso; Gerenciar perfis pede o aviso',
+    async () => {
+      abrir(outra);
+      await aguardar(visivel('danfe'));
+      await fecharAvisosDaNota();
+      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
+      await avaliar(`document.getElementById('btn-perfil').click()`);
+      await aguardar(
+        visivel('menu-perfil'),
+        5000,
+        'o menu de perfil não abriu',
+      );
+      confere(
+        !(await avaliar(dialogoAberto)),
+        'o seletor de perfil pediu aviso',
+      );
+      // Gerenciar perfis abre o Editar colunas: pede o aviso.
+      await avaliar(`[...document.querySelectorAll('#menu-perfil button')]
+        .find((b) => b.textContent.includes('Gerenciar perfis')).click()`);
+      await aguardar(dialogoAberto, 5000, 'Gerenciar perfis não pediu aviso');
+      await clicarNoDialogo('Ficar na leitura');
+      await espera(300);
+      confere(await avaliar(visivel('faixa-leitura')), 'saiu da leitura');
+      await inicio();
+    },
+  );
+
+  /** "Abrir notas em" do perfil ativo, lido do processo principal. */
+  const abrirEmAtivo = () =>
+    avaliar(`window.psApi.ferramentasPerfis().then((e) =>
+      e.lista.find((p) => p.id === e.ativo).ferramentas.abrirEm)`);
+
+  await caso(
+    '2C: a aba Ferramentas das Configurações mostra e grava "Abrir notas em"',
+    async () => {
+      confere((await abrirEmAtivo()) === 'leitura', 'o padrão não é a leitura');
+      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await aguardar(`!!document.getElementById('config-titulo')`);
+      await avaliar(`[...document.querySelectorAll('dialog[open] button')]
+        .find((b) => b.textContent.trim() === 'Ferramentas').click()`);
+      await aguardar(`!!document.getElementById('config-abrir-em-leitura')`);
+      confere(
+        await avaliar(
+          `document.getElementById('config-abrir-em-leitura').checked`,
+        ),
+        'Leitura protegida não vem marcada',
+      );
+      await avaliar(
+        `document.getElementById('config-abrir-em-conferencia').click()`,
+      );
+      const limite = Date.now() + 10000;
+      while ((await abrirEmAtivo()) !== 'conferencia' && Date.now() < limite)
+        await espera(200);
+      confere(
+        (await abrirEmAtivo()) === 'conferencia',
+        'a opção Conferência não foi gravada',
+      );
+      await avaliar(`document.querySelector('dialog[open]').close(); true`);
+      await espera(500);
+    },
+  );
+
+  await caso(
+    '2C: perfil em "Conferência" abre o XML direto na Conferência, em edição',
+    async () => {
+      abrir(outra);
+      await aguardar(visivel('nota'));
+      await fecharAvisosDaNota();
+      confere(!(await avaliar(visivel('faixa-leitura'))), 'abriu em leitura');
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
+        ),
+        'as anotações estão travadas',
+      );
+      await inicio();
+      // Volta o perfil ao padrão, pelo mesmo canal das Configurações.
+      await avaliar(`window.psApi.ferramentasPerfis().then((e) => {
+        const f = e.lista.find((p) => p.id === e.ativo).ferramentas;
+        return window.psApi.gravarFerramentasPerfil(e.ativo, { ...f, abrirEm: 'leitura' });
+      })`);
+      confere(
+        (await abrirEmAtivo()) === 'leitura',
+        'não voltou para a leitura',
+      );
+    },
+  );
+
+  await caso(
+    '2C: .psxml baixado da internet abre em leitura protegida, com aviso',
+    async () => {
+      const baixado = path.join(notas, 't2c-baixado.psxml');
+      fs.copyFileSync(path.join(FIXTURES, 't12-anotacao-html.psxml'), baixado);
+      // A marca que o Windows e os navegadores gravam (fluxo do NTFS).
+      fs.writeFileSync(
+        `${baixado}:Zone.Identifier`,
+        '[ZoneTransfer]\r\nZoneId=3\r\nReferrerUrl=https://exemplo.invalid/\r\n',
+      );
+      abrir(baixado);
+      await aguardar(visivel('nota'));
+      await espera(500);
+      confere(await avaliar(visivel('faixa-leitura')), 'abriu em edição');
+      const msg = await avaliar(
+        `document.getElementById('mensagem-texto').textContent`,
+      );
+      confere(/veio da internet/.test(msg), `mensagem: ${msg}`);
+      const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
+      confere(
+        r.status === 'erro' && /leitura protegida/.test(r.mensagem),
+        `o .psxml da internet pôde ser gravado: ${JSON.stringify(r)}`,
+      );
+      await inicio();
+    },
+  );
+
   await caso('T8: 100 mil níveis de aninhamento (DOMParser)', async () => {
     const t0 = Date.now();
     abrir(profundo);

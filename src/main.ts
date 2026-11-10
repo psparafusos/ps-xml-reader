@@ -53,6 +53,7 @@ import {
   ferramentasDoPerfil,
   lerFerramentas,
   lerFerramentasPorPerfil,
+  type AbrirNotasEm,
   semPerfisExcluidos,
 } from './nfe/ferramentasPerfil';
 import {
@@ -85,6 +86,7 @@ import {
   lerXmlSeguro,
   mensagemSemResposta,
   problemaCaminhoSolto,
+  veioDaInternet,
 } from './seguranca/arquivo';
 import { opcoesPerigosas } from './seguranca/argumentos';
 import {
@@ -676,7 +678,14 @@ async function lerArquivoNaJanela(
   j.arquivoAberto = caminho;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
-  const leitura = leituraAoAbrir(j.abertoEhCopia);
+  // .psxml baixado da internet abre em leitura protegida; o XML da NF-e
+  // segue o "Abrir notas em" do perfil ativo.
+  const daInternet = j.abertoEhCopia && (await veioDaInternet(caminho));
+  const leitura = leituraAoAbrir({
+    copiaEditada: j.abertoEhCopia,
+    abrirEm: j.abertoEhCopia ? 'leitura' : await abrirNotasEmDoPerfil(),
+    daInternet,
+  });
   j.protegida = leitura === 'protegida';
   // Aberto com sucesso (é NF-e ou cópia editada): a pasta dele vira o ponto de
   // partida do próximo diálogo de abrir. Falha ao gravar não impede a abertura.
@@ -685,7 +694,29 @@ async function lerArquivoNaJanela(
       () => {},
     );
   }
-  return { nome: path.basename(caminho), texto: conteudo, leitura };
+  return {
+    nome: path.basename(caminho),
+    texto: conteudo,
+    leitura,
+    daInternet,
+  };
+}
+
+/**
+ * "Abrir notas em" do perfil ativo (chave ferramentasPerfis do
+ * config.json). Sem nada salvo, ou se a leitura falhar: leitura protegida.
+ */
+async function abrirNotasEmDoPerfil(): Promise<AbrirNotasEm> {
+  try {
+    const p = await lerPerfis();
+    const porPerfil = lerFerramentasPorPerfil(
+      (await lerConfig()).ferramentasPerfis,
+      p.lista.map((x) => x.id),
+    );
+    return ferramentasDoPerfil(porPerfil, perfilAtivo(p).id).abrirEm;
+  } catch {
+    return 'leitura';
+  }
 }
 
 /**
