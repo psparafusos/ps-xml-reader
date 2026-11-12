@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T13: ferramenta ST, MVA e CFOP. Item 1 (pneu 4011.20.90) com duas linhas
+     candidatas e outras linhas da planilha citando 4011; item 2 (parafuso
+     7318.15.00) com candidato em Autopeças; infCpl diz que não é da linha
+     automotiva. NF-e INVENTADA para o test:janela (dados fictícios, sem valor
+     fiscal). A planilha inventada é a de planilhaST.mts. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe35261100000000000000550010000000131000000130" versao="4.00">
+      <ide><cUF>35</cUF><cNF>00000013</cNF><natOp>Venda de teste</natOp><mod>55</mod><serie>1</serie><nNF>13</nNF><dhEmi>2026-11-01T10:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb></ide>
+      <emit><CNPJ>00000000000000</CNPJ><xNome>Fornecedor Inventado de Teste</xNome><xFant>INVENTADO</xFant><enderEmit><xLgr>Rua de Teste</xLgr><nro>1</nro><xBairro>Centro</xBairro><xMun>Cidade Teste</xMun><UF>SP</UF><CEP>00000000</CEP></enderEmit><IE>000000000</IE></emit>
+      <dest><CNPJ>00000000000000</CNPJ><xNome>Destinatario Inventado</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Cidade Teste</xMun><UF>SE</UF><CEP>00000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>T13A</cProd><cEAN>SEM GTIN</cEAN><xProd>PNEU INVENTADO 275/80 ONIBUS</xProd><NCM>40112090</NCM><CFOP>6102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>10.00</vUnCom><vProd>10.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>1.0000</qTrib><vUnTrib>10.00</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>10.00</vBC><pICMS>12.00</pICMS><vICMS>1.20</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="2">
+        <prod><cProd>T13B</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAFUSO INVENTADO M8 X 30</xProd><NCM>73181500</NCM><CFOP>6102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>1.00</vUnCom><vProd>1.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>1.0000</qTrib><vUnTrib>1.00</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>1.00</vBC><pICMS>12.00</pICMS><vICMS>0.12</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>11.00</vBC><vICMS>1.32</vICMS><vST>0.00</vST><vProd>11.00</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>11.00</vNF></ICMSTot></total>
+      <transp><modFrete>9</modFrete></transp>
+      <infAdic><infCpl>PEDIDO INVENTADO 123; NAO ENQUADRADO NA LINHA AUTOMOTIVA; VENDEDOR INVENTADO</infCpl></infAdic>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><chNFe>35261100000000000000550010000000131000000130</chNFe><dhRecbto>2026-11-01T10:01:00-03:00</dhRecbto><nProt>000000000000013</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>

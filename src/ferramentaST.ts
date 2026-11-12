@@ -37,8 +37,12 @@ import {
 import {
   explicacaoItem,
   formatarNcm,
+  frasesForaLinhaAutomotiva,
   stRetidoNaNota,
   sugerirSemST,
+  temCandidatoAutopecas,
+  textoForaLinhaAutomotiva,
+  textoOutrasLinhas,
 } from './explicacaoST';
 import { observacaoMvaFornecedor, sugestaoHistorico } from './historicoST';
 import { ligarDica, type Dica } from './tooltip';
@@ -158,6 +162,12 @@ export function abrirFerramentaST(c: ContextoST): void {
   /** Item com a escolha de linha aberta. */
   let confirmando: string | null = null;
   let ocupado = false;
+
+  // "Não é da linha automotiva" nas informações complementares da nota: só
+  // informação, nos itens com candidato em Autopeças (não muda a decisão).
+  const foraAutomotiva = frasesForaLinhaAutomotiva(nota.infAdic?.infCpl ?? '');
+  const avisosAutomotiva = (a: (typeof c.resultado.itens)[number]['analise']) =>
+    temCandidatoAutopecas(a) ? foraAutomotiva : [];
 
   // Decisões lembradas de todos os fornecedores, para o histórico por NCM;
   // acompanha o que se decide nesta janela.
@@ -612,6 +622,9 @@ export function abrirFerramentaST(c: ContextoST): void {
       marcaDecisao,
       ...r.observacoesTipi.map((o) => el('span', 'st__obs', `TIPI: ${o}`)),
       ...r.observacoes.map((o) => el('span', 'st__obs', o)),
+      ...avisosAutomotiva(a).map((f) =>
+        el('span', 'st__obs st__nota-info', `Na nota: "${f}"`),
+      ),
     );
     motivo.title = r.detalhes.join('\n');
 
@@ -919,6 +932,17 @@ export function abrirFerramentaST(c: ContextoST): void {
       blocoHistorico,
       explicacao?.linhaTipi && el('p', 'st__tipi', explicacao.linhaTipi),
       explicacao && el('p', 'st__explicacao', explicacao.texto),
+      // Por que a busca no Excel acha mais linhas do que as opções abaixo.
+      !apendice.length &&
+        a.outrasLinhas &&
+        el(
+          'p',
+          'st__explicacao st__outras-linhas',
+          textoOutrasLinhas(a.outrasLinhas),
+        ),
+      ...avisosAutomotiva(a).map((f) =>
+        el('p', 'st__explicacao st__nota-info', textoForaLinhaAutomotiva(f)),
+      ),
       apendice.length > 0 &&
         el('p', 'st__explicacao', `${RESSALVA_APENDICE_XIV}.`),
       el('ul', 'st__motivos', ...r.detalhes.map((m) => el('li', '', m))),

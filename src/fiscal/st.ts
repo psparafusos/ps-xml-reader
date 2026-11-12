@@ -593,6 +593,39 @@ export function buscarST(
   };
 }
 
+/**
+ * Linhas da planilha que citam o mesmo começo do NCM (os 4 primeiros
+ * dígitos), mas para NCMs completos diferentes do item: não servem para ele.
+ * Explica por que a busca no Excel acha mais linhas do que o app mostra.
+ */
+export interface OutrasLinhasNcm {
+  /** Os 4 primeiros dígitos do NCM do item ("4011"). */
+  comeco: string;
+  /** Quantas linhas da planilha (uma linha com vários NCMs conta uma vez). */
+  linhas: number;
+  /** NCMs dessas linhas, só dígitos, sem repetir, em ordem. */
+  ncms: string[];
+}
+
+export function outrasLinhasDoComeco(
+  tabela: TabelaST | LinhaST[],
+  ncm: string,
+): OutrasLinhasNcm | null {
+  const linhas = Array.isArray(tabela) ? tabela : tabela.linhas;
+  const alvo = ncm.replace(/\D/g, '');
+  if (alvo.length !== 8) return null;
+  const comeco = alvo.slice(0, 4);
+  const outras = linhas.filter(
+    (l) => l.ncm.startsWith(comeco) && !alvo.startsWith(l.ncm),
+  );
+  if (outras.length === 0) return null;
+  return {
+    comeco,
+    linhas: new Set(outras.map((l) => `${l.segmento}:${l.linhaPlanilha}`)).size,
+    ncms: [...new Set(outras.map((l) => l.ncm))].sort(),
+  };
+}
+
 const UFS = new Set(
   'AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(
     ' ',

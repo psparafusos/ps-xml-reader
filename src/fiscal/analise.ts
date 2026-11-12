@@ -39,10 +39,12 @@ import { jogosAutopecas, MOTIVO_APENDICE_XIV } from './entrada';
 export { MOTIVO_APENDICE_XIV };
 import {
   buscarST,
+  outrasLinhasDoComeco,
   type AliquotaInterna,
   type AliquotaMva,
   type CandidatoST,
   type LinhaST,
+  type OutrasLinhasNcm,
   type ProtocoloST,
   type TabelaST,
 } from './st';
@@ -191,6 +193,12 @@ export interface AnaliseItem {
    * ser lubrificante e o apêndice foi carregado; senão, null.
    */
   apendiceXIV: CandidatoAnalise[] | null;
+  /**
+   * Outras linhas da planilha com o mesmo começo do NCM (4 dígitos), mas
+   * para NCMs diferentes do item. Só com candidatos; senão null. Ausente em
+   * análises gravadas antes deste campo.
+   */
+  outrasLinhas?: OutrasLinhasNcm | null;
 }
 
 const ORIGEM_IMPORTADO = new Set(['1', '2', '3', '8']);
@@ -333,6 +341,8 @@ export function analisarItem(
       cfopSugerido: cfop(uf, false),
     });
   }
+
+  const outrasLinhas = outrasLinhasDoComeco(base.st, ncm);
 
   // Dúvidas sobre haver ST (qual linha vale) e sobre a MVA (qual número).
   let duvidaST = false;
@@ -478,6 +488,7 @@ export function analisarItem(
     protocolo,
     // Com a ST certa e só a MVA em dúvida, o CFOP já está decidido.
     cfopSugerido: duvidaST ? null : cfop(uf, true),
+    outrasLinhas,
   });
 }
 

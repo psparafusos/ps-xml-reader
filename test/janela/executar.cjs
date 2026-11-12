@@ -8,8 +8,9 @@
 // Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, a
 // abertura direta (parte 2A: sem a tela de escolha), a leitura protegida
 // (partes 2B, 2C e 2D), T6, T8 (gerado aqui), T9, T10, T11 e T12 do plano
-// de segurança, e as janelas por cima: X e Esc das Configurações e a
-// rolagem travada atrás da ferramenta ST (planilha inventada, planilhaST.mts).
+// de segurança, as janelas por cima (X e Esc das Configurações, rolagem
+// travada atrás da ferramenta ST) e os dois avisos novos da ferramenta ST
+// (t13, com a planilha inventada de planilhaST.mts).
 'use strict';
 
 const { app, session } = require('electron');
@@ -1514,6 +1515,92 @@ async function casosJanelasPorCima() {
       } finally {
         janela.setContentSize(largura, altura);
       }
+    },
+  );
+
+  // Parte 3: o quadro de escolha diz quantas outras linhas da planilha citam
+  // o mesmo começo de NCM; a frase "não é da linha automotiva" da nota
+  // aparece nos itens com candidato em Autopeças, só como informação.
+  await caso(
+    'Ferramenta ST: outras linhas do mesmo começo de NCM e a frase da nota fora da linha automotiva',
+    async () => {
+      await carregarPlanilhaST();
+      await abrirNota(copia('t13-st-autopecas.xml'));
+      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
+      await aguardar(
+        `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
+        15000,
+        'o aviso para sair da leitura não abriu',
+      );
+      await avaliar(`[...document.querySelectorAll('dialog[open] button')]
+        .find((b) => b.textContent.trim() === 'Continuar').click()`);
+      await aguardar(`document.getElementById('faixa-leitura').hidden`);
+      await aguardar(visivel('nota'));
+      await fecharAvisosDaNota();
+      await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
+        .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
+        .querySelector('button:not(:disabled)').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog.painel--st[open]')`,
+        30000,
+        'a ferramenta ST não abriu',
+      );
+      /** Linha da tabela da ferramenta pelo número do item. */
+      const linha = (n) =>
+        `[...document.querySelectorAll('dialog.painel--st tr.st__linha')].find((tr) => tr.querySelector('td.num')?.textContent.trim() === '${n}')`;
+      const frase = 'NAO ENQUADRADO NA LINHA AUTOMOTIVA';
+      // Item 2 (Autopeças): a frase como informação, e a decisão é a de antes.
+      const item2 = await avaliar(`(() => {
+        const tr = ${linha(2)};
+        const info = tr.querySelector('.st__motivo .st__nota-info');
+        return {
+          info: info?.textContent,
+          selecionavel: info ? getComputedStyle(info).userSelect : null,
+          st: tr.querySelector('.st__situacao').textContent.trim(),
+        };
+      })()`);
+      confere(
+        item2.info === `Na nota: "${frase}"`,
+        `item 2 sem a frase da nota: ${JSON.stringify(item2)}`,
+      );
+      confere(item2.selecionavel === 'text', 'a frase da nota não seleciona');
+      confere(item2.st === 'Sim', `a decisão do item 2 mudou: ${item2.st}`);
+      // Item 1 (pneu): sem candidato em Autopeças, sem a frase.
+      confere(
+        !(await avaliar(`!!${linha(1)}.querySelector('.st__nota-info')`)),
+        'a frase da nota apareceu no item sem Autopeças',
+      );
+      // Quadro de escolha do item 1: a linha das outras linhas da planilha.
+      await avaliar(`${linha(1)}.querySelector('.st__confirmar').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog.painel--st .st__escolha')`,
+        15000,
+        'o quadro de escolha não abriu',
+      );
+      const outras = await avaliar(`(() => {
+        const q = document.querySelector('dialog.painel--st .st__escolha');
+        return {
+          texto: q.querySelector('.st__outras-linhas')?.textContent,
+          opcoes: q.querySelectorAll('.st__opcao').length,
+          frase: !!q.querySelector('.st__nota-info'),
+        };
+      })()`);
+      confere(
+        outras.texto ===
+          'Outras 3 linhas da planilha citam 4011, mas para NCMs diferentes deste item (4011.10.00, 4011.40.00, 4011.50.00).',
+        `linha das outras linhas: ${JSON.stringify(outras)}`,
+      );
+      // Duas linhas candidatas, Sem ST e Outro: as outras linhas não viram opção.
+      confere(outras.opcoes === 4, `opções no quadro: ${outras.opcoes}`);
+      confere(!outras.frase, 'a frase da nota apareceu no quadro do pneu');
+      await avaliar(
+        `document.querySelector('dialog.painel--st .painel__fechar').click()`,
+      );
+      await aguardar(
+        `!document.querySelector('dialog.painel--st')`,
+        15000,
+        'o X não fechou a ferramenta',
+      );
     },
   );
 }

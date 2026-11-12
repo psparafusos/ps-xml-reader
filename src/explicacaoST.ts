@@ -138,3 +138,88 @@ export function sugerirSemST(a: AnaliseItem, retido: boolean): boolean {
     [...palavrasSignificativas(c.descricao)].every((p) => !daTipi.has(p)),
   );
 }
+
+// ---------- outras linhas do mesmo começo de NCM ----------
+
+/** NCM de 4 a 8 dígitos com os pontos ("4011", "4011.10", "4011.10.00"). */
+function ncmComPontos(ncm: string): string {
+  if (ncm.length <= 4) return ncm;
+  return `${ncm.slice(0, 4)}.${ncm.slice(4, 6)}${ncm.length > 6 ? `.${ncm.slice(6)}` : ''}`;
+}
+
+/** Quantos NCMs a linha lista antes de resumir em "e mais N". */
+const MAX_NCMS_OUTRAS = 8;
+
+/**
+ * Linha do quadro de escolha: outras linhas da planilha citam o mesmo começo
+ * do NCM, mas para NCMs diferentes do item. Explica por que a busca no Excel
+ * acha mais linhas do que o app mostra.
+ */
+export function textoOutrasLinhas(o: {
+  comeco: string;
+  linhas: number;
+  ncms: string[];
+}): string {
+  const ncms = o.ncms.map(ncmComPontos);
+  const mostrados = ncms.slice(0, MAX_NCMS_OUTRAS);
+  const resto = ncms.length - mostrados.length;
+  const listaNcms = `${mostrados.join(', ')}${resto > 0 ? ` e mais ${resto}` : ''}`;
+  const para =
+    ncms.length === 1
+      ? 'para um NCM diferente deste item'
+      : 'para NCMs diferentes deste item';
+  return o.linhas === 1
+    ? `Outra linha da planilha cita ${o.comeco}, mas ${para} (${listaNcms}).`
+    : `Outras ${o.linhas} linhas da planilha citam ${o.comeco}, mas ${para} (${listaNcms}).`;
+}
+
+// ---------- "não é da linha automotiva" nas informações da nota ----------
+
+const semAcento = (t: string) =>
+  t.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ');
+
+/** Frases que dizem que o produto não é da linha automotiva (texto sem acento, maiúsculo). */
+const RE_FORA_AUTOMOTIVA = [
+  /\bNAO\b.{0,30}\bENQUADRAD[OA]S?\b.{0,30}\bLINHA AUTOMOTIVA\b/,
+  /\bNAO\b.{0,30}\b(FAZ(EM)? PARTE|SUJEIT[OA]S?|ENQUADRAD[OA]S?|CONTEMPLAD[OA]S?|ABRANGID[OA]S?)\b.{0,40}\bPROT(OCOLO)?\b\.? ?(ICMS )?(N[.ºO°]* ?)?41 ?\/ ?(20)?08\b/,
+  /\bNAO\b.{0,20}\b(E|SAO|PERTENCEM?|SE DESTINAM?)\b.{0,20}\b(LINHA AUTOMOTIVA|AUTOPECAS?)\b/,
+];
+
+/** Tamanho máximo da frase mostrada (texto longo corta com reticências). */
+const MAX_FRASE = 240;
+
+/**
+ * Trechos das informações complementares da nota que dizem que o produto
+ * não é da linha automotiva ("NAO ENQUADRADO NA LINHA AUTOMOTIVA", "NAO FAZ
+ * PARTE DO PROTOCOLO 41/2008"), como estão na nota. Só informação: não muda
+ * a decisão nem a sugestão. Lista vazia quando não há.
+ */
+export function frasesForaLinhaAutomotiva(texto: string): string[] {
+  const frases: string[] = [];
+  // Separa em frases: ponto e vírgula, quebra de linha, barra vertical, ou
+  // ponto depois de palavra longa ou número (abreviação como "PROT." não
+  // separa).
+  const frasesDaNota = texto.split(
+    /\s*(?:[;\n\r|]|(?<=[\p{L}]{5,}|\d)\.\s+(?=\p{Lu}))\s*/u,
+  );
+  for (const parte of frasesDaNota) {
+    const t = parte.replace(/\s+/g, ' ').trim();
+    if (!t || !RE_FORA_AUTOMOTIVA.some((re) => re.test(semAcento(t)))) continue;
+    const curto =
+      t.length > MAX_FRASE ? `${t.slice(0, MAX_FRASE).trimEnd()}...` : t;
+    if (!frases.includes(curto)) frases.push(curto);
+  }
+  return frases;
+}
+
+/** O item tem candidato no segmento de Autopeças. */
+export function temCandidatoAutopecas(a: AnaliseItem): boolean {
+  return a.candidatos.some((c) =>
+    /AUTOPE/.test(semAcento(`${c.segmento} ${c.segmentoOficial}`)),
+  );
+}
+
+/** Texto mostrado no quadro: a frase da nota, como informação. */
+export function textoForaLinhaAutomotiva(frase: string): string {
+  return `Informações complementares da nota: "${frase}". Só informação: a decisão e a sugestão não mudam.`;
+}

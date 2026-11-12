@@ -72,6 +72,7 @@ ul {
   .config__resultado,
   .documento__relatorio,
   .st__explicacao,
+  .st__nota-info,
   .config__tabela td {
     user-select: text;
   }
