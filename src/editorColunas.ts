@@ -25,7 +25,14 @@ import {
   ROTULO_ORIENTACAO,
   type PlanoFolha,
 } from './nfe/folha';
-import { botao, comSetasDeRolagem, el, icone, navegarMenu } from './dom';
+import {
+  botao,
+  botaoFecharPainel,
+  comSetasDeRolagem,
+  el,
+  icone,
+  navegarMenu,
+} from './dom';
 import { desenharMiniatura } from './miniaturaFolha';
 import { perguntar, pedirTexto } from './dialogos';
 import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
@@ -518,6 +525,10 @@ export function abrirEditorColunas(
         'painel__dica',
         'Marque as colunas que aparecem e arraste para mudar a ordem. Vale para todas as notas, na tela, na impressão e no PDF, e fica salvo no perfil ativo.',
       ),
+      // X: o mesmo que Cancelar e o Esc.
+      botaoFecharPainel(() => {
+        if (!ocupado) fechar();
+      }),
     ),
     el(
       'div',

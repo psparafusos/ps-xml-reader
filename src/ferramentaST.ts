@@ -12,7 +12,7 @@
 // src/previaST.ts.
 
 import { perguntar } from './dialogos';
-import { botao, el } from './dom';
+import { botao, botaoFecharPainel, el } from './dom';
 import { criarMenuEscolha, type OpcaoMenu, type Seletor } from './menuEscolha';
 import {
   chaveDecisao,
@@ -303,7 +303,6 @@ export function abrirFerramentaST(c: ContextoST): void {
   const erro = el('p', 'painel__erro');
   erro.setAttribute('role', 'alert');
   erro.hidden = true;
-  const btnCancelar = botao('botao botao--claro', el('span', '', 'Fechar'));
   const btnAplicar = botao('botao botao--principal', el('span', '', 'Aplicar'));
   const campoCfopDestino = el('div', 'st__campo', rotCfop, selCfop.botao);
   dicas.push(
@@ -323,7 +322,16 @@ export function abrirFerramentaST(c: ContextoST): void {
   const d = el(
     'dialog',
     'painel painel--st',
-    el('header', 'painel__cabecalho', titulo, resumo),
+    el(
+      'header',
+      'painel__cabecalho',
+      titulo,
+      resumo,
+      // X e Esc fecham (menos durante o Aplicar).
+      botaoFecharPainel(() => {
+        if (!ocupado) fechar();
+      }),
+    ),
     corpo,
     erro,
     el(
@@ -337,7 +345,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         campos.aliquota && el('div', 'st__campo', rotAliq, selAliq.botao),
         resumoAplicar,
       ),
-      el('div', 'painel__grupo', btnCancelar, btnAplicar),
+      el('div', 'painel__grupo', btnAplicar),
     ),
     camadaMenus,
   );
@@ -349,7 +357,6 @@ export function abrirFerramentaST(c: ContextoST): void {
     if (d.open) d.close();
     d.remove();
   };
-  btnCancelar.addEventListener('click', fechar);
   d.addEventListener('cancel', (e) => {
     e.preventDefault();
     if (!ocupado) fechar();

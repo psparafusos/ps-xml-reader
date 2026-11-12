@@ -7,8 +7,9 @@
 //
 // Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, a
 // abertura direta (parte 2A: sem a tela de escolha), a leitura protegida
-// (partes 2B, 2C e 2D), e T6, T8 (gerado aqui),
-// T9, T10, T11 e T12 do plano de segurança.
+// (partes 2B, 2C e 2D), T6, T8 (gerado aqui), T9, T10, T11 e T12 do plano
+// de segurança, e as janelas por cima: X e Esc das Configurações e a
+// rolagem travada atrás da ferramenta ST (planilha inventada, planilhaST.mts).
 'use strict';
 
 const { app, session } = require('electron');
@@ -1296,6 +1297,223 @@ async function principal() {
         'apareceu <img> de verdade no arquivo salvo',
       );
       confere(!/<!DOCTYPE/i.test(gravado), 'DOCTYPE no arquivo salvo');
+    },
+  );
+
+  await casosJanelasPorCima();
+}
+
+// ---------- janelas por cima: X, Esc e rolagem travada ----------
+
+/** O diálogo das Configurações aberto (e ainda na página). */
+const configAberta = `!!document.querySelector('dialog.painel--config[open]')`;
+const configNaPagina = `!!document.querySelector('dialog.painel--config')`;
+
+/** Espera dois quadros desenhados (a mudança chega à rolagem da janela). */
+const DOIS_QUADROS = `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`;
+
+/** Esc de verdade, pelo teclado da janela (não um evento montado na página). */
+function teclaEsc() {
+  janela.webContents.focus();
+  janela.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  janela.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+}
+
+/**
+ * Roda do mouse no ponto (x, y) da janela. Devolve quando a página recebeu o
+ * evento wheel e passaram três quadros: a rolagem, se fosse acontecer, já
+ * teria começado.
+ */
+async function rodaDoMouse(x, y, deltaY = -360) {
+  await avaliar(`(() => {
+    window.__rodas ??= 0;
+    if (!window.__contaRodas) {
+      window.__contaRodas = true;
+      addEventListener('wheel', () => window.__rodas++, { capture: true, passive: true });
+    }
+    return true;
+  })()`);
+  const antes = await avaliar('window.__rodas');
+  janela.webContents.sendInputEvent({
+    type: 'mouseWheel',
+    x,
+    y,
+    deltaX: 0,
+    deltaY,
+    canScroll: true,
+  });
+  await aguardar(
+    `window.__rodas > ${antes}`,
+    10000,
+    'a roda do mouse não chegou',
+  );
+  await avaliar(
+    `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))))`,
+  );
+}
+
+/** Gera a planilha de ST inventada e carrega pelo Carregar dos Documentos. */
+async function carregarPlanilhaST() {
+  const { dialog } = require('electron');
+  const { execFileSync } = require('node:child_process');
+  const planilha = path.join(tmp, 'st-inventada.xlsx');
+  execFileSync(
+    process.execPath,
+    [
+      '--import',
+      require('node:url').pathToFileURL(
+        path.join(RAIZ, 'test', 'registrar-hook.mjs'),
+      ).href,
+      path.join(__dirname, 'planilhaST.mts'),
+      planilha,
+    ],
+    { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
+  );
+  const original = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({
+    canceled: false,
+    filePaths: [planilha],
+  });
+  try {
+    const r = await avaliar(`window.psApi.importarDocumento('st')`);
+    confere(r.status === 'ok', `a planilha não carregou: ${JSON.stringify(r)}`);
+  } finally {
+    dialog.showOpenDialog = original;
+  }
+}
+
+async function casosJanelasPorCima() {
+  await caso(
+    'Configurações: X no cabeçalho (só ícone, aria-label Fechar) e Esc fecham; sem Fechar no rodapé',
+    async () => {
+      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await aguardar(configAberta, 15000, 'as Configurações não abriram');
+      const x = await avaliar(`(() => {
+        const d = document.querySelector('dialog.painel--config[open]');
+        const b = d.querySelector('.painel__cabecalho > button[aria-label="Fechar"]');
+        const cab = d.querySelector('.painel__cabecalho').getBoundingClientRect();
+        const r = b?.getBoundingClientRect();
+        return {
+          existe: !!b,
+          texto: b?.textContent.trim(),
+          title: b?.hasAttribute('title'),
+          noCanto: !!r && cab.right - r.right < 24 && r.top - cab.top < 24,
+          rodape: [...d.querySelectorAll('.painel__rodape button')].map((x) => x.textContent.trim()),
+        };
+      })()`);
+      confere(x.existe, 'sem o X no cabeçalho');
+      confere(
+        x.texto === '' && !x.title,
+        `o X tem texto ou title: ${JSON.stringify(x)}`,
+      );
+      confere(x.noCanto, 'o X não está no canto superior direito');
+      confere(
+        !x.rodape.includes('Fechar'),
+        `o Fechar continua no rodapé: ${x.rodape.join(', ')}`,
+      );
+      await avaliar(
+        `document.querySelector('dialog.painel--config .painel__cabecalho > button[aria-label="Fechar"]').click()`,
+      );
+      await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
+      // De novo, agora pelo Esc.
+      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await aguardar(
+        configAberta,
+        15000,
+        'as Configurações não abriram de novo',
+      );
+      teclaEsc();
+      await aguardar(`!${configNaPagina}`, 15000, 'o Esc não fechou');
+    },
+  );
+
+  await caso(
+    'Rolagem: atrás da ferramenta ST a página não rola; ao fechar, volta a rolar da mesma posição',
+    async () => {
+      await carregarPlanilhaST();
+      const [largura, altura] = janela.getContentSize();
+      janela.setContentSize(1100, 600);
+      try {
+        await abrirNota(copia('t09-xprod-html.xml'));
+        await avaliar(
+          `document.getElementById('btn-usar-conferencia').click()`,
+        );
+        await aguardar(
+          `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
+          15000,
+          'o aviso para sair da leitura não abriu',
+        );
+        await avaliar(`[...document.querySelectorAll('dialog[open] button')]
+          .find((b) => b.textContent.trim() === 'Continuar').click()`);
+        await aguardar(`document.getElementById('faixa-leitura').hidden`);
+        await aguardar(visivel('nota'));
+        await fecharAvisosDaNota();
+        // Página mais alta que a janela, rolada um pouco para baixo.
+        const sobra = await avaliar(
+          `document.documentElement.scrollHeight - document.documentElement.clientHeight`,
+        );
+        confere(sobra > 150, `a página não rola (sobra ${sobra} px)`);
+        await avaliar(`window.scrollTo(0, 100); true`);
+        await aguardar(`window.scrollY === 100`);
+        // Rodar a ferramenta ST pelo painel.
+        await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
+          .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
+          .querySelector('button:not(:disabled)').click()`);
+        await aguardar(
+          `!!document.querySelector('dialog.painel--st[open]')`,
+          30000,
+          'a ferramenta ST não abriu',
+        );
+        confere(
+          (await avaliar(
+            `getComputedStyle(document.documentElement).overflowY`,
+          )) === 'hidden',
+          'a página continua rolável com a ferramenta aberta',
+        );
+        // A trava vale a partir do quadro desenhado com a janela aberta.
+        await avaliar(DOIS_QUADROS);
+        // Roda do mouse sobre a janela e sobre o fundo escurecido.
+        const pontos = await avaliar(`(() => {
+          const r = document.querySelector('dialog.painel--st').getBoundingClientRect();
+          return [
+            [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)],
+            [Math.max(2, Math.round(r.left / 2)), Math.round(r.top + r.height / 2)],
+          ];
+        })()`);
+        for (const [x, y] of pontos) {
+          await rodaDoMouse(x, y);
+          const y2 = await avaliar('window.scrollY');
+          confere(
+            y2 === 100,
+            `a página rolou atrás da ferramenta (${x}, ${y}): ${y2}`,
+          );
+        }
+        // Fecha pelo X: a página fica onde estava e volta a rolar.
+        await avaliar(
+          `document.querySelector('dialog.painel--st .painel__cabecalho > button[aria-label="Fechar"]').click()`,
+        );
+        await aguardar(
+          `!document.querySelector('dialog.painel--st')`,
+          15000,
+          'o X não fechou a ferramenta',
+        );
+        confere(
+          (await avaliar('window.scrollY')) === 100,
+          'a posição da página mudou ao fechar',
+        );
+        await avaliar(DOIS_QUADROS);
+        const [lx, ly] = await avaliar(
+          `[Math.round(innerWidth / 2), Math.round(innerHeight / 2)]`,
+        );
+        await rodaDoMouse(lx, ly);
+        await aguardar(
+          `window.scrollY > 100`,
+          10000,
+          'a página não voltou a rolar depois de fechar',
+        );
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
     },
   );
 }

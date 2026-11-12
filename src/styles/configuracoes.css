@@ -40,9 +40,16 @@
     height: 18px;
   }
 
-  .barra__pastilhas > .config-engrenagem,
   .inicio__pastilhas > .config-engrenagem {
     align-self: center;
+  }
+
+  /* Na barra da nota: a última peça, depois do Salvar, do tamanho dos
+     botões. Se as ações quebrarem em duas linhas, fica ao lado do Salvar. */
+  .barra > .config-engrenagem {
+    align-self: flex-end;
+    width: var(--altura-botao-barra);
+    height: var(--altura-botao-barra);
   }
 
   /* ---------- janela ---------- */

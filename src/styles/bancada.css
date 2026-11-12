@@ -847,6 +847,11 @@
     color: inherit;
   }
 
+  /* O X na faixa preta: branco, como o título. */
+  .painel__cabecalho .painel__fechar {
+    color: var(--ps-branco);
+  }
+
   .painel__rodape,
   .caixa-dialogo__botoes {
     border-top: var(--borda) solid var(--bancada-borda);
@@ -988,9 +993,10 @@
 @media screen {
   /* ---------- barra da nota: a faixa preta da tela inicial ---------- */
 
-  /* Logo, emitente e número da nota, pastilhas (ST, TIPI, perfil) e as
-     ações à direita. O título cresce e corta com reticências; sem espaço, a
-     saída desce para a segunda linha (app.css). */
+  /* Logo, emitente e número da nota, pastilhas de situação (ST, TIPI, pasta,
+     perfil) e as ações com a engrenagem por último. O título cresce e corta
+     com reticências; sem espaço, as ações descem para a linha de baixo
+     (app.css). */
   .barra {
     gap: var(--esp-3);
     min-height: var(--bancada-faixa-altura);
@@ -1049,11 +1055,14 @@
     color: var(--cor-texto-sobre-destaque);
   }
 
+  /* Situação: na linha do título, encostada à direita; na tela larga, logo
+     depois do título (app.css, .barra__acoes). */
   .barra__pastilhas {
     display: flex;
     flex: none;
     align-items: center;
     gap: var(--esp-2);
+    margin-left: auto;
   }
 
   /* Pastilhas dos documentos, na barra da nota e na faixa da tela inicial:

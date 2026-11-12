@@ -1,6 +1,6 @@
 // Tela de Configurações, dentro da janela, no mesmo padrão da área de
 // Documentos (cabeça preta com o filete amarelo, corpo bege, cartões
-// brancos, Fechar no rodapé). Abre pela engrenagem da barra preta (tela
+// brancos, X no canto do cabeçalho). Abre pela engrenagem da barra preta (tela
 // inicial e tela da nota). Abas à esquerda:
 //   Geral                  pasta de destino, CNPJ da empresa, dias dos
 //                          avisos, verificação online
@@ -17,7 +17,7 @@ import {
   montarAreaDocumentos,
   type OpcoesAreaDocumentos,
 } from './areaDocumentos';
-import { botao, el, icone } from './dom';
+import { botao, botaoFecharPainel, el, icone } from './dom';
 import { chaveDecisao, type DecisaoLembrada } from './fiscal/entrada';
 import {
   contagemPorTipo,
@@ -160,7 +160,6 @@ export function abrirConfiguracoes(
   titulo.id = 'config-titulo';
   const status = el('p', 'painel__status');
   status.setAttribute('role', 'status');
-  const btnFechar = botao('botao botao--claro', el('span', '', 'Fechar'));
   const abas = el('div', 'config__abas');
   abas.setAttribute('role', 'tablist');
   abas.setAttribute('aria-orientation', 'vertical');
@@ -180,9 +179,10 @@ export function abrirConfiguracoes(
         'painel__dica',
         'Ajustes do PS Reader neste computador: pasta, empresa, perfis, ferramentas, documentos, decisões e os dados guardados.',
       ),
+      botaoFecharPainel(() => fechar()),
     ),
     el('div', 'config__corpo', abas, conteudo),
-    el('footer', 'painel__rodape', status, btnFechar),
+    el('footer', 'painel__rodape', status),
   );
   d.setAttribute('aria-labelledby', titulo.id);
   dialogo = d;
@@ -229,7 +229,6 @@ export function abrirConfiguracoes(
     d.remove();
     dialogo = null;
   };
-  btnFechar.addEventListener('click', fechar);
   d.addEventListener('cancel', (e) => {
     e.preventDefault();
     fechar();

@@ -335,9 +335,9 @@ ul {
 
 /* ---------- barra superior ---------- */
 
-/* Uma linha quando cabe. Quando falta espaço, a saída (pasta, imprimir,
-   salvar) desce para a segunda linha; o título nunca fica mais estreito que
-   --largura-minima-titulo. */
+/* Uma linha só na tela larga. Nas outras, duas: em cima título e situação,
+   embaixo as ações e a engrenagem (.barra__acoes). O título nunca fica mais
+   estreito que --largura-minima-titulo. */
 .barra {
   position: sticky;
   top: 0;
@@ -490,11 +490,28 @@ ul {
   border-top: var(--borda) solid var(--cor-borda-suave);
 }
 
-/* Ações em três grupos, nesta ordem: navegação, modo, saída. O nav continua
-   como marco para o leitor de tela, mas não gera caixa: cada grupo é um item
-   da barra e pode descer de linha sozinho. */
+/* Ações em três grupos, nesta ordem: navegação, modo, saída; a engrenagem
+   vem logo depois do nav, sempre a última. Duas linhas: em cima o título e a
+   situação (pastilhas), embaixo o nav, que ocupa a linha menos o lugar da
+   engrenagem. Tela larga (1920 a 100%): tudo numa linha, um filete separa a
+   situação das ações. */
 .barra__acoes {
-  display: contents;
+  display: flex;
+  flex: 1 1 calc(100% - var(--altura-botao-barra) - var(--esp-5));
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-3);
+  min-width: 0;
+}
+
+@media (min-width: 1720px) {
+  .barra__acoes {
+    flex: 0 1 auto;
+    margin-left: var(--esp-2);
+    padding-left: var(--esp-4);
+    border-left: var(--borda) solid
+      color-mix(in srgb, var(--ps-branco) 25%, transparent);
+  }
 }
 
 .barra__grupo {
@@ -1580,9 +1597,61 @@ ul {
   background: var(--fundo-modal);
 }
 
+/* Janela por cima (ferramenta ST, Configurações, editor de colunas,
+   diálogos): a página de baixo não rola; rolar sobre a janela rola só a
+   janela. overflow: hidden guarda a posição: ao fechar, a página volta a
+   rolar de onde estava. O espaço da barra de rolagem fica reservado para a
+   página não pular de lado. */
+@media screen {
+  html:has(dialog:modal) {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
+}
+
 .painel__cabecalho {
+  position: relative;
   padding: var(--esp-4) var(--esp-5) var(--esp-3);
   border-bottom: var(--borda) solid var(--cor-borda-suave);
+}
+
+/* X no canto superior direito do cabeçalho (dom.ts, botaoFecharPainel): o
+   texto do cabeçalho não passa por baixo dele. */
+.painel__cabecalho:has(> .painel__fechar) {
+  padding-right: calc(
+    var(--esp-5) + var(--tamanho-fechar-painel) + var(--esp-2)
+  );
+}
+
+.painel__fechar {
+  position: absolute;
+  top: var(--esp-3);
+  right: var(--esp-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tamanho-fechar-painel);
+  height: var(--tamanho-fechar-painel);
+  padding: 0;
+  border: var(--borda) solid transparent;
+  border-radius: var(--raio);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.painel__fechar .icone {
+  width: 18px;
+  height: 18px;
+}
+
+.painel__fechar:hover {
+  border-color: currentColor;
+}
+
+.painel__fechar:focus-visible {
+  outline: var(--botao-foco-espessura) solid currentColor;
+  outline-offset: var(--botao-foco-afastamento);
 }
 
 .painel__titulo {

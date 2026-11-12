@@ -137,18 +137,10 @@
             ></div>
           </div>
         </div>
-        <!-- Engrenagem: abre as Configurações (src/configuracoes.ts). O
-             ícone vem de src/icones.ts (renderer.ts). -->
-        <button
-          id="btn-config-barra"
-          type="button"
-          class="config-engrenagem"
-          aria-label="Configurações"
-        ></button>
       </div>
       <!-- Grupos por função: navegação, modo, saída. Salvar é o único botão
-           principal; os demais são secundários. Com pouco espaço, a saída
-           desce para uma segunda linha (app.css). -->
+           principal; os demais são secundários. Tela estreita: as ações e a
+           engrenagem descem juntas para a linha de baixo (app.css). -->
       <nav class="barra__acoes" aria-label="Ações da nota">
         <div class="barra__grupo" role="group" aria-label="Navegação">
           <button id="btn-inicio" type="button" class="botao botao--claro">
@@ -265,6 +257,15 @@
           </div>
         </div>
       </nav>
+      <!-- Engrenagem: abre as Configurações (src/configuracoes.ts). Sempre a
+           última da barra, depois do Salvar. O ícone vem de src/icones.ts
+           (renderer.ts). -->
+      <button
+        id="btn-config-barra"
+        type="button"
+        class="config-engrenagem"
+        aria-label="Configurações"
+      ></button>
       <!-- Leitura protegida (src/nfe/leituraProtegida.ts): a NF-e aberta só
            para ver. Abaixo do filete amarelo; o texto e o botão vêm do
            renderer. Usar a Conferência pergunta antes de sair da leitura. -->

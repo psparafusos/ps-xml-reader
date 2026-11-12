@@ -98,6 +98,18 @@ export function botao(classe: string, ...filhos: Filho[]): HTMLButtonElement {
 }
 
 /**
+ * X no canto superior direito do cabeçalho das janelas grandes
+ * (Configurações, ferramenta ST, editor de colunas). Só ícone: o nome vai no
+ * aria-label. Faz o mesmo que o Esc.
+ */
+export function botaoFecharPainel(aoClicar: () => void): HTMLButtonElement {
+  const b = botao('painel__fechar', icone(...ICONES.fechar));
+  b.setAttribute('aria-label', 'Fechar');
+  b.addEventListener('click', aoClicar);
+  return b;
+}
+
+/**
  * Teclado de um menu de opções (seletor de perfil, largura da anotação):
  * setas para cima e para baixo (dando a volta), Home e End movem o foco;
  * Esc fecha e volta ao botão; Tab fecha e segue. Esc não chega ao painel.
