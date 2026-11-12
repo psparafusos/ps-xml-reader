@@ -261,29 +261,58 @@ reabrir o app. A mesma pasta aparece na aba Geral das Configurações.
 Em 1366 a 125% (ou janela estreita), a grade passa de três para duas colunas,
 com as notas recentes embaixo.
 
-Um XML da NF-e abre a tela de escolha de modo: no topo, fornecedor (nome
-fantasia ou razão social), número e série, data de emissão, valor total e
-quantidade de itens, e o nome do arquivo em letra menor. Cada opção mostra a
-miniatura da primeira página da nota naquele modo, gerada da nota aberta (só a
-primeira página, depois que a tela aparece). Se a nota não suporta DANFE, a
-opção aparece desabilitada com o motivo. Um `.psxml` pula essa tela e abre
-direto na **Conferência**.
+Um XML da NF-e abre direto no **DANFE**; um `.psxml` abre direto na
+**Conferência**. Os botões **Conferência** e **DANFE** da barra trocam de
+modo. Se a nota não tem DANFE no PS Reader (contingência ou outro modelo),
+ela abre na **Conferência** com o motivo numa mensagem.
 
-Ao passar o mouse sobre a miniatura da prévia (ou com o foco de teclado nela),
-ela fica desfocada e semitransparente, com dois botões: **Abrir aqui** (abre nesta janela, naquele
-modo) e **Nova janela** (abre numa janela nova, naquele modo; esta volta para a
-tela inicial). Clicar na própria prévia é o mesmo que **Abrir aqui**. Na tela de
-escolha de uma janela vazia, **Abrir aqui** fica em destaque; na escolha por
-cima de uma nota aberta (ver Várias janelas), **Nova janela**. O mouse sobre
-**Salvar PDF** ou sobre o nome do modo, embaixo da miniatura, não liga o
-efeito.
+### Leitura protegida
 
-Embaixo de cada miniatura, **Salvar PDF** grava só o PDF daquele modo na pasta
-de destino (`<FORNECEDOR>_NF<número>_Conferencia.pdf` ou `..._DANFE.pdf`), sem
-entrar no modo. Sem pasta escolhida, pede a pasta antes. Se o PDF já existe,
-faz a mesma pergunta de Substituir, Salvar cópia ou Cancelar (ver Salvar
-cópia). Se a nota não suporta DANFE, o **Salvar PDF** do DANFE fica
-desabilitado.
+O XML da NF-e abre em **leitura protegida**, só para ver, como o Word com um
+arquivo baixado. Uma faixa abaixo da barra diz "Leitura protegida: só
+visualização." e tem o botão **Usar a Conferência**. Cada perfil escolhe
+como as notas abrem em **Abrir notas em** (Configurações, aba Ferramentas):
+**Leitura protegida** (o padrão) ou **Conferência**, que abre o XML direto
+na Conferência, com as anotações liberadas. Vale para o botão Abrir, o
+arrastar, a nota recente e o duplo clique no Explorer.
+
+- Na leitura funcionam: trocar entre **Conferência** e **DANFE**, trocar de
+  perfil (só muda a visualização), zoom, ordenar, selecionar e copiar texto, **Imprimir** e **Salvar PDF** (o
+  **Salvar** vira **Salvar PDF** e grava na pasta de destino, com a mesma
+  regra de nome e de arquivo que já existe). O painel de avisos continua
+  visível.
+- Na faixa, só na tela desta janela:
+  - no DANFE, **Folhas**: **Uma** (uma folha embaixo da outra, como fora da
+    leitura), **Lado a lado** (quantas couberem na largura) e **Ajustar à
+    largura** (uma folha ocupando a largura da janela, que acompanha quando a
+    janela muda de tamanho). Mudar o zoom à mão (Ctrl com +, - ou 0, ou a
+    roda do mouse) sai do Ajustar à largura e volta para **Uma**. O arranjo
+    fica para a próxima nota aberta em leitura nesta janela, como o zoom. O
+    PDF e a impressão saem sempre uma folha A4 por página;
+  - na Conferência, **Orientação**: **Retrato** ou **Paisagem**. Vem marcada
+    a do perfil (na Automática, a que a tabela pede) e vale para a tela e
+    para o PDF e a impressão que saírem dela. Não grava no perfil e vale só
+    para a nota aberta: outra nota, ou sair da leitura, volta à do perfil.
+- As colunas de anotação ficam travadas. Clicar ou digitar numa anotação, o
+  **Editar colunas** (também pelo **Gerenciar perfis...**), o **Salvar
+  cópia...** e a
+  ferramenta **ST, MVA e CFOP** mostram um aviso: "Você vai sair da leitura
+  protegida e começar a editar. O XML original não muda; o que você fizer
+  fica numa cópia (.psxml)." **Ficar na leitura** vem com o foco (Enter e Esc
+  ficam); **Continuar** sai da leitura e a ação segue. **Usar a Conferência**
+  faz a mesma pergunta e abre a Conferência para editar.
+- Não há volta para a leitura na mesma janela: para reler protegido, abra o
+  arquivo de novo.
+- O processo principal guarda o modo de cada janela e recusa gravar o
+  `.psxml` de uma janela em leitura protegida, mesmo que a tela peça.
+- O `.psxml` é a cópia de trabalho e abre em edição, sem a faixa. Se ele
+  veio da internet (a marca `Zone.Identifier` do Windows com zona 3 ou 4,
+  como num anexo de e-mail ou num download), abre em leitura protegida, com
+  o aviso "Esta cópia editada (.psxml) veio da internet e abriu em leitura
+  protegida.".
+- O XML da NF-e com a marca da internet segue o perfil (**Abrir notas em**):
+  quase toda nota chega por e-mail ou download, e o XML original nunca é
+  alterado. A marca só muda a abertura do `.psxml`.
 
 ### Várias janelas
 
@@ -295,14 +324,11 @@ Cada janela tem a sua nota. O app continua sendo um processo só (instância
 - Janela na tela inicial (sem nota): é reaproveitada.
 - Duplo clique num `.psxml` (com o app fechado ou aberto): abre direto na
   **Conferência**, numa janela vazia ou numa janela nova.
-- `.psxml` pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: janela
-  nova, direto na **Conferência**.
-- XML pelo **Abrir outro XML** (ou arrastado) com uma nota aberta: a tela de
-  escolha aparece por cima da nota, que fica como estava, com **Abrir aqui** e
-  **Nova janela** sobre as prévias (**Nova janela** em destaque). **Abrir aqui**
-  troca a nota desta janela e, com anotação não salva, pergunta antes. Os
-  **Salvar PDF** das prévias continuam e gravam o PDF do XML da escolha, sem
-  mexer na nota de baixo. **Voltar à nota** (ou Esc) fecha a escolha.
+- XML ou `.psxml` pelo **Abrir outro XML** (ou arrastado) com uma nota
+  aberta: janela nova (o XML no **DANFE**, o `.psxml` na **Conferência**), e a
+  nota desta janela fica como estava. Arquivo recusado (grande demais, com
+  DOCTYPE, pasta de rede que não responde) mostra a mensagem nesta janela e
+  nenhuma janela nova abre.
 
 Janelas novas abrem deslocadas 32 px da anterior; se passarem da área de
 trabalho do monitor, voltam para o canto dele. O tamanho e a posição lembrados
@@ -584,8 +610,8 @@ O atalho aparece no texto de ajuda do botão. Se o botão não está na tela ou 
 desabilitado (por exemplo Ctrl+S na tela inicial, ou durante um salvamento), o
 atalho não faz nada. Na anotação, Ctrl+C, Ctrl+V e Ctrl+X seguem normais.
 
-O zoom vale só na área do documento (conferência e DANFE), não na barra nem nas
-telas inicial e de escolha, nos níveis do navegador (50% a 200%). Fora de 100%
+O zoom vale só na área do documento (conferência e DANFE), não na barra nem na
+tela inicial, nos níveis do navegador (50% a 200%). Fora de 100%
 aparece no canto o botão **Restaurar 100%**. Cada modo guarda o seu zoom
 enquanto o app está aberto. A impressão e o PDF saem sempre em 100%, e o DANFE
 é sempre paginado em 100%. Com zoom alto o DANFE pode rolar na horizontal, como
@@ -602,9 +628,9 @@ título da nota nunca fica mais estreito que 240 px:
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
   pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
 - Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
-  Com um `.psxml` aberto, a opção DANFE fica desabilitada, com a explicação ao
-  passar o mouse (e para o leitor de tela): "O DANFE só é gerado a partir do
-  XML original."
+  Com um `.psxml` aberto, a opção DANFE fica indisponível: clicar nela mostra
+  o diálogo do app "DANFE indisponível", com "O DANFE só é gerado a partir do
+  XML original da nota." e só o botão OK.
 - Saída:
   - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual (na
     Conferência, já na orientação calculada para a tabela). Se a
@@ -648,7 +674,7 @@ nome novo.
 ### Arquivo que já existe e Salvar cópia
 
 Quando o arquivo a gravar já existe na pasta de destino (o `.psxml` do Salvar,
-o PDF da Conferência ou do DANFE, ou o **Salvar PDF** das prévias), uma caixa
+o PDF da Conferência ou do DANFE), uma caixa
 no visual do app pergunta: **Substituir**, **Salvar cópia...** ou
 **Cancelar**. Regravar o `.psxml` aberto na própria pasta dele não pergunta.
 
@@ -984,7 +1010,9 @@ para o cartão. Seis abas:
   Ferramentas do painel (**ST, MVA e CFOP** e **CFOPs de entrada**) e em que
   ordem (arrastar pela alça ou setas para cima e para baixo nela), e os
   campos do rodapé da "ST, MVA e CFOP" (**Gravar a MVA em**, **Gravar a
-  alíquota interna em**). O CFOP é sempre gravado. As mudanças valem na hora.
+  alíquota interna em**). O CFOP é sempre gravado. Também **Abrir notas em**:
+  **Leitura protegida** (padrão) ou **Conferência** (ver Leitura protegida).
+  As mudanças valem na hora.
   Fica na chave `ferramentasPerfis` do `config.json`, fora dos perfis, para
   o arquivo de um perfil exportado não mudar; excluir um perfil apaga a
   entrada dele.

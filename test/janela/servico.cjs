@@ -1,7 +1,9 @@
 // Casos do test:janela para o serviço de leitura pesada (parte 2), com o
 // utilityProcess de verdade: o servicoPesado.cjs que o Forge monta ao lado
-// do main.cjs. Arquivos inventados, gerados aqui e apagados no fim. Nenhum
-// caso aciona Copiar.
+// do main.cjs. Arquivos inventados, gerados aqui e apagados no fim. Cada caso
+// começa do estado limpo de executar.cjs (tela inicial, sem diálogo, leitor
+// fechado, nenhuma leitura no serviço) e espera de verdade, sem tempo fixo.
+// Nenhum caso aciona Copiar.
 'use strict';
 
 const fs = require('node:fs');
@@ -199,16 +201,7 @@ async function casosServico(c) {
           ? fs.readFileSync(infoTipi, 'utf8')
           : null;
         try {
-          await avaliar(`document.getElementById('btn-inicio')?.click(); true`);
-          await aguardar(
-            `!!document.getElementById('btn-documentos') && !document.getElementById('vazio').hidden`,
-            10000,
-            'tela inicial',
-          );
-          // Os casos de NF-e deixam avisos "Nota de outra empresa" abertos.
-          await avaliar(
-            `[...document.querySelectorAll('dialog[open] button')].filter((b) => b.textContent.trim() === 'Entendi').forEach((b) => b.click()); true`,
-          );
+          // Começa da tela inicial, sem diálogo aberto (estadoLimpo).
           await avaliar(
             `document.getElementById('btn-documentos').click(); true`,
           );
@@ -241,7 +234,12 @@ async function casosServico(c) {
             `document.querySelector('.servico-progresso button').click(); true`,
           );
           await aguardar(`!${cartaoVisivel}`, 10000, 'o cartão não sumiu');
-          await espera(500);
+          // A importação terminou (cancelada): a área sai de ocupada.
+          await aguardar(
+            `(() => { const b = document.querySelector('[data-foco="atualizar-tipi"]'); return !!b && !b.disabled && !b.closest('[aria-busy="true"]'); })()`,
+            10000,
+            'a área de Documentos continuou ocupada',
+          );
           const agora = fs.existsSync(infoTipi)
             ? fs.readFileSync(infoTipi, 'utf8')
             : null;

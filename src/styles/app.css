@@ -55,7 +55,6 @@ ul {
   .nota,
   .danfe,
   .pasta-rapida__caminho,
-  .modo__arquivo,
   .config__caminho,
   .config__arquivo,
   .documento__arquivo strong,
@@ -94,7 +93,6 @@ ul {
     [role='tab'],
     [role='menu'],
     [role='tooltip'],
-    .dica,
     .secao__titulo,
     .titulo-secao,
     .campo__rotulo,
@@ -247,201 +245,92 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- escolha de modo ---------- */
+/* ---------- leitura protegida: faixa na base da barra ---------- */
 
-.modo {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: var(--esp-5);
-}
-
-.modo__caixa {
+/* Última peça da barra, ocupando a largura toda (sem o recuo da barra). A
+   altura da barra (--altura-barra) já inclui a faixa: o painel e a nota
+   descem junto. Interface: não seleciona (regra da seleção, acima). */
+.faixa-leitura {
+  order: 99;
+  /* A largura da barra mais o recuo dos dois lados (as margens negativas
+     abaixo levam a faixa até as bordas). */
+  flex: 0 0 calc(100% + 2 * var(--esp-5));
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--esp-4);
-  max-width: 100%;
-  text-align: center;
-}
-
-/* Dados da nota, em destaque no topo. */
-.modo__nota {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--esp-2);
-  max-width: 100%;
-}
-
-.modo__cabecalho {
-  display: flex;
-  flex-direction: column;
-  line-height: var(--altura-linha-titulo);
-}
-
-.modo__fornecedor {
+  gap: var(--esp-3);
+  margin: 0 calc(-1 * var(--esp-5)) calc(-1 * var(--esp-3));
+  padding: var(--esp-2) var(--esp-5);
+  background: var(--cor-destaque-suave);
   color: var(--cor-texto-forte);
-  font-size: var(--fs-destaque);
+}
+
+.faixa-leitura[hidden] {
+  display: none;
+}
+
+.faixa-leitura__icone {
+  flex: none;
+}
+
+.faixa-leitura__texto {
   font-weight: var(--peso-forte);
-  overflow-wrap: anywhere;
 }
 
-.modo__numero {
-  margin-top: var(--esp-1);
-  color: var(--cor-texto-forte);
-  font-size: var(--fs-lg);
-  font-weight: var(--peso-medio);
+/* Folhas do DANFE e orientação da Conferência, à direita do texto, antes do
+   Usar a Conferência. Janela estreita: descem para a linha de baixo. */
+.faixa-leitura {
+  flex-wrap: wrap;
 }
 
-.modo__resumo {
+.faixa-leitura__vista {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--esp-2) var(--esp-5);
-}
-
-.modo__dado {
-  display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: var(--esp-3);
+  margin-left: auto;
 }
 
-.modo__rotulo {
-  font-size: var(--fs-xs);
-  font-weight: var(--peso-medio);
-  letter-spacing: var(--espaco-letras-rotulo);
-  text-transform: uppercase;
-}
-
-.modo__valor {
-  color: var(--cor-texto-forte);
-  font-size: var(--fs-lg);
-  font-variant-numeric: tabular-nums;
-}
-
-.modo__arquivo {
-  font-size: var(--fs-xs);
-  overflow-wrap: anywhere;
-}
-
-.modo__titulo {
-  color: var(--cor-texto-forte);
-  font-size: var(--fs-lg);
-  font-weight: var(--peso-forte);
-}
-
-.modo__opcoes {
+.faixa-leitura__grupo {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--esp-4);
-}
-
-/* As duas opções com a mesma largura: a da miniatura mais o respiro (o texto
-   do motivo, quando o DANFE não é suportado, quebra em linhas). */
-.modo__item {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: var(--esp-2);
-  width: max(
-    var(--largura-modo-opcao),
-    calc(
-      var(--altura-miniatura) * 210 / 297 + 2 * var(--esp-3) + 2 *
-        var(--borda-forte)
-    )
-  );
-  max-width: 100%;
 }
 
-/* "Salvar PDF" embaixo da miniatura, fora do botão da opção (botão dentro de
-   botão não vale). */
-.modo__salvar {
-  justify-content: center;
+.faixa-leitura__grupo[hidden] {
+  display: none;
 }
 
-.modo__opcao {
-  width: 100%;
-  flex: 1 1 auto;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--esp-2);
-  padding: var(--esp-3);
-  background: var(--cor-destaque);
-  border-color: var(--cor-destaque);
-  color: var(--cor-texto-sobre-destaque);
-}
-
-/* Sem cor própria de hover: a miniatura fica dentro deste botão e os botões
-   Abrir aqui e Nova janela ficam por cima dela, fora dele. Com hover preto
-   aqui, a cor trocava ao passar da miniatura para os botões (e sobrava a
-   borda preta ao sair). O único estado de destaque é o da prévia
-   desfocada, em .modo__item:has(...) abaixo. */
-.modo__opcao:hover:not(:disabled),
-.modo__opcao:active:not(:disabled) {
-  background: var(--cor-destaque);
-  border-color: var(--cor-destaque);
-  color: var(--cor-texto-sobre-destaque);
-}
-
-/* DANFE indisponível: fundo de botão secundário e texto legível, para o
-   motivo poder ser lido (a opacidade de desabilitado o apagaria). */
-.modo__opcao:disabled {
-  opacity: 1;
-  background: var(--botao-sec-fundo);
-  border-color: var(--cor-borda);
-  color: var(--cor-texto);
-}
-
-/* Miniatura A4 da primeira página. O conteúdo é montado em tamanho real e
-   reduzido por --escala (renderer.ts). */
-.modo__miniatura {
-  display: block;
-  height: var(--altura-miniatura);
-  aspect-ratio: 210 / 297;
-  overflow: hidden;
-  border: var(--borda) solid var(--ps-preto);
-  background: var(--ps-branco);
-}
-
-/* Mesmo texto do corpo da página: dentro do botão o conteúdo herdaria negrito,
-   cor e alinhamento, e o DANFE mediria e dividiria o texto de outro jeito. */
-.miniatura__escala {
-  overflow: hidden;
-  transform-origin: 0 0;
-  transform: scale(var(--escala, 0));
-  color: var(--cor-texto);
-  font-family: var(--fonte);
-  font-size: var(--fs-md);
-  font-weight: var(--peso-normal);
-  line-height: var(--altura-linha);
-  text-align: left;
-}
-
-.miniatura__escala--medindo {
-  transform: none;
-}
-
-.danfe.danfe--miniatura {
-  display: block;
-  padding: 0;
-  background: none;
-}
-
-.danfe--miniatura .folha {
-  box-shadow: none;
-}
-
-.modo__nome {
-  font-size: var(--fs-xl);
-  font-weight: var(--peso-forte);
-}
-
-.modo__descricao {
+.faixa-leitura__rotulo {
   font-size: var(--fs-sm);
-  font-weight: var(--peso-normal);
+}
+
+.faixa-leitura__seletor {
+  display: inline-flex;
+}
+
+.faixa-leitura__seletor .seletor__opcao {
+  padding: var(--esp-1) var(--esp-3);
+  font-size: var(--fs-sm);
+}
+
+/* DANFE com as folhas lado a lado (leitura protegida, só a tela): quantas
+   couberem na largura, de cima para baixo. No papel, print.css e danfe.css
+   voltam a uma folha por página. */
+@media screen {
+  .danfe[data-folhas='lado'] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: safe center;
+    align-items: flex-start;
+  }
+}
+
+/* Anotações travadas na leitura protegida: o campo mostra o texto, mas
+   digitar ou clicar pede o aviso para sair da leitura. */
+.anotacao__campo:read-only {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
 }
 
 /* ---------- barra superior ---------- */
@@ -620,32 +509,6 @@ ul {
 
 .barra__modo {
   position: relative;
-}
-
-/* Texto de ajuda da opção indisponível (cópia editada: sem DANFE). */
-.dica {
-  display: none;
-  position: absolute;
-  top: calc(100% + var(--esp-2));
-  right: 0;
-  z-index: 30;
-  width: max-content;
-  max-width: var(--largura-dica);
-  padding: var(--esp-2) var(--esp-3);
-  border-radius: var(--raio);
-  background: var(--ps-preto);
-  color: var(--ps-branco);
-  font-size: var(--fs-sm);
-  font-weight: var(--peso-normal);
-  box-shadow: var(--sombra-aviso);
-  pointer-events: none;
-}
-
-.barra__modo:has(
-    #btn-modo-danfe[aria-disabled='true']:is(:hover, :focus-visible)
-  )
-  .dica {
-  display: block;
 }
 
 /* Seletor de duas posições (Conferência | DANFE): a opção ativa fica
@@ -1691,17 +1554,6 @@ ul {
   display: none;
 }
 
-/* PDF gerado pela tela de escolha: o documento do modo é montado aqui, fora da
-   área visível, e só aparece na mídia print (print.css). */
-body.pdf-previa #pdf-previa {
-  position: fixed;
-  top: 0;
-  left: -100000px;
-  width: 100%;
-  visibility: hidden;
-  pointer-events: none;
-}
-
 /* ---------- painel Editar colunas ---------- */
 
 .ordenar__editar {
@@ -2524,102 +2376,6 @@ body.pdf-previa #pdf-previa {
 .painel__indicador[data-cabe='false'] {
   background: var(--aviso-erro-fundo);
   color: var(--aviso-erro-texto);
-}
-
-/* ---------- escolha por cima da nota (Abrir outro XML com nota aberta) ---------- */
-
-/* A tela de escolha cobre a janela, sobre um fundo escuro, e a nota fica
-   por baixo, como estava. */
-.modo--sobreposta {
-  position: fixed;
-  inset: 0;
-  z-index: 35;
-  overflow: auto;
-  background: var(--fundo-modal-forte);
-}
-
-.modo--sobreposta .modo__caixa {
-  position: relative;
-  padding: var(--esp-6) var(--esp-6) var(--esp-5);
-  border: var(--borda-forte) solid var(--ps-preto);
-  border-radius: var(--raio);
-  background: var(--cor-fundo);
-  box-shadow: var(--sombra-aviso);
-}
-
-.modo__fechar {
-  display: none;
-}
-
-.modo--sobreposta .modo__fechar {
-  position: absolute;
-  top: var(--esp-3);
-  right: var(--esp-3);
-  display: inline-flex;
-}
-
-/* Abrir aqui e Nova janela: sempre na tela de escolha (janela vazia ou por
-   cima da nota), sobre a prévia, quando o mouse passa por ela ou o foco
-   está nela. A prévia fica desfocada e semitransparente por baixo. */
-.modo__acoes {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: calc(var(--altura-miniatura) + 2 * var(--esp-3));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--esp-3);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Só o mouse sobre a miniatura (ou sobre os próprios botões, que ficam em cima
-   dela) ou o foco de teclado na opção liga o efeito; o mouse no Salvar PDF
-   embaixo não mexe na prévia. */
-.modo__item:has(
-    .modo__miniatura:hover,
-    .modo__acao:hover,
-    .modo__opcao:focus-visible,
-    .modo__acao:focus-visible
-  )
-  .modo__acoes {
-  opacity: 1;
-}
-
-/* O contêiner nunca recebe o mouse (tiraria o hover da miniatura e o efeito
-   piscaria); só os botões, quando aparecem. */
-.modo__item:has(
-    .modo__miniatura:hover,
-    .modo__acao:hover,
-    .modo__opcao:focus-visible,
-    .modo__acao:focus-visible
-  )
-  .modo__acao {
-  pointer-events: auto;
-}
-
-.modo__item:has(
-    .modo__miniatura:hover,
-    .modo__acao:hover,
-    .modo__opcao:focus-visible,
-    .modo__acao:focus-visible
-  )
-  .modo__miniatura {
-  filter: blur(var(--desfoque-previa));
-  opacity: var(--opacidade-previa);
-}
-
-.modo__acao {
-  min-width: var(--largura-acao-previa);
-  justify-content: center;
-}
-
-/* DANFE indisponível: os botões não aparecem sobre a prévia. */
-.modo__acao:disabled {
-  display: none;
 }
 
 /* ---------- perfil ativo, no topo do painel Editar colunas ---------- */
@@ -3866,8 +3622,8 @@ body.pdf-previa #pdf-previa {
   font-weight: var(--peso-forte);
 }
 
-/* Dica (src/tooltip.ts): no lugar do title nativo. Popover: fica por cima
-   das janelas modais. A classe .dica (sem DANFE na barra) é outra. */
+/* Dica (src/tooltip.ts), só na ferramenta ST, MVA e CFOP. Popover: fica
+   por cima das janelas modais. */
 .dica-flutuante {
   position: fixed;
   inset: auto;

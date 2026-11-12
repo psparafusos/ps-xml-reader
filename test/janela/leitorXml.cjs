@@ -26,11 +26,41 @@ const MALFORMADO = `<?xml version="1.0"?>
 `;
 
 /**
+ * Parte do estado limpo de executar.cjs: nenhuma leitura no serviço e o
+ * leitor fechado. Leitura em andamento: Cancelar no cartão (o Fechar no meio
+ * da leitura não para o filho). Espera de verdade, com prazo.
+ */
+async function limparLeitorXml(avaliar, espera, prazo = 60000) {
+  const limite = Date.now() + prazo;
+  while (Date.now() < limite) {
+    const passo = await avaliar(`(() => {
+      const cartao = document.querySelector('.servico-progresso');
+      const b = cartao?.querySelector('button');
+      if (cartao && !cartao.hidden) {
+        if (b && !b.disabled) b.click();
+        return 'cancelando';
+      }
+      const leitor = document.querySelector('.leitor-xml');
+      if (!leitor || leitor.hidden) return 'limpo';
+      const estado = document.querySelector('.leitor-xml__estado');
+      if (estado && !estado.hidden && estado.innerText.trim() === 'Lendo o arquivo…')
+        return 'lendo';
+      [...leitor.querySelectorAll('button')].find((x) => x.textContent === 'Fechar')?.click();
+      return 'fechando';
+    })()`).catch(() => 'limpo');
+    if (passo === 'limpo') return;
+    await espera(100);
+  }
+  throw new Error('o leitor de XML não fechou');
+}
+
+/**
  * @param {object} c contexto de executar.cjs: app, notas, caso, avaliar,
- *   aguardar, confere, espera, rede, sonda.
+ *   aguardar, confere, rede, sonda. Cada caso começa do estado limpo (o
+ *   `caso` de executar.cjs chama o estadoLimpo, que fecha o leitor).
  */
 async function casosLeitorXml(c) {
-  const { app, notas, caso, avaliar, aguardar, confere, espera, rede } = c;
+  const { app, notas, caso, avaliar, aguardar, confere, rede } = c;
 
   const gravar = (nome, conteudo) => {
     const alvo = path.join(notas, nome);
@@ -248,8 +278,7 @@ async function casosLeitorXml(c) {
     );
     await clicarBotao('Fechar');
     await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
-    await espera(100);
   });
 }
 
-module.exports = { casosLeitorXml };
+module.exports = { casosLeitorXml, limparLeitorXml };

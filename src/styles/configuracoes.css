@@ -272,6 +272,31 @@
     gap: var(--esp-2);
   }
 
+  /* "Abrir notas em": uma opção por linha, rádio ao lado do título e da
+     explicação. Interface: não seleciona. */
+  .config__opcoes {
+    display: grid;
+    gap: var(--esp-2);
+  }
+
+  .config__opcao {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--esp-2);
+    cursor: pointer;
+  }
+
+  .config__radio {
+    flex: none;
+    margin-top: 3px;
+    accent-color: var(--ps-preto);
+  }
+
+  .config__opcao-textos {
+    display: grid;
+    gap: 2px;
+  }
+
   /* ---------- decisões ---------- */
 
   .config__filtros {

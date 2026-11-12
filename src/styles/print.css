@@ -22,7 +22,6 @@
   .ordenar,
   .copiar-chave,
   .vazio,
-  .modo,
   .painel,
   .caixa-dialogo,
   .rolagem__seta {
@@ -33,20 +32,6 @@
   #nota,
   #danfe {
     zoom: 1 !important;
-  }
-
-  /* PDF gerado pela tela de escolha: o documento fica fora da tela e volta ao
-     fluxo normal só no papel. */
-  body.pdf-previa #pdf-previa {
-    position: static;
-    width: auto;
-    visibility: visible;
-  }
-
-  /* A nota aberta por baixo (escolha por cima dela) não sai nesse PDF. */
-  body.pdf-previa #nota,
-  body.pdf-previa #danfe {
-    display: none !important;
   }
 
   .nota {

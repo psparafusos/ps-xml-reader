@@ -129,7 +129,6 @@
               aria-haspopup="menu"
               aria-expanded="false"
               aria-controls="menu-perfil"
-              title="Trocar o perfil de colunas"
             >
               <span class="perfil-rapido__rotulo">Perfil:</span>
               <span id="perfil-nome" class="perfil-rapido__nome"></span>
@@ -171,7 +170,6 @@
             id="btn-abrir-outro"
             type="button"
             class="botao botao--claro"
-            title="Abrir outro arquivo (Ctrl+O)"
             aria-keyshortcuts="Control+O"
           >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -201,17 +199,12 @@
               DANFE
             </button>
           </div>
-          <!-- Só aparece com o DANFE indisponível (cópia editada aberta). -->
-          <span id="dica-danfe" class="dica" role="tooltip"
-            >O DANFE só é gerado a partir do XML original.</span
-          >
         </div>
         <div class="barra__grupo barra__saida" role="group" aria-label="Saída">
           <button
             id="btn-imprimir"
             type="button"
             class="botao botao--claro"
-            title="Imprimir (Ctrl+P)"
             aria-keyshortcuts="Control+P"
           >
             <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -231,7 +224,6 @@
               id="btn-salvar"
               type="button"
               class="botao botao--principal salvar-grupo__principal"
-              title="Salvar (Ctrl+S)"
               aria-keyshortcuts="Control+S"
             >
               <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -249,7 +241,6 @@
               aria-expanded="false"
               aria-controls="menu-salvar"
               aria-label="Mais opções de salvar"
-              title="Salvar PDF ou Salvar cópia"
             >
               <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" />
@@ -282,6 +273,53 @@
           </div>
         </div>
       </nav>
+      <!-- Leitura protegida (src/nfe/leituraProtegida.ts): a NF-e aberta só
+           para ver. Abaixo do filete amarelo; o texto e o botão vêm do
+           renderer. Usar a Conferência pergunta antes de sair da leitura. -->
+      <div id="faixa-leitura" class="faixa-leitura" hidden>
+        <svg
+          class="icone faixa-leitura__icone"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path
+            d="M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z"
+          />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        <span id="faixa-leitura-texto" class="faixa-leitura__texto"></span>
+        <!-- Só a tela desta janela: as folhas do DANFE (Uma, Lado a lado,
+             Ajustar à largura) e a orientação da Conferência (vale também
+             para o PDF e a impressão; não grava no perfil). Os botões vêm do
+             renderer. -->
+        <div class="faixa-leitura__vista">
+          <div id="faixa-folhas" class="faixa-leitura__grupo" hidden>
+            <span id="rotulo-folhas" class="faixa-leitura__rotulo">Folhas</span>
+            <div
+              id="seletor-folhas"
+              class="seletor faixa-leitura__seletor"
+              role="group"
+              aria-labelledby="rotulo-folhas"
+            ></div>
+          </div>
+          <div id="faixa-orientacao" class="faixa-leitura__grupo" hidden>
+            <span id="rotulo-orientacao-leitura" class="faixa-leitura__rotulo"
+              >Orientação</span
+            >
+            <div
+              id="seletor-orientacao-leitura"
+              class="seletor faixa-leitura__seletor"
+              role="group"
+              aria-labelledby="rotulo-orientacao-leitura"
+            ></div>
+          </div>
+        </div>
+        <button
+          id="btn-usar-conferencia"
+          type="button"
+          class="botao botao--claro botao--pequeno faixa-leitura__botao"
+        ></button>
+      </div>
     </header>
 
     <!-- Painel de conferência, à esquerda da nota (só na Conferência e só
@@ -401,7 +439,6 @@
                 type="button"
                 class="botao botao--amarelo botao--grande"
                 aria-describedby="vazio-formatos"
-                title="Abrir arquivo (Ctrl+O)"
                 aria-keyshortcuts="Control+O"
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -456,165 +493,9 @@
       </div>
     </section>
 
-    <section id="modo" class="modo" hidden>
-      <div class="modo__caixa">
-        <!-- Só na escolha por cima de uma nota aberta: volta para a nota. -->
-        <button
-          id="btn-fechar-escolha"
-          type="button"
-          class="botao botao--claro botao--pequeno modo__fechar"
-          title="Voltar para a nota aberta (Esc)"
-        >
-          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12" />
-            <path d="M18 6L6 18" />
-          </svg>
-          <span>Voltar à nota</span>
-        </button>
-        <!-- Dados da nota aberta; campo ausente no XML some. -->
-        <header class="modo__nota">
-          <h1 class="modo__cabecalho">
-            <span id="modo-fornecedor" class="modo__fornecedor"></span>
-            <span id="modo-numero" class="modo__numero"></span>
-          </h1>
-          <p id="modo-resumo" class="modo__resumo"></p>
-          <p id="modo-arquivo" class="modo__arquivo"></p>
-        </header>
-        <h2 class="modo__titulo">Como deseja abrir a nota?</h2>
-        <div class="modo__opcoes">
-          <div class="modo__item">
-            <button
-              id="btn-conferencia"
-              type="button"
-              class="botao modo__opcao"
-            >
-              <span
-                id="mini-conferencia"
-                class="modo__miniatura"
-                aria-hidden="true"
-              ></span>
-              <span class="modo__nome">Conferência</span>
-              <span class="modo__descricao">Itens, totais e anotações</span>
-            </button>
-            <!-- Aparecem ao passar o mouse (ou com o foco) sobre a prévia; o
-                 destaque muda conforme a janela está vazia ou não. -->
-            <div
-              class="modo__acoes"
-              role="group"
-              aria-label="Abrir Conferência"
-            >
-              <button
-                type="button"
-                class="botao botao--principal modo__acao"
-                data-destino="aqui"
-                data-modo="conferencia"
-              >
-                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
-                  />
-                  <path d="M8 12h8" />
-                  <path d="M13 9l3 3-3 3" />
-                </svg>
-                <span>Abrir aqui</span>
-              </button>
-              <button
-                type="button"
-                class="botao botao--claro modo__acao"
-                data-destino="nova"
-                data-modo="conferencia"
-              >
-                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"
-                  />
-                  <path d="M4 16V6a2 2 0 0 1 2-2h10" />
-                </svg>
-                <span>Nova janela</span>
-              </button>
-            </div>
-            <button
-              id="btn-salvar-previa-conferencia"
-              type="button"
-              class="botao botao--claro modo__salvar"
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 4v11" />
-                <path d="M7 10l5 5 5-5" />
-                <path d="M5 20h14" />
-              </svg>
-              <span class="modo__salvar-texto">Salvar PDF</span>
-            </button>
-          </div>
-          <div class="modo__item">
-            <button id="btn-danfe" type="button" class="botao modo__opcao">
-              <span
-                id="mini-danfe"
-                class="modo__miniatura"
-                aria-hidden="true"
-              ></span>
-              <span class="modo__nome">DANFE</span>
-              <span id="danfe-descricao" class="modo__descricao"
-                >Documento auxiliar, A4 retrato</span
-              >
-            </button>
-            <!-- Aparecem ao passar o mouse (ou com o foco) sobre a prévia; o
-                 destaque muda conforme a janela está vazia ou não. -->
-            <div class="modo__acoes" role="group" aria-label="Abrir DANFE">
-              <button
-                type="button"
-                class="botao botao--principal modo__acao"
-                data-destino="aqui"
-                data-modo="danfe"
-              >
-                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M6 5h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"
-                  />
-                  <path d="M8 12h8" />
-                  <path d="M13 9l3 3-3 3" />
-                </svg>
-                <span>Abrir aqui</span>
-              </button>
-              <button
-                type="button"
-                class="botao botao--claro modo__acao"
-                data-destino="nova"
-                data-modo="danfe"
-              >
-                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"
-                  />
-                  <path d="M4 16V6a2 2 0 0 1 2-2h10" />
-                </svg>
-                <span>Nova janela</span>
-              </button>
-            </div>
-            <button
-              id="btn-salvar-previa-danfe"
-              type="button"
-              class="botao botao--claro modo__salvar"
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 4v11" />
-                <path d="M7 10l5 5 5-5" />
-                <path d="M5 20h14" />
-              </svg>
-              <span class="modo__salvar-texto">Salvar PDF</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <main id="nota" class="nota" hidden></main>
 
     <main id="danfe" class="danfe" hidden></main>
-
-    <!-- Documento do "Salvar PDF" da tela de escolha: montado aqui, fora da
-         tela, e só aparece na mídia print. -->
-    <main id="pdf-previa" class="nota" hidden></main>
 
     <footer id="rodape-pdf" class="rodape-pdf">
       <p>

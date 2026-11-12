@@ -31,6 +31,8 @@ import { montarCopia } from './nfe/copia';
 import { destinoAnotacao, type TeclaAnotacao } from './nfe/navegacao';
 import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
 import {
+  A4,
+  mmParaPx,
   ROTULO_ORIENTACAO,
   type Orientacao,
   type PlanoFolha,
@@ -43,6 +45,19 @@ import {
   type ArquivoLido,
 } from './nfe/parser';
 import { ArquivoRecusadoError } from './seguranca/xml';
+import {
+  ARRANJOS_FOLHAS,
+  AVISO_SAIR,
+  MENSAGEM_PSXML_INTERNET,
+  ROTULO_FOLHAS,
+  ROTULO_USAR_CONFERENCIA,
+  TEXTO_FAIXA,
+  orientacaoDaFolha,
+  pedeAviso,
+  zoomParaLargura,
+  type AcaoNota,
+  type ArranjoFolhas,
+} from './nfe/leituraProtegida';
 import {
   colunasOrdenaveis,
   criterioValido,
@@ -439,7 +454,6 @@ const itensMenuPerfil = (): HTMLButtonElement[] => [
 function atualizarSeletorPerfil(): void {
   if (!perfisAtual) return;
   perfilNome.textContent = perfisAtual.nomeAtivo;
-  btnPerfil.title = `Perfil de colunas: ${perfisAtual.nomeAtivo}. Clique para trocar`;
   if (!menuPerfil.hidden) fecharMenuPerfil();
 }
 
@@ -464,7 +478,6 @@ async function abrirMenuPerfil(): Promise<void> {
     b.type = 'button';
     b.setAttribute('role', 'menuitemradio');
     b.setAttribute('aria-checked', String(ativo));
-    b.title = p.nome;
     b.addEventListener('click', () => void trocarPerfil(p.id, ativo));
     return b;
   });
@@ -478,7 +491,9 @@ async function abrirMenuPerfil(): Promise<void> {
   gerenciar.setAttribute('role', 'menuitem');
   gerenciar.addEventListener('click', () => {
     fecharMenuPerfil();
-    void editarColunas(true);
+    void (async () => {
+      if (await liberarEdicao('editar-colunas')) await editarColunas(true);
+    })();
   });
   menuPerfil.replaceChildren(
     ...itens,
@@ -502,6 +517,9 @@ async function trocarPerfil(id: string, jaAtivo: boolean): Promise<void> {
   else mostrarMensagem(r.mensagem, 'erro');
 }
 
+// Trocar de perfil vale também na leitura protegida (só muda a
+// visualização); o Gerenciar perfis do menu abre o Editar colunas e pede o
+// aviso.
 btnPerfil.addEventListener('click', () => {
   if (menuPerfil.hidden) void abrirMenuPerfil();
   else fecharMenuPerfil();
@@ -635,6 +653,26 @@ function celulaAnotacao(
     td.append(campoTexto, espelho);
     return td;
   }
+  // Leitura protegida: o campo fica só para ler. Clicar nele ou digitar
+  // pede o aviso; com Continuar, a anotação segue normal nesse campo.
+  campoTexto.readOnly = leitura === 'protegida' && aberto !== null;
+  const pedirEdicao = (e: Event) => {
+    e.preventDefault();
+    void liberarEdicao('anotar').then((ok) => {
+      if (ok) campoTexto.focus();
+    });
+  };
+  campoTexto.addEventListener('mousedown', (e) => {
+    if (campoTexto.readOnly) pedirEdicao(e);
+  });
+  campoTexto.addEventListener('keydown', (e) => {
+    if (!campoTexto.readOnly) return;
+    const edita =
+      (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) ||
+      e.key === 'Backspace' ||
+      e.key === 'Delete';
+    if (edita) pedirEdicao(e);
+  });
   // Ao entrar no campo o texto fica selecionado (o mouse não desfaz a seleção
   // no clique que deu o foco).
   let focoPeloMouse = false;
@@ -801,9 +839,9 @@ function mostrarOrdemAtual(
 /**
  * Barra de ordenação acima da tabela, alinhada à esquerda: ícone, "Ordenar
  * por" e a escolha atual, que abre o menu de opções; fora da ordem da nota,
- * o × ao lado. Na miniatura sai só o desenho, sem menu e sem ações.
+ * o × ao lado.
  */
-function controleOrdenar(miniatura = false): HTMLElement {
+function controleOrdenar(): HTMLElement {
   const botao = el(
     'button',
     'ordenar__botao',
@@ -816,11 +854,6 @@ function controleOrdenar(miniatura = false): HTMLElement {
   const limpar = el('button', 'ordenar__limpar', icone(...ICONES.fechar));
   limpar.type = 'button';
   limpar.setAttribute('aria-label', 'Voltar à ordem da nota');
-  limpar.title = 'Voltar à ordem da nota';
-  if (miniatura) {
-    mostrarOrdemAtual(botao, limpar, ORDEM_NOTA);
-    return el('div', 'ordenar', botao, limpar);
-  }
   mostrarOrdemAtual(botao, limpar);
   limparOrdem = limpar;
   limpar.addEventListener('click', () => {
@@ -882,17 +915,18 @@ function controleOrdenar(miniatura = false): HTMLElement {
   editar.type = 'button';
   editar.id = 'btn-editar-colunas';
   editar.setAttribute('aria-haspopup', 'dialog');
-  editar.addEventListener('click', () => void editarColunas());
+  editar.addEventListener('click', () => {
+    void (async () => {
+      if (await liberarEdicao('editar-colunas')) await editarColunas();
+    })();
+  });
   return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar, editar);
 }
-
-/** Itens montados na miniatura: bastam os que enchem a primeira página. */
-const ITENS_MINIATURA = 40;
 
 /**
  * Elemento da tabela de itens com estas colunas e itens. `guardar`: é a
  * tabela da tela (guarda os tbody para reordenar e a própria tabela); sem
- * ele, é uma cópia (miniatura ou medida da folha) que não mexe no estado.
+ * ele, é uma cópia (medida da folha) que não mexe no estado.
  */
 /**
  * Descrição na tabela da tela: no máximo 3 linhas, com reticências (CSS,
@@ -967,7 +1001,6 @@ function montarTabelaItens(
         th.dataset.coluna = c.id;
         th.tabIndex = 0;
         th.setAttribute('aria-sort', 'none');
-        th.title = 'Ordenar por esta coluna';
         th.addEventListener('click', () => ordenarPelaColuna(c.id));
         th.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -1035,38 +1068,18 @@ function montarTabelaItens(
   return tabela;
 }
 
-/**
- * Como a conferência é montada: a da tela (guarda o estado), a miniatura da
- * escolha (só os primeiros itens) ou a cópia completa para o PDF da escolha.
- * Miniatura e cópia não mexem no estado da tela: anotações vazias e ordem da
- * nota (a escolha é sempre de um XML recém-aberto).
- */
-type ModoConteudo = 'tela' | 'miniatura' | 'copia';
-
-/** Seção de itens no modo `modoConteudo`. */
-function tabelaItens(
-  n: Nota,
-  modoConteudo: ModoConteudo = 'tela',
-): HTMLElement | null {
+/** Seção de itens da conferência na tela (guarda o estado da tabela). */
+function tabelaItens(n: Nota): HTMLElement | null {
   if (n.itens.length === 0) return null;
-  const tela = modoConteudo === 'tela';
-  const miniatura = !tela;
-  const tabela = montarTabelaItens(
-    colunasAtuais(),
-    modoConteudo === 'miniatura' ? n.itens.slice(0, ITENS_MINIATURA) : n.itens,
-    tela,
-    tela ? anotacoes : new Map(),
-  );
+  const tabela = montarTabelaItens(colunasAtuais(), n.itens, true, anotacoes);
   const titulo = `Itens (${n.itens.length})`;
   return secao(
     titulo,
     'secao--itens',
-    controleOrdenar(miniatura),
+    controleOrdenar(),
     // A tabela rola dentro do quadro; setas nas laterais avisam o que ficou
-    // escondido (a miniatura é só desenho, sem setas).
-    miniatura
-      ? el('div', 'tabela-rolagem', tabela)
-      : comSetasDeRolagem(el('div', 'tabela-rolagem', tabela)),
+    // escondido.
+    comSetasDeRolagem(el('div', 'tabela-rolagem', tabela)),
   );
 }
 
@@ -1104,7 +1117,10 @@ async function prepararFolha(
     'table.tabela--itens',
   );
   if (!secaoItens || !tabela) return 'retrato';
-  const plano = planoDaTabela(tabela, configAtual.orientacao);
+  const plano = planoDaTabela(
+    tabela,
+    orientacaoDaFolha(orientacaoLeitura, configAtual.orientacao),
+  );
   if (plano.partes.length > 1) {
     const nome = ROTULO_ORIENTACAO[plano.orientacao].toLowerCase();
     const r = await perguntar({
@@ -1277,14 +1293,6 @@ const btnLimparRecentes = $('btn-limpar-recentes') as HTMLButtonElement;
 const perfilRapido = btnPerfil.closest<HTMLElement>('.perfil-rapido')!;
 const barraPerfil = $('barra-perfil');
 const areaSoltar = $('area-soltar');
-const modo = $('modo');
-const modoArquivo = $('modo-arquivo');
-const modoFornecedor = $('modo-fornecedor');
-const modoNumero = $('modo-numero');
-const modoResumo = $('modo-resumo');
-const miniConferencia = $('mini-conferencia');
-const miniDanfe = $('mini-danfe');
-const danfeDescricao = $('danfe-descricao');
 const barra = $('barra');
 const barraFornecedor = $('barra-fornecedor');
 const barraNota = $('barra-nota');
@@ -1383,14 +1391,6 @@ new ResizeObserver(() =>
     `${barra.getBoundingClientRect().height}px`,
   ),
 ).observe(barra);
-/** Documento do "Salvar PDF" da tela de escolha (fora da tela). */
-const previaEl = $('pdf-previa');
-const btnFecharEscolha = $('btn-fechar-escolha') as HTMLButtonElement;
-/** Botões Abrir aqui e Nova janela das prévias (escolha por cima da nota). */
-const acoesEscolha = [
-  ...document.querySelectorAll<HTMLButtonElement>('.modo__acao'),
-];
-const acoesDanfe = acoesEscolha.filter((b) => b.dataset.modo === 'danfe');
 const danfeEl = $('danfe');
 const mensagem = $('mensagem');
 const mensagemTexto = $('mensagem-texto');
@@ -1398,18 +1398,14 @@ const rodapeGerado = $('rodape-gerado');
 const rodapeCopia = $('rodape-copia');
 const btnAbrir = $('btn-abrir') as HTMLButtonElement;
 const btnAbrirOutro = $('btn-abrir-outro') as HTMLButtonElement;
-const btnConferencia = $('btn-conferencia') as HTMLButtonElement;
-const btnDanfe = $('btn-danfe') as HTMLButtonElement;
-const btnSalvarPreviaConferencia = $(
-  'btn-salvar-previa-conferencia',
-) as HTMLButtonElement;
-const btnSalvarPreviaDanfe = $('btn-salvar-previa-danfe') as HTMLButtonElement;
 const btnInicio = $('btn-inicio') as HTMLButtonElement;
 const btnModoConferencia = $('btn-modo-conferencia') as HTMLButtonElement;
 const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
+const faixaLeitura = $('faixa-leitura');
+const btnUsarConferencia = $('btn-usar-conferencia') as HTMLButtonElement;
 const btnSalvarMais = $('btn-salvar-mais') as HTMLButtonElement;
 const menuSalvar = $('menu-salvar');
 const btnSalvarPdf = $('btn-salvar-pdf') as HTMLButtonElement;
@@ -1422,9 +1418,28 @@ const avisoTipos = $('aviso-tipos');
 const avisoPasta = $('aviso-pasta');
 const btnZoom = $('btn-zoom') as HTMLButtonElement;
 const btnZoomValor = $('btn-zoom-valor');
+const faixaFolhas = $('faixa-folhas');
+const seletorFolhas = $('seletor-folhas');
+const faixaOrientacao = $('faixa-orientacao');
+const seletorOrientacaoLeitura = $('seletor-orientacao-leitura');
 
 /** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
+/**
+ * Como a nota aberta está: leitura protegida (só ver) ou edição. Vem do
+ * processo principal ao abrir; sai da leitura só pelo aviso (liberarEdicao).
+ */
+let leitura: LeituraNota = 'edicao';
+/**
+ * Folhas do DANFE na leitura protegida (só a tela). Fica para a próxima nota
+ * desta janela, como o zoom.
+ */
+let arranjoFolhas: ArranjoFolhas = 'uma';
+/**
+ * Orientação da Conferência escolhida na faixa da leitura: vale só para a
+ * nota aberta nesta janela (tela, PDF e impressão); null: a do perfil.
+ */
+let orientacaoLeitura: Orientacao | null = null;
 let pastaDestino: string | null = null;
 
 /**
@@ -1461,13 +1476,11 @@ function mostrarSucesso(
   avisoTexto.textContent = texto;
   avisoArquivo.hidden = !arquivo;
   avisoNome.textContent = arquivo ? encurtarNoMeio(arquivo.nome) : '';
-  avisoNome.title = arquivo?.nome ?? '';
   avisoTipos.textContent = arquivo?.tipos ?? '';
   avisoTipos.hidden = !arquivo?.tipos;
   avisoPasta.textContent = arquivo?.pasta
     ? `em ${abreviarCaminho(arquivo.pasta)}`
     : '';
-  avisoPasta.title = arquivo?.pasta ?? '';
   avisoPasta.hidden = !arquivo?.pasta;
   const duracao = arquivo ? DURACAO_AVISO_SALVO_MS : DURACAO_AVISO_MS;
   aviso.style.setProperty('--aviso-duracao', `${duracao}ms`);
@@ -1516,8 +1529,8 @@ let conferenciaMontada = false;
 /** O DANFE já foi montado para o arquivo aberto. */
 let danfeMontado = false;
 
-/** Mostra só uma das telas: inicial, escolha de modo, conferência ou DANFE. */
-function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
+/** Mostra só uma das telas: inicial, conferência ou DANFE. */
+function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
   vazio.hidden = tela !== 'vazio';
   fecharMenuPasta();
   if (tela === 'vazio') {
@@ -1528,13 +1541,13 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
     barraPasta.append(pastaRapida);
     barraPerfil.append(perfilRapido);
   }
-  modo.hidden = tela !== 'modo';
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
   notaEl.hidden = tela !== 'nota';
   danfeEl.hidden = tela !== 'danfe';
   painelEl.hidden = tela !== 'nota';
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
+    atualizarTextoSalvar();
     document.body.dataset.modo = modoAtual;
     // Seletor de duas posições: aria-pressed marca a opção ativa.
     btnModoConferencia.setAttribute(
@@ -1544,6 +1557,7 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
     btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
   }
   window.scrollTo(0, 0);
+  atualizarVistaLeitura();
   aplicarZoom();
   painel.ajustarLayout();
   if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
@@ -1553,7 +1567,7 @@ function mostrarTela(tela: 'vazio' | 'modo' | 'nota' | 'danfe'): void {
 
 /**
  * Zoom só da área do documento (Conferência e DANFE), por CSS zoom: a barra,
- * a tela inicial e a de escolha não mudam. Os níveis são os do navegador.
+ * e a tela inicial não mudam. Os níveis são os do navegador.
  * Cada modo guarda o seu zoom enquanto o app está aberto. Na impressão e no
  * PDF o zoom não vale (print.css), e o DANFE é sempre paginado em 100%.
  */
@@ -1563,7 +1577,7 @@ const zoomPorModo: Record<ModoImpressao, number> = {
   danfe: 1,
 };
 
-/** A área de visualização na tela, ou null (tela inicial ou de escolha). */
+/** A área de visualização na tela, ou null (tela inicial). */
 function areaZoom(): HTMLElement | null {
   if (!notaEl.hidden) return notaEl;
   if (!danfeEl.hidden) return danfeEl;
@@ -1579,7 +1593,6 @@ function aplicarZoom(): void {
   const pct = `${Math.round(z * 100)}%`;
   btnZoomValor.textContent = pct;
   btnZoom.setAttribute('aria-label', `Zoom em ${pct}. Restaurar 100%`);
-  btnZoom.title = 'Restaurar o tamanho normal (Ctrl+0)';
   // O zoom muda a largura da nota: o painel pode deixar de caber ao lado.
   painel.ajustarLayout();
 }
@@ -1587,6 +1600,11 @@ function aplicarZoom(): void {
 /** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
 function mudarZoom(passo: -1 | 0 | 1): void {
   if (!areaZoom()) return;
+  // Zoom à mão no "Ajustar à largura": volta para Uma, a partir do zoom de agora.
+  if (modoAtual === 'danfe' && arranjoFolhas === 'largura') {
+    arranjoFolhas = 'uma';
+    atualizarVistaLeitura();
+  }
   const atual = zoomPorModo[modoAtual];
   let novo = 1;
   if (passo === 1) novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9) ?? atual;
@@ -1641,18 +1659,28 @@ function preencherBarra(n: Nota): void {
 
 /**
  * Cópia editada: o DANFE só sai do XML original. A opção continua visível e
- * focável (aria-disabled, não disabled), com a explicação no texto de ajuda
- * (#dica-danfe), que aparece ao passar o mouse ou com o foco e é a descrição
- * para o leitor de tela.
+ * focável (aria-disabled, não disabled); clicar nela mostra o motivo num
+ * diálogo do app (avisarSemDanfe), sem dica ao passar o mouse.
  */
 function atualizarSeletorDanfe(): void {
-  if (aberto?.lido.copiaEditada) {
+  if (aberto?.lido.copiaEditada)
     btnModoDanfe.setAttribute('aria-disabled', 'true');
-    btnModoDanfe.setAttribute('aria-describedby', 'dica-danfe');
-  } else {
-    btnModoDanfe.removeAttribute('aria-disabled');
-    btnModoDanfe.removeAttribute('aria-describedby');
-  }
+  else btnModoDanfe.removeAttribute('aria-disabled');
+}
+
+/** Diálogo do DANFE indisponível (cópia editada aberta): só OK. */
+const AVISO_SEM_DANFE = {
+  titulo: 'DANFE indisponível',
+  texto: 'O DANFE só é gerado a partir do XML original da nota.',
+} as const;
+
+async function avisarSemDanfe(): Promise<void> {
+  await perguntar({
+    titulo: AVISO_SEM_DANFE.titulo,
+    texto: AVISO_SEM_DANFE.texto,
+    botoes: [{ rotulo: 'OK', valor: 'ok', principal: true }],
+    cancelar: 'ok',
+  });
 }
 
 /**
@@ -1705,13 +1733,8 @@ function lerDadosDanfe(
   }
 }
 
-/**
- * Conteúdo da conferência: cabeçalho e seções (ver ModoConteudo).
- */
-function conteudoNota(
-  n: Nota,
-  modoConteudo: ModoConteudo = 'tela',
-): HTMLElement[] {
+/** Conteúdo da conferência na tela: cabeçalho e seções. */
+function conteudoNota(n: Nota): HTMLElement[] {
   const cabecalho = el(
     'div',
     'cabecalho',
@@ -1722,7 +1745,7 @@ function conteudoNota(
   return [
     cabecalho,
     ...[
-      tabelaItens(n, modoConteudo),
+      tabelaItens(n),
       blocoTotais(n),
       blocoTransporte(n),
       blocoDuplicatas(n),
@@ -1854,7 +1877,7 @@ async function prepararAvisos(n: Nota): Promise<void> {
 
 /**
  * Pop-ups da nota de outra empresa e da nota já conferida, uma vez por nota
- * aberta, quando a Conferência ou o DANFE aparece (não na tela de escolha).
+ * aberta, quando a Conferência ou o DANFE aparece.
  */
 async function avisarAoAbrir(): Promise<void> {
   if (!popupsPendentes || !avisosProntos) return;
@@ -1902,233 +1925,6 @@ function exibirNota(): void {
   mostrarTela('nota');
 }
 
-// ---------- tela de escolha de modo ----------
-
-/** Largura da página da miniatura da conferência: a da tela (--largura-conteudo). */
-const LARGURA_PAGINA_CONFERENCIA = 1200;
-/** Folha do DANFE: 210 mm a 96 pixels por polegada. */
-const LARGURA_FOLHA_DANFE = (210 / 25.4) * 96;
-/** Proporção do A4 (altura sobre largura). */
-const PROPORCAO_A4 = 297 / 210;
-
-/**
- * Coloca `pagina` (com largura real `largura`, em pixels) na moldura da
- * miniatura, reduzida para caber na largura dela. A escala acompanha o tamanho
- * da moldura (que muda com a altura da janela).
- */
-function encaixarMiniatura(
-  moldura: HTMLElement,
-  escala: HTMLElement,
-  largura: number,
-): void {
-  moldura.dataset.largura = String(largura);
-  ajustarEscala(moldura);
-  escala.classList.remove('miniatura__escala--medindo');
-}
-
-function ajustarEscala(moldura: HTMLElement): void {
-  const largura = Number(moldura.dataset.largura);
-  if (largura > 0)
-    moldura.style.setProperty(
-      '--escala',
-      String(moldura.clientWidth / largura),
-    );
-}
-
-const observadorMiniaturas = new ResizeObserver((entradas) => {
-  for (const e of entradas) ajustarEscala(e.target as HTMLElement);
-});
-observadorMiniaturas.observe(miniConferencia);
-observadorMiniaturas.observe(miniDanfe);
-
-/**
- * Nova moldura vazia: o conteúdo é montado em tamanho real (sem escala, para
- * as medições do DANFE valerem) e só depois é reduzido, na mesma tarefa, então
- * nunca aparece grande na tela.
- */
-function novaEscala(moldura: HTMLElement, ...classes: string[]): HTMLElement {
-  const escala = el(
-    'div',
-    ['miniatura__escala', 'miniatura__escala--medindo', ...classes].join(' '),
-  );
-  // Cópia só para ver: sem foco, sem clique, fora do leitor de tela.
-  escala.inert = true;
-  moldura.replaceChildren(escala);
-  return escala;
-}
-
-function miniaturaConferencia(n: Nota): void {
-  const pagina = novaEscala(miniConferencia, 'nota');
-  pagina.style.width = `${LARGURA_PAGINA_CONFERENCIA}px`;
-  pagina.style.height = `${LARGURA_PAGINA_CONFERENCIA * PROPORCAO_A4}px`;
-  pagina.append(...conteudoNota(n, 'miniatura'));
-  encaixarMiniatura(miniConferencia, pagina, LARGURA_PAGINA_CONFERENCIA);
-}
-
-function miniaturaDanfe(dados: DadosDanfe): void {
-  const pagina = novaEscala(miniDanfe, 'danfe', 'danfe--miniatura');
-  pagina.style.width = `${LARGURA_FOLHA_DANFE}px`;
-  pagina.style.height = `${LARGURA_FOLHA_DANFE * PROPORCAO_A4}px`;
-  try {
-    montarDanfe(pagina, dados, { soPrimeiraFolha: true });
-  } catch (erro) {
-    miniDanfe.replaceChildren();
-    console.error(erro);
-    return;
-  }
-  encaixarMiniatura(miniDanfe, pagina, LARGURA_FOLHA_DANFE);
-}
-
-/** Cada abertura invalida as miniaturas ainda não geradas da anterior. */
-let geracaoMiniaturas = 0;
-
-/**
- * Arquivo mostrado na tela de escolha. `sobreposta`: é um XML aberto com uma
- * nota já na janela; a escolha aparece por cima dela e cada prévia oferece
- * Abrir aqui e Nova janela (o arquivo só passa a ser desta janela no Abrir
- * aqui).
- */
-let escolha: {
-  arquivo: ArquivoAberto;
-  lido: ArquivoLido;
-  sobreposta: boolean;
-} | null = null;
-
-/**
- * Preenche a tela de escolha com os dados da nota e a mostra. As miniaturas
- * vêm depois do primeiro desenho, uma por tarefa, para a tela aparecer logo.
- */
-function mostrarEscolha(
-  arquivo: ArquivoAberto,
-  lido: ArquivoLido,
-  sobreposta = false,
-): void {
-  escolha = { arquivo, lido, sobreposta };
-  const n = lido.nota;
-  modoFornecedor.textContent = n.emitente.xFant || n.emitente.xNome;
-  modoNumero.textContent = textoNumeroSerie(n);
-  const qtd = n.itens.length;
-  const resumo: [string, string][] = [
-    ['Emissão', f.data(n.ide.dhEmi)],
-    ['Valor total', f.moeda(n.totais.vNF)],
-    ['Itens', `${qtd} ${qtd === 1 ? 'item' : 'itens'}`],
-  ];
-  modoResumo.replaceChildren(
-    ...resumo
-      .filter(([, valor]) => valor !== '')
-      .map(([rotulo, valor]) =>
-        el(
-          'span',
-          'modo__dado',
-          el('span', 'modo__rotulo', rotulo),
-          el('strong', 'modo__valor', valor),
-        ),
-      ),
-  );
-  modoArquivo.textContent = arquivo.nome;
-
-  miniConferencia.replaceChildren();
-  miniDanfe.replaceChildren();
-  delete miniConferencia.dataset.largura;
-  delete miniDanfe.dataset.largura;
-  const { dados, motivo } = lerDadosDanfe(arquivo.texto);
-  btnDanfe.disabled = dados === null;
-  btnSalvarPreviaDanfe.disabled = dados === null;
-  for (const b of acoesDanfe) b.disabled = dados === null;
-  miniDanfe.hidden = dados === null;
-  danfeDescricao.textContent = motivo ?? 'Documento auxiliar, A4 retrato';
-
-  // Em destaque: Abrir aqui na janela vazia; Nova janela por cima de uma
-  // nota (o caminho que não mexe na nota aberta).
-  for (const b of acoesEscolha) {
-    const destaque = (b.dataset.destino === 'aqui') !== sobreposta;
-    b.classList.toggle('botao--principal', destaque);
-    b.classList.toggle('botao--claro', !destaque);
-  }
-
-  if (sobreposta) {
-    // Por cima da nota: a nota, a barra e o estado da janela ficam como estão.
-    modo.classList.add('modo--sobreposta');
-    modo.hidden = false;
-    btnFecharEscolha.focus();
-  } else {
-    modo.classList.remove('modo--sobreposta');
-    mostrarTela('modo');
-  }
-
-  const vez = ++geracaoMiniaturas;
-  const valendo = () => vez === geracaoMiniaturas && !modo.hidden;
-  requestAnimationFrame(() =>
-    setTimeout(() => {
-      if (!valendo()) return;
-      miniaturaConferencia(n);
-      if (!dados) return;
-      setTimeout(() => {
-        if (valendo()) miniaturaDanfe(dados);
-      }, 0);
-    }, 0),
-  );
-}
-
-/** Tira a escolha de cima da nota (sem abrir o arquivo). */
-function fecharSobreposicao(): void {
-  if (!escolha?.sobreposta) return;
-  escolha = null;
-  ++geracaoMiniaturas;
-  modo.hidden = true;
-  modo.classList.remove('modo--sobreposta');
-  miniConferencia.replaceChildren();
-  miniDanfe.replaceChildren();
-}
-
-/** Fechar (ou Esc) na escolha por cima da nota: fica na nota. */
-function cancelarSobreposicao(): void {
-  if (!escolha?.sobreposta || acoesBloqueadas) return;
-  fecharSobreposicao();
-  window.psApi
-    .confirmarAbertura('cancelar', null)
-    .catch((erro: unknown) => console.error(erro));
-}
-
-/**
- * Abrir aqui ou Nova janela, na prévia de `destinoModo`, na escolha por cima
- * da nota. Abrir aqui pergunta antes se há anotações não salvas.
- */
-async function abrirDaEscolha(
-  destino: 'aqui' | 'nova',
-  destinoModo: ModoImpressao,
-): Promise<void> {
-  if (!escolha || acoesBloqueadas) return;
-  if (destinoModo === 'danfe' && btnDanfe.disabled) return;
-  if (!escolha.sobreposta) {
-    // Janela vazia: Abrir aqui é o mesmo que clicar na prévia; Nova janela
-    // leva o arquivo para outra janela e esta volta para a tela inicial.
-    if (destino === 'aqui') {
-      if (destinoModo === 'danfe') mostrarDanfe();
-      else mostrarConferencia();
-      return;
-    }
-    try {
-      await window.psApi.confirmarAbertura('nova', destinoModo);
-      limparNota();
-    } catch (erro) {
-      mostrarMensagem('Não foi possível abrir o arquivo.', 'erro');
-      console.error(erro);
-    }
-    return;
-  }
-  if (destino === 'aqui' && !(await podeSair())) return;
-  const arquivo = escolha.arquivo;
-  try {
-    const r = await window.psApi.confirmarAbertura(destino, destinoModo);
-    fecharSobreposicao();
-    if (destino === 'aqui') carregar(r ?? arquivo, destinoModo);
-  } catch (erro) {
-    mostrarMensagem('Não foi possível abrir o arquivo.', 'erro');
-    console.error(erro);
-  }
-}
-
 /**
  * O que fazer com o resultado de abrir um arquivo nesta janela (botão,
  * Ctrl+O ou arrastar). As regras de onde abrir são do processo principal.
@@ -2144,28 +1940,8 @@ function tratarAbertura(r: ResultadoAbrir): void {
   }
   if (r.status === 'ja-aberto') {
     mostrarMensagem('Este arquivo já está aberto nesta janela.', 'info');
-    return;
   }
-  if (r.status !== 'escolher') return;
-  // Na tela de escolha de outro XML (ainda sem modo), o novo toma o lugar.
-  if (!modo.hidden && !escolha?.sobreposta) {
-    void window.psApi
-      .confirmarAbertura('aqui', null)
-      .then((a) => carregar(a ?? r.arquivo));
-    return;
-  }
-  try {
-    const lido = lerArquivo(r.arquivo.texto);
-    esconderMensagem();
-    mostrarEscolha(r.arquivo, lido, true);
-  } catch (erro) {
-    void window.psApi.confirmarAbertura('cancelar', null);
-    mostrarMensagem(
-      erroParaPessoa(erro) ? erro.message : 'Não foi possível ler o arquivo.',
-      'erro',
-    );
-    if (!erroParaPessoa(erro)) console.error(erro);
-  }
+  // nova-janela, outra-janela, cancelado: nada muda nesta janela.
 }
 
 /**
@@ -2179,9 +1955,10 @@ function erroParaPessoa(
 }
 
 /**
- * Lê o arquivo. XML da NF-e: vai para a escolha de modo, ou direto para
- * `modoInicial` (Abrir aqui e Nova janela pela escolha). Cópia editada
- * (.psxml): vai direto para a conferência (o DANFE só sai do XML original).
+ * Lê o arquivo e abre direto: XML da NF-e no DANFE (ou em `modoInicial`, como
+ * a nota já conferida que abre na Conferência); cópia editada (.psxml) na
+ * Conferência (o DANFE só sai do XML original). NF-e sem DANFE no PS Reader
+ * (contingência ou outro modelo): abre na Conferência e diz o motivo.
  */
 function carregar(
   arquivo: ArquivoAberto,
@@ -2191,6 +1968,9 @@ function carregar(
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
+    leitura = arquivo.leitura;
+    orientacaoLeitura = null;
+    aplicarLeitura();
     salvoAgora = null;
     ultimoRecente = '';
     conferenciaMontada = false;
@@ -2208,18 +1988,32 @@ function carregar(
         ? lido.ordem
         : ORDEM_NOTA;
     document.title = 'PS Reader';
-    if (lido.copiaEditada || modoInicial === 'conferencia')
+    // Cópia editada, nota já conferida ou perfil que abre as notas na
+    // Conferência (em edição): direto na Conferência.
+    if (
+      lido.copiaEditada ||
+      modoInicial === 'conferencia' ||
+      leitura === 'edicao'
+    ) {
       mostrarConferencia();
-    else if (modoInicial === 'danfe') {
-      mostrarDanfe();
-      // DANFE que não deu para montar: fica na escolha, com o motivo.
-      if (!danfeMontado && notaEl.hidden) mostrarEscolha(arquivo, lido);
-    } else mostrarEscolha(arquivo, lido);
+      if (arquivo.daInternet) mostrarMensagem(MENSAGEM_PSXML_INTERNET, 'info');
+      return;
+    }
+    const { motivo } = lerDadosDanfe(arquivo.texto);
+    if (motivo) {
+      mostrarConferencia();
+      mostrarMensagem(`${motivo} Mostrando a Conferência.`, 'info');
+      return;
+    }
+    mostrarDanfe();
   } catch (erro) {
     // O processo principal já trocou o arquivo aberto: a nota anterior não
     // pode mais ser salva, então volta para a tela inicial.
     window.psApi.informarSemNota();
     aberto = null;
+    leitura = 'edicao';
+    orientacaoLeitura = null;
+    aplicarLeitura();
     conferenciaMontada = false;
     danfeMontado = false;
     danfeEl.replaceChildren();
@@ -2240,8 +2034,7 @@ function carregar(
 
 /**
  * Abrir arquivo (botão ou Ctrl+O). Com nota aberta, o arquivo vai para uma
- * janela nova ou para a escolha por cima da nota: nada aqui se perde, então
- * não há pergunta antes (só no Abrir aqui).
+ * janela nova: nada aqui se perde, então não há pergunta antes.
  */
 async function abrir(): Promise<void> {
   try {
@@ -2341,7 +2134,6 @@ function desenharRecentes(lista: NotaRecenteTela[]): void {
       if (!r.existe) {
         const limpar = el('button', 'link link--pequeno', 'Limpar');
         limpar.type = 'button';
-        limpar.title = `Tirar ${r.caminho} da lista`;
         limpar.addEventListener('click', () => {
           void window.psApi
             .limparRecentes(r.caminho)
@@ -2357,7 +2149,6 @@ function desenharRecentes(lista: NotaRecenteTela[]): void {
       }
       const abrirBtn = el('button', 'recentes__abrir', conteudo, situacao);
       abrirBtn.type = 'button';
-      abrirBtn.title = r.caminho;
       abrirBtn.addEventListener('click', () => void abrirRecente(r.caminho));
       return el('li', 'recentes__item', abrirBtn);
     }),
@@ -2520,17 +2311,182 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
   ]) {
     b.disabled = bloquear;
   }
-  btnSalvarTexto.textContent = bloquear && salvando ? 'Salvando...' : 'Salvar';
+  if (bloquear && salvando) btnSalvarTexto.textContent = 'Salvando...';
+  else atualizarTextoSalvar();
   if (!bloquear) retomarExterno();
 }
 
 /**
- * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF.
+ * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF. Na
+ * leitura protegida, o PDF do modo (a nota só para ver não grava o .psxml).
  * O PDF da Conferência e a cópia ficam no menu da seta ao lado do botão.
  */
 function salvar(): Promise<boolean> {
-  return modoAtual === 'danfe' ? salvarDanfe() : salvarConferencia();
+  if (modoAtual === 'danfe') return salvarDanfe();
+  if (aberto && leitura === 'protegida') return salvarPdfConferencia();
+  return salvarConferencia();
 }
+
+/** "Salvar PDF" na leitura protegida (o Salvar grava o PDF); senão "Salvar". */
+function atualizarTextoSalvar(): void {
+  btnSalvarTexto.textContent =
+    aberto && leitura === 'protegida' ? 'Salvar PDF' : 'Salvar';
+}
+
+// ---------- leitura protegida ----------
+
+/**
+ * Mostra o estado da leitura: a faixa no alto, a marca no body (CSS) e as
+ * anotações travadas (o campo mostra o texto e não aceita digitação).
+ */
+function aplicarLeitura(): void {
+  const protegida = aberto !== null && leitura === 'protegida';
+  faixaLeitura.hidden = !protegida;
+  document.body.dataset.leitura = protegida ? 'protegida' : 'edicao';
+  for (const c of notaEl.querySelectorAll<HTMLInputElement>(
+    'input.anotacao__campo',
+  ))
+    c.readOnly = protegida;
+  atualizarTextoSalvar();
+  atualizarVistaLeitura();
+}
+
+// Folhas do DANFE (Uma, Lado a lado, Ajustar à largura) e orientação da
+// Conferência (Retrato, Paisagem), na faixa da leitura protegida.
+const botoesFolhas = ARRANJOS_FOLHAS.map((a) => {
+  const b = el('button', 'seletor__opcao', ROTULO_FOLHAS[a]);
+  b.type = 'button';
+  b.dataset.folhas = a;
+  b.addEventListener('click', () => escolherFolhas(a));
+  return b;
+});
+seletorFolhas.append(...botoesFolhas);
+
+const botoesOrientacaoLeitura = (['retrato', 'paisagem'] as const).map((o) => {
+  const b = el('button', 'seletor__opcao', ROTULO_ORIENTACAO[o]);
+  b.type = 'button';
+  b.dataset.orientacao = o;
+  b.addEventListener('click', () => {
+    orientacaoLeitura = o;
+    atualizarVistaLeitura();
+  });
+  return b;
+});
+seletorOrientacaoLeitura.append(...botoesOrientacaoLeitura);
+
+/**
+ * Orientação que a folha da Conferência vai ter: a escolhida na faixa ou,
+ * sem escolha, a do perfil (na Automática, a que a tabela da tela pede,
+ * pela mesma conta do PDF).
+ */
+function orientacaoDaConferencia(): Orientacao {
+  if (orientacaoLeitura) return orientacaoLeitura;
+  if (configAtual.orientacao !== 'automatica') return configAtual.orientacao;
+  const tabela = notaEl.querySelector<HTMLTableElement>(
+    '.secao--itens table.tabela--itens',
+  );
+  if (!tabela || notaEl.hidden) return 'retrato';
+  return planoDaTabela(tabela, 'automatica').orientacao;
+}
+
+/**
+ * Mostra os controles da faixa do modo em que a tela está (folhas no DANFE,
+ * orientação na Conferência), marca a opção em uso e arruma as folhas do
+ * DANFE. Fora da leitura protegida, o DANFE fica com uma folha embaixo da
+ * outra.
+ */
+function atualizarVistaLeitura(): void {
+  const protegida = aberto !== null && leitura === 'protegida';
+  faixaFolhas.hidden = !protegida || modoAtual !== 'danfe';
+  faixaOrientacao.hidden = !protegida || modoAtual !== 'conferencia';
+  danfeEl.dataset.folhas = protegida ? arranjoFolhas : 'uma';
+  for (const b of botoesFolhas)
+    b.setAttribute('aria-pressed', String(b.dataset.folhas === arranjoFolhas));
+  if (!faixaOrientacao.hidden) {
+    const atual = orientacaoDaConferencia();
+    for (const b of botoesOrientacaoLeitura)
+      b.setAttribute('aria-pressed', String(b.dataset.orientacao === atual));
+  }
+  if (protegida && arranjoFolhas === 'largura') calcularZoomLargura();
+}
+
+/**
+ * "Ajustar à largura": o zoom do DANFE que faz uma folha ocupar a largura da
+ * janela. Só guarda o valor; quem chama aplica (aplicarZoom).
+ */
+function calcularZoomLargura(): void {
+  const estilo = getComputedStyle(danfeEl);
+  const recuo =
+    (parseFloat(estilo.paddingLeft) || 0) +
+    (parseFloat(estilo.paddingRight) || 0);
+  zoomPorModo.danfe = zoomParaLargura(
+    document.documentElement.clientWidth,
+    mmParaPx(A4.largura),
+    recuo,
+  );
+}
+
+/** Troca o arranjo das folhas do DANFE (só a tela). */
+function escolherFolhas(a: ArranjoFolhas): void {
+  if (a === arranjoFolhas) return;
+  // Saindo do "Ajustar à largura", a folha volta ao tamanho normal.
+  if (arranjoFolhas === 'largura') zoomPorModo.danfe = 1;
+  arranjoFolhas = a;
+  atualizarVistaLeitura();
+  aplicarZoom();
+}
+
+// A janela mudou de largura: o "Ajustar à largura" acompanha.
+window.addEventListener('resize', () => {
+  if (
+    aberto &&
+    leitura === 'protegida' &&
+    arranjoFolhas === 'largura' &&
+    modoAtual === 'danfe'
+  ) {
+    calcularZoomLargura();
+    aplicarZoom();
+  }
+});
+
+/**
+ * Antes de uma ação que edita: na leitura protegida, o aviso dentro do app
+ * ("Ficar na leitura" com o foco, "Continuar"). Continuar avisa o processo
+ * principal, que passa a aceitar gravar o .psxml, e a ação segue. true: pode
+ * fazer a ação; false: a pessoa ficou na leitura.
+ */
+async function liberarEdicao(acao: AcaoNota): Promise<boolean> {
+  if (!aberto || !pedeAviso(acao, leitura)) return true;
+  const resposta = await perguntar<'ficar' | 'continuar'>({
+    titulo: AVISO_SAIR.titulo,
+    texto: AVISO_SAIR.texto,
+    botoes: [
+      { rotulo: AVISO_SAIR.ficar, valor: 'ficar' },
+      { rotulo: AVISO_SAIR.continuar, valor: 'continuar', principal: true },
+    ],
+    cancelar: 'ficar',
+    foco: 'ficar',
+  });
+  if (resposta !== 'continuar') return false;
+  try {
+    if (!(await window.psApi.sairDaLeitura())) return false;
+  } catch (erro) {
+    console.error(erro);
+    return false;
+  }
+  leitura = 'edicao';
+  orientacaoLeitura = null;
+  aplicarLeitura();
+  return true;
+}
+
+faixaLeitura.querySelector('.faixa-leitura__texto')!.textContent = TEXTO_FAIXA;
+btnUsarConferencia.textContent = ROTULO_USAR_CONFERENCIA;
+btnUsarConferencia.addEventListener('click', () => {
+  void (async () => {
+    if (await liberarEdicao('usar-conferencia')) mostrarConferencia();
+  })();
+});
 
 /** "Salvar PDF" do menu: o PDF do modo em que a tela está. */
 function salvarPdf(): Promise<boolean> {
@@ -2556,19 +2512,13 @@ const TEXTO_COPIA: Record<TipoCopia, string> = {
  */
 async function gravarCopia<R extends { status: string }>(
   tipo: TipoCopia,
-  daEscolha: boolean,
   gravar: (
     opcoes: OpcoesSalvar & { nome: string },
   ) => Promise<R | ArquivoExistente>,
 ): Promise<R | { status: 'cancelado' } | { status: 'erro'; mensagem: string }> {
-  const base =
-    escolha && daEscolha
-      ? nomeBaseArquivo(escolha.lido.nota)
-      : aberto
-        ? nomeBaseArquivo(aberto.lido.nota)
-        : null;
+  const base = aberto ? nomeBaseArquivo(aberto.lido.nota) : null;
   for (;;) {
-    const sugestao = await window.psApi.sugerirCopia(base, tipo, daEscolha);
+    const sugestao = await window.psApi.sugerirCopia(base, tipo);
     if (sugestao.status === 'erro') return sugestao;
     const nome = await pedirNomeCopia({
       sugestao: sugestao.nome,
@@ -2608,7 +2558,6 @@ async function gravarCopia<R extends { status: string }>(
  */
 async function gravarComPergunta<R extends { status: string }>(
   tipo: TipoCopia,
-  daEscolha: boolean,
   gravar: (opcoes: OpcoesSalvar) => Promise<R | ArquivoExistente>,
 ): Promise<{
   r: R | { status: 'cancelado' } | { status: 'erro'; mensagem: string };
@@ -2636,7 +2585,7 @@ async function gravarComPergunta<R extends { status: string }>(
     return { r: { status: 'cancelado' }, copiou: false };
   if (resposta === 'substituir')
     return { r: (await gravar({ substituir: true })) as R, copiou: false };
-  return { r: await gravarCopia(tipo, daEscolha, gravar), copiou: true };
+  return { r: await gravarCopia(tipo, gravar), copiou: true };
 }
 
 /** Aviso de PDF salvo, ou a mensagem de erro. true se gravou. */
@@ -2665,8 +2614,8 @@ async function salvarDanfe(): Promise<boolean> {
   const base = nomeBaseArquivo(aberto.lido.nota);
   bloquearAcoes(true, true);
   try {
-    const { r } = await gravarComPergunta('danfe', false, (o) =>
-      window.psApi.salvarDanfe(base, false, o),
+    const { r } = await gravarComPergunta('danfe', (o) =>
+      window.psApi.salvarDanfe(base, o),
     );
     return avisarPdf(r);
   } catch (erro) {
@@ -2751,7 +2700,7 @@ async function salvarConferencia(): Promise<boolean> {
   const base = nomeBaseArquivo(aberto.lido.nota);
   bloquearAcoes(true, true);
   try {
-    const { r, copiou } = await gravarComPergunta('psxml', false, (o) =>
+    const { r, copiou } = await gravarComPergunta('psxml', (o) =>
       o.nome
         ? window.psApi.salvarCopia(montada.texto, o.nome, o)
         : window.psApi.salvar(montada.texto, base, o),
@@ -2781,13 +2730,8 @@ async function salvarPdfConferencia(): Promise<boolean> {
   marcarGeradoEm();
   bloquearAcoes(true, true);
   try {
-    const { r } = await gravarComPergunta('conferencia', false, (o) =>
-      window.psApi.salvarPdfConferencia(
-        base,
-        orientacao === 'paisagem',
-        false,
-        o,
-      ),
+    const { r } = await gravarComPergunta('conferencia', (o) =>
+      window.psApi.salvarPdfConferencia(base, orientacao === 'paisagem', o),
     );
     return avisarPdf(r);
   } catch (erro) {
@@ -2814,7 +2758,7 @@ async function salvarCopia(): Promise<boolean> {
   if (!montada) return false;
   bloquearAcoes(true, true);
   try {
-    const r = await gravarCopia('psxml', false, (o) =>
+    const r = await gravarCopia('psxml', (o) =>
       window.psApi.salvarCopia(montada.texto, o.nome, o),
     );
     return concluirPsxml(r, montada.gravadas, true);
@@ -2840,95 +2784,6 @@ function abrirMenuSalvar(): void {
   menuSalvar.hidden = false;
   btnSalvarMais.setAttribute('aria-expanded', 'true');
   btnSalvarPdf.focus();
-}
-
-/**
- * "Salvar PDF" da tela de escolha: grava só o PDF do modo, sem entrar nele.
- * O documento é montado em #pdf-previa, que o CSS da classe pdf-previa deixa
- * fora da área visível na tela e, na mídia print, põe no lugar da nota (que
- * pode estar aberta por baixo, na escolha por cima da nota). É o mesmo
- * código, o mesmo CSS e as mesmas opções de PDF de quando se entra no modo e
- * salva, e a tela não pisca. Termina desmontando o documento.
- */
-async function salvarPrevia(destino: ModoImpressao): Promise<void> {
-  if (!escolha || escolha.lido.copiaEditada || modo.hidden) return;
-  const { arquivo, lido, sobreposta } = escolha;
-  const n = lido.nota;
-  let dadosDanfe: DadosDanfe | null = null;
-  if (destino === 'danfe') {
-    const r = lerDadosDanfe(arquivo.texto);
-    if (!r.dados) {
-      mostrarMensagem(r.motivo, 'erro');
-      return;
-    }
-    dadosDanfe = r.dados;
-  }
-  esconderMensagem();
-  if (!pastaDestino && !(await escolherPasta())) return;
-
-  const modoAnterior = document.body.dataset.modo;
-  const botoes = [
-    btnConferencia,
-    btnDanfe,
-    btnSalvarPreviaConferencia,
-    btnSalvarPreviaDanfe,
-    ...acoesEscolha,
-  ];
-  const desabilitadosAntes = botoes.map((b) => b.disabled);
-  for (const b of botoes) b.disabled = true;
-  acoesBloqueadas = true;
-  const textoBotao =
-    destino === 'danfe'
-      ? btnSalvarPreviaDanfe.querySelector('.modo__salvar-texto')
-      : btnSalvarPreviaConferencia.querySelector('.modo__salvar-texto');
-  const textoAntes = textoBotao?.textContent ?? '';
-  if (textoBotao) textoBotao.textContent = 'Salvando...';
-  const copiaAntes = rodapeCopia.hidden;
-
-  try {
-    document.body.classList.add('pdf-previa');
-    document.body.dataset.modo = destino;
-    marcarGeradoEm();
-    rodapeCopia.hidden = true;
-    previaEl.className = destino === 'danfe' ? 'danfe' : 'nota';
-    previaEl.hidden = false;
-    if (destino === 'danfe' && dadosDanfe) {
-      montarDanfe(previaEl, dadosDanfe);
-    } else {
-      previaEl.replaceChildren(...conteudoNota(n, 'copia'));
-    }
-    const nome = nomeBaseArquivo(n);
-    let paisagem = false;
-    if (destino === 'conferencia') {
-      const orientacao = await prepararFolha(previaEl);
-      if (!orientacao) return;
-      paisagem = orientacao === 'paisagem';
-    }
-    const { r } = await gravarComPergunta(destino, sobreposta, (o) =>
-      destino === 'danfe'
-        ? window.psApi.salvarDanfe(nome, sobreposta, o)
-        : window.psApi.salvarPdfConferencia(nome, paisagem, sobreposta, o),
-    );
-    avisarPdf(r);
-  } catch (erro) {
-    mostrarMensagem('Não foi possível salvar.', 'erro');
-    console.error(erro);
-  } finally {
-    desmontarFolha();
-    previaEl.hidden = true;
-    previaEl.replaceChildren();
-    rodapeCopia.hidden = copiaAntes;
-    document.body.classList.remove('pdf-previa');
-    if (modoAnterior === undefined) delete document.body.dataset.modo;
-    else document.body.dataset.modo = modoAnterior;
-    marcarGeradoEm();
-    botoes.forEach((b, i) => {
-      b.disabled = desabilitadosAntes[i];
-    });
-    if (textoBotao) textoBotao.textContent = textoAntes;
-    acoesBloqueadas = false;
-    retomarExterno();
-  }
 }
 
 // ---------- arquivo vindo de fora (duplo clique num .psxml) ----------
@@ -2960,14 +2815,15 @@ async function abrirExterno(): Promise<void> {
       mostrarMensagem(arquivo.mensagem, 'erro');
       return;
     }
-    fecharSobreposicao();
     carregar(arquivo, arquivo.modo);
     // .psxml por duplo clique: a pasta dele vale como pasta de destino só nesta
     // janela, até fechá-la. O botão mostra a marca e o aviso explica (depois de
     // carregar, que esconde as mensagens).
     if (arquivo.pastaSessao) {
       atualizarPasta(arquivo.pastaSessao, true);
-      if (aberto)
+      // Vindo da internet, fica o aviso da leitura protegida (o .psxml só é
+      // gravado depois de sair dela); a pastilha mostra a pasta da sessão.
+      if (aberto && !arquivo.daInternet)
         mostrarMensagem(
           `Nesta janela os arquivos serão salvos em ${arquivo.pastaSessao}, a pasta do arquivo aberto. Sua pasta salva volta quando você fechar esta janela.`,
           'info',
@@ -3054,9 +2910,10 @@ async function irParaInicio(): Promise<void> {
 
 /** Tira a nota desta janela e volta para a tela inicial (sem perguntar). */
 function limparNota(): void {
-  fecharSobreposicao();
-  escolha = null;
   aberto = null;
+  leitura = 'edicao';
+  orientacaoLeitura = null;
+  aplicarLeitura();
   // Respostas atrasadas da busca de avisos não valem mais.
   geracaoAvisos++;
   avisosProntos = false;
@@ -3066,8 +2923,6 @@ function limparNota(): void {
   danfeMontado = false;
   danfeEl.replaceChildren();
   notaEl.replaceChildren();
-  miniConferencia.replaceChildren();
-  miniDanfe.replaceChildren();
   tabelaItensEl = null;
   corposItens.clear();
   ordemAtual = ORDEM_NOTA;
@@ -3207,37 +3062,14 @@ window.addEventListener('keydown', (e) => {
 
 btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
-// Na escolha por cima da nota, a prévia em si não abre: os botões Abrir aqui
-// e Nova janela, que aparecem sobre ela, é que abrem.
-btnConferencia.addEventListener('click', () => {
-  if (escolha?.sobreposta) acoesEscolha[0]?.focus();
-  else mostrarConferencia();
-});
-btnDanfe.addEventListener('click', () => {
-  if (escolha?.sobreposta) acoesDanfe[0]?.focus();
-  else mostrarDanfe();
-});
-for (const b of acoesEscolha) {
-  b.addEventListener(
-    'click',
-    () =>
-      void abrirDaEscolha(
-        b.dataset.destino === 'nova' ? 'nova' : 'aqui',
-        b.dataset.modo === 'danfe' ? 'danfe' : 'conferencia',
-      ),
-  );
-}
-btnFecharEscolha.addEventListener('click', cancelarSobreposicao);
-modo.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !escolha?.sobreposta) return;
-  e.preventDefault();
-  cancelarSobreposicao();
-});
 btnModoConferencia.addEventListener('click', () => {
   if (modoAtual !== 'conferencia') mostrarConferencia();
 });
 btnModoDanfe.addEventListener('click', () => {
-  if (btnModoDanfe.getAttribute('aria-disabled') === 'true') return;
+  if (btnModoDanfe.getAttribute('aria-disabled') === 'true') {
+    void avisarSemDanfe();
+    return;
+  }
   if (modoAtual !== 'danfe') mostrarDanfe();
 });
 btnInicio.addEventListener('click', () => void irParaInicio());
@@ -3266,7 +3098,9 @@ btnSalvarPdf.addEventListener('click', () => {
 });
 btnSalvarCopia.addEventListener('click', () => {
   fecharMenuSalvar();
-  void salvarCopia();
+  void (async () => {
+    if (await liberarEdicao('salvar-copia')) await salvarCopia();
+  })();
 });
 menuSalvar.addEventListener('keydown', (e) => {
   const ops = [btnSalvarPdf, btnSalvarCopia];
@@ -3277,18 +3111,9 @@ menuSalvar.addEventListener('keydown', (e) => {
   else return;
   e.preventDefault();
 });
-btnSalvarPreviaConferencia.addEventListener(
-  'click',
-  () => void salvarPrevia('conferencia'),
-);
-btnSalvarPreviaDanfe.addEventListener(
-  'click',
-  () => void salvarPrevia('danfe'),
-);
 // Fechar a janela com anotações não salvas: a pergunta de sempre; a
 // resposta volta ao processo principal, que fecha ou não.
 window.psApi.aoPedirFechar(() => {
-  fecharSobreposicao();
   podeSair()
     .catch((erro: unknown) => {
       console.error(erro);
@@ -3359,6 +3184,7 @@ const ferramentaST: FerramentaJanela = {
     return null;
   },
   podeRodar: () => aberto !== null && estadoDocumentos?.st != null,
+  antesDeRodar: () => liberarEdicao('ferramenta'),
   rodar: async () => {
     if (!aberto) return;
     const nota = aberto.lido.nota;
@@ -3520,7 +3346,6 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     ),
   );
   abrir.type = 'button';
-  abrir.title = `Abrir ${l.nome} na tela de Documentos`;
   abrir.setAttribute(
     'aria-label',
     `${l.nome}: ${[l.situacao, l.detalhe].filter(Boolean).join(', ')}. Abrir na tela de Documentos.`,
@@ -3544,7 +3369,6 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     );
     b.disabled = ocupado;
     b.dataset.foco = 'acao';
-    b.title = `Baixar a versão nova do site oficial (a ${l.nome} atual só é trocada se a nova for lida)`;
     b.addEventListener(
       'click',
       () =>
@@ -3559,7 +3383,6 @@ function linhaDocumento(l: LinhaDocumento): HTMLElement {
     );
     b.disabled = ocupado;
     b.dataset.foco = 'acao';
-    b.title = `Escolher o arquivo da ${l.nome}`;
     b.addEventListener(
       'click',
       () =>
@@ -3596,7 +3419,6 @@ function avisoErroDocumento(
 ): HTMLElement {
   const fechar = botao('fechar-aviso', icone(...ICONES.fechar));
   fechar.dataset.foco = 'fechar-erro';
-  fechar.title = 'Fechar o aviso';
   fechar.setAttribute('aria-label', `Fechar o aviso de erro de ${nome}`);
   fechar.addEventListener('click', () => {
     erroDocumentos.delete(tipo);

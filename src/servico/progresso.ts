@@ -76,6 +76,9 @@ function desenhar(): void {
   cartao.hidden = false;
 }
 
+/** Vigia o modal que hospeda o cartão (null com o cartão no body). */
+let vigiaModal: MutationObserver | null = null;
+
 /**
  * Um <dialog> modal aberto (Configurações, por exemplo) fica na camada de
  * cima e deixa inerte tudo o que está fora dele: o cartão vai para dentro
@@ -86,19 +89,27 @@ function hospedar(): void {
   const modais = [...document.querySelectorAll('dialog')].filter(
     (d) => d.open && d.matches(':modal'),
   );
-  const destino: HTMLElement = modais.at(-1) ?? document.body;
+  const destino: HTMLDialogElement | HTMLElement =
+    modais.at(-1) ?? document.body;
   if (cartao.parentElement === destino) return;
+  vigiaModal?.disconnect();
+  vigiaModal = null;
   destino.append(cartao);
-  // O modal fechou com o cartão dentro: volta para o body.
-  if (destino !== document.body)
-    destino.addEventListener(
-      'close',
-      () => {
-        document.body.append(cartao);
-        desenhar();
-      },
-      { once: true },
-    );
+  if (!(destino instanceof HTMLDialogElement)) return;
+  // O modal fechou ou saiu da página com o cartão dentro: volta para o body.
+  // Pela mudança no DOM, não pelo evento close: as caixas do app fecham e
+  // saem da página no mesmo instante (d.close() e d.remove()), e o close
+  // chega depois, numa tarefa à parte.
+  const modal = destino;
+  vigiaModal = new MutationObserver(() => {
+    if (modal.open && modal.isConnected) return;
+    vigiaModal?.disconnect();
+    vigiaModal = null;
+    document.body.append(cartao);
+    desenhar();
+  });
+  vigiaModal.observe(modal, { attributes: true, attributeFilter: ['open'] });
+  vigiaModal.observe(document.body, { childList: true });
 }
 
 api.aoInicio(({ id, rotulo: r }) => {

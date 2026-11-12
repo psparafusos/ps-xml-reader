@@ -44,11 +44,12 @@ export function icone(...caminhos: string[]): SVGSVGElement {
 export function comSetasDeRolagem(rolagem: HTMLElement): HTMLElement {
   const seta = (lado: 'esquerda' | 'direita', caminho: string) => {
     const b = botao(`rolagem__seta rolagem__seta--${lado}`, icone(caminho));
-    b.title =
+    b.setAttribute(
+      'aria-label',
       lado === 'esquerda'
         ? 'Ver as colunas à esquerda'
-        : 'Ver as colunas à direita';
-    b.setAttribute('aria-label', b.title);
+        : 'Ver as colunas à direita',
+    );
     // Fora da ordem do Tab: quem usa teclado rola a tabela pelos próprios campos.
     b.tabIndex = -1;
     b.hidden = true;
