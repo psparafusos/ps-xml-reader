@@ -1313,6 +1313,13 @@ const configNaPagina = `!!document.querySelector('dialog.painel--config')`;
 /** Espera dois quadros desenhados (a mudança chega à rolagem da janela). */
 const DOIS_QUADROS = `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`;
 
+/**
+ * Largura do conteúdo da página: muda se a página pular de lado. Pelo body,
+ * não pelo clientWidth da raiz: com overflow hidden, o Chromium conta a
+ * calha da barra de rolagem no clientWidth, mesmo com ela reservada.
+ */
+const LARGURA_UTIL = `Math.round(document.body.getBoundingClientRect().width)`;
+
 /** Esc de verdade, pelo teclado da janela (não um evento montado na página). */
 function teclaEsc() {
   janela.webContents.focus();
@@ -1433,8 +1440,31 @@ async function casosJanelasPorCima() {
     async () => {
       await carregarPlanilhaST();
       const [largura, altura] = janela.getContentSize();
-      janela.setContentSize(1100, 600);
       try {
+        // Sem barra de rolagem (tela inicial numa janela alta): abrir uma
+        // janela não faz a página andar para o lado.
+        janela.setContentSize(1366, 1000);
+        await avaliar(DOIS_QUADROS);
+        confere(
+          (await avaliar(
+            `document.documentElement.scrollHeight - document.documentElement.clientHeight`,
+          )) <= 0,
+          'a tela inicial rola numa janela de 1000 px',
+        );
+        const semBarra = await avaliar(LARGURA_UTIL);
+        await avaliar(`document.getElementById('btn-config-inicio').click()`);
+        await aguardar(configAberta, 15000, 'as Configurações não abriram');
+        await avaliar(DOIS_QUADROS);
+        const semBarraAberta = await avaliar(LARGURA_UTIL);
+        confere(
+          semBarraAberta === semBarra,
+          `sem barra, a página andou: ${semBarra} px, com a janela ${semBarraAberta} px`,
+        );
+        await avaliar(
+          `document.querySelector('dialog.painel--config .painel__fechar').click()`,
+        );
+        await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
+        janela.setContentSize(1100, 600);
         await abrirNota(copia('t09-xprod-html.xml'));
         await avaliar(
           `document.getElementById('btn-usar-conferencia').click()`,
@@ -1456,6 +1486,7 @@ async function casosJanelasPorCima() {
         confere(sobra > 150, `a página não rola (sobra ${sobra} px)`);
         await avaliar(`window.scrollTo(0, 100); true`);
         await aguardar(`window.scrollY === 100`);
+        const comBarra = await avaliar(LARGURA_UTIL);
         // Rodar a ferramenta ST pelo painel.
         await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
           .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
@@ -1473,6 +1504,12 @@ async function casosJanelasPorCima() {
         );
         // A trava vale a partir do quadro desenhado com a janela aberta.
         await avaliar(DOIS_QUADROS);
+        // Com barra de rolagem: a página também não anda para o lado.
+        const comBarraAberta = await avaliar(LARGURA_UTIL);
+        confere(
+          comBarraAberta === comBarra,
+          `com barra, a página andou: ${comBarra} px, com a janela ${comBarraAberta} px`,
+        );
         // Roda do mouse sobre a janela e sobre o fundo escurecido.
         const pontos = await avaliar(`(() => {
           const r = document.querySelector('dialog.painel--st').getBoundingClientRect();
