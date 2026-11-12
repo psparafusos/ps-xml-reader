@@ -6,8 +6,9 @@
 // executeJavaScript, sem porta de depuração. Nenhum teste aciona Copiar.
 //
 // Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, a
-// abertura direta (parte 2A: sem a tela de escolha), a leitura protegida
-// (partes 2B, 2C e 2D), T6, T8 (gerado aqui), T9, T10, T11 e T12 do plano
+// abertura direta (parte 2A: sem a tela de escolha), a nota sem leitura
+// protegida e o "NF-e abre em" por perfil, T6, T8 (gerado aqui), T9, T10,
+// T11 e T12 do plano
 // de segurança; a tela do leitor genérico de XML (leitorXml.cjs) e o serviço
 // de leitura pesada (servico.cjs), com XML inventado gerado no teste; as
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
@@ -32,7 +33,11 @@ if (!fs.existsSync(MAIN)) {
   process.exit(1);
 }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ps-janela-'));
+// Pasta temporária: a de rodar.cjs (npm run test:janela), que a apaga
+// depois que o Electron sai; rodando este arquivo direto, uma nova.
+const tmp =
+  process.env.PS_JANELA_TMP ||
+  fs.mkdtempSync(path.join(os.tmpdir(), 'ps-janela-'));
 const dados = path.join(tmp, 'dados');
 const notas = path.join(tmp, 'notas');
 const destino = path.join(tmp, 'destino');
@@ -124,20 +129,14 @@ async function inicio() {
   await espera(300);
 }
 
-/** Título do aviso para sair da leitura protegida (dialogos.ts). */
-const TITULO_AVISO_LEITURA = 'Sair da leitura protegida?';
-
 /**
  * Fecha os diálogos abertos como o Esc (o que não fechar com o Esc, fecha
- * direto). Com `manterAviso`, deixa o aviso da leitura protegida. Devolve
- * quantos fechou.
+ * direto). Devolve quantos fechou.
  */
-function fecharDialogos(manterAviso = false) {
+function fecharDialogos() {
   return avaliar(`(() => {
     let n = 0;
     for (const d of document.querySelectorAll('dialog[open]')) {
-      const titulo = d.querySelector('.caixa-dialogo__titulo')?.textContent;
-      if (${manterAviso} && titulo === ${JSON.stringify(TITULO_AVISO_LEITURA)}) continue;
       d.dispatchEvent(new Event('cancel', { cancelable: true }));
       if (d.open) d.close();
       n++;
@@ -160,7 +159,7 @@ async function fecharAvisosDaNota() {
   );
   let quieto = 0;
   while (quieto < 600) {
-    quieto = (await fecharDialogos(true)) > 0 ? 0 : quieto + 100;
+    quieto = (await fecharDialogos()) > 0 ? 0 : quieto + 100;
     await espera(100);
   }
 }
@@ -235,7 +234,7 @@ function paginasDoPdf(arquivo) {
 }
 
 // Onde o Salvar PDF grava: a pasta de destino, ou a pasta da sessão (a do
-// .psxml aberto por duplo clique, a partir do caso 2C).
+// .psxml aberto por duplo clique).
 const pastasDoPdf = [destino, notas];
 const pdfsGravados = () =>
   pastasDoPdf.flatMap((d) =>
@@ -538,10 +537,9 @@ async function principal() {
     },
   );
 
-  // Parte 2B: leitura protegida.
-  // O aviso da leitura pelo título; os avisos de abertura da nota (nota de
-  // outra empresa, já conferida) são outros diálogos e são fechados antes.
-  const dialogoAberto = `[...document.querySelectorAll('dialog[open] .caixa-dialogo__titulo')].some((t) => t.textContent === ${JSON.stringify(TITULO_AVISO_LEITURA)})`;
+  // Sem leitura protegida: o XML abre no DANFE e a Conferência fica livre
+  // para anotar; "NF-e abre em" por perfil; a marca de baixado da internet
+  // não muda nada.
   const clicarNoDialogo = (rotulo) =>
     avaliar(`(() => {
       const b = [...document.querySelectorAll('dialog[open] button')]
@@ -552,213 +550,56 @@ async function principal() {
     })()`);
   const psxmlNoDestino = () =>
     fs.readdirSync(destino).filter((n) => n.toLowerCase().endsWith('.psxml'));
+  /** Os elementos da leitura protegida que saíram da página. */
+  const restosDaLeitura = `['faixa-leitura', 'btn-usar-conferencia', 'faixa-folhas', 'seletor-orientacao-leitura'].filter((id) => document.getElementById(id))`;
 
   await caso(
-    '2B: XML abre em leitura protegida: faixa, anotações travadas, só ver',
+    'Sem leitura protegida: XML no DANFE sem faixa; na Conferência anota, edita colunas e grava o .psxml',
     async () => {
       await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'sem a faixa');
-      confere(
-        (await avaliar(
-          `document.getElementById('faixa-leitura-texto').textContent`,
-        )) === 'Leitura protegida: só visualização.',
-        'texto da faixa',
-      );
-      confere(
-        (await avaliar(
-          `document.getElementById('btn-usar-conferencia').textContent`,
-        )) === 'Usar a Conferência',
-        'botão da faixa',
-      );
-      confere(
-        (await avaliar(
-          `document.getElementById('btn-salvar-texto').textContent`,
-        )) === 'Salvar PDF',
-        'o Salvar não virou Salvar PDF',
-      );
-      // Trocar para a Conferência é só ver: sem aviso, anotações travadas.
-      await avaliar(`document.getElementById('btn-modo-conferencia').click()`);
-      await aguardar(visivel('nota'));
-      await espera(300);
-      confere(!(await avaliar(dialogoAberto)), 'trocar de modo pediu aviso');
-      await fecharAvisosDaNota();
-      confere(
-        await avaliar(
-          `(() => { const c = [...document.querySelectorAll('input.anotacao__campo')]; return c.length > 0 && c.every((x) => x.readOnly); })()`,
-        ),
-        'anotações não estão travadas',
-      );
-      confere(
-        await avaliar(visivel('painel-conferencia')),
-        'o painel de avisos sumiu na leitura',
-      );
-    },
-  );
-
-  await caso(
-    '2B: o processo principal recusa gravar o .psxml numa janela protegida',
-    async () => {
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      const antes = psxmlNoDestino().length;
-      const r1 = await avaliar(`window.psApi.salvar('<x/>', null)`);
-      const r2 = await avaliar(`window.psApi.salvarCopia('<x/>', 'teste-2b')`);
-      for (const r of [r1, r2])
-        confere(
-          r.status === 'erro' && /leitura protegida/.test(r.mensagem),
-          `resposta: ${JSON.stringify(r)}`,
-        );
-      confere(psxmlNoDestino().length === antes, 'um .psxml foi gravado');
-    },
-  );
-
-  await caso(
-    '2B: na leitura, Salvar grava o PDF na pasta de destino, sem .psxml',
-    async () => {
-      apagarPdfs();
-      await abrirNota(outra);
-      await irParaConferencia();
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      const antes = psxmlNoDestino().length;
-      await avaliar(`document.getElementById('btn-salvar').click()`);
-      const pdf = await pdfNoDestino('_Conferencia.pdf');
-      confere(
-        path.dirname(pdf) === destino,
-        `o PDF não foi para a pasta de destino: ${pdf}`,
-      );
-      confere(psxmlNoDestino().length === antes, 'o Salvar gravou .psxml');
-    },
-  );
-
-  await caso(
-    '2B: ação que edita pede o aviso; "Ficar na leitura" vem com o foco e mantém a leitura',
-    async () => {
-      await abrirNota(outra);
-      await irParaConferencia();
-      // Editar colunas.
-      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
-      await aguardar(dialogoAberto, 15000, 'o aviso não abriu');
-      const aviso = await avaliar(`(() => {
-        const d = document.querySelector('dialog[open]');
-        return {
-          titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent,
-          texto: d.querySelector('.caixa-dialogo__texto')?.textContent,
-          foco: document.activeElement?.textContent?.trim(),
-          botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()),
-        };
-      })()`);
-      confere(
-        aviso.texto ===
-          'Você vai sair da leitura protegida e começar a editar. O XML original não muda; o que você fizer fica numa cópia (.psxml).',
-        `texto: ${aviso.texto}`,
-      );
-      confere(aviso.foco === 'Ficar na leitura', `foco em: ${aviso.foco}`);
-      confere(
-        aviso.botoes.includes('Continuar'),
-        `botões: ${aviso.botoes.join(', ')}`,
-      );
-      confere(
-        await clicarNoDialogo('Ficar na leitura'),
-        'sem Ficar na leitura',
-      );
-      await espera(300);
-      confere(await avaliar(visivel('faixa-leitura')), 'saiu da leitura');
-      confere(
-        !(await avaliar(
-          `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
-        )),
-        'o editor de colunas abriu mesmo assim',
-      );
-      // Clicar numa anotação.
-      await avaliar(`(() => {
-        const c = document.querySelector('input.anotacao__campo');
-        c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        return true;
-      })()`);
-      await aguardar(
-        dialogoAberto,
-        15000,
-        'clicar na anotação não pediu aviso',
-      );
-      await clicarNoDialogo('Ficar na leitura');
-      await espera(300);
-      confere(
-        await avaliar(
-          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => x.readOnly)`,
-        ),
-        'a anotação destravou sem Continuar',
-      );
-      // Ferramenta ST (com a planilha faltando, Rodar fica desabilitado; a
-      // regra da ferramenta é testada em test/leituraProtegida.test.mts).
-    },
-  );
-
-  await caso(
-    '2B: "Usar a Conferência" e Continuar saem da leitura para editar',
-    async () => {
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(dialogoAberto, 15000, 'o aviso não abriu');
-      confere(await clicarNoDialogo('Continuar'), 'sem Continuar');
-      await aguardar(
-        `!${visivel('faixa-leitura')}`,
-        15000,
-        'a faixa não sumiu',
-      );
-      confere(await avaliar(visivel('nota')), 'não ficou na Conferência');
-      confere(
-        await avaliar(
-          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
-        ),
-        'as anotações continuam travadas',
-      );
+      const restos = await avaliar(restosDaLeitura);
+      confere(restos.length === 0, `restos da leitura protegida: ${restos}`);
       confere(
         (await avaliar(
           `document.getElementById('btn-salvar-texto').textContent`,
         )) === 'Salvar',
-        'o Salvar continua como Salvar PDF',
+        'o Salvar não diz Salvar',
       );
-      // Agora o processo principal aceita gravar o .psxml desta janela.
+      await irParaConferencia();
+      confere(
+        await avaliar(
+          `(() => { const c = [...document.querySelectorAll('input.anotacao__campo')]; return c.length > 0 && c.every((x) => !x.readOnly); })()`,
+        ),
+        'anotações travadas',
+      );
+      // Editar colunas abre direto, sem aviso.
+      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
+      await aguardar(
+        `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
+        15000,
+        'o Editar colunas não abriu',
+      );
+      await avaliar(`(() => {
+        const d = document.getElementById('painel-colunas-titulo').closest('dialog[open]');
+        d.dispatchEvent(new Event('cancel', { cancelable: true }));
+        return true;
+      })()`);
+      await espera(500);
+      await fecharAvisosDaNota();
+      // O processo principal grava o .psxml desta janela sem pedir nada.
+      const antes = psxmlNoDestino().length;
       const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
       confere(r.status === 'salvo', `resposta: ${JSON.stringify(r)}`);
+      confere(psxmlNoDestino().length === antes + 1, 'o .psxml não apareceu');
       await inicio();
     },
   );
 
-  // Parte 2C: seletor de perfil livre, "Abrir notas em" por perfil e .psxml
-  // vindo da internet.
-  await caso(
-    '2C: na leitura, o seletor de perfil abre sem aviso; Gerenciar perfis pede o aviso',
-    async () => {
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      await avaliar(`document.getElementById('btn-perfil').click()`);
-      await aguardar(
-        visivel('menu-perfil'),
-        15000,
-        'o menu de perfil não abriu',
-      );
-      confere(
-        !(await avaliar(dialogoAberto)),
-        'o seletor de perfil pediu aviso',
-      );
-      // Gerenciar perfis abre o Editar colunas: pede o aviso.
-      await avaliar(`[...document.querySelectorAll('#menu-perfil button')]
-        .find((b) => b.textContent.includes('Gerenciar perfis')).click()`);
-      await aguardar(dialogoAberto, 15000, 'Gerenciar perfis não pediu aviso');
-      await clicarNoDialogo('Ficar na leitura');
-      await espera(300);
-      confere(await avaliar(visivel('faixa-leitura')), 'saiu da leitura');
-      await inicio();
-    },
-  );
-
-  /** "Abrir notas em" do perfil ativo, lido do processo principal. */
+  /** "NF-e abre em" do perfil ativo, lido do processo principal. */
   const abrirEmAtivo = () =>
     avaliar(`window.psApi.ferramentasPerfis().then((e) =>
       e.lista.find((p) => p.id === e.ativo).ferramentas.abrirEm)`);
-  /** Grava o "Abrir notas em" do perfil ativo, pelo canal das Configurações. */
+  /** Grava o "NF-e abre em" do perfil ativo, pelo canal das Configurações. */
   const gravarAbrirEm = async (valor) => {
     await avaliar(`window.psApi.ferramentasPerfis().then((e) => {
       const f = e.lista.find((p) => p.id === e.ativo).ferramentas;
@@ -766,50 +607,57 @@ async function principal() {
     })`);
     confere(
       (await abrirEmAtivo()) === valor,
-      `"Abrir notas em" não ficou ${valor}`,
+      `"NF-e abre em" não ficou ${valor}`,
     );
   };
 
   await caso(
-    '2C: a aba Ferramentas das Configurações mostra e grava "Abrir notas em"',
+    'A aba Ferramentas das Configurações mostra e grava "NF-e abre em"',
     async () => {
-      confere((await abrirEmAtivo()) === 'leitura', 'o padrão não é a leitura');
+      confere((await abrirEmAtivo()) === 'xml', 'o padrão não é o XML');
       try {
         await avaliar(`document.getElementById('btn-config-inicio').click()`);
         await aguardar(`!!document.getElementById('config-titulo')`);
         await avaliar(`[...document.querySelectorAll('dialog[open] button')]
         .find((b) => b.textContent.trim() === 'Ferramentas').click()`);
-        await aguardar(`!!document.getElementById('config-abrir-em-leitura')`);
+        await aguardar(`!!document.getElementById('config-abrir-em-xml')`);
+        const textos = await avaliar(`(() => {
+          const d = document.querySelector('dialog[open]');
+          return {
+            titulos: [...d.querySelectorAll('.config__opcao .config__ferramenta-titulo')].map((e) => e.textContent),
+            cartao: d.textContent.includes('NF-e abre em'),
+            marcado: document.getElementById('config-abrir-em-xml').checked,
+          };
+        })()`);
         confere(
-          await avaliar(
-            `document.getElementById('config-abrir-em-leitura').checked`,
-          ),
-          'Leitura protegida não vem marcada',
+          textos.titulos.join() === 'XML (DANFE),PSXML',
+          `opções: ${textos.titulos.join(', ')}`,
         );
+        confere(textos.cartao, 'sem o cartão "NF-e abre em"');
+        confere(textos.marcado, 'XML (DANFE) não vem marcado');
         await avaliar(
-          `document.getElementById('config-abrir-em-conferencia').click()`,
+          `document.getElementById('config-abrir-em-psxml').click()`,
         );
         const limite = Date.now() + 30000;
-        while ((await abrirEmAtivo()) !== 'conferencia' && Date.now() < limite)
+        while ((await abrirEmAtivo()) !== 'psxml' && Date.now() < limite)
           await espera(200);
         confere(
-          (await abrirEmAtivo()) === 'conferencia',
-          'a opção Conferência não foi gravada',
+          (await abrirEmAtivo()) === 'psxml',
+          'a opção PSXML não foi gravada',
         );
         await fecharDialogos();
       } finally {
-        await gravarAbrirEm('leitura');
+        await gravarAbrirEm('xml');
       }
     },
   );
 
   await caso(
-    '2C: perfil em "Conferência" abre o XML direto na Conferência, em edição',
+    'Perfil com "NF-e abre em: PSXML" abre o XML direto na Conferência',
     async () => {
-      await gravarAbrirEm('conferencia');
+      await gravarAbrirEm('psxml');
       try {
         await abrirNota(outra, 'nota');
-        confere(!(await avaliar(visivel('faixa-leitura'))), 'abriu em leitura');
         confere(
           await avaliar(
             `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
@@ -819,13 +667,38 @@ async function principal() {
         await inicio();
       } finally {
         // Volta o perfil ao padrão mesmo se o caso falhar.
-        await gravarAbrirEm('leitura');
+        await gravarAbrirEm('xml');
       }
     },
   );
 
   await caso(
-    '2C: .psxml baixado da internet abre em leitura protegida, com aviso',
+    'Perfil gravado por uma versão anterior: "conferencia" vira PSXML e abre na Conferência',
+    async () => {
+      // config.json como a versão 1.2.6 deixava: abrirEm "conferencia".
+      await gravarAbrirEm('xml');
+      const arquivo = path.join(dados, 'config.json');
+      const config = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+      const ativo = await avaliar(
+        `window.psApi.ferramentasPerfis().then((e) => e.ativo)`,
+      );
+      config.ferramentasPerfis[ativo].abrirEm = 'conferencia';
+      fs.writeFileSync(arquivo, JSON.stringify(config, null, 2));
+      try {
+        confere(
+          (await abrirEmAtivo()) === 'psxml',
+          `lido como: ${await abrirEmAtivo()}`,
+        );
+        await abrirNota(outra, 'nota');
+        await inicio();
+      } finally {
+        await gravarAbrirEm('xml');
+      }
+    },
+  );
+
+  await caso(
+    '.psxml com a marca de baixado da internet abre na Conferência e grava',
     async () => {
       const baixado = path.join(notas, 't2c-baixado.psxml');
       fs.copyFileSync(path.join(FIXTURES, 't12-anotacao-html.psxml'), baixado);
@@ -836,215 +709,52 @@ async function principal() {
       );
       abrir(baixado);
       await aguardar(visivel('nota'));
-      await aguardar(
-        `${visivel('mensagem')} && /veio da internet/.test(document.getElementById('mensagem-texto').textContent)`,
-        30000,
-        'sem o aviso do .psxml da internet',
-      );
       await fecharAvisosDaNota();
-      confere(await avaliar(visivel('faixa-leitura')), 'abriu em edição');
-      const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
       confere(
-        r.status === 'erro' && /leitura protegida/.test(r.mensagem),
-        `o .psxml da internet pôde ser gravado: ${JSON.stringify(r)}`,
+        !(await avaliar(
+          `${visivel('mensagem')} && /internet/.test(document.getElementById('mensagem-texto').textContent)`,
+        )),
+        'apareceu aviso de arquivo da internet',
       );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
+        ),
+        'as anotações estão travadas',
+      );
+      const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
+      confere(r.status === 'salvo', `não gravou: ${JSON.stringify(r)}`);
       await inicio();
     },
   );
 
-  // Parte 2D: folhas do DANFE e orientação da Conferência na leitura (só a
-  // tela e o PDF que sai dela), regra da seleção de texto e as dicas.
-  const marcados = (grupo) =>
-    avaliar(
-      `[...document.querySelectorAll('#${grupo} [aria-pressed="true"]')].map((b) => b.textContent.trim()).join()`,
-    );
-  const clicarOpcao = (grupo, rotulo) =>
-    avaliar(`(() => {
-      const b = [...document.querySelectorAll('#${grupo} button')]
-        .find((x) => x.textContent.trim() === ${JSON.stringify(rotulo)});
-      if (!b) return false;
-      b.click();
-      return true;
-    })()`);
-  const atalhoZoom = (key) =>
-    avaliar(
-      `window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, ctrlKey: true })); true`,
-    );
+  // Regra da seleção de texto, as dicas e o PDF do DANFE.
   /** Elementos com title (dica nativa) na página, fora da ferramenta ST. */
   const comTitle = `[...document.querySelectorAll('[title]')].filter((e) => !e.closest('.st')).map((e) => e.id || e.className || e.tagName)`;
 
   await caso(
-    '2D: no DANFE da leitura, Folhas: Uma, Lado a lado e Ajustar à largura (só a tela)',
+    'DANFE: uma folha embaixo da outra na tela e uma folha A4 retrato por página no PDF',
     async () => {
       apagarPdfs();
       await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-folhas')), 'sem Folhas no DANFE');
-      confere(
-        !(await avaliar(visivel('faixa-orientacao'))),
-        'a orientação apareceu no DANFE',
-      );
-      confere(
-        (await marcados('seletor-folhas')) === 'Uma',
-        'Uma não vem marcada',
-      );
-      confere(
-        await clicarOpcao('seletor-folhas', 'Lado a lado'),
-        'sem Lado a lado',
-      );
-      await espera(300);
-      confere(!(await avaliar(dialogoAberto)), 'Folhas pediu o aviso');
-      const lado = await avaliar(`(() => {
+      const tela = await avaliar(`(() => {
         const d = document.getElementById('danfe');
-        const s = getComputedStyle(d);
-        return { dir: s.flexDirection, wrap: s.flexWrap, folhas: d.dataset.folhas };
+        return { dir: getComputedStyle(d).flexDirection, folhas: d.querySelectorAll('.folha').length };
       })()`);
-      confere(
-        lado.dir === 'row' && lado.wrap === 'wrap' && lado.folhas === 'lado',
-        `lado a lado: ${JSON.stringify(lado)}`,
-      );
-      confere(
-        (await marcados('seletor-folhas')) === 'Lado a lado',
-        'Lado a lado não ficou marcado',
-      );
-      // O PDF não segue o arranjo da tela: uma folha A4 retrato por página.
-      const folhas = await avaliar(
-        `document.querySelectorAll('#danfe .folha').length`,
-      );
+      confere(tela.dir === 'column', `DANFE na tela: ${JSON.stringify(tela)}`);
       await avaliar(`document.getElementById('btn-salvar').click()`);
       const pdf = paginasDoPdf(await pdfNoDestino('_DANFE.pdf'));
       confere(
-        pdf.paginas === folhas,
-        `PDF com ${pdf.paginas} páginas para ${folhas} folhas`,
+        pdf.paginas === tela.folhas,
+        `PDF com ${pdf.paginas} páginas para ${tela.folhas} folhas`,
       );
       confere(pdf.altura > pdf.largura, `PDF do DANFE: ${JSON.stringify(pdf)}`);
-      // Ajustar à largura: uma folha ocupando a largura da janela.
-      confere(
-        await clicarOpcao('seletor-folhas', 'Ajustar à largura'),
-        'sem Ajustar à largura',
-      );
-      await espera(400);
-      const aj = await avaliar(`(() => {
-        const d = document.getElementById('danfe');
-        const f = d.querySelector('.folha').getBoundingClientRect();
-        return {
-          folha: f.width,
-          janela: document.documentElement.clientWidth,
-          zoom: d.style.zoom,
-          dir: getComputedStyle(d).flexDirection,
-        };
-      })()`);
-      confere(aj.dir === 'column', `ajustar: ${JSON.stringify(aj)}`);
-      confere(
-        aj.folha <= aj.janela + 1 && aj.folha >= aj.janela * 0.85,
-        `a folha não ocupa a largura: ${JSON.stringify(aj)}`,
-      );
-      // Zoom à mão sai do Ajustar à largura e volta para Uma.
-      await atalhoZoom('=');
-      await espera(300);
-      confere(
-        (await marcados('seletor-folhas')) === 'Uma',
-        'o zoom à mão não voltou para Uma',
-      );
-      await atalhoZoom('0');
-      await espera(300);
-      confere(
-        (await avaliar(`document.getElementById('danfe').style.zoom`)) === '1',
-        'Ctrl+0 não voltou a 100%',
-      );
-    },
-  );
-
-  await caso(
-    '2D: na Conferência da leitura, Retrato ou Paisagem vale para o PDF e não grava no perfil',
-    async () => {
-      apagarPdfs();
-      await abrirNota(outra);
-      // Lado a lado agora, para conferir que sair da leitura volta a Uma.
-      confere(
-        await clicarOpcao('seletor-folhas', 'Lado a lado'),
-        'sem Lado a lado',
-      );
-      const perfisAntes = JSON.stringify(
-        await avaliar(`window.psApi.perfis()`),
-      );
-      await irParaConferencia();
-      confere(
-        await avaliar(visivel('faixa-orientacao')),
-        'sem a orientação na Conferência',
-      );
-      confere(
-        !(await avaliar(visivel('faixa-folhas'))),
-        'Folhas apareceu na Conferência',
-      );
-      const inicial = await marcados('seletor-orientacao-leitura');
-      confere(
-        inicial === 'Retrato' || inicial === 'Paisagem',
-        `orientação marcada: "${inicial}"`,
-      );
-      for (const [rotulo, deitada] of [
-        ['Paisagem', true],
-        ['Retrato', false],
-      ]) {
-        confere(
-          await clicarOpcao('seletor-orientacao-leitura', rotulo),
-          `sem ${rotulo}`,
-        );
-        await espera(200);
-        confere(!(await avaliar(dialogoAberto)), `${rotulo} pediu o aviso`);
-        confere(
-          (await marcados('seletor-orientacao-leitura')) === rotulo,
-          `${rotulo} não ficou marcada`,
-        );
-        apagarPdfs();
-        await avaliar(`document.getElementById('btn-salvar').click()`);
-        const pdf = paginasDoPdf(await pdfNoDestino('_Conferencia.pdf'));
-        confere(
-          deitada ? pdf.largura > pdf.altura : pdf.altura > pdf.largura,
-          `PDF em ${rotulo}: ${JSON.stringify(pdf)}`,
-        );
-      }
-      confere(
-        JSON.stringify(await avaliar(`window.psApi.perfis()`)) === perfisAntes,
-        'a orientação foi gravada no perfil',
-      );
-      // Sair da leitura: a faixa some e o DANFE volta a uma folha embaixo
-      // da outra.
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(dialogoAberto, 15000, 'o aviso não abriu');
-      await clicarNoDialogo('Continuar');
-      await aguardar(
-        `!${visivel('faixa-leitura')}`,
-        15000,
-        'a faixa não sumiu',
-      );
-      confere(
-        (await avaliar(`document.getElementById('danfe').dataset.folhas`)) ===
-          'uma',
-        'o DANFE continuou lado a lado fora da leitura',
-      );
-      // Editar colunas (só em edição): sem dica nativa.
-      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
-      await aguardar(
-        `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
-        15000,
-        'o Editar colunas não abriu',
-      );
-      await espera(300);
-      const noEditor = await avaliar(comTitle);
-      confere(noEditor.length === 0, `title no Editar colunas: ${noEditor}`);
-      await avaliar(`(() => {
-        const d = document.getElementById('painel-colunas-titulo').closest('dialog[open]');
-        d.dispatchEvent(new Event('cancel', { cancelable: true }));
-        return true;
-      })()`);
-      await espera(500);
-      await fecharAvisosDaNota();
       await inicio();
     },
   );
 
   await caso(
-    '2D: sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
+    'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {
       const semDica = async (onde) => {
         const lista = await avaliar(comTitle);
@@ -1064,8 +774,6 @@ async function principal() {
           interface: {
             salvar: us('#btn-salvar'),
             modo: us('#btn-modo-danfe'),
-            faixa: us('#faixa-leitura-texto'),
-            orientacao: us('#seletor-orientacao-leitura button'),
             cabecalho: us('#nota th'),
           },
           dados: {
@@ -1100,7 +808,7 @@ async function principal() {
   );
 
   await caso(
-    '2D: DANFE com .psxml aberto mostra o diálogo do app, só com OK, e não há caixa preta',
+    'DANFE com .psxml aberto mostra o diálogo do app, só com OK, e não há caixa preta',
     async () => {
       const copiaEditada = path.join(notas, 't2d-copia-editada.psxml');
       fs.copyFileSync(
@@ -1288,11 +996,7 @@ async function principal() {
         !texto.includes('não deve aparecer'),
         'coluna com id estranho apareceu',
       );
-      // .psxml é a cópia de trabalho: abre em edição, sem a faixa da leitura.
-      confere(
-        !(await avaliar(visivel('faixa-leitura'))),
-        'o .psxml abriu em leitura protegida',
-      );
+      // .psxml é a cópia de trabalho: abre com as anotações livres.
       confere(
         await avaliar(
           `[...document.querySelectorAll('input.anotacao__campo')].every((c) => !c.readOnly)`,
@@ -1524,19 +1228,7 @@ async function casosJanelasPorCima() {
         await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
         janela.setContentSize(1100, 600);
         await abrirNota(copia('t09-xprod-html.xml'));
-        await avaliar(
-          `document.getElementById('btn-usar-conferencia').click()`,
-        );
-        await aguardar(
-          `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
-          15000,
-          'o aviso para sair da leitura não abriu',
-        );
-        await avaliar(`[...document.querySelectorAll('dialog[open] button')]
-          .find((b) => b.textContent.trim() === 'Continuar').click()`);
-        await aguardar(`document.getElementById('faixa-leitura').hidden`);
-        await aguardar(visivel('nota'));
-        await fecharAvisosDaNota();
+        await irParaConferencia();
         // Página mais alta que a janela, rolada um pouco para baixo.
         const sobra = await avaliar(
           `document.documentElement.scrollHeight - document.documentElement.clientHeight`,
@@ -1713,17 +1405,7 @@ async function casosJanelasPorCima() {
     async () => {
       await carregarPlanilhaST();
       await abrirNota(copia('t13-st-autopecas.xml'));
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(
-        `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
-        15000,
-        'o aviso para sair da leitura não abriu',
-      );
-      await avaliar(`[...document.querySelectorAll('dialog[open] button')]
-        .find((b) => b.textContent.trim() === 'Continuar').click()`);
-      await aguardar(`document.getElementById('faixa-leitura').hidden`);
-      await aguardar(visivel('nota'));
-      await fecharAvisosDaNota();
+      await irParaConferencia();
       await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
         .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
         .querySelector('button:not(:disabled)').click()`);
@@ -1806,10 +1488,13 @@ app.whenReady().then(async () => {
     `\ntest:janela: ${resultados.length - falhas.length} de ${resultados.length} passaram`,
   );
   for (const f of falhas) console.log(`\n${f.nome}\n${f.erro}`);
-  try {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  } catch {
-    // Arquivo ainda preso pelo app: o Windows limpa a pasta temporária.
+  // Rodando por rodar.cjs, ele apaga a pasta depois que o Electron sair.
+  if (!process.env.PS_JANELA_TMP) {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      // Arquivo ainda preso pelo app: use npm run test:janela, que apaga.
+    }
   }
   app.exit(codigo);
 });

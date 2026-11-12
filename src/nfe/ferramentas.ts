@@ -55,9 +55,4 @@ export interface FerramentaJanela {
   /** false: falta o necessário (o botão Rodar fica desabilitado). */
   podeRodar(): boolean;
   rodar(): Promise<void>;
-  /**
-   * Antes de Rodar, fora do processando: false desiste (por exemplo, a
-   * pessoa escolheu ficar na leitura protegida). Sem a função: roda direto.
-   */
-  antesDeRodar?(): Promise<boolean>;
 }

@@ -447,10 +447,7 @@ export function criarPainel(
     rodar.disabled = !fe.podeRodar();
     rodar.addEventListener('click', () => {
       if (!fe.podeRodar()) return;
-      void (async () => {
-        if (fe.antesDeRodar && !(await fe.antesDeRodar())) return;
-        await indicador.rodar(() => fe.rodar());
-      })();
+      void indicador.rodar(() => fe.rodar());
     });
     const aviso = fe.aviso();
     let atalho: HTMLButtonElement | null = null;

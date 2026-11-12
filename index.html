@@ -274,53 +274,6 @@
         class="config-engrenagem"
         aria-label="Configurações"
       ></button>
-      <!-- Leitura protegida (src/nfe/leituraProtegida.ts): a NF-e aberta só
-           para ver. Abaixo do filete amarelo; o texto e o botão vêm do
-           renderer. Usar a Conferência pergunta antes de sair da leitura. -->
-      <div id="faixa-leitura" class="faixa-leitura" hidden>
-        <svg
-          class="icone faixa-leitura__icone"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            d="M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z"
-          />
-          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-        </svg>
-        <span id="faixa-leitura-texto" class="faixa-leitura__texto"></span>
-        <!-- Só a tela desta janela: as folhas do DANFE (Uma, Lado a lado,
-             Ajustar à largura) e a orientação da Conferência (vale também
-             para o PDF e a impressão; não grava no perfil). Os botões vêm do
-             renderer. -->
-        <div class="faixa-leitura__vista">
-          <div id="faixa-folhas" class="faixa-leitura__grupo" hidden>
-            <span id="rotulo-folhas" class="faixa-leitura__rotulo">Folhas</span>
-            <div
-              id="seletor-folhas"
-              class="seletor faixa-leitura__seletor"
-              role="group"
-              aria-labelledby="rotulo-folhas"
-            ></div>
-          </div>
-          <div id="faixa-orientacao" class="faixa-leitura__grupo" hidden>
-            <span id="rotulo-orientacao-leitura" class="faixa-leitura__rotulo"
-              >Orientação</span
-            >
-            <div
-              id="seletor-orientacao-leitura"
-              class="seletor faixa-leitura__seletor"
-              role="group"
-              aria-labelledby="rotulo-orientacao-leitura"
-            ></div>
-          </div>
-        </div>
-        <button
-          id="btn-usar-conferencia"
-          type="button"
-          class="botao botao--claro botao--pequeno faixa-leitura__botao"
-        ></button>
-      </div>
     </header>
 
     <!-- Painel de conferência, à esquerda da nota (só na Conferência e só

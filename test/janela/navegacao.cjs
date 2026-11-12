@@ -108,10 +108,6 @@ async function casosNavegacao(c) {
         !(await avaliar(visivel('mensagem'))),
         'apareceu mensagem (o aviso de "não é NF-e"?)',
       );
-      confere(
-        !(await avaliar(visivel('faixa-leitura'))),
-        'o leitor genérico não tem faixa de leitura protegida',
-      );
       await fecharLeitor();
       confere(await avaliar(visivel('vazio')), 'Fechar não voltou ao início');
     },

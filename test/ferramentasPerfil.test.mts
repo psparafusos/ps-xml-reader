@@ -7,11 +7,14 @@ import {
   ferramentasVisiveis,
   ID_FERRAMENTA_CFOPS,
   ID_FERRAMENTA_ST,
+  lerAbrirEm,
   lerFerramentas,
   lerFerramentasPorPerfil,
   moverFerramenta,
   planoDoAplicar,
+  ROTULO_ABRIR_EM,
   semPerfisExcluidos,
+  validarFerramentasPorPerfil,
   type FerramentasPerfil,
 } from '../src/nfe/ferramentasPerfil.ts';
 import type { LinhaPrevia } from '../src/previaST.ts';
@@ -170,12 +173,60 @@ describe('ferramenta ST: campos ocultos não são gravados no Aplicar', () => {
 
 describe('ferramentas por perfil: perfil excluído', () => {
   it('a entrada do perfil excluído sai; as outras ficam como estavam', () => {
-    const fiscal = { ...ferramentasPadrao(), aberturaNotas: 'protegida' };
+    const fiscal = { ...ferramentasPadrao(), campoNovo: 'de uma versão nova' };
     const r = semPerfisExcluidos(
       { 'p-aaa111': ferramentasPadrao(), 'p-bbb222': fiscal },
       ['p-bbb222'],
     );
     assert.deepEqual(r, { 'p-bbb222': fiscal });
     assert.deepEqual(semPerfisExcluidos('lixo', ['p-bbb222']), {});
+  });
+});
+
+describe('ferramentas por perfil: "NF-e abre em"', () => {
+  it('padrão: XML (DANFE); PSXML fica; valor estranho volta ao padrão', () => {
+    assert.equal(ferramentasPadrao().abrirEm, 'xml');
+    assert.equal(lerFerramentas({}).abrirEm, 'xml');
+    assert.equal(lerFerramentas({ abrirEm: 'psxml' }).abrirEm, 'psxml');
+    assert.equal(lerFerramentas({ abrirEm: 'qualquer' }).abrirEm, 'xml');
+    assert.deepEqual(ROTULO_ABRIR_EM, { xml: 'XML (DANFE)', psxml: 'PSXML' });
+    // Mover uma ferramenta não perde a opção.
+    const f = { ...ferramentasPadrao(), abrirEm: 'psxml' as const };
+    assert.equal(moverFerramenta(f, f.ordem[1].id, -1).abrirEm, 'psxml');
+  });
+
+  it('valores de versões anteriores: leitura vira xml; conferencia vira psxml', () => {
+    assert.equal(lerAbrirEm('leitura'), 'xml');
+    assert.equal(lerAbrirEm('conferencia'), 'psxml');
+    assert.equal(lerAbrirEm('toString'), null);
+    assert.equal(lerAbrirEm(undefined), null);
+    // Pelo config.json gravado por uma versão anterior: ninguém perde a escolha.
+    const r = lerFerramentasPorPerfil(
+      {
+        'p-aaa111': { ordem: [], abrirEm: 'leitura' },
+        'p-bbb222': { ordem: [], abrirEm: 'conferencia' },
+      },
+      ['p-aaa111', 'p-bbb222'],
+    );
+    assert.equal(r['p-aaa111'].abrirEm, 'xml');
+    assert.equal(r['p-bbb222'].abrirEm, 'psxml');
+    // Gravado de novo, já sai com o valor novo.
+    assert.equal(pelaConfig(r, ['p-bbb222'])['p-bbb222'].abrirEm, 'psxml');
+  });
+
+  it('backup: aceita os valores novos e os antigos, recusa outro valor, aceita sem o campo', () => {
+    const ordem = ferramentasPadrao().ordem;
+    const validar = (abrirEm?: unknown) =>
+      validarFerramentasPorPerfil({ p1: { ordem, abrirEm } }, ['p1']).p1
+        .abrirEm;
+    assert.equal(validar('psxml'), 'psxml');
+    assert.equal(validar('xml'), 'xml');
+    assert.equal(validar('conferencia'), 'psxml');
+    assert.equal(validar('leitura'), 'xml');
+    assert.equal(
+      validarFerramentasPorPerfil({ p1: { ordem } }, ['p1']).p1.abrirEm,
+      'xml',
+    );
+    assert.throws(() => validar('sim'), /NF-e abre em/);
   });
 });

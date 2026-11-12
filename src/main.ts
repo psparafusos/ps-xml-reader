@@ -76,7 +76,6 @@ import {
   diasDaConfig,
   nomePodeSerConferencia,
 } from './nfe/avisos';
-import { leituraAoAbrir, MENSAGEM_RECUSA_GRAVAR } from './nfe/leituraProtegida';
 // XML que não é NF-e abre no leitor genérico (parte 3); NF-e acima de 5 MB é
 // lida no serviço de leitura pesada (parte 2).
 import { destinoDoArquivo } from './leitorXml/destino';
@@ -90,7 +89,6 @@ import {
   existeOuSemResposta,
   mensagemSemResposta,
   problemaCaminhoSolto,
-  veioDaInternet,
 } from './seguranca/arquivo';
 import { opcoesPerigosas } from './seguranca/argumentos';
 import {
@@ -362,11 +360,6 @@ interface Janela {
    */
   arquivoAberto: string | null;
   abertoEhCopia: boolean;
-  /**
-   * A nota está em leitura protegida (src/nfe/leituraProtegida.ts): o .psxml
-   * não é gravado até a pessoa sair da leitura (canal sair-da-leitura).
-   */
-  protegida: boolean;
   /** O renderer tem anotações alteradas e não salvas. */
   pendentes: boolean;
   /** Já perguntou e pode fechar: o próximo close não é barrado. */
@@ -488,7 +481,6 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     ordem: proximaOrdem++,
     arquivoAberto: null,
     abertoEhCopia: false,
-    protegida: false,
     pendentes: false,
     liberada: false,
     pastaSessao: null,
@@ -695,15 +687,12 @@ async function lerArquivoNaJanela(
   j.arquivoAberto = caminho;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
-  // .psxml baixado da internet abre em leitura protegida; o XML da NF-e
-  // segue o "Abrir notas em" do perfil ativo.
-  const daInternet = j.abertoEhCopia && (await veioDaInternet(caminho));
-  const leitura = leituraAoAbrir({
-    copiaEditada: j.abertoEhCopia,
-    abrirEm: j.abertoEhCopia ? 'leitura' : await abrirNotasEmDoPerfil(),
-    daInternet,
-  });
-  j.protegida = leitura === 'protegida';
+  // A cópia editada (.psxml) abre na Conferência; o XML da NF-e segue o
+  // "NF-e abre em" do perfil ativo (XML: no DANFE; PSXML: na Conferência).
+  const modoInicial: ModoImpressao =
+    j.abertoEhCopia || (await abrirNotasEmDoPerfil()) === 'psxml'
+      ? 'conferencia'
+      : 'danfe';
   // Aberto com sucesso (é NF-e ou cópia editada): a pasta dele vira o ponto de
   // partida do próximo diálogo de abrir. Falha ao gravar não impede a abertura.
   if (RAIZES_ACEITAS.includes(raiz)) {
@@ -714,14 +703,13 @@ async function lerArquivoNaJanela(
   return {
     nome: path.basename(caminho),
     texto: conteudo,
-    leitura,
-    daInternet,
+    modoInicial,
   };
 }
 
 /**
- * "Abrir notas em" do perfil ativo (chave ferramentasPerfis do
- * config.json). Sem nada salvo, ou se a leitura falhar: leitura protegida.
+ * "NF-e abre em" do perfil ativo (chave ferramentasPerfis do config.json).
+ * Sem nada salvo, ou se a leitura falhar: XML (DANFE).
  */
 async function abrirNotasEmDoPerfil(): Promise<AbrirNotasEm> {
   try {
@@ -732,7 +720,7 @@ async function abrirNotasEmDoPerfil(): Promise<AbrirNotasEm> {
     );
     return ferramentasDoPerfil(porPerfil, perfilAtivo(p).id).abrirEm;
   } catch {
-    return 'leitura';
+    return 'xml';
   }
 }
 
@@ -838,19 +826,6 @@ ouvir('sem-nota', (event) => {
   if (!j) return;
   j.arquivoAberto = null;
   j.abertoEhCopia = false;
-  j.protegida = false;
-});
-
-/**
- * A pessoa escolheu Continuar no aviso da leitura protegida: a nota desta
- * janela passa a ser editada (o .psxml pode ser gravado). Não há volta para
- * a leitura na mesma janela; para reler protegido, abre-se o arquivo de novo.
- */
-tratar('sair-da-leitura', (event): boolean => {
-  const j = estadoDe(event.sender);
-  if (!j.arquivoAberto) return false;
-  j.protegida = false;
-  return true;
 });
 
 // Arquivo pedido de fora para esta janela (duplo clique, linha de comando,
@@ -1989,9 +1964,6 @@ tratar(
       return { status: 'erro', mensagem: 'Cópia editada vazia.' };
     }
     const j = estadoDe(event.sender);
-    // Leitura protegida: o .psxml só depois de a pessoa sair da leitura.
-    if (j.protegida)
-      return { status: 'erro', mensagem: MENSAGEM_RECUSA_GRAVAR };
     const copiaAberta = j.abertoEhCopia ? j.arquivoAberto : null;
     const r = await gravarSaidas(
       event,
@@ -2125,8 +2097,6 @@ tratar(
     const problema = problemaNomeArquivo(limpo);
     if (problema) return { status: 'erro', mensagem: problema };
     const j = estadoDe(event.sender);
-    if (j.protegida)
-      return { status: 'erro', mensagem: MENSAGEM_RECUSA_GRAVAR };
     const aberto = j.arquivoAberto;
     const efetiva = await pastaEfetiva(j);
     if (

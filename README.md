@@ -261,58 +261,30 @@ reabrir o app. A mesma pasta aparece na aba Geral das Configurações.
 Em 1366 a 125% (ou janela estreita), a grade passa de três para duas colunas,
 com as notas recentes embaixo.
 
-Um XML da NF-e abre direto no **DANFE**; um `.psxml` abre direto na
+Um XML da NF-e abre direto no **DANFE** (ou na **Conferência**, se o perfil
+estiver com **NF-e abre em: PSXML**); um `.psxml` abre direto na
 **Conferência**. Os botões **Conferência** e **DANFE** da barra trocam de
 modo. Se a nota não tem DANFE no PS Reader (contingência ou outro modelo),
 ela abre na **Conferência** com o motivo numa mensagem.
 
-### Leitura protegida
+### Onde a nota abre
 
-O XML da NF-e abre em **leitura protegida**, só para ver, como o Word com um
-arquivo baixado. Uma faixa abaixo da barra diz "Leitura protegida: só
-visualização." e tem o botão **Usar a Conferência**. Cada perfil escolhe
-como as notas abrem em **Abrir notas em** (Configurações, aba Ferramentas):
-**Leitura protegida** (o padrão) ou **Conferência**, que abre o XML direto
-na Conferência, com as anotações liberadas. Vale para o botão Abrir, o
-arrastar, a nota recente e o duplo clique no Explorer.
+Cada perfil escolhe onde um XML de NF-e abre em **NF-e abre em**
+(Configurações, aba Ferramentas): **XML (DANFE)** (o padrão), o arquivo
+original no DANFE, ou **PSXML**, direto na Conferência para anotar. Vale para
+o botão Abrir, o arrastar, a nota recente e o duplo clique no Explorer. O
+`.psxml` abre sempre na **Conferência**. As anotações, o **Editar colunas**,
+o **Salvar cópia...** e as ferramentas do painel ficam sempre livres.
 
-- Na leitura funcionam: trocar entre **Conferência** e **DANFE**, trocar de
-  perfil (só muda a visualização), zoom, ordenar, selecionar e copiar texto, **Imprimir** e **Salvar PDF** (o
-  **Salvar** vira **Salvar PDF** e grava na pasta de destino, com a mesma
-  regra de nome e de arquivo que já existe). O painel de avisos continua
-  visível.
-- Na faixa, só na tela desta janela:
-  - no DANFE, **Folhas**: **Uma** (uma folha embaixo da outra, como fora da
-    leitura), **Lado a lado** (quantas couberem na largura) e **Ajustar à
-    largura** (uma folha ocupando a largura da janela, que acompanha quando a
-    janela muda de tamanho). Mudar o zoom à mão (Ctrl com +, - ou 0, ou a
-    roda do mouse) sai do Ajustar à largura e volta para **Uma**. O arranjo
-    fica para a próxima nota aberta em leitura nesta janela, como o zoom. O
-    PDF e a impressão saem sempre uma folha A4 por página;
-  - na Conferência, **Orientação**: **Retrato** ou **Paisagem**. Vem marcada
-    a do perfil (na Automática, a que a tabela pede) e vale para a tela e
-    para o PDF e a impressão que saírem dela. Não grava no perfil e vale só
-    para a nota aberta: outra nota, ou sair da leitura, volta à do perfil.
-- As colunas de anotação ficam travadas. Clicar ou digitar numa anotação, o
-  **Editar colunas** (também pelo **Gerenciar perfis...**), o **Salvar
-  cópia...** e a
-  ferramenta **ST, MVA e CFOP** mostram um aviso: "Você vai sair da leitura
-  protegida e começar a editar. O XML original não muda; o que você fizer
-  fica numa cópia (.psxml)." **Ficar na leitura** vem com o foco (Enter e Esc
-  ficam); **Continuar** sai da leitura e a ação segue. **Usar a Conferência**
-  faz a mesma pergunta e abre a Conferência para editar.
-- Não há volta para a leitura na mesma janela: para reler protegido, abra o
-  arquivo de novo.
-- O processo principal guarda o modo de cada janela e recusa gravar o
-  `.psxml` de uma janela em leitura protegida, mesmo que a tela peça.
-- O `.psxml` é a cópia de trabalho e abre em edição, sem a faixa. Se ele
-  veio da internet (a marca `Zone.Identifier` do Windows com zona 3 ou 4,
-  como num anexo de e-mail ou num download), abre em leitura protegida, com
-  o aviso "Esta cópia editada (.psxml) veio da internet e abriu em leitura
-  protegida.".
-- O XML da NF-e com a marca da internet segue o perfil (**Abrir notas em**):
-  quase toda nota chega por e-mail ou download, e o XML original nunca é
-  alterado. A marca só muda a abertura do `.psxml`.
+Perfis gravados por versões anteriores mantêm a escolha: a antiga **Leitura
+protegida** passa a ser **XML (DANFE)** e a antiga **Conferência** passa a ser
+**PSXML** (a conversão é feita ao ler a chave `ferramentasPerfis` do
+`config.json`; a próxima gravação já sai com o valor novo).
+
+O XML nunca executa nada no app. A proteção é a própria leitura: DOCTYPE e
+ENTITY recusados, limites de tamanho, conteúdo sempre tratado como texto e a
+janela em sandbox (ver Como rodar). O XML original nunca é alterado; o que se
+anota fica na cópia (`.psxml`).
 
 ### Várias janelas
 
@@ -1010,8 +982,8 @@ para o cartão. Seis abas:
   Ferramentas do painel (**ST, MVA e CFOP** e **CFOPs de entrada**) e em que
   ordem (arrastar pela alça ou setas para cima e para baixo nela), e os
   campos do rodapé da "ST, MVA e CFOP" (**Gravar a MVA em**, **Gravar a
-  alíquota interna em**). O CFOP é sempre gravado. Também **Abrir notas em**:
-  **Leitura protegida** (padrão) ou **Conferência** (ver Leitura protegida).
+  alíquota interna em**). O CFOP é sempre gravado. Também **NF-e abre em**:
+  **XML (DANFE)** (padrão) ou **PSXML** (ver Onde a nota abre).
   As mudanças valem na hora.
   Fica na chave `ferramentasPerfis` do `config.json`, fora dos perfis, para
   o arquivo de um perfil exportado não mudar; excluir um perfil apaga a
@@ -1133,12 +1105,12 @@ não faz chamada de rede.
 
 ## Outros comandos
 
-| Comando               | O que faz                                                                                                                        |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run typecheck`   | Verifica os tipos TypeScript                                                                                                     |
-| `npm run lint`        | Roda oxlint e confere a formatação                                                                                               |
-| `npm test`            | Roda os testes automáticos                                                                                                       |
-| `npm run test:janela` | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal |
+| Comando               | O que faz                                                                                                                                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`   | Verifica os tipos TypeScript                                                                                                                                                                                        |
+| `npm run lint`        | Roda oxlint e confere a formatação                                                                                                                                                                                  |
+| `npm test`            | Roda os testes automáticos                                                                                                                                                                                          |
+| `npm run test:janela` | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal. No fim, apaga as pastas temporárias que criou no `%TEMP%` (test/janela/rodar.cjs) |
 
 ## Estrutura
 

@@ -31,8 +31,6 @@ import { montarCopia } from './nfe/copia';
 import { destinoAnotacao, type TeclaAnotacao } from './nfe/navegacao';
 import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
 import {
-  A4,
-  mmParaPx,
   ROTULO_ORIENTACAO,
   type Orientacao,
   type PlanoFolha,
@@ -45,19 +43,6 @@ import {
   type ArquivoLido,
 } from './nfe/parser';
 import { ArquivoRecusadoError } from './seguranca/xml';
-import {
-  ARRANJOS_FOLHAS,
-  AVISO_SAIR,
-  MENSAGEM_PSXML_INTERNET,
-  ROTULO_FOLHAS,
-  ROTULO_USAR_CONFERENCIA,
-  TEXTO_FAIXA,
-  orientacaoDaFolha,
-  pedeAviso,
-  zoomParaLargura,
-  type AcaoNota,
-  type ArranjoFolhas,
-} from './nfe/leituraProtegida';
 import {
   colunasOrdenaveis,
   criterioValido,
@@ -491,9 +476,7 @@ async function abrirMenuPerfil(): Promise<void> {
   gerenciar.setAttribute('role', 'menuitem');
   gerenciar.addEventListener('click', () => {
     fecharMenuPerfil();
-    void (async () => {
-      if (await liberarEdicao('editar-colunas')) await editarColunas(true);
-    })();
+    void editarColunas(true);
   });
   menuPerfil.replaceChildren(
     ...itens,
@@ -517,9 +500,6 @@ async function trocarPerfil(id: string, jaAtivo: boolean): Promise<void> {
   else mostrarMensagem(r.mensagem, 'erro');
 }
 
-// Trocar de perfil vale também na leitura protegida (só muda a
-// visualização); o Gerenciar perfis do menu abre o Editar colunas e pede o
-// aviso.
 btnPerfil.addEventListener('click', () => {
   if (menuPerfil.hidden) void abrirMenuPerfil();
   else fecharMenuPerfil();
@@ -653,26 +633,6 @@ function celulaAnotacao(
     td.append(campoTexto, espelho);
     return td;
   }
-  // Leitura protegida: o campo fica só para ler. Clicar nele ou digitar
-  // pede o aviso; com Continuar, a anotação segue normal nesse campo.
-  campoTexto.readOnly = leitura === 'protegida' && aberto !== null;
-  const pedirEdicao = (e: Event) => {
-    e.preventDefault();
-    void liberarEdicao('anotar').then((ok) => {
-      if (ok) campoTexto.focus();
-    });
-  };
-  campoTexto.addEventListener('mousedown', (e) => {
-    if (campoTexto.readOnly) pedirEdicao(e);
-  });
-  campoTexto.addEventListener('keydown', (e) => {
-    if (!campoTexto.readOnly) return;
-    const edita =
-      (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) ||
-      e.key === 'Backspace' ||
-      e.key === 'Delete';
-    if (edita) pedirEdicao(e);
-  });
   // Ao entrar no campo o texto fica selecionado (o mouse não desfaz a seleção
   // no clique que deu o foco).
   let focoPeloMouse = false;
@@ -916,9 +876,7 @@ function controleOrdenar(): HTMLElement {
   editar.id = 'btn-editar-colunas';
   editar.setAttribute('aria-haspopup', 'dialog');
   editar.addEventListener('click', () => {
-    void (async () => {
-      if (await liberarEdicao('editar-colunas')) await editarColunas();
-    })();
+    void editarColunas();
   });
   return el('div', 'ordenar', botaoOrdenar, limpar, menuOrdenar, editar);
 }
@@ -1117,10 +1075,7 @@ async function prepararFolha(
     'table.tabela--itens',
   );
   if (!secaoItens || !tabela) return 'retrato';
-  const plano = planoDaTabela(
-    tabela,
-    orientacaoDaFolha(orientacaoLeitura, configAtual.orientacao),
-  );
+  const plano = planoDaTabela(tabela, configAtual.orientacao);
   if (plano.partes.length > 1) {
     const nome = ROTULO_ORIENTACAO[plano.orientacao].toLowerCase();
     const r = await perguntar({
@@ -1404,8 +1359,6 @@ const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
-const faixaLeitura = $('faixa-leitura');
-const btnUsarConferencia = $('btn-usar-conferencia') as HTMLButtonElement;
 const btnSalvarMais = $('btn-salvar-mais') as HTMLButtonElement;
 const menuSalvar = $('menu-salvar');
 const btnSalvarPdf = $('btn-salvar-pdf') as HTMLButtonElement;
@@ -1418,28 +1371,9 @@ const avisoTipos = $('aviso-tipos');
 const avisoPasta = $('aviso-pasta');
 const btnZoom = $('btn-zoom') as HTMLButtonElement;
 const btnZoomValor = $('btn-zoom-valor');
-const faixaFolhas = $('faixa-folhas');
-const seletorFolhas = $('seletor-folhas');
-const faixaOrientacao = $('faixa-orientacao');
-const seletorOrientacaoLeitura = $('seletor-orientacao-leitura');
 
 /** Arquivo aberto: o texto fica guardado para montar a cópia editada. */
 let aberto: { nome: string; texto: string; lido: ArquivoLido } | null = null;
-/**
- * Como a nota aberta está: leitura protegida (só ver) ou edição. Vem do
- * processo principal ao abrir; sai da leitura só pelo aviso (liberarEdicao).
- */
-let leitura: LeituraNota = 'edicao';
-/**
- * Folhas do DANFE na leitura protegida (só a tela). Fica para a próxima nota
- * desta janela, como o zoom.
- */
-let arranjoFolhas: ArranjoFolhas = 'uma';
-/**
- * Orientação da Conferência escolhida na faixa da leitura: vale só para a
- * nota aberta nesta janela (tela, PDF e impressão); null: a do perfil.
- */
-let orientacaoLeitura: Orientacao | null = null;
 let pastaDestino: string | null = null;
 
 /**
@@ -1547,7 +1481,6 @@ function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
   painelEl.hidden = tela !== 'nota';
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
-    atualizarTextoSalvar();
     document.body.dataset.modo = modoAtual;
     // Seletor de duas posições: aria-pressed marca a opção ativa.
     btnModoConferencia.setAttribute(
@@ -1557,7 +1490,6 @@ function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
     btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
   }
   window.scrollTo(0, 0);
-  atualizarVistaLeitura();
   aplicarZoom();
   painel.ajustarLayout();
   if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
@@ -1600,11 +1532,6 @@ function aplicarZoom(): void {
 /** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
 function mudarZoom(passo: -1 | 0 | 1): void {
   if (!areaZoom()) return;
-  // Zoom à mão no "Ajustar à largura": volta para Uma, a partir do zoom de agora.
-  if (modoAtual === 'danfe' && arranjoFolhas === 'largura') {
-    arranjoFolhas = 'uma';
-    atualizarVistaLeitura();
-  }
   const atual = zoomPorModo[modoAtual];
   let novo = 1;
   if (passo === 1) novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9) ?? atual;
@@ -1957,22 +1884,20 @@ function erroParaPessoa(
 }
 
 /**
- * Lê o arquivo e abre direto: XML da NF-e no DANFE (ou em `modoInicial`, como
- * a nota já conferida que abre na Conferência); cópia editada (.psxml) na
- * Conferência (o DANFE só sai do XML original). NF-e sem DANFE no PS Reader
+ * Lê o arquivo e abre direto no modo que o processo principal decidiu
+ * (`arquivo.modoInicial`: XML da NF-e pelo "NF-e abre em" do perfil, cópia
+ * editada na Conferência) ou em `modo`, como a nota já conferida que abre na
+ * Conferência. O DANFE só sai do XML original. NF-e sem DANFE no PS Reader
  * (contingência ou outro modelo): abre na Conferência e diz o motivo.
  */
 function carregar(
   arquivo: ArquivoAberto,
-  modoInicial: ModoImpressao | null = null,
+  modo: ModoImpressao | null = null,
 ): void {
   try {
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
-    leitura = arquivo.leitura;
-    orientacaoLeitura = null;
-    aplicarLeitura();
     salvoAgora = null;
     ultimoRecente = '';
     conferenciaMontada = false;
@@ -1990,15 +1915,10 @@ function carregar(
         ? lido.ordem
         : ORDEM_NOTA;
     document.title = 'PS Reader';
-    // Cópia editada, nota já conferida ou perfil que abre as notas na
-    // Conferência (em edição): direto na Conferência.
-    if (
-      lido.copiaEditada ||
-      modoInicial === 'conferencia' ||
-      leitura === 'edicao'
-    ) {
+    // Cópia editada, nota já conferida ou perfil com "NF-e abre em: PSXML":
+    // direto na Conferência.
+    if (lido.copiaEditada || (modo ?? arquivo.modoInicial) === 'conferencia') {
       mostrarConferencia();
-      if (arquivo.daInternet) mostrarMensagem(MENSAGEM_PSXML_INTERNET, 'info');
       return;
     }
     const { motivo } = lerDadosDanfe(arquivo.texto);
@@ -2013,9 +1933,6 @@ function carregar(
     // pode mais ser salva, então volta para a tela inicial.
     window.psApi.informarSemNota();
     aberto = null;
-    leitura = 'edicao';
-    orientacaoLeitura = null;
-    aplicarLeitura();
     conferenciaMontada = false;
     danfeMontado = false;
     danfeEl.replaceChildren();
@@ -2313,182 +2230,18 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
   ]) {
     b.disabled = bloquear;
   }
-  if (bloquear && salvando) btnSalvarTexto.textContent = 'Salvando...';
-  else atualizarTextoSalvar();
+  btnSalvarTexto.textContent = bloquear && salvando ? 'Salvando...' : 'Salvar';
   if (!bloquear) retomarExterno();
 }
 
 /**
- * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF. Na
- * leitura protegida, o PDF do modo (a nota só para ver não grava o .psxml).
+ * Salvar (Ctrl+S): na Conferência grava só o .psxml; no DANFE, só o PDF.
  * O PDF da Conferência e a cópia ficam no menu da seta ao lado do botão.
  */
 function salvar(): Promise<boolean> {
   if (modoAtual === 'danfe') return salvarDanfe();
-  if (aberto && leitura === 'protegida') return salvarPdfConferencia();
   return salvarConferencia();
 }
-
-/** "Salvar PDF" na leitura protegida (o Salvar grava o PDF); senão "Salvar". */
-function atualizarTextoSalvar(): void {
-  btnSalvarTexto.textContent =
-    aberto && leitura === 'protegida' ? 'Salvar PDF' : 'Salvar';
-}
-
-// ---------- leitura protegida ----------
-
-/**
- * Mostra o estado da leitura: a faixa no alto, a marca no body (CSS) e as
- * anotações travadas (o campo mostra o texto e não aceita digitação).
- */
-function aplicarLeitura(): void {
-  const protegida = aberto !== null && leitura === 'protegida';
-  faixaLeitura.hidden = !protegida;
-  document.body.dataset.leitura = protegida ? 'protegida' : 'edicao';
-  for (const c of notaEl.querySelectorAll<HTMLInputElement>(
-    'input.anotacao__campo',
-  ))
-    c.readOnly = protegida;
-  atualizarTextoSalvar();
-  atualizarVistaLeitura();
-}
-
-// Folhas do DANFE (Uma, Lado a lado, Ajustar à largura) e orientação da
-// Conferência (Retrato, Paisagem), na faixa da leitura protegida.
-const botoesFolhas = ARRANJOS_FOLHAS.map((a) => {
-  const b = el('button', 'seletor__opcao', ROTULO_FOLHAS[a]);
-  b.type = 'button';
-  b.dataset.folhas = a;
-  b.addEventListener('click', () => escolherFolhas(a));
-  return b;
-});
-seletorFolhas.append(...botoesFolhas);
-
-const botoesOrientacaoLeitura = (['retrato', 'paisagem'] as const).map((o) => {
-  const b = el('button', 'seletor__opcao', ROTULO_ORIENTACAO[o]);
-  b.type = 'button';
-  b.dataset.orientacao = o;
-  b.addEventListener('click', () => {
-    orientacaoLeitura = o;
-    atualizarVistaLeitura();
-  });
-  return b;
-});
-seletorOrientacaoLeitura.append(...botoesOrientacaoLeitura);
-
-/**
- * Orientação que a folha da Conferência vai ter: a escolhida na faixa ou,
- * sem escolha, a do perfil (na Automática, a que a tabela da tela pede,
- * pela mesma conta do PDF).
- */
-function orientacaoDaConferencia(): Orientacao {
-  if (orientacaoLeitura) return orientacaoLeitura;
-  if (configAtual.orientacao !== 'automatica') return configAtual.orientacao;
-  const tabela = notaEl.querySelector<HTMLTableElement>(
-    '.secao--itens table.tabela--itens',
-  );
-  if (!tabela || notaEl.hidden) return 'retrato';
-  return planoDaTabela(tabela, 'automatica').orientacao;
-}
-
-/**
- * Mostra os controles da faixa do modo em que a tela está (folhas no DANFE,
- * orientação na Conferência), marca a opção em uso e arruma as folhas do
- * DANFE. Fora da leitura protegida, o DANFE fica com uma folha embaixo da
- * outra.
- */
-function atualizarVistaLeitura(): void {
-  const protegida = aberto !== null && leitura === 'protegida';
-  faixaFolhas.hidden = !protegida || modoAtual !== 'danfe';
-  faixaOrientacao.hidden = !protegida || modoAtual !== 'conferencia';
-  danfeEl.dataset.folhas = protegida ? arranjoFolhas : 'uma';
-  for (const b of botoesFolhas)
-    b.setAttribute('aria-pressed', String(b.dataset.folhas === arranjoFolhas));
-  if (!faixaOrientacao.hidden) {
-    const atual = orientacaoDaConferencia();
-    for (const b of botoesOrientacaoLeitura)
-      b.setAttribute('aria-pressed', String(b.dataset.orientacao === atual));
-  }
-  if (protegida && arranjoFolhas === 'largura') calcularZoomLargura();
-}
-
-/**
- * "Ajustar à largura": o zoom do DANFE que faz uma folha ocupar a largura da
- * janela. Só guarda o valor; quem chama aplica (aplicarZoom).
- */
-function calcularZoomLargura(): void {
-  const estilo = getComputedStyle(danfeEl);
-  const recuo =
-    (parseFloat(estilo.paddingLeft) || 0) +
-    (parseFloat(estilo.paddingRight) || 0);
-  zoomPorModo.danfe = zoomParaLargura(
-    document.documentElement.clientWidth,
-    mmParaPx(A4.largura),
-    recuo,
-  );
-}
-
-/** Troca o arranjo das folhas do DANFE (só a tela). */
-function escolherFolhas(a: ArranjoFolhas): void {
-  if (a === arranjoFolhas) return;
-  // Saindo do "Ajustar à largura", a folha volta ao tamanho normal.
-  if (arranjoFolhas === 'largura') zoomPorModo.danfe = 1;
-  arranjoFolhas = a;
-  atualizarVistaLeitura();
-  aplicarZoom();
-}
-
-// A janela mudou de largura: o "Ajustar à largura" acompanha.
-window.addEventListener('resize', () => {
-  if (
-    aberto &&
-    leitura === 'protegida' &&
-    arranjoFolhas === 'largura' &&
-    modoAtual === 'danfe'
-  ) {
-    calcularZoomLargura();
-    aplicarZoom();
-  }
-});
-
-/**
- * Antes de uma ação que edita: na leitura protegida, o aviso dentro do app
- * ("Ficar na leitura" com o foco, "Continuar"). Continuar avisa o processo
- * principal, que passa a aceitar gravar o .psxml, e a ação segue. true: pode
- * fazer a ação; false: a pessoa ficou na leitura.
- */
-async function liberarEdicao(acao: AcaoNota): Promise<boolean> {
-  if (!aberto || !pedeAviso(acao, leitura)) return true;
-  const resposta = await perguntar<'ficar' | 'continuar'>({
-    titulo: AVISO_SAIR.titulo,
-    texto: AVISO_SAIR.texto,
-    botoes: [
-      { rotulo: AVISO_SAIR.ficar, valor: 'ficar' },
-      { rotulo: AVISO_SAIR.continuar, valor: 'continuar', principal: true },
-    ],
-    cancelar: 'ficar',
-    foco: 'ficar',
-  });
-  if (resposta !== 'continuar') return false;
-  try {
-    if (!(await window.psApi.sairDaLeitura())) return false;
-  } catch (erro) {
-    console.error(erro);
-    return false;
-  }
-  leitura = 'edicao';
-  orientacaoLeitura = null;
-  aplicarLeitura();
-  return true;
-}
-
-faixaLeitura.querySelector('.faixa-leitura__texto')!.textContent = TEXTO_FAIXA;
-btnUsarConferencia.textContent = ROTULO_USAR_CONFERENCIA;
-btnUsarConferencia.addEventListener('click', () => {
-  void (async () => {
-    if (await liberarEdicao('usar-conferencia')) mostrarConferencia();
-  })();
-});
 
 /** "Salvar PDF" do menu: o PDF do modo em que a tela está. */
 function salvarPdf(): Promise<boolean> {
@@ -2792,7 +2545,7 @@ function abrirMenuSalvar(): void {
 
 /** true enquanto salva ou imprime: o arquivo de fora espera terminar. */
 let acoesBloqueadas = false;
-/** Pergunta de anotações (ou leitura) em andamento para um arquivo de fora. */
+/** Pergunta de anotações em andamento para um arquivo de fora. */
 let abrindoExterno = false;
 /** Chegou arquivo de fora enquanto as ações estavam bloqueadas ou abrindo. */
 let externoAguardando = false;
@@ -2823,9 +2576,7 @@ async function abrirExterno(): Promise<void> {
     // carregar, que esconde as mensagens).
     if (arquivo.pastaSessao) {
       atualizarPasta(arquivo.pastaSessao, true);
-      // Vindo da internet, fica o aviso da leitura protegida (o .psxml só é
-      // gravado depois de sair dela); a pastilha mostra a pasta da sessão.
-      if (aberto && !arquivo.daInternet)
+      if (aberto)
         mostrarMensagem(
           `Nesta janela os arquivos serão salvos em ${arquivo.pastaSessao}, a pasta do arquivo aberto. Sua pasta salva volta quando você fechar esta janela.`,
           'info',
@@ -2913,9 +2664,6 @@ async function irParaInicio(): Promise<void> {
 /** Tira a nota desta janela e volta para a tela inicial (sem perguntar). */
 function limparNota(): void {
   aberto = null;
-  leitura = 'edicao';
-  orientacaoLeitura = null;
-  aplicarLeitura();
   // Respostas atrasadas da busca de avisos não valem mais.
   geracaoAvisos++;
   avisosProntos = false;
@@ -3100,9 +2848,7 @@ btnSalvarPdf.addEventListener('click', () => {
 });
 btnSalvarCopia.addEventListener('click', () => {
   fecharMenuSalvar();
-  void (async () => {
-    if (await liberarEdicao('salvar-copia')) await salvarCopia();
-  })();
+  void salvarCopia();
 });
 menuSalvar.addEventListener('keydown', (e) => {
   const ops = [btnSalvarPdf, btnSalvarCopia];
@@ -3186,7 +2932,6 @@ const ferramentaST: FerramentaJanela = {
     return null;
   },
   podeRodar: () => aberto !== null && estadoDocumentos?.st != null,
-  antesDeRodar: () => liberarEdicao('ferramenta'),
   rodar: async () => {
     if (!aberto) return;
     const nota = aberto.lido.nota;

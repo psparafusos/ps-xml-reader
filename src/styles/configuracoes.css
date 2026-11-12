@@ -279,7 +279,7 @@
     gap: var(--esp-2);
   }
 
-  /* "Abrir notas em": uma opção por linha, rádio ao lado do título e da
+  /* "NF-e abre em": uma opção por linha, rádio ao lado do título e da
      explicação. Interface: não seleciona. */
   .config__opcoes {
     display: grid;
