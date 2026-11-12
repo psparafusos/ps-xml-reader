@@ -8,15 +8,20 @@
 // Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, a
 // abertura direta (parte 2A: sem a tela de escolha), a leitura protegida
 // (partes 2B, 2C e 2D), T6, T8 (gerado aqui), T9, T10, T11 e T12 do plano
-// de segurança, as janelas por cima (X e Esc das Configurações, rolagem
-// travada atrás da ferramenta ST) e os dois avisos novos da ferramenta ST
-// (t13, com a planilha inventada de planilhaST.mts).
+// de segurança; a tela do leitor genérico de XML (leitorXml.cjs) e o serviço
+// de leitura pesada (servico.cjs), com XML inventado gerado no teste; as
+// janelas por cima (X e Esc das Configurações, rolagem travada atrás da
+// ferramenta ST) e os dois avisos novos da ferramenta ST (t13, com a
+// planilha inventada de planilhaST.mts).
 'use strict';
 
 const { app, session } = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { casosLeitorXml, limparLeitorXml } = require('./leitorXml.cjs');
+const { casosNavegacao } = require('./navegacao.cjs');
+const { casosServico } = require('./servico.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -47,10 +52,17 @@ function copia(nome) {
 }
 
 // T8: 100 mil níveis de aninhamento, gerado aqui (nada grande no repositório).
+// Raiz qualquer (vai para o leitor genérico) e raiz de NF-e (fluxo da nota,
+// DOMParser).
 const profundo = path.join(notas, 't08-profundo.xml');
 fs.writeFileSync(
   profundo,
   `<?xml version="1.0" encoding="UTF-8"?>${'<a>'.repeat(100000)}${'</a>'.repeat(100000)}`,
+);
+const profundoNfe = path.join(notas, 't08-profundo-nfe.xml');
+fs.writeFileSync(
+  profundoNfe,
+  `<?xml version="1.0" encoding="UTF-8"?><nfeProc>${'<a>'.repeat(100000)}${'</a>'.repeat(100000)}</nfeProc>`,
 );
 
 // Janela oculta: o app chama show/maximize/focus; aqui eles não fazem nada.
@@ -172,6 +184,8 @@ async function irParaConferencia() {
 async function estadoLimpo() {
   const { BrowserWindow } = require('electron');
   for (const w of BrowserWindow.getAllWindows()) if (w !== janela) w.destroy();
+  // Leitor de XML (parte 1) fechado e nenhuma leitura no serviço (parte 2).
+  await limparLeitorXml(avaliar, espera);
   await fecharDialogos();
   const limite = Date.now() + 30000;
   let ultimoClique = 0;
@@ -1141,8 +1155,9 @@ async function principal() {
   );
 
   await caso('T8: 100 mil níveis de aninhamento (DOMParser)', async () => {
-    const t0 = Date.now();
-    abrir(profundo);
+    // Com raiz de NF-e: fluxo da nota, recusado sem travar.
+    let t0 = Date.now();
+    abrir(profundoNfe);
     await aguardar(
       `${visivel('mensagem')} && document.getElementById('mensagem-texto').textContent.length > 0`,
       30000,
@@ -1150,10 +1165,22 @@ async function principal() {
     const msg = await avaliar(
       `document.getElementById('mensagem-texto').textContent`,
     );
-    confere(msg === 'Este arquivo não é uma NF-e.', `mensagem: ${msg}`);
     confere(Date.now() - t0 < 5000, `demorou ${Date.now() - t0} ms`);
-    confere(await avaliar(visivel('vazio')), 'saiu da tela inicial');
+    confere(await avaliar(visivel('vazio')), `saiu da tela inicial: ${msg}`);
     await avaliar(`document.getElementById('mensagem-fechar')?.click(); true`);
+    // Raiz qualquer: o leitor genérico (parte 3) abre sem travar, com a
+    // Árvore desligada pela profundidade e o texto completo.
+    t0 = Date.now();
+    abrir(profundo);
+    await aguardar(
+      `(document.querySelector('.leitor-xml__avisos')?.innerText ?? '').includes('mais de 1.000 níveis')`,
+      30000,
+      'o leitor não avisou a profundidade',
+    );
+    confere(Date.now() - t0 < 5000, `leitor demorou ${Date.now() - t0} ms`);
+    await avaliar(
+      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
+    );
   });
 
   await caso('T9: HTML e javascript: em xProd ficam literais', async () => {
@@ -1301,6 +1328,31 @@ async function principal() {
     },
   );
 
+  // Tela do leitor genérico de XML (parte 1), aberta como num duplo clique,
+  // lendo pelo serviço de leitura pesada (parte 2, filho em
+  // servicoPesado.cjs), e o leitor na navegação (parte 3).
+  const contexto = {
+    app,
+    notas,
+    caso,
+    avaliar,
+    aguardar,
+    confere,
+    espera,
+    rede,
+    sonda: SONDA,
+    abrir,
+    janela: () => janela,
+    primeiro,
+    visivel,
+    abrirNota,
+    inicio,
+  };
+  await casosLeitorXml(contexto);
+  await casosNavegacao(contexto);
+  await casosServico(contexto);
+
+  // Janelas por cima da nota (Configurações, ferramenta ST) e a rolagem.
   await casosJanelasPorCima();
 }
 
@@ -1552,6 +1604,54 @@ async function casosJanelasPorCima() {
       } finally {
         janela.setContentSize(largura, altura);
       }
+    },
+  );
+
+  // Leitor de XML genérico: camada fixa sobre a janela, com rolagem própria.
+  // Ocupa a largura toda (sem o espaço reservado da barra) e a página de baixo
+  // não rola enquanto ele está aberto.
+  await caso(
+    'Leitor de XML: ocupa a janela toda e a página de baixo não rola',
+    async () => {
+      const xml = path.join(notas, 'catalogo-largura.xml');
+      fs.writeFileSync(
+        xml,
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<catalogo origem="inventado"><item>ARRUELA INVENTADA</item></catalogo>',
+          '',
+        ].join('\n'),
+      );
+      abrir(xml);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+        30000,
+        'o leitor não abriu',
+      );
+      await avaliar(DOIS_QUADROS);
+      const m = await avaliar(`(() => ({
+        leitor: Math.round(document.querySelector('.leitor-xml').getBoundingClientRect().width),
+        janela: innerWidth,
+        rolagem: getComputedStyle(document.documentElement).overflowY,
+      }))()`);
+      confere(
+        m.leitor === m.janela,
+        `o leitor não ocupa a janela toda: ${JSON.stringify(m)}`,
+      );
+      confere(m.rolagem === 'hidden', 'a página de baixo continua rolável');
+      await avaliar(`[...document.querySelectorAll('.leitor-xml button')]
+        .find((b) => b.textContent.trim() === 'Fechar').click()`);
+      await aguardar(
+        `document.querySelector('.leitor-xml').hidden`,
+        15000,
+        'o Fechar não fechou o leitor',
+      );
+      confere(
+        (await avaliar(
+          `getComputedStyle(document.documentElement).overflowY`,
+        )) !== 'hidden',
+        'a página não voltou a rolar depois de fechar o leitor',
+      );
     },
   );
 

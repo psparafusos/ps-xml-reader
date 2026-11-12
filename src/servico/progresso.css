@@ -1,0 +1,83 @@
+/* Cartão de andamento do serviço de leitura pesada (src/servico/progresso.ts):
+   embaixo, no meio, por cima de tudo (inclusive do leitor de XML). Só na
+   tela. Sem seleção: é interface. */
+
+@media screen {
+  .servico-progresso {
+    position: fixed;
+    bottom: var(--esp-5);
+    left: 50%;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: var(--esp-4);
+    width: min(520px, calc(100vw - 2 * var(--esp-4)));
+    padding: var(--esp-3) var(--esp-4);
+    border: var(--borda) solid var(--cartao-borda);
+    border-top: var(--borda-destaque) solid var(--ps-amarelo);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+    box-shadow: var(--sombra-aviso);
+    color: var(--cor-texto-forte);
+    font-family: var(--fonte);
+    font-size: var(--fs-md);
+    transform: translateX(-50%);
+    user-select: none;
+  }
+
+  .servico-progresso__textos {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .servico-progresso__rotulo {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .servico-progresso__etapa {
+    color: var(--cor-texto);
+    font-size: var(--fs-sm);
+  }
+
+  /* Barra sem porcentagem (a leitura não sabe quanto falta): um trecho
+     amarelo que vai e volta. */
+  .servico-progresso__barra {
+    position: relative;
+    flex: none;
+    width: 96px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--pastilha-raio);
+    background: var(--cor-borda-suave);
+  }
+
+  .servico-progresso__barra > div {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40%;
+    border-radius: inherit;
+    background: var(--ps-amarelo);
+    animation: servico-progresso-vai-e-volta 1.2s ease-in-out infinite alternate;
+  }
+
+  @keyframes servico-progresso-vai-e-volta {
+    from {
+      left: 0;
+    }
+    to {
+      left: 60%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .servico-progresso__barra > div {
+      left: 30%;
+      animation: none;
+    }
+  }
+}

@@ -1612,6 +1612,14 @@ ul {
   html:has(dialog:modal) {
     overflow: hidden;
   }
+
+  /* Leitor de XML genérico aberto (src/leitorXml, camada fixa sobre a
+     janela, com rolagem própria): a página de baixo não rola e o espaço da
+     barra não fica reservado, senão o leitor perde 15 px à direita. */
+  html:has(> body > .leitor-xml:not([hidden])) {
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
 }
 
 .painel__cabecalho {

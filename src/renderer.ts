@@ -1941,7 +1941,9 @@ function tratarAbertura(r: ResultadoAbrir): void {
   if (r.status === 'ja-aberto') {
     mostrarMensagem('Este arquivo já está aberto nesta janela.', 'info');
   }
-  // nova-janela, outra-janela, cancelado: nada muda nesta janela.
+  if (r.status === 'leitor') esconderMensagem();
+  // nova-janela, outra-janela, cancelado: nada muda nesta janela. leitor: o
+  // leitor genérico de XML (src/leitorXml/tela.ts) abre por cima desta tela.
 }
 
 /**

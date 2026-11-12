@@ -77,13 +77,17 @@ import {
   nomePodeSerConferencia,
 } from './nfe/avisos';
 import { leituraAoAbrir, MENSAGEM_RECUSA_GRAVAR } from './nfe/leituraProtegida';
+// XML que não é NF-e abre no leitor genérico (parte 3); NF-e acima de 5 MB é
+// lida no serviço de leitura pesada (parte 2).
+import { destinoDoArquivo } from './leitorXml/destino';
+import { abrirNoLeitor, caminhoNoLeitor } from './leitorXml/principal';
+import { lerNfeNoServico } from './servico/principal';
 import { problemaNomeArquivo } from './nfe/nome';
 import {
   ESPERA_CAMINHO_MS,
   comLimite,
   escolherCandidato,
   existeOuSemResposta,
-  lerXmlSeguro,
   mensagemSemResposta,
   problemaCaminhoSolto,
   veioDaInternet,
@@ -539,14 +543,26 @@ function recargaDoDesenvolvimento(url: string): boolean {
   }
 }
 
-/** Janela que já está com este arquivo aberto, se houver. */
+/** Janela que já está com este arquivo aberto (nota ou leitor), se houver. */
 function janelaComArquivo(caminho: string): Janela | null {
   return (
-    abertas().find(
-      (j) =>
+    abertas().find((j) => {
+      const noLeitor = caminhoNoLeitor(j.janela.webContents.id);
+      return (
         (j.arquivoAberto && mesmoCaminho(j.arquivoAberto, caminho)) ||
-        (j.pedido && mesmoCaminho(j.pedido.caminho, caminho)),
-    ) ?? null
+        (j.pedido && mesmoCaminho(j.pedido.caminho, caminho)) ||
+        (noLeitor !== null && mesmoCaminho(noLeitor, caminho))
+      );
+    }) ?? null
+  );
+}
+
+/** Janela na tela inicial: sem nota, sem pedido e sem o leitor aberto. */
+function janelaVazia(j: Janela): boolean {
+  return (
+    !j.arquivoAberto &&
+    !j.pedido &&
+    caminhoNoLeitor(j.janela.webContents.id) === null
   );
 }
 
@@ -564,7 +580,7 @@ function entregarArquivo(
     trazerParaFrente(ja);
     return;
   }
-  const vazia = abertas().find((j) => !j.arquivoAberto && !j.pedido);
+  const vazia = abertas().find(janelaVazia);
   if (vazia) {
     vazia.pedido = { caminho, ...pedido };
     trazerParaFrente(vazia);
@@ -666,7 +682,7 @@ const RAIZES_ACEITAS = ['nfeProc', 'NFe', 'psCopiaEditada'];
 
 /**
  * Lê um arquivo e o torna o arquivo aberto da janela `j`. `texto`: já lido
- * por lerXmlSeguro. Arquivo grande demais ou com DOCTYPE: lança
+ * por lerNfeNoServico. Arquivo grande demais ou com DOCTYPE: lança
  * ArquivoRecusadoError, e a janela continua como estava.
  */
 async function lerArquivoNaJanela(
@@ -674,7 +690,8 @@ async function lerArquivoNaJanela(
   caminho: string,
   texto?: string,
 ): Promise<ArquivoAberto> {
-  const conteudo = texto ?? (await lerXmlSeguro(caminho));
+  const conteudo =
+    texto ?? (await lerNfeNoServico(caminho, j.janela.webContents));
   j.arquivoAberto = caminho;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
@@ -720,12 +737,15 @@ async function abrirNotasEmDoPerfil(): Promise<AbrirNotasEm> {
 }
 
 /**
- * Abrir arquivo pelo botão, Ctrl+O ou arrastando para a janela `j`:
- * - já aberto em alguma janela: ela vem para a frente;
+ * Abrir arquivo pelo botão, Ctrl+O, arrastando para a janela `j` ou pela
+ * nota recente:
+ * - já aberto em alguma janela (nota ou leitor): ela vem para a frente;
  * - `j` na tela inicial: abre nela;
  * - com nota aberta: janela nova (XML no DANFE, .psxml na Conferência),
  *   e a nota desta janela fica como está.
- * O arquivo é lido antes (lerXmlSeguro): recusado, a mensagem aparece nesta
+ * XML que não é NF-e vai para o leitor genérico (src/leitorXml/), só
+ * leitura, pela mesma regra. A NF-e é lida antes (lerNfeNoServico: no
+ * principal até 5 MB, no serviço acima): recusada, a mensagem aparece nesta
  * janela e nenhuma janela nova abre.
  */
 async function decidirAbertura(
@@ -737,9 +757,17 @@ async function decidirAbertura(
     trazerParaFrente(ja);
     return { status: ja === j ? 'ja-aberto' : 'outra-janela' };
   }
+  if ((await destinoDoArquivo(caminho)) === 'leitor') {
+    if (!janelaVazia(j)) {
+      criarJanela({ caminho, modo: null, sessao: false });
+      return { status: 'nova-janela' };
+    }
+    abrirNoLeitor(j.janela.webContents, caminho);
+    return { status: 'leitor' };
+  }
   let texto: string;
   try {
-    texto = await lerXmlSeguro(caminho);
+    texto = await lerNfeNoServico(caminho, j.janela.webContents);
   } catch (erro) {
     if (erro instanceof ArquivoRecusadoError)
       return { status: 'recusado', mensagem: erro.message };
@@ -837,6 +865,11 @@ tratar(
     j.pedido = null;
     if (!pedido) return null;
     if (pedido.recusa) return { status: 'recusado', mensagem: pedido.recusa };
+    // XML que não é NF-e: o leitor genérico abre por cima da tela inicial.
+    if ((await destinoDoArquivo(pedido.caminho)) === 'leitor') {
+      abrirNoLeitor(j.janela.webContents, pedido.caminho);
+      return null;
+    }
     let arquivo: ArquivoAberto;
     try {
       arquivo = await lerArquivoNaJanela(j, pedido.caminho);
@@ -2375,3 +2408,21 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+// ---------- leitor de XML genérico (parte 1): início do bloco ----------
+// Canais da tela do leitor (leitor-xml-*), registrados pelo envoltório
+// src/ipcSeguro.ts em src/leitorXml/principal.ts. Quem abre a tela é
+// decidirAbertura e abrir-externo, acima (XML que não é NF-e).
+import { registrarLeitorXml } from './leitorXml/principal';
+
+registrarLeitorXml();
+// ---------- leitor de XML genérico (parte 1): fim do bloco ----------
+
+// ---------- serviço de leitura pesada (parte 2): início do bloco ----------
+// Leituras pesadas num utilityProcess (src/servico/): XML genérico, NF-e
+// grande e planilhas de referência. Aqui só o canal do Cancelar e o
+// encerramento do filho ao sair; quem lê chama src/servico/principal.ts.
+import { registrarServico } from './servico/principal';
+
+registrarServico();
+// ---------- serviço de leitura pesada (parte 2): fim do bloco ----------

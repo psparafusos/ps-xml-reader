@@ -1,8 +1,13 @@
 // Associação da extensão .psxml (cópia editada) com o app, no registro do
-// usuário atual (HKCU\Software\Classes): sem administrador e sem tocar no
-// .xml nem em outra extensão. Gravada nos eventos de instalação e de
-// atualização do Squirrel e apagada na desinstalação. Na instalação e na
-// atualização, apaga também os atalhos "Leitor NF-e PS.lnk" do nome antigo.
+// usuário atual (HKCU\Software\Classes): sem administrador. Gravada nos
+// eventos de instalação e de atualização do Squirrel e apagada na
+// desinstalação. Na instalação e na atualização, apaga também os atalhos
+// "Leitor NF-e PS.lnk" do nome antigo.
+//
+// O .xml ganha só uma entrada no "Abrir com" (OpenWithProgids, ProgID
+// PSReader.xml): o programa padrão do .xml nunca muda (nem o valor padrão de
+// .xml, nem o UserChoice do Explorer). Na desinstalação sai só o que é do PS
+// Reader: o valor PSReader.xml em OpenWithProgids e a chave PSReader.xml.
 //
 // O Squirrel instala em %LocalAppData%\PSXmlReader\: cada versão fica em
 // app-<versão>\ (que muda a cada atualização) e na raiz fica um executável
@@ -26,6 +31,13 @@ const DESCRICAO = 'Cópia editada do PS Reader';
 const CLASSES = 'HKCU\\Software\\Classes';
 const CHAVE_EXTENSAO = `${CLASSES}\\${EXTENSAO}`;
 const CHAVE_PROGID = `${CLASSES}\\${PROGID}`;
+
+/** ProgID do .xml, só para o "Abrir com". */
+export const PROGID_XML = 'PSReader.xml';
+const DESCRICAO_XML = 'Documento XML (PS Reader)';
+/** Onde o Explorer procura os programas do "Abrir com" do .xml. */
+export const CHAVE_ABRIR_COM_XML = `${CLASSES}\\.xml\\OpenWithProgids`;
+export const CHAVE_PROGID_XML = `${CLASSES}\\${PROGID_XML}`;
 
 /** Tempo máximo de cada chamada ao reg.exe. */
 const ESPERA_REG_MS = 2000;
@@ -201,6 +213,70 @@ function apagarAtalhosAntigos(): void {
   }
 }
 
+/**
+ * Comandos do reg.exe que põem o PS Reader no "Abrir com" do .xml, com o
+ * executável da raiz `exe`. Puro, para testar. Nenhum toca no valor padrão de
+ * .xml nem no UserChoice: o programa padrão do .xml continua o mesmo.
+ * O "--" antes do "%1": nada depois dele é lido como opção (pelo Chromium e
+ * por src/seguranca/argumentos.ts), mesmo que o caminho pareça uma.
+ */
+export function comandosAbrirComXml(exe: string): string[][] {
+  return [
+    // Valor vazio do tipo REG_NONE, como a Microsoft documenta.
+    ['add', CHAVE_ABRIR_COM_XML, '/v', PROGID_XML, '/t', 'REG_NONE', '/f'],
+    ['add', CHAVE_PROGID_XML, '/ve', '/t', 'REG_SZ', '/d', DESCRICAO_XML, '/f'],
+    // Ícone do app; sem aspas, o Explorer separa o índice pela última vírgula.
+    [
+      'add',
+      `${CHAVE_PROGID_XML}\\DefaultIcon`,
+      '/ve',
+      '/t',
+      'REG_SZ',
+      '/d',
+      `${exe},0`,
+      '/f',
+    ],
+    [
+      'add',
+      `${CHAVE_PROGID_XML}\\shell\\open\\command`,
+      '/ve',
+      '/t',
+      'REG_SZ',
+      '/d',
+      `"${exe}" -- "%1"`,
+      '/f',
+    ],
+  ];
+}
+
+/**
+ * Comandos do reg.exe que tiram o PS Reader do "Abrir com" do .xml: só o
+ * valor PSReader.xml (a chave OpenWithProgids e a .xml ficam) e a chave do
+ * ProgID PSReader.xml. Puro, para testar.
+ */
+export function comandosRemoverAbrirComXml(): string[][] {
+  return [
+    ['delete', CHAVE_ABRIR_COM_XML, '/v', PROGID_XML, '/f'],
+    ['delete', CHAVE_PROGID_XML, '/f'],
+  ];
+}
+
+/** Põe o PS Reader no "Abrir com" do .xml (instalação e atualização). */
+function registrarAbrirComXml(exe: string): void {
+  for (const args of comandosAbrirComXml(exe)) reg(...args);
+}
+
+/** Tira o PS Reader do "Abrir com" do .xml; parte que já não existia, segue. */
+function removerAbrirComXml(): void {
+  for (const args of comandosRemoverAbrirComXml()) {
+    try {
+      reg(...args);
+    } catch {
+      // Valor ou chave já não existia.
+    }
+  }
+}
+
 /** Grava a associação do .psxml (instalação e atualização). */
 export function registrarAssociacao(): void {
   const exe = executavelDaRaiz();
@@ -211,6 +287,12 @@ export function registrarAssociacao(): void {
   // Sem aspas: o Explorer separa o índice pela última vírgula.
   gravarPadrao(`${CHAVE_PROGID}\\DefaultIcon`, `${exe},0`);
   gravarPadrao(`${CHAVE_PROGID}\\shell\\open\\command`, `"${exe}" "%1"`);
+  // O .xml no "Abrir com": um erro aqui não desfaz o .psxml já gravado.
+  try {
+    registrarAbrirComXml(exe);
+  } catch {
+    log('abrir com do .xml: interrompido');
+  }
   avisarExplorer();
 }
 
@@ -219,6 +301,8 @@ export function registrarAssociacao(): void {
  * sai se ainda aponta para o PS Reader.
  */
 export function removerAssociacao(): void {
+  // Primeiro o "Abrir com" do .xml (cada parte segue mesmo se falhar).
+  removerAbrirComXml();
   try {
     reg('delete', CHAVE_PROGID, '/f');
   } catch {

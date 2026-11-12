@@ -1,0 +1,384 @@
+/* Tela do leitor genérico de XML (src/leitorXml/tela.ts). Mesmo visual do
+   app: faixa preta com o filete amarelo, Segoe UI, botões de app.css e
+   bancada.css. Só na tela. A interface não seleciona; o conteúdo do XML, o
+   nome e o caminho do arquivo, os avisos e os erros selecionam. */
+
+@media screen {
+  .leitor-xml {
+    /* Cores da vista Texto e da Árvore (só aqui). */
+    --lx-sinal: #6b6b6b;
+    --lx-nome: var(--ps-preto);
+    --lx-atributo: #7a4b00;
+    --lx-valor: #1f5c99;
+    --lx-texto: #2b2b2b;
+    --lx-comentario: #6b6b6b;
+    --lx-cdata: #5c4a00;
+    --lx-instrucao: #6b6b6b;
+    --lx-info: #6b6b6b;
+    --lx-fonte-codigo: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+    --lx-tamanho-codigo: 13px;
+    --lx-margem-fundo: var(--bancada-fundo);
+    --lx-selecionado: color-mix(in srgb, var(--ps-preto) 8%, var(--ps-branco));
+    --lx-achado: var(--cor-destaque-suave);
+    --lx-achado-atual: var(--ps-amarelo);
+    --lx-linha-achado: color-mix(
+      in srgb,
+      var(--ps-amarelo) 10%,
+      var(--ps-branco)
+    );
+    --lx-erro: var(--cor-alerta-suave);
+
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    background: var(--ps-branco);
+    color: var(--cor-texto);
+    font-family: var(--fonte);
+    font-size: var(--fs-md);
+    user-select: none;
+  }
+
+  .leitor-xml:focus {
+    outline: none;
+  }
+
+  /* ---------- barra ---------- */
+
+  .leitor-xml__barra {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-3);
+    min-height: var(--bancada-faixa-altura);
+    padding: var(--esp-3) var(--esp-5);
+    border-bottom: var(--bancada-faixa-linha) solid var(--ps-amarelo);
+    background: var(--bancada-faixa);
+    color: var(--ps-branco);
+  }
+
+  .leitor-xml__logo {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+  }
+
+  .leitor-xml__titulo {
+    display: flex;
+    flex: 1 1 var(--largura-minima-titulo);
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: var(--largura-minima-titulo);
+  }
+
+  .leitor-xml__nome {
+    overflow: hidden;
+    color: var(--ps-branco);
+    font-size: var(--fs-lg);
+    font-weight: var(--peso-forte);
+    line-height: var(--altura-linha-titulo);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .leitor-xml__caminho {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--ps-branco) 65%, transparent);
+    font-size: var(--fs-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .leitor-xml__acoes {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2);
+  }
+
+  .leitor-xml__vistas {
+    display: inline-flex;
+  }
+
+  .leitor-xml__barra .botao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .leitor-xml__barra .seletor__opcao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-preto);
+    outline-offset: calc(-1 * var(--botao-foco-espessura));
+  }
+
+  .leitor-xml__vistas .seletor__opcao:disabled {
+    cursor: not-allowed;
+    opacity: var(--botao-desabilitado-opacidade);
+  }
+
+  /* ---------- dados, avisos, erro e busca ---------- */
+
+  .leitor-xml__info {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: var(--esp-1) var(--esp-5);
+    padding: var(--esp-2) var(--esp-5);
+    border-bottom: var(--borda) solid var(--cartao-borda);
+    background: var(--bancada-fundo);
+    font-size: var(--fs-sm);
+  }
+
+  .leitor-xml__info:empty {
+    display: none;
+  }
+
+  .leitor-xml__avisos {
+    flex: none;
+  }
+
+  .leitor-xml__aviso {
+    padding: var(--esp-2) var(--esp-5);
+    border-bottom: var(--borda) solid var(--cartao-borda);
+    background: var(--cor-destaque-suave);
+    color: var(--cor-texto-forte);
+  }
+
+  .leitor-xml__erro {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--esp-3);
+    padding: var(--esp-2) var(--esp-5);
+    border-bottom: var(--borda) solid var(--cartao-borda);
+    background: var(--lx-erro);
+    color: var(--cor-texto-forte);
+  }
+
+  .leitor-xml__erro-texto {
+    flex: 1;
+  }
+
+  .leitor-xml__busca {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2);
+    padding: var(--esp-2) var(--esp-5);
+    border-bottom: var(--borda) solid var(--cartao-borda);
+  }
+
+  .leitor-xml__rotulo {
+    font-weight: var(--peso-medio);
+  }
+
+  .leitor-xml__campo {
+    width: min(360px, 100%);
+    padding: var(--esp-1) var(--esp-2);
+    border: var(--borda) solid var(--cor-borda);
+    border-radius: var(--raio);
+    color: var(--cor-texto-forte);
+    font: inherit;
+  }
+
+  .leitor-xml__campo:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: 0;
+  }
+
+  .leitor-xml__contador {
+    min-width: 9em;
+    font-size: var(--fs-sm);
+  }
+
+  /* ---------- vistas ---------- */
+
+  .leitor-xml__conteudo {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .leitor-xml__vista {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    font-family: var(--lx-fonte-codigo);
+    font-size: var(--lx-tamanho-codigo);
+  }
+
+  .leitor-xml__vista:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: calc(-1 * var(--botao-foco-espessura));
+  }
+
+  .leitor-xml__espaco {
+    width: 1px;
+    pointer-events: none;
+  }
+
+  .leitor-xml__camada {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 100%;
+    will-change: transform;
+  }
+
+  .leitor-xml__no,
+  .leitor-xml__linha {
+    display: flex;
+    align-items: center;
+    width: max-content;
+    min-width: 100%;
+    height: var(--lx-altura-linha);
+    line-height: var(--lx-altura-linha);
+    white-space: pre;
+    direction: ltr;
+  }
+
+  /* Cada pedaço isola a direção do texto: um U+202E no arquivo não vira a
+     linha do avesso. */
+  .leitor-xml__corpo span,
+  .leitor-xml__codigo span {
+    unicode-bidi: isolate;
+  }
+
+  .leitor-xml__corpo,
+  .leitor-xml__codigo {
+    padding-right: var(--esp-5);
+    user-select: text;
+  }
+
+  .leitor-xml__no--selecionado {
+    background: var(--lx-selecionado);
+  }
+
+  .leitor-xml__no--achado,
+  .leitor-xml__linha--achado {
+    background: var(--lx-linha-achado);
+    box-shadow: inset var(--borda-destaque) 0 0 var(--ps-amarelo);
+  }
+
+  .leitor-xml__seta {
+    flex: none;
+    width: 18px;
+    color: var(--cor-texto);
+    text-align: center;
+  }
+
+  .leitor-xml__seta[data-alternar] {
+    cursor: pointer;
+  }
+
+  .leitor-xml__numero {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex: none;
+    box-sizing: content-box;
+    width: var(--lx-margem, 4ch);
+    margin-right: var(--esp-3);
+    padding-right: var(--esp-2);
+    border-right: var(--borda) solid var(--cartao-borda);
+    background: var(--lx-margem-fundo);
+    color: var(--lx-info);
+    text-align: right;
+    user-select: none;
+  }
+
+  .leitor-xml__linha--erro {
+    background: var(--lx-erro);
+  }
+
+  .leitor-xml__linha--erro .leitor-xml__numero {
+    background: var(--lx-erro);
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-forte);
+  }
+
+  .lx-sinal {
+    color: var(--lx-sinal);
+  }
+  .lx-nome {
+    color: var(--lx-nome);
+    font-weight: var(--peso-medio);
+  }
+  .lx-atributo {
+    color: var(--lx-atributo);
+  }
+  .lx-valor {
+    color: var(--lx-valor);
+  }
+  .lx-texto {
+    color: var(--lx-texto);
+  }
+  .lx-comentario {
+    color: var(--lx-comentario);
+    font-style: italic;
+  }
+  .lx-cdata {
+    color: var(--lx-cdata);
+  }
+  .lx-instrucao,
+  .lx-doctype {
+    color: var(--lx-instrucao);
+  }
+  .lx-info {
+    color: var(--lx-info);
+    font-family: var(--fonte);
+    font-style: italic;
+  }
+
+  .lx-achado {
+    background: var(--lx-achado);
+    outline: var(--borda) solid var(--soltar-borda);
+  }
+
+  .lx-achado--atual {
+    background: var(--lx-achado-atual);
+    color: var(--cor-texto-sobre-destaque);
+  }
+
+  /* ---------- lendo, recusado ---------- */
+
+  .leitor-xml__estado {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--esp-2);
+    padding: var(--esp-6);
+    background: var(--bancada-fundo);
+    text-align: center;
+  }
+
+  .leitor-xml__estado-titulo {
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-xl);
+    font-weight: var(--peso-forte);
+  }
+
+  .leitor-xml__estado-texto {
+    max-width: var(--largura-aviso);
+    color: var(--cor-texto-forte);
+    user-select: text;
+  }
+
+  /* Dados que selecionam (nome e caminho do arquivo, avisos, erro). */
+  .leitor-xml__nome,
+  .leitor-xml__caminho,
+  .leitor-xml__aviso,
+  .leitor-xml__erro-texto {
+    user-select: text;
+  }
+}

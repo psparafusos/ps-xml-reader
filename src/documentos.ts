@@ -27,8 +27,8 @@ import path from 'node:path';
 import { analisarItem, type ItemFiscal } from './fiscal/analise';
 import {
   carregarBaseFiscal,
-  importarDocumento,
-  importarSeLeituraPassar,
+  gravarDocumento,
+  gravarSeLeituraPassar,
   removerDocumento,
   lerDocumentos,
   lerSegmentosIncompletos,
@@ -42,15 +42,11 @@ import {
   type DecisaoLembrada,
 } from './fiscal/entrada';
 import {
-  ErroFormato,
-  MENSAGEM_SEM_APENDICE,
   NOME_DOCUMENTO,
-  mvasLidasCombustiveis,
   type InfoDocumento,
   type TipoDocumento,
   type TipoOnline,
 } from './fiscal/documentos';
-import { lerCombustiveis } from './fiscal/combustiveis';
 import {
   LIMITE_DOWNLOAD,
   PAGINA,
@@ -63,21 +59,17 @@ import {
   type ResultadoVerificacao,
 } from './fiscal/online';
 import { buscaSimulada } from './onlineSimulado';
-import { lerTabelaST } from './fiscal/st';
-import { lerTipi, lerTipiPlanilha } from './fiscal/tipi';
-import { lerXlsx, type Aba } from './fiscal/xlsx';
-import { LimiteExcedido } from './fiscal/zip';
+import type { LeituraPlanilha } from './fiscal/leituraPlanilha';
 import {
   leituraCombustiveis,
   leituraST,
   leituraTipi,
   lerLeitura,
   mensagemArquivoErrado,
-  reconhecerArquivo,
-  segmentosIncompletosST,
   type LeituraDocumento,
-  type Reconhecido,
 } from './leituraDocumentos';
+import { lerPlanilhaNoServico } from './servico/principal';
+import { mensagemDoDesfecho } from './servico/supervisor';
 
 /**
  * Acesso à internet: net.fetch. Só no app de desenvolvimento (não
@@ -308,90 +300,6 @@ interface Pendente {
 /** Planilhas com segmentos não lidos, esperando a pessoa confirmar. */
 const pendentes = new Map<string, Pendente>();
 
-/** Lê o arquivo sem gravar nada: o que ele parece e o resumo da leitura. */
-function lerSemGravar(
-  tipo: TipoDocumento,
-  dados: Uint8Array,
-): {
-  reconhecido: Reconhecido;
-  relatorio: (() => LeituraDocumento) | null;
-  segmentosIncompletos: string[];
-  /** Recusa com motivo próprio do leitor (combustíveis de outra UF, por exemplo). */
-  erroFormato?: string;
-} {
-  const ehZip = dados.length > 4 && dados[0] === 0x50 && dados[1] === 0x4b;
-  let abas: Aba[] | null = null;
-  if (ehZip) {
-    try {
-      abas = lerXlsx(dados);
-    } catch (erro) {
-      // Passou de um limite (bomba de descompactação, célula fora do Excel):
-      // recusa com o motivo, sem tentar ler de outro jeito.
-      if (erro instanceof LimiteExcedido)
-        return {
-          reconhecido: 'planilha',
-          relatorio: null,
-          segmentosIncompletos: [],
-          erroFormato: erro.message,
-        };
-      abas = null;
-    }
-  }
-  const reconhecido = reconhecerArquivo(dados, abas);
-  if (tipo === 'combustiveis') {
-    if (!abas)
-      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
-    try {
-      const c = lerCombustiveis(abas);
-      if (mvasLidasCombustiveis(c) === 0)
-        return { reconhecido, relatorio: null, segmentosIncompletos: [] };
-      return {
-        reconhecido,
-        relatorio: () => leituraCombustiveis(c.relatorio, '', ''),
-        segmentosIncompletos: [],
-      };
-    } catch (erro) {
-      // Achou o Apêndice XIV, mas a planilha não serve (outra UF, sem os
-      // grupos): a mensagem do leitor diz o porquê.
-      return {
-        reconhecido,
-        relatorio: null,
-        segmentosIncompletos: [],
-        erroFormato:
-          erro instanceof ErroFormato && erro.message !== MENSAGEM_SEM_APENDICE
-            ? erro.message
-            : undefined,
-      };
-    }
-  }
-  if (tipo === 'st') {
-    if (!abas)
-      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
-    const st = lerTabelaST(abas);
-    if (st.linhas.length === 0)
-      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
-    return {
-      reconhecido,
-      relatorio: () => leituraST(st.relatorio, '', ''),
-      segmentosIncompletos: segmentosIncompletosST(st.relatorio),
-    };
-  }
-  try {
-    const tipi = abas
-      ? lerTipiPlanilha(abas)
-      : lerTipi(new TextDecoder().decode(dados));
-    if (tipi.relatorio.totalNcm === 0)
-      return { reconhecido, relatorio: null, segmentosIncompletos: [] };
-    return {
-      reconhecido,
-      relatorio: () => leituraTipi(tipi.relatorio, '', ''),
-      segmentosIncompletos: [],
-    };
-  } catch {
-    return { reconhecido, relatorio: null, segmentosIncompletos: [] };
-  }
-}
-
 /**
  * Importa e responde. Arquivo de outro tipo ou sem nada legível: recusa, diz
  * o que ele parece e o que fazer, e não usa nenhum dado (o documento anterior
@@ -404,6 +312,7 @@ async function importar(
   nome: string,
   servidor: InfoDocumento['servidor'],
   confirmado = false,
+  wc: WebContents | null = null,
 ): Promise<ResultadoImportarDocumento> {
   const recusar = async (m: {
     mensagem: string;
@@ -419,17 +328,18 @@ async function importar(
       estado: await estado(),
     };
   };
-  let leitura: ReturnType<typeof lerSemGravar>;
-  try {
-    leitura = lerSemGravar(tipo, dados);
-  } catch (erro) {
-    console.error(erro);
-    leitura = {
-      reconhecido: 'texto',
-      relatorio: null,
-      segmentosIncompletos: [],
+  // A leitura roda no serviço de leitura pesada (utilityProcess), com
+  // andamento e Cancelar na janela que pediu; aqui só se grava.
+  const desfecho = await lerPlanilhaNoServico(tipo, dados, wc);
+  if (desfecho.status === 'cancelado') return { status: 'cancelado' };
+  if (desfecho.status !== 'ok')
+    return {
+      status: 'erro',
+      formato: false,
+      mensagem: `${nome}: ${mensagemDoDesfecho(desfecho)} Nenhum dado dele foi usado. ${anterior(tipo)}`,
+      estado: await estado(),
     };
-  }
+  const leitura = desfecho.resultado as LeituraPlanilha;
   const outroTipo =
     leitura.reconhecido !== tipo &&
     leitura.reconhecido !== 'planilha' &&
@@ -455,33 +365,41 @@ async function importar(
     };
   }
 
+  if (leitura.erroPreparo === 'formato')
+    return recusar(mensagemArquivoErrado(tipo, leitura.reconhecido));
+  if (!leitura.preparado)
+    return {
+      status: 'erro',
+      formato: false,
+      mensagem: `Não foi possível importar ${nome}: ${leitura.erroPreparo?.mensagem ?? 'a leitura não terminou'}`,
+      estado: await estado(),
+    };
+
   try {
-    // Arquivo baixado (Atualizar): lido antes numa pasta temporária; só
-    // substitui o carregado se a leitura passar.
-    const info = (servidor ? importarSeLeituraPassar : importarDocumento)(
-      tipo,
-      dados,
+    // Arquivo baixado (Atualizar): gravado antes numa pasta temporária; só
+    // substitui o carregado se tudo der certo.
+    const info = (servidor ? gravarSeLeituraPassar : gravarDocumento)(
+      leitura.preparado,
       nome,
       pastaDocumentos(),
       new Date(),
       servidor,
     );
     const resumo: LeituraDocumento = {
-      ...leitura.relatorio(),
+      ...leitura.relatorio,
       arquivo: info.arquivo,
       importadoEm: info.importadoEm,
     };
     await writeFile(
       path.join(pastaDocumentos(), arqLeitura(tipo)),
-      `${JSON.stringify(resumo, null, 2)}\n`,
+      `${JSON.stringify(resumo, null, 2)}
+`,
       'utf8',
     );
     recusado.delete(tipo);
     avisarJanelas();
     return { status: 'ok', info, estado: await estado() };
   } catch (erro) {
-    if (erro instanceof ErroFormato)
-      return recusar(mensagemArquivoErrado(tipo, leitura.reconhecido));
     console.error(erro);
     return {
       status: 'erro',
@@ -680,18 +598,32 @@ export function registrarDocumentos(): void {
           estado: await estado(),
         };
       }
-      return importar(tipo, dados, path.basename(filePaths[0]), null);
+      return importar(
+        tipo,
+        dados,
+        path.basename(filePaths[0]),
+        null,
+        false,
+        event.sender,
+      );
     },
   );
 
   // Planilha com segmentos não lidos: a pessoa confirmou que pode usar o resto.
   tratar(
     'confirmar-parcial',
-    async (_event, token: unknown): Promise<ResultadoImportarDocumento> => {
+    async (event, token: unknown): Promise<ResultadoImportarDocumento> => {
       const p = typeof token === 'string' ? pendentes.get(token) : undefined;
       if (!p) return { status: 'cancelado' };
       pendentes.delete(token as string);
-      const r = await importar(p.tipo, p.dados, p.nome, p.servidor, true);
+      const r = await importar(
+        p.tipo,
+        p.dados,
+        p.nome,
+        p.servidor,
+        true,
+        event.sender,
+      );
       const v = ehTipoOnline(p.tipo) ? verificacao.get(p.tipo) : undefined;
       if (
         r.status === 'ok' &&
