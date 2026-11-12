@@ -3,9 +3,9 @@
 // Notas. Módulo separado: monta a própria seção por cima do app e só fala com
 // o processo principal pela ponte window.psLeitorXml.
 //
-// Ainda fora da navegação (Abrir, arrastar, tela inicial). Abre pela rota
-// interna: o principal manda mostrar (evento do app, usado pelo
-// test:janela) ou, só fora do app empacotado, Ctrl+Shift+L escolhe um .xml.
+// Abre quando o principal manda mostrar: XML que não é NF-e pelo botão
+// Abrir, pelo arrastar, pela nota recente, pelo duplo clique ou pelo "Abrir
+// com" (src/leitorXml/destino.ts e decidirAbertura em main.ts).
 //
 // Texto do arquivo nunca vira HTML: cada pedaço entra com textContent.
 
@@ -670,19 +670,25 @@ function mostrarLeitura(
   (modelo ? areaArvore : areaTexto).focus();
 }
 
-let abrindo = false;
+/**
+ * Cada abertura ganha um número. Fechar, ou uma abertura nova, descarta o
+ * que a anterior ainda estava lendo (o Fechar também cancela a leitura no
+ * serviço, no principal).
+ */
+let abertura = 0;
 
 /** Mostra a tela e lê o arquivo que o principal guardou para esta janela. */
 async function mostrar(): Promise<void> {
-  if (abrindo) return;
-  abrindo = true;
+  const esta = ++abertura;
+  const atual = () => esta === abertura;
   try {
     limpar();
+    if (raiz.hidden) travarResto(true);
     raiz.hidden = false;
-    travarResto(true);
     raiz.focus();
     mostrarEstado(null, 'Lendo o arquivo…');
     const r = await api.carregar();
+    if (!atual()) return;
     if (r.status === 'sem-arquivo') {
       await fechar();
       return;
@@ -692,6 +698,7 @@ async function mostrar(): Promise<void> {
       return;
     }
     const textoLido = await api.texto();
+    if (!atual()) return;
     if (textoLido === null) {
       mostrarEstado(
         'Não foi possível mostrar este arquivo',
@@ -701,23 +708,23 @@ async function mostrar(): Promise<void> {
     }
     mostrarLeitura(r, textoLido);
   } catch {
+    if (!atual()) return;
     mostrarEstado(
       'Não foi possível mostrar este arquivo',
       'Aconteceu um erro ao ler o arquivo.',
     );
-  } finally {
-    abrindo = false;
   }
 }
 
 async function fechar(): Promise<void> {
+  abertura++;
   raiz.hidden = true;
   travarResto(false);
   limpar();
   await api.fechar();
 }
 
-// ---------- teclado, arrastar e rota interna ----------
+// ---------- teclado e arrastar ----------
 
 // Atalhos do leitor. As teclas apertadas aqui dentro não chegam aos atalhos
 // da tela da nota (Ctrl+O, Ctrl+S, Ctrl+P, zoom).
@@ -749,19 +756,3 @@ for (const tipo of ['dragover', 'drop'] as const) {
 }
 
 api.aoMostrar(() => void mostrar());
-
-window.addEventListener('keydown', (e) => {
-  if (
-    !raiz.hidden ||
-    !e.ctrlKey ||
-    !e.shiftKey ||
-    e.altKey ||
-    e.metaKey ||
-    e.key.toLowerCase() !== 'l'
-  )
-    return;
-  e.preventDefault();
-  void api.escolherNaRotaInterna().then((ok) => {
-    if (ok) void mostrar();
-  });
-});

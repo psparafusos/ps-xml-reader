@@ -18,6 +18,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { casosLeitorXml, limparLeitorXml } = require('./leitorXml.cjs');
+const { casosNavegacao } = require('./navegacao.cjs');
 const { casosServico } = require('./servico.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
@@ -49,10 +50,17 @@ function copia(nome) {
 }
 
 // T8: 100 mil níveis de aninhamento, gerado aqui (nada grande no repositório).
+// Raiz qualquer (vai para o leitor genérico) e raiz de NF-e (fluxo da nota,
+// DOMParser).
 const profundo = path.join(notas, 't08-profundo.xml');
 fs.writeFileSync(
   profundo,
   `<?xml version="1.0" encoding="UTF-8"?>${'<a>'.repeat(100000)}${'</a>'.repeat(100000)}`,
+);
+const profundoNfe = path.join(notas, 't08-profundo-nfe.xml');
+fs.writeFileSync(
+  profundoNfe,
+  `<?xml version="1.0" encoding="UTF-8"?><nfeProc>${'<a>'.repeat(100000)}${'</a>'.repeat(100000)}</nfeProc>`,
 );
 
 // Janela oculta: o app chama show/maximize/focus; aqui eles não fazem nada.
@@ -1145,8 +1153,9 @@ async function principal() {
   );
 
   await caso('T8: 100 mil níveis de aninhamento (DOMParser)', async () => {
-    const t0 = Date.now();
-    abrir(profundo);
+    // Com raiz de NF-e: fluxo da nota, recusado sem travar.
+    let t0 = Date.now();
+    abrir(profundoNfe);
     await aguardar(
       `${visivel('mensagem')} && document.getElementById('mensagem-texto').textContent.length > 0`,
       30000,
@@ -1154,10 +1163,22 @@ async function principal() {
     const msg = await avaliar(
       `document.getElementById('mensagem-texto').textContent`,
     );
-    confere(msg === 'Este arquivo não é uma NF-e.', `mensagem: ${msg}`);
     confere(Date.now() - t0 < 5000, `demorou ${Date.now() - t0} ms`);
-    confere(await avaliar(visivel('vazio')), 'saiu da tela inicial');
+    confere(await avaliar(visivel('vazio')), `saiu da tela inicial: ${msg}`);
     await avaliar(`document.getElementById('mensagem-fechar')?.click(); true`);
+    // Raiz qualquer: o leitor genérico (parte 3) abre sem travar, com a
+    // Árvore desligada pela profundidade e o texto completo.
+    t0 = Date.now();
+    abrir(profundo);
+    await aguardar(
+      `(document.querySelector('.leitor-xml__avisos')?.innerText ?? '').includes('mais de 1.000 níveis')`,
+      30000,
+      'o leitor não avisou a profundidade',
+    );
+    confere(Date.now() - t0 < 5000, `leitor demorou ${Date.now() - t0} ms`);
+    await avaliar(
+      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
+    );
   });
 
   await caso('T9: HTML e javascript: em xProd ficam literais', async () => {
@@ -1305,9 +1326,10 @@ async function principal() {
     },
   );
 
-  // Tela do leitor genérico de XML (parte 1), pela rota interna, já lendo
-  // pelo serviço de leitura pesada (parte 2, filho em servicoPesado.cjs).
-  await casosLeitorXml({
+  // Tela do leitor genérico de XML (parte 1), aberta como num duplo clique,
+  // lendo pelo serviço de leitura pesada (parte 2, filho em
+  // servicoPesado.cjs), e o leitor na navegação (parte 3).
+  const contexto = {
     app,
     notas,
     caso,
@@ -1317,17 +1339,16 @@ async function principal() {
     espera,
     rede,
     sonda: SONDA,
-  });
-  await casosServico({
-    app,
-    notas,
-    caso,
-    avaliar,
-    aguardar,
-    confere,
-    espera,
-    rede,
-  });
+    abrir,
+    janela: () => janela,
+    primeiro,
+    visivel,
+    abrirNota,
+    inicio,
+  };
+  await casosLeitorXml(contexto);
+  await casosNavegacao(contexto);
+  await casosServico(contexto);
 }
 
 app.whenReady().then(async () => {

@@ -40,7 +40,7 @@ function gerarXml(alvo, mb) {
 }
 
 async function casosServico(c) {
-  const { app, notas, caso, avaliar, aguardar, confere, espera, rede } = c;
+  const { notas, caso, avaliar, aguardar, confere, espera, rede } = c;
   const { app: electronApp } = require('electron');
 
   const leitorAberto = `(() => { const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
@@ -57,7 +57,8 @@ async function casosServico(c) {
     electronApp
       .getAppMetrics()
       .filter((m) => m.type === 'Utility' && m.name === NOME_SERVICO);
-  const abrir = (caminho) => app.emit('leitor-xml-rota-interna', caminho);
+  // Como num duplo clique (XML que não é NF-e vai para o leitor).
+  const abrir = (caminho) => c.abrir(caminho);
   const fechar = async () => {
     await avaliar(
       `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,

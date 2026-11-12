@@ -49,11 +49,6 @@ export interface PsLeitorXmlApi {
   abrirNoBlocoDeNotas(): Promise<ResultadoBlocoDeNotas>;
   /** A tela fechou: o principal esquece o arquivo desta janela. */
   fechar(): Promise<void>;
-  /**
-   * Rota interna (só fora do app empacotado): escolhe um .xml num diálogo e
-   * o guarda para esta janela. false se cancelou ou não está disponível.
-   */
-  escolherNaRotaInterna(): Promise<boolean>;
-  /** O principal mandou mostrar a tela (rota interna). */
+  /** O principal mandou mostrar a tela (um XML que não é NF-e foi aberto). */
   aoMostrar(callback: () => void): void;
 }

@@ -88,18 +88,21 @@ function enviar(wc: WebContents | null, canal: string, dados: unknown): void {
 
 /**
  * Executa a tarefa no serviço, com o andamento e o Cancelar na janela `wc`
- * (null: sem janela, como a verificação ao abrir o app).
+ * (null: sem janela, como a verificação ao abrir o app). `aoIniciar` recebe
+ * o id da leitura, para quem precisar cancelar por outro caminho.
  */
 export async function executarNaJanela(
   wc: WebContents | null,
   tarefa: Tarefa,
   rotulo: string,
+  aoIniciar?: (id: number) => void,
 ): Promise<Desfecho> {
   let id = 0;
   const execucao = servico.executar(tarefa, (etapa: EtapaProgresso) =>
     enviar(wc, 'servico-progresso', { id, rotulo, etapa }),
   );
   id = execucao.id;
+  aoIniciar?.(id);
   if (wc) donos.set(id, wc.id);
   enviar(wc, 'servico-inicio', { id, rotulo } satisfies AvisoServico);
   try {
@@ -124,8 +127,8 @@ export function lerPlanilhaNoServico(
 }
 
 /**
- * NF-e: no principal até 5 MB, no serviço acima (src/servico/nfe.ts). Ainda
- * não usada pelo fluxo de abrir NF-e (entra na parte 3).
+ * NF-e: no principal até 5 MB, no serviço acima (src/servico/nfe.ts), com o
+ * cartão de andamento na janela `wc`. Usada pelo fluxo de abrir (main.ts).
  */
 export function lerNfeNoServico(
   caminho: string,

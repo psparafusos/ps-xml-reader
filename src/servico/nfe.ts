@@ -9,8 +9,8 @@
 // 20 MB; subir o filho custa de 40 a 80 ms. Uma nota real fica abaixo de
 // 5 MB: até aí o principal é mais rápido e não vale subir processo.
 //
-// Ainda não ligado no fluxo de abrir NF-e (main.ts): entra quando a leitura
-// protegida estiver no main (o roteiro está no handoff da parte 2).
+// Ligado no fluxo de abrir NF-e (main.ts, decidirAbertura e
+// lerArquivoNaJanela) pela lerNfeNoServico de ./principal.ts.
 
 import { stat } from 'node:fs/promises';
 import {

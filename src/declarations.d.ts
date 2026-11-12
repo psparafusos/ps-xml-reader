@@ -85,7 +85,15 @@ type ArquivoRecusado = { status: 'recusado'; mensagem: string };
  */
 type ResultadoAbrir =
   | { status: 'aqui'; arquivo: ArquivoAberto }
-  | { status: 'nova-janela' | 'outra-janela' | 'ja-aberto' | 'cancelado' }
+  /** `leitor`: XML que não é NF-e, aberto no leitor genérico desta janela. */
+  | {
+      status:
+        | 'nova-janela'
+        | 'outra-janela'
+        | 'ja-aberto'
+        | 'cancelado'
+        | 'leitor';
+    }
   | ArquivoRecusado;
 
 /**

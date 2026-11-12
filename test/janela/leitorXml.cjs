@@ -1,7 +1,7 @@
 // Casos do test:janela para a tela do leitor genérico de XML (parte 1),
-// chamados por executar.cjs. Abre XML inventado pela rota interna (evento
-// 'leitor-xml-rota-interna' do app), confere as duas vistas e a busca, e
-// fecha. Nenhum caso aciona Copiar.
+// chamados por executar.cjs. Abre XML inventado como num duplo clique (o
+// mesmo caminho do "Abrir com"), confere as duas vistas e a busca, e fecha.
+// Nenhum caso aciona Copiar.
 'use strict';
 
 const fs = require('node:fs');
@@ -55,20 +55,19 @@ async function limparLeitorXml(avaliar, espera, prazo = 60000) {
 }
 
 /**
- * @param {object} c contexto de executar.cjs: app, notas, caso, avaliar,
- *   aguardar, confere, rede, sonda. Cada caso começa do estado limpo (o
+ * @param {object} c contexto de executar.cjs: notas, caso, avaliar,
+ *   aguardar, confere, rede, sonda, abrir. Cada caso começa do estado limpo (o
  *   `caso` de executar.cjs chama o estadoLimpo, que fecha o leitor).
  */
 async function casosLeitorXml(c) {
-  const { app, notas, caso, avaliar, aguardar, confere, rede } = c;
+  const { notas, caso, avaliar, aguardar, confere, rede } = c;
 
   const gravar = (nome, conteudo) => {
     const alvo = path.join(notas, nome);
     fs.writeFileSync(alvo, conteudo);
     return alvo;
   };
-  const abrirNoLeitor = (caminho) =>
-    app.emit('leitor-xml-rota-interna', caminho);
+  const abrirNoLeitor = (caminho) => c.abrir(caminho);
   const texto = (seletor) =>
     avaliar(
       `document.querySelector(${JSON.stringify(seletor)})?.innerText ?? ''`,

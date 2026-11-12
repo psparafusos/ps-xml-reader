@@ -4,17 +4,16 @@
 // "o arquivo desta janela". A leitura roda no serviço de leitura pesada
 // (src/servico/principal.ts), com andamento e Cancelar na janela.
 //
-// Rota interna, ainda fora da navegação: o test:janela emite no app o
-// evento 'leitor-xml-rota-interna' com o caminho; no npm start, Ctrl+Shift+L
-// na janela pede um .xml num diálogo. No app empacotado as duas ficam
-// desligadas (a parte 3 liga a tela no Abrir).
+// Quem abre é o fluxo de abrir do app (main.ts): XML que não é NF-e, pelo
+// botão Abrir, pelo arrastar, pela nota recente, pelo duplo clique ou pelo
+// "Abrir com", vem para cá por abrirNoLeitor (destino em ./destino.ts).
 
-import { app, BrowserWindow, dialog, type WebContents } from 'electron';
+import type { WebContents } from 'electron';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { problemaCaminhoSolto } from '../seguranca/arquivo';
 import { tratar } from '../ipcSeguro';
-import { executarNaJanela } from '../servico/principal';
+import { executarNaJanela, servico } from '../servico/principal';
 import { mensagemDoDesfecho } from '../servico/supervisor';
 import { comandoBlocoDeNotas, type LeituraParaTela } from './arquivo';
 import type { ResultadoBlocoDeNotas, ResultadoLeitorXml } from './tipos';
@@ -23,12 +22,12 @@ interface EstadoLeitor {
   caminho: string;
   /** Texto da última leitura, até a tela pedir (leitor-xml-texto). */
   texto: string | null;
+  /** Leitura em andamento no serviço (para o Fechar cancelar). */
+  leitura: number | null;
 }
 
 /** Arquivo do leitor em cada janela, pelo id do webContents. */
 const porJanela = new Map<number, EstadoLeitor>();
-
-const EVENTO_ROTA = 'leitor-xml-rota-interna';
 
 /** Guarda o caminho para a janela; esquece quando ela fecha. */
 function guardar(wc: WebContents, caminho: string): void {
@@ -36,22 +35,22 @@ function guardar(wc: WebContents, caminho: string): void {
     const id = wc.id;
     wc.once('destroyed', () => porJanela.delete(id));
   }
-  porJanela.set(wc.id, { caminho, texto: null });
+  porJanela.set(wc.id, { caminho, texto: null, leitura: null });
 }
 
-/** Caminho que pode ir para o leitor: .xml, absoluto, arquivo comum. */
-async function caminhoValido(caminho: unknown): Promise<string | null> {
-  if (typeof caminho !== 'string') return null;
-  const problema = await problemaCaminhoSolto(caminho, ['.xml']);
-  if (problema) {
-    console.warn(`Leitor de XML: caminho recusado (${problema}).`);
-    return null;
-  }
-  return caminho;
+/** Caminho do arquivo no leitor desta janela (null: leitor fechado). */
+export function caminhoNoLeitor(wcId: number): string | null {
+  return porJanela.get(wcId)?.caminho ?? null;
 }
 
-/** A rota interna só existe fora do app empacotado. */
-const rotaInternaLigada = () => !app.isPackaged;
+/**
+ * Abre o arquivo no leitor da janela. O caminho já passou pelas barreiras do
+ * fluxo de abrir; antes de ler, leitor-xml-carregar confere de novo.
+ */
+export function abrirNoLeitor(wc: WebContents, caminho: string): void {
+  guardar(wc, caminho);
+  wc.send('leitor-xml-mostrar');
+}
 
 export function registrarLeitorXml(): void {
   tratar('leitor-xml-carregar', async (event): Promise<ResultadoLeitorXml> => {
@@ -76,7 +75,11 @@ export function registrarLeitorXml(): void {
       event.sender,
       { tipo: 'xml', caminho: estado.caminho },
       `Lendo ${arquivo.nome}`,
+      (id) => {
+        estado.leitura = id;
+      },
     );
+    estado.leitura = null;
     if (desfecho.status !== 'ok') {
       return {
         status: 'recusado',
@@ -133,40 +136,10 @@ export function registrarLeitorXml(): void {
     },
   );
 
+  // Fechar no meio da leitura também cancela a leitura no serviço.
   tratar('leitor-xml-fechar', (event): void => {
+    const leitura = porJanela.get(event.sender.id)?.leitura;
+    if (leitura) servico.cancelar(leitura);
     porJanela.delete(event.sender.id);
   });
-
-  tratar('leitor-xml-escolher', async (event): Promise<boolean> => {
-    if (!rotaInternaLigada()) return false;
-    const janela = BrowserWindow.fromWebContents(event.sender);
-    if (!janela) return false;
-    const { canceled, filePaths } = await dialog.showOpenDialog(janela, {
-      title: 'Leitor de XML (rota interna)',
-      filters: [{ name: 'XML', extensions: ['xml'] }],
-      properties: ['openFile'],
-    });
-    if (canceled || filePaths.length === 0) return false;
-    const caminho = await caminhoValido(filePaths[0]);
-    if (!caminho) return false;
-    guardar(event.sender, caminho);
-    return true;
-  });
-
-  if (rotaInternaLigada()) {
-    // Evento do próprio processo principal (o test:janela roda aqui dentro):
-    // abre o arquivo no leitor da janela em foco, ou da última aberta.
-    (app as unknown as NodeJS.EventEmitter).on(
-      EVENTO_ROTA,
-      async (caminho: unknown) => {
-        const valido = await caminhoValido(caminho);
-        const janelas = BrowserWindow.getAllWindows();
-        const janela =
-          BrowserWindow.getFocusedWindow() ?? janelas[janelas.length - 1];
-        if (!valido || !janela || janela.isDestroyed()) return;
-        guardar(janela.webContents, valido);
-        janela.webContents.send('leitor-xml-mostrar');
-      },
-    );
-  }
 }

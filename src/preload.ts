@@ -193,7 +193,6 @@ contextBridge.exposeInMainWorld('psLeitorXml', {
   texto: () => ipcRenderer.invoke('leitor-xml-texto'),
   abrirNoBlocoDeNotas: () => ipcRenderer.invoke('leitor-xml-bloco-de-notas'),
   fechar: () => ipcRenderer.invoke('leitor-xml-fechar'),
-  escolherNaRotaInterna: () => ipcRenderer.invoke('leitor-xml-escolher'),
   aoMostrar: (callback: () => void): void => {
     ipcRenderer.on('leitor-xml-mostrar', () => callback());
   },
