@@ -73,6 +73,12 @@ app.on('browser-window-created', (_e, w) => {
 
 /** Pedidos de rede feitos pela página (o app é offline: deve ficar vazio). */
 const rede = [];
+/** Avisos de ouvintes demais (MaxListenersExceededWarning) no suite inteiro. */
+const avisosOuvintes = [];
+process.on('warning', (w) => {
+  if (w.name === 'MaxListenersExceededWarning')
+    avisosOuvintes.push(String(w.message));
+});
 app.whenReady().then(() => {
   session.defaultSession.webRequest.onBeforeRequest((d, cb) => {
     if (!/^(app|file|data|devtools|chrome-extension):/.test(d.url))
@@ -1651,6 +1657,50 @@ async function casosJanelasPorCima() {
           `getComputedStyle(document.documentElement).overflowY`,
         )) !== 'hidden',
         'a página não voltou a rolar depois de fechar o leitor',
+      );
+    },
+  );
+
+  // Ouvintes de "destroyed": cada abrir e Fechar do leitor na mesma janela
+  // não pode deixar um ouvinte para trás (passando de 10, o Node avisa
+  // MaxListenersExceededWarning). Doze leituras seguidas, pelo serviço.
+  await caso(
+    'Leitor de XML: doze leituras seguidas não acumulam ouvintes de "destroyed"',
+    async () => {
+      const xml = path.join(notas, 'catalogo-ouvintes.xml');
+      fs.writeFileSync(
+        xml,
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<catalogo origem="inventado"><item>PORCA INVENTADA</item></catalogo>',
+          '',
+        ].join('\n'),
+      );
+      const wc = janela.webContents;
+      const inicial = wc.listenerCount('destroyed');
+      for (let i = 1; i <= 12; i++) {
+        abrir(xml);
+        await aguardar(
+          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && l.querySelector('.leitor-xml__nome')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
+          30000,
+          `a leitura ${i} não terminou`,
+        );
+        await avaliar(`[...document.querySelectorAll('.leitor-xml button')]
+          .find((b) => b.textContent.trim() === 'Fechar').click()`);
+        await aguardar(
+          `document.querySelector('.leitor-xml').hidden && ${visivel('vazio')}`,
+          15000,
+          `o Fechar ${i} não voltou ao início`,
+        );
+      }
+      const final = wc.listenerCount('destroyed');
+      confere(
+        final === inicial,
+        `ouvintes de "destroyed": ${inicial} antes, ${final} depois de 12 leituras`,
+      );
+      confere(
+        avisosOuvintes.length === 0,
+        `aviso de ouvintes demais: ${avisosOuvintes.join(' | ')}`,
       );
     },
   );

@@ -24,18 +24,36 @@ interface EstadoLeitor {
   texto: string | null;
   /** Leitura em andamento no serviço (para o Fechar cancelar). */
   leitura: number | null;
+  /** Tira o ouvinte de "destroyed" da janela (ao fechar o leitor). */
+  soltar: () => void;
 }
 
 /** Arquivo do leitor em cada janela, pelo id do webContents. */
 const porJanela = new Map<number, EstadoLeitor>();
 
-/** Guarda o caminho para a janela; esquece quando ela fecha. */
+/**
+ * Guarda o caminho para a janela; esquece quando ela fecha. Um ouvinte de
+ * "destroyed" por janela com o leitor aberto: o Fechar tira o ouvinte junto
+ * com o estado, senão cada abrir e fechar na mesma janela somaria um.
+ */
 function guardar(wc: WebContents, caminho: string): void {
-  if (!porJanela.has(wc.id)) {
+  const anterior = porJanela.get(wc.id);
+  let soltar = anterior?.soltar;
+  if (!soltar) {
     const id = wc.id;
-    wc.once('destroyed', () => porJanela.delete(id));
+    const aoDestruir = () => porJanela.delete(id);
+    wc.once('destroyed', aoDestruir);
+    soltar = () => {
+      wc.removeListener('destroyed', aoDestruir);
+    };
   }
-  porJanela.set(wc.id, { caminho, texto: null, leitura: null });
+  porJanela.set(wc.id, { caminho, texto: null, leitura: null, soltar });
+}
+
+/** Fecha o leitor da janela: esquece o arquivo e tira o ouvinte. */
+function esquecer(wcId: number): void {
+  porJanela.get(wcId)?.soltar();
+  porJanela.delete(wcId);
 }
 
 /** Caminho do arquivo no leitor desta janela (null: leitor fechado). */
@@ -140,6 +158,6 @@ export function registrarLeitorXml(): void {
   tratar('leitor-xml-fechar', (event): void => {
     const leitura = porJanela.get(event.sender.id)?.leitura;
     if (leitura) servico.cancelar(leitura);
-    porJanela.delete(event.sender.id);
+    esquecer(event.sender.id);
   });
 }
