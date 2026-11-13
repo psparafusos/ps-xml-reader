@@ -218,16 +218,13 @@ abrir: até 30 MB, com limite por parte e no total do arquivo compactado.
 
 ### Tela inicial
 
-- **Faixa preta** no topo: a logo e "PS Reader", e à direita:
-  - as pastilhas dos documentos de referência, com o ícone do estado ("ST
-    ok", "TIPI falta", "ST reimportar"), cada uma um botão que abre as
-    Configurações na aba Documentos de referência, já no cartão daquele
-    documento (como na barra da nota);
-  - a pastilha da **pasta de destino** (ver Pasta de destino, abaixo);
-  - a pastilha amarela **Perfil**, que abre o seletor de perfil (o mesmo da
-    barra da nota);
-  - a **engrenagem**, que abre as Configurações.
-- **Zona de soltar**, com **Abrir arquivo**.
+- **Barra de título própria** (36 px, preta): a logo, **PS Reader** e
+  "Conferência de notas fiscais". É arrastável, o duplo clique maximiza e os
+  botões de minimizar, maximizar e fechar são os do Windows.
+- **Barra preta**, na mesma altura da barra da nota, só com o **botão de
+  perfil** à direita (ver Botão de perfil).
+- **Zona de soltar**, com **Abrir arquivo** e, embaixo, a **pasta de
+  destino**: "Salvando em", o caminho completo e **Trocar**.
 - **Documentos de referência**: uma linha por documento (um por coluna, ou
   um embaixo do outro na janela estreita), com o ícone do estado, o nome, a
   versão e a vigência ("Versão 0019, vigência a partir de ..."; na TIPI,
@@ -237,12 +234,12 @@ abrir: até 30 MB, com limite por parte e no total do arquivo compactado.
   nova achada pela verificação online). Clicar na linha abre o cartão do
   documento nas Configurações; **Gerenciar** abre a aba inteira.
 
-**Pasta de destino**: na faixa preta, antes do Perfil, na tela inicial e na
-tela da nota. Com pasta escolhida, a pastilha mostra "Salvando em: <última
-pasta>" e a seta abre um menu com o caminho completo, **Trocar pasta...** e
-**Abrir pasta no Explorer** (com erro se a pasta não existir mais). Sem pasta,
-a pastilha fica amarela, "Escolha onde salvar", e o clique abre direto o
-seletor. O caminho fica em `config.json` (chave `pastaDestino`), dentro da
+**Pasta de destino**: na tela inicial, embaixo do **Abrir arquivo**
+("Salvando em", o caminho completo e **Trocar**; sem pasta, "Escolha onde
+salvar" e **Escolher**); na tela da nota, no menu da seta do **Salvar**
+(seção "Salvando em", com o caminho completo, **Trocar pasta de destino...**
+e **Abrir pasta no Explorer**, com erro se a pasta não existir mais). O
+caminho fica em `config.json` (chave `pastaDestino`), dentro da
 pasta de dados do app (`%APPDATA%\PS Reader`), e vale também depois de
 reabrir o app. A mesma pasta aparece na aba Geral das Configurações.
 
@@ -312,8 +309,8 @@ no ícone fixado.
 destino do duplo clique e o título. É do app inteiro (processo principal):
 a personalização da conferência e a pasta de destino salva. Quando uma delas
 muda numa janela, as outras atualizam na hora (a tabela de itens é remontada
-com as colunas novas; a pastilha da pasta de destino mostra a pasta nova,
-menos nas janelas que têm a pasta do duplo clique).
+com as colunas novas; o "Salvando em" mostra a pasta nova, menos nas
+janelas que têm a pasta do duplo clique).
 
 Fechar uma janela com anotação não salva pergunta só por ela. Fechar o app
 (por exemplo **Fechar todas as janelas** na barra de tarefas) pergunta por
@@ -325,10 +322,10 @@ O `.xml` continua abrindo com o programa de antes no duplo clique; um `.xml`
 passado na linha de comando (`"PS Reader.exe" nota.xml`) também abre.
 
 Um `.psxml` aberto por duplo clique faz da pasta dele a pasta de destino só
-naquela janela: a pastilha da pasta de destino dela mostra essa pasta com a
-marca "só nesta janela", e um aviso explica que a pasta salva volta quando a
+naquela janela: o "Salvando em" do menu do Salvar mostra essa pasta com a
+nota "Só nesta janela", e um aviso explica que a pasta salva volta quando a
 janela fechar. Essa pasta fica só na memória e nunca é gravada no
-`config.json`. Escolher uma pasta em **Trocar pasta...** vence: ela vira a
+`config.json`. Escolher uma pasta em **Trocar pasta de destino...** vence: ela vira a
 pasta salva e a da janela deixa de valer. Abrir um `.psxml` pelo **Abrir arquivo**, pelo **Abrir outro XML** ou
 arrastando não muda a pasta.
 
@@ -456,13 +453,14 @@ Se o painel tem mudanças ainda não aplicadas, uma caixa pergunta antes:
 **Aplicar e trocar** (grava no perfil atual), **Descartar e trocar** ou
 **Cancelar**. Esc ou um clique fora fecham só a lista.
 
-Sem abrir o painel, a faixa preta (da nota e da tela inicial) mostra a
-pastilha amarela **Perfil: <nome>** com uma seta. Clicar nela (ou Enter
-ou espaço, com o foco nela) abre a lista dos perfis, com o ativo marcado (✓);
-as setas navegam, Enter escolhe e Esc fecha. Clicar noutro perfil troca na hora,
-em todas as janelas, e mostra o aviso "Perfil <nome> ativo". No fim da lista,
-**Gerenciar perfis...** abre o painel **Editar colunas** com a lista de perfis
-já aberta (novo, renomear, excluir, importar e exportar).
+**Botão de perfil**: na barra preta, da nota e da tela inicial, o último à
+direita. Fundo branco, o ícone de pessoa, o nome do perfil e a seta. Clicar
+nele (ou Enter ou espaço, com o foco nele) abre o menu **Perfil**: a lista dos
+perfis, com a marca verde no atual; as setas navegam, Enter escolhe e Esc
+fecha. Clicar noutro perfil troca na hora, em todas as janelas, e mostra o
+aviso "Perfil <nome> ativo". Depois da lista, **Gerenciar perfis...** abre o
+painel **Editar colunas** com a lista de perfis já aberta (novo, renomear,
+excluir, importar e exportar), e **Configurações** abre as Configurações.
 
 Em cada linha:
 
@@ -589,13 +587,20 @@ enquanto o app está aberto. A impressão e o PDF saem sempre em 100%, e o DANFE
 é sempre paginado em 100%. Com zoom alto o DANFE pode rolar na horizontal, como
 numa página da web.
 
-A barra da nota fica na faixa preta com filete amarelo: a logo, o emitente e
-o número da nota; as pastilhas **ST** e **TIPI** (e **Combustíveis**, quando
-carregado), com o ícone do estado, cada uma um botão que abre as
-Configurações no cartão daquele documento; a pastilha da pasta de destino; a
-pastilha **Perfil**; a engrenagem das Configurações; e, à direita, os grupos
-de ações. Quando falta espaço, a saída desce para uma segunda linha; o
-título da nota nunca fica mais estreito que 240 px:
+No alto, a **barra de título própria** (36 px, preta, arrastável; o duplo
+clique maximiza; minimizar, maximizar e fechar são os do Windows): a logo, o
+emitente em negrito, "NF-e nº X série Y" e o nome do arquivo, separados por
+um traço vertical discreto (na cópia editada, também "Cópia editada, sem
+validade fiscal"). O título da janela na barra de tarefas e no Alt+Tab
+continua o mesmo.
+
+Abaixo, a **barra preta** com filete amarelo: à esquerda, o que troca a
+vista; à direita, **Início** e **Abrir outro XML**, **Imprimir** e
+**Salvar** com a seta, e o **botão de perfil** (ver Botão de perfil). A
+situação da Planilha de ST e da TIPI fica no cartão da ferramenta **ST, MVA
+e CFOP** do painel (pastilhas "Planilha de ST" e "TIPI", verde ok e vermelho
+falta, que abrem as Configurações no cartão daquele documento). Quando falta
+espaço, as ações descem para uma segunda linha:
 
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
   pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
@@ -612,16 +617,18 @@ título da nota nunca fica mais estreito que 240 px:
     Positivo não) e TM-T seguido de dígitos (EPSON TM-T20X-II).
   - **Salvar**, o único botão principal: na Conferência grava só a cópia
     editada (`.psxml`); no DANFE, só o PDF. Enquanto grava, mostra
-    "Salvando...". O Salvar grava sempre na pasta mostrada na pastilha da
-    pasta de destino. Com um `.psxml` aberto que está nessa mesma pasta, grava
+    "Salvando...". O Salvar grava sempre na pasta mostrada em "Salvando em"
+    (menu da seta). Com um `.psxml` aberto que está nessa mesma pasta, grava
     por cima dele sem perguntar (é o próprio arquivo aberto); se ele está em
     outra pasta, ou se o aberto é o XML original, grava o `.psxml` com o nome
-    padrão na pasta da pastilha e o aberto fica como está. Se esse `.psxml` já
+    padrão na pasta de destino e o aberto fica como está. Se esse `.psxml` já
     existe, pergunta **Substituir**, **Salvar cópia...** ou **Cancelar** (ver
     Salvar cópia).
-  - A seta colada no Salvar abre um menu com **Salvar PDF** (o PDF do modo
-    em que a tela está; na Conferência, com a orientação e a fonte
-    calculadas) e **Salvar cópia...**.
+  - A seta colada no Salvar abre um menu com **Salvar** (o mesmo do botão),
+    **Salvar PDF** (o PDF do modo em que a tela está; na Conferência, com a
+    orientação e a fonte calculadas), **Salvar cópia...** e a seção
+    **Salvando em**: o caminho completo da pasta de destino, **Trocar pasta
+    de destino...** e **Abrir pasta no Explorer**.
 
 Os nomes saem dos dados da nota, não do nome do arquivo aberto
 (`src/nfe/nome.ts`):
@@ -802,8 +809,9 @@ modo DANFE.
 ### Documentos de referência
 
 Os documentos ficam na aba **Documentos de referência** das Configurações.
-Ela abre pela engrenagem, pelas pastilhas ST e TIPI (já no cartão daquele
-documento, com o foco nele), pelas linhas e pelo **Gerenciar** da tela
+Ela abre pelo menu do perfil (**Configurações**), pelas pastilhas Planilha
+de ST e TIPI do cartão da ferramenta ST (já no cartão daquele documento, com
+o foco nele), pelas linhas e pelo **Gerenciar** da tela
 inicial, e pelo atalho da ferramenta ST quando falta a planilha. O app vem
 sem documentos; na primeira vez a aba explica o que carregar e para quê. Um
 cartão por documento:
@@ -965,12 +973,12 @@ observação, não como erro.
 
 ## Configurações
 
-A engrenagem na faixa preta (tela inicial e tela da nota) abre as
-Configurações dentro da própria janela, com as abas à esquerda. Ao abrir, o
+O item **Configurações** do menu do perfil (tela inicial e tela da nota) abre
+as Configurações dentro da própria janela, com as abas à esquerda. Ao abrir, o
 foco vai para o conteúdo; aberta pelo cartão de um documento, o foco segue
 para o cartão. Seis abas:
 
-- **Geral**: a pasta de destino (a mesma da pastilha "Salvando em", com
+- **Geral**: a pasta de destino (a mesma do "Salvando em", com
   **Trocar pasta...** e **Abrir pasta no Explorer**); **Empresa e avisos da
   nota**: CNPJ da empresa (vazio volta ao padrão), **Aviso de vencimento
   (dias)** (padrão 15) e **Nota antiga (dias)** (padrão 30), as chaves
@@ -1172,6 +1180,7 @@ src/
   styles/tokens.css  variáveis de cor, tipografia e medidas (inclui as do visual Bancada)
   styles/app.css     tela
   styles/bancada.css visual Bancada, só na tela: tela inicial, cartões, pastilhas, botões das janelas
+  styles/janela.css  barra de título própria, barra preta, botão e menu do perfil, menu do Salvar
   styles/print.css   @media print (usado pelo PDF)
   danfe/dados.ts     XML -> campos do DANFE (separado do Nota da conferência)
   danfe/danfe.ts     montagem dos quadros e paginação do DANFE

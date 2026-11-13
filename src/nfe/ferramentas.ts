@@ -55,4 +55,9 @@ export interface FerramentaJanela {
   /** false: falta o necessário (o botão Rodar fica desabilitado). */
   podeRodar(): boolean;
   rodar(): Promise<void>;
+  /**
+   * Situação dos documentos de que a ferramenta precisa (pastilhas que abrem
+   * os Documentos de referência), mostrada no cartão dela. Sem a função: nada.
+   */
+  documentos?(): HTMLElement[];
 }

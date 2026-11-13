@@ -424,13 +424,13 @@ async function editarColunas(nosPerfis = false): Promise<void> {
   );
 }
 
-// ---------- seletor rápido de perfil (barra amarela) ----------
+// ---------- botão de perfil (barra preta) ----------
 
 const btnPerfil = $('btn-perfil') as HTMLButtonElement;
 const perfilNome = $('perfil-nome');
 const menuPerfil = $('menu-perfil');
 
-/** Itens do menu (perfis e Gerenciar perfis...), na ordem da tela. */
+/** Itens do menu (perfis, Gerenciar perfis... e Configurações), na ordem da tela. */
 const itensMenuPerfil = (): HTMLButtonElement[] => [
   ...menuPerfil.querySelectorAll<HTMLButtonElement>('button'),
 ];
@@ -456,9 +456,10 @@ async function abrirMenuPerfil(): Promise<void> {
     const ativo = p.id === estado.ativo;
     const b = el(
       'button',
-      'perfil-rapido__opcao',
-      el('span', 'perfil-rapido__marca', ativo ? '✓' : ''),
-      el('span', 'perfil-rapido__texto', p.nome),
+      'menu-app__item perfil-rapido__opcao',
+      icone(...ICONES.pessoa),
+      el('span', 'menu-app__rotulo', p.nome),
+      ativo ? icone(...ICONES.marcado) : el('span', 'menu-app__vazio'),
     );
     b.type = 'button';
     b.setAttribute('role', 'menuitemradio');
@@ -468,9 +469,8 @@ async function abrirMenuPerfil(): Promise<void> {
   });
   const gerenciar = el(
     'button',
-    'perfil-rapido__opcao perfil-rapido__opcao--gerenciar',
-    el('span', 'perfil-rapido__marca'),
-    el('span', 'perfil-rapido__texto', 'Gerenciar perfis...'),
+    'menu-app__item menu-app__item--secundario perfil-rapido__opcao--gerenciar',
+    el('span', 'menu-app__rotulo', 'Gerenciar perfis...'),
   );
   gerenciar.type = 'button';
   gerenciar.setAttribute('role', 'menuitem');
@@ -478,10 +478,24 @@ async function abrirMenuPerfil(): Promise<void> {
     fecharMenuPerfil();
     void editarColunas(true);
   });
+  const configuracoes = el(
+    'button',
+    'menu-app__item perfil-rapido__opcao--config',
+    icone(...ICONES.engrenagem),
+    el('span', 'menu-app__rotulo', 'Configurações'),
+  );
+  configuracoes.type = 'button';
+  configuracoes.setAttribute('role', 'menuitem');
+  configuracoes.addEventListener('click', () => {
+    fecharMenuPerfil();
+    abrirConfiguracoes();
+  });
   menuPerfil.replaceChildren(
+    el('p', 'menu-app__titulo', 'Perfil'),
     ...itens,
-    el('hr', 'perfil-rapido__separador'),
     gerenciar,
+    el('hr', 'menu-app__separador'),
+    configuracoes,
   );
   menuPerfil.hidden = false;
   btnPerfil.setAttribute('aria-expanded', 'true');
@@ -1229,29 +1243,26 @@ function blocoDadosAdicionais(n: Nota): HTMLElement | null {
 
 const vazio = $('vazio');
 const inicioPerfil = $('inicio-perfil');
-const inicioPasta = $('inicio-pasta');
-const barraPasta = $('barra-pasta');
-/** Pastilha da pasta de destino (atualizarPasta): na barra ou na faixa da tela inicial. */
-const btnPasta = $('btn-pasta') as HTMLButtonElement;
-const pastaRapida = btnPasta.closest<HTMLElement>('.pasta-rapida')!;
-const pastaRotulo = $('pasta-rapida-rotulo');
-const pastaNome = $('pasta-rapida-nome');
-const menuPasta = $('menu-pasta');
+/** Pasta de destino no menu do Salvar (atualizarPasta). */
 const menuPastaCaminho = $('menu-pasta-caminho');
 const menuPastaSessao = $('menu-pasta-sessao');
 const btnTrocarPasta = $('btn-trocar-pasta') as HTMLButtonElement;
 const btnAbrirPasta = $('btn-abrir-pasta') as HTMLButtonElement;
-const itensMenuPasta = () => [btnTrocarPasta, btnAbrirPasta];
+/** Pasta de destino na área de anexar da tela inicial. */
+const inicioDestino = $('inicio-destino');
+const inicioDestinoRotulo = $('inicio-destino-rotulo');
+const inicioDestinoCaminho = $('inicio-destino-caminho');
+const btnTrocarDestino = $('btn-trocar-destino') as HTMLButtonElement;
+/** Texto da barra de título própria (atualizarTituloJanela). */
+const tituloJanela = $('titulo-janela');
+const tituloJanelaTextos = $('titulo-janela-textos');
 const recentesLista = $('recentes-lista');
 const btnLimparRecentes = $('btn-limpar-recentes') as HTMLButtonElement;
-/** Bloco do seletor de perfil (botão e menu): na barra ou na faixa da tela inicial. */
+/** Bloco do botão de perfil (botão e menu): na barra da nota ou na da tela inicial. */
 const perfilRapido = btnPerfil.closest<HTMLElement>('.perfil-rapido')!;
 const barraPerfil = $('barra-perfil');
 const areaSoltar = $('area-soltar');
 const barra = $('barra');
-const barraFornecedor = $('barra-fornecedor');
-const barraNota = $('barra-nota');
-const barraCopia = $('barra-copia');
 const notaEl = $('nota');
 const painelEl = $('painel-conferencia');
 const painel = criarPainel(painelEl, notaEl, {
@@ -1338,12 +1349,12 @@ new MutationObserver(agendarLarguraItens).observe(painelEl, {
   attributes: true,
   attributeFilter: ['data-estado', 'data-layout', 'hidden'],
 });
-// O painel fica logo abaixo da barra amarela, que muda de altura quando os
-// botões descem para uma segunda linha.
+// O painel fica logo abaixo da barra preta (e da barra de título), que muda
+// de altura quando os botões descem para uma segunda linha.
 new ResizeObserver(() =>
   document.documentElement.style.setProperty(
     '--altura-barra',
-    `${barra.getBoundingClientRect().height}px`,
+    `${barra.hidden ? tituloJanela.getBoundingClientRect().bottom : barra.getBoundingClientRect().bottom}px`,
   ),
 ).observe(barra);
 const danfeEl = $('danfe');
@@ -1362,6 +1373,9 @@ const btnSalvarTexto = $('btn-salvar-texto');
 const btnSalvarMais = $('btn-salvar-mais') as HTMLButtonElement;
 const menuSalvar = $('menu-salvar');
 const btnSalvarPdf = $('btn-salvar-pdf') as HTMLButtonElement;
+const btnMenuSalvar = $('btn-menu-salvar') as HTMLButtonElement;
+const menuSalvarAjuda = $('menu-salvar-ajuda');
+const menuPdfAjuda = $('menu-pdf-ajuda');
 const btnSalvarCopia = $('btn-salvar-copia') as HTMLButtonElement;
 const aviso = $('aviso');
 const avisoTexto = $('aviso-texto');
@@ -1466,13 +1480,12 @@ let danfeMontado = false;
 /** Mostra só uma das telas: inicial, conferência ou DANFE. */
 function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
   vazio.hidden = tela !== 'vazio';
-  fecharMenuPasta();
+  fecharMenuSalvar();
   if (tela === 'vazio') {
-    inicioPasta.append(pastaRapida);
     inicioPerfil.append(perfilRapido);
+    atualizarTituloJanela(null);
     void atualizarRecentes();
   } else if (perfilRapido.parentElement !== barraPerfil) {
-    barraPasta.append(pastaRapida);
     barraPerfil.append(perfilRapido);
   }
   barra.hidden = tela !== 'nota' && tela !== 'danfe';
@@ -1488,6 +1501,7 @@ function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
       String(modoAtual === 'conferencia'),
     );
     btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
+    atualizarMenuSalvar();
   }
   window.scrollTo(0, 0);
   aplicarZoom();
@@ -1569,13 +1583,41 @@ function mostrarConferencia(): void {
   else mostrarTela('nota');
 }
 
-/** Preenche a barra com os dados da nota (iguais nos dois modos). */
+/**
+ * Texto da barra de título própria: o primeiro em negrito, os outros
+ * separados por um traço vertical discreto. null: a tela inicial (PS Reader,
+ * Conferência de notas fiscais). Os textos da nota são dados (selecionáveis
+ * só pelo teclado: a barra é arrastável).
+ */
+function atualizarTituloJanela(
+  partes: { forte: string; resto: string[] } | null,
+): void {
+  const { forte, resto } = partes ?? {
+    forte: 'PS Reader',
+    resto: ['Conferência de notas fiscais'],
+  };
+  const filhos: HTMLElement[] = [el('b', 'titulo-janela__forte', forte)];
+  for (const r of resto)
+    filhos.push(
+      el('span', 'titulo-janela__sep', '|'),
+      el('span', 'titulo-janela__texto', r),
+    );
+  tituloJanelaTextos.replaceChildren(...filhos);
+  tituloJanelaTextos.classList.toggle('titulo-janela__textos--dados', !!partes);
+  if (!partes) document.title = 'PS Reader';
+}
+
+/**
+ * Preenche o título da janela com os dados da nota (iguais nos dois modos):
+ * emitente, número e série e o arquivo; na cópia editada, o aviso de que não
+ * tem validade fiscal (nunca no corpo do DANFE).
+ */
 function preencherBarra(n: Nota): void {
-  barraFornecedor.textContent = n.emitente.xNome;
-  barraNota.textContent = textoNumeroSerie(n);
+  const resto = [textoNumeroSerie(n), aberto?.nome ?? ''].filter(Boolean);
+  if (aberto?.lido.copiaEditada)
+    resto.push('Cópia editada, sem validade fiscal');
+  atualizarTituloJanela({ forte: n.emitente.xNome, resto });
   atualizarSeletorPerfil();
-  // O aviso de cópia editada fica só na barra, nunca no corpo do DANFE.
-  barraCopia.hidden = !aberto?.lido.copiaEditada;
   // O nome do arquivo vem primeiro: depois do Salvar cópia, é o da cópia.
   document.title = juntar(
     [aberto?.nome ?? '', textoNumeroSerie(n), n.emitente.xNome],
@@ -2091,10 +2133,10 @@ btnLimparRecentes.addEventListener('click', () => {
     .then(desenharRecentes)
     .catch((erro: unknown) => console.error(erro));
 });
-// Abertura do app na tela inicial: a pasta e o perfil vão para a faixa.
+// Abertura do app na tela inicial: o perfil vai para a barra de lá.
 if (!vazio.hidden) {
-  inicioPasta.append(pastaRapida);
   inicioPerfil.append(perfilRapido);
+  atualizarTituloJanela(null);
   void atualizarRecentes();
 }
 window.psApi.aoMudarRecentes(() => {
@@ -2117,65 +2159,38 @@ function abreviarCaminho(caminho: string): string {
 }
 
 /**
- * Pastilha da pasta de destino (barra e faixa da tela inicial). Com pasta:
- * "Salvando em: <última pasta>" e a seta, que abre o menu com o caminho
- * completo, Trocar pasta... e Abrir pasta no Explorer. Sem pasta: amarela,
- * "Escolha onde salvar", e o clique abre direto o seletor. `sessao`: é a
- * pasta de um .psxml aberto por duplo clique nesta janela, só até fechá-la;
- * o menu diz isso. Os elementos ficam no alto (perto de inicioPasta).
+ * Pasta de destino no menu do Salvar (Salvando em, com o caminho completo) e
+ * na área de anexar da tela inicial (o caminho e Trocar). Sem pasta: "Escolha
+ * onde salvar" e Escolher. `sessao`: é a pasta de um .psxml aberto por duplo
+ * clique nesta janela, só até fechá-la; o menu diz isso.
  */
 function atualizarPasta(caminho: string | null, sessao = false): void {
   pastaDestino = caminho;
-  fecharMenuPasta();
-  pastaRapida.dataset.estado = caminho ? 'com' : 'sem';
-  pastaRotulo.textContent = caminho ? 'Salvando em:' : 'Escolha onde salvar';
-  pastaNome.textContent = caminho ? f.ultimaPasta(caminho) : '';
-  menuPastaCaminho.textContent = caminho ?? '';
+  menuPastaCaminho.textContent = caminho ?? 'Nenhuma pasta escolhida.';
+  menuPastaCaminho.classList.toggle('menu-app__caminho--vazio', !caminho);
   menuPastaSessao.hidden = !(caminho && sessao);
-  if (caminho) {
-    btnPasta.setAttribute('aria-haspopup', 'menu');
-    btnPasta.setAttribute('aria-controls', menuPasta.id);
-    btnPasta.setAttribute('aria-label', `Salvando em: ${caminho}`);
-  } else {
-    btnPasta.removeAttribute('aria-haspopup');
-    btnPasta.removeAttribute('aria-controls');
-    btnPasta.removeAttribute('aria-label');
-  }
+  btnAbrirPasta.disabled = !caminho;
+  inicioDestino.dataset.estado = caminho ? 'com' : 'sem';
+  inicioDestinoRotulo.textContent = caminho
+    ? 'Salvando em'
+    : 'Escolha onde salvar';
+  inicioDestinoCaminho.textContent = caminho ?? '';
+  btnTrocarDestino.textContent = caminho ? 'Trocar' : 'Escolher';
+  btnTrocarDestino.setAttribute(
+    'aria-label',
+    caminho ? 'Trocar a pasta de destino' : 'Escolher a pasta de destino',
+  );
 }
 
-function fecharMenuPasta(focarBotao = false): void {
-  if (menuPasta.hidden) return;
-  menuPasta.hidden = true;
-  btnPasta.setAttribute('aria-expanded', 'false');
-  if (focarBotao) btnPasta.focus();
-}
-
-function abrirMenuPasta(): void {
-  menuPasta.hidden = false;
-  btnPasta.setAttribute('aria-expanded', 'true');
-  btnTrocarPasta.focus();
-}
-
-btnPasta.addEventListener('click', () => {
-  if (!pastaDestino) void escolherPasta();
-  else if (menuPasta.hidden) abrirMenuPasta();
-  else fecharMenuPasta();
-});
 btnTrocarPasta.addEventListener('click', () => {
-  fecharMenuPasta(true);
+  fecharMenuSalvar(true);
   void escolherPasta();
 });
 btnAbrirPasta.addEventListener('click', () => {
-  fecharMenuPasta(true);
+  fecharMenuSalvar(true);
   void abrirPastaDestino();
 });
-menuPasta.addEventListener('keydown', (e) =>
-  navegarMenu(e, itensMenuPasta(), fecharMenuPasta),
-);
-document.addEventListener('mousedown', (e) => {
-  const alvo = e.target as Node;
-  if (!menuPasta.contains(alvo) && !btnPasta.contains(alvo)) fecharMenuPasta();
-});
+btnTrocarDestino.addEventListener('click', () => void escolherPasta());
 
 /** Abre a pasta de destino no Explorer; pasta que sumiu mostra o erro. */
 async function abrirPastaDestino(): Promise<void> {
@@ -2536,9 +2551,31 @@ function fecharMenuSalvar(focarSeta = false): void {
 }
 
 function abrirMenuSalvar(): void {
+  atualizarMenuSalvar();
   menuSalvar.hidden = false;
   btnSalvarMais.setAttribute('aria-expanded', 'true');
-  btnSalvarPdf.focus();
+  btnMenuSalvar.focus();
+}
+
+/** Itens do menu do Salvar que recebem foco, na ordem da tela. */
+const itensMenuSalvar = (): HTMLButtonElement[] =>
+  [
+    btnMenuSalvar,
+    btnSalvarPdf,
+    btnSalvarCopia,
+    btnTrocarPasta,
+    btnAbrirPasta,
+  ].filter((b) => !b.disabled);
+
+/** O que Salvar e Salvar PDF fazem no modo em que a tela está. */
+function atualizarMenuSalvar(): void {
+  const danfe = modoAtual === 'danfe';
+  menuSalvarAjuda.textContent = danfe
+    ? 'PDF do DANFE na pasta de destino'
+    : 'Cópia editada (.psxml) na pasta de destino';
+  menuPdfAjuda.textContent = danfe
+    ? 'PDF do DANFE na pasta de destino'
+    : 'PDF da Conferência na pasta de destino';
 }
 
 // ---------- arquivo vindo de fora (duplo clique num .psxml) ----------
@@ -2850,8 +2887,12 @@ btnSalvarCopia.addEventListener('click', () => {
   fecharMenuSalvar();
   void salvarCopia();
 });
+btnMenuSalvar.addEventListener('click', () => {
+  fecharMenuSalvar();
+  void salvar();
+});
 menuSalvar.addEventListener('keydown', (e) => {
-  const ops = [btnSalvarPdf, btnSalvarCopia];
+  const ops = itensMenuSalvar();
   const i = ops.indexOf(document.activeElement as HTMLButtonElement);
   if (e.key === 'Escape') fecharMenuSalvar(true);
   else if (e.key === 'ArrowDown') ops[(i + 1) % ops.length].focus();
@@ -2932,6 +2973,7 @@ const ferramentaST: FerramentaJanela = {
     return null;
   },
   podeRodar: () => aberto !== null && estadoDocumentos?.st != null,
+  documentos: () => (estadoDocumentos ? botoesDocumento(estadoDocumentos) : []),
   rodar: async () => {
     if (!aberto) return;
     const nota = aberto.lido.nota;
@@ -2967,9 +3009,7 @@ const ferramentaST: FerramentaJanela = {
 // estado). Mudou (importação em outra janela, verificação ao abrir),
 // atualiza tudo.
 const btnDocumentos = $('btn-documentos') as HTMLButtonElement;
-const barraDocumentos = $('barra-documentos');
 const listaDocumentos = $('documentos-lista');
-const inicioDocumentos = $('inicio-documentos');
 /** Download do Atualizar em andamento, por documento. */
 const progressoDocumentos = new Map<TipoDocumento, ProgressoDocumento>();
 /** Atualizar ou Carregar que falhou: o motivo fica na linha até a próxima tentativa. */
@@ -2986,23 +3026,35 @@ function abrirDocumento(tipo: TipoDocumento): void {
   abrirAreaDocumentos({ cartao: tipo });
 }
 
-/** Pastilhas das duas barras: um botão por documento, que abre o cartão dele. */
+/** Nome curto de cada documento nas pastilhas do cartão da ferramenta ST. */
+const PASTILHA_DOCUMENTO: Partial<Record<TipoDocumento, string>> = {
+  st: 'Planilha de ST',
+  tipi: 'TIPI',
+};
+
+/**
+ * Pastilhas da Planilha de ST e da TIPI no cartão da ferramenta "ST, MVA e
+ * CFOP": um botão por documento, que abre o cartão dele nos Documentos de
+ * referência.
+ */
 function botoesDocumento(e: EstadoDocumentos): HTMLButtonElement[] {
-  return pastilhasDocumentos(e).map((p) => {
-    const b = el(
-      'button',
-      `pastilha pastilha--documento pastilha--${p.estado}`,
-      marcaEstado(p.estado, p.texto),
-    );
-    b.type = 'button';
-    b.dataset.tipo = p.tipo;
-    b.setAttribute(
-      'aria-label',
-      `${p.texto}. Abrir ${NOME_DOCUMENTO[p.tipo]} nas Configurações, aba Documentos de referência.`,
-    );
-    b.addEventListener('click', () => abrirDocumento(p.tipo));
-    return b;
-  });
+  return pastilhasDocumentos(e)
+    .filter((p) => PASTILHA_DOCUMENTO[p.tipo])
+    .map((p) => {
+      const b = el(
+        'button',
+        `pastilha pastilha--documento pastilha--${p.estado}`,
+        marcaEstado(p.estado, PASTILHA_DOCUMENTO[p.tipo] ?? p.texto),
+      );
+      b.type = 'button';
+      b.dataset.tipo = p.tipo;
+      b.setAttribute(
+        'aria-label',
+        `${p.texto}. Abrir ${NOME_DOCUMENTO[p.tipo]} nas Configurações, aba Documentos de referência.`,
+      );
+      b.addEventListener('click', () => abrirDocumento(p.tipo));
+      return b;
+    });
 }
 
 const porcentagem = (p: ProgressoDocumento) =>
@@ -3224,15 +3276,6 @@ function atualizarDocumentos(): void {
     .documentos()
     .then((e) => {
       estadoDocumentos = e;
-      // Redesenhar tira o foco do botão: devolve à pastilha do mesmo documento.
-      for (const grupo of [barraDocumentos, inicioDocumentos]) {
-        const focado = grupo.contains(document.activeElement)
-          ? (document.activeElement as HTMLElement).dataset.tipo
-          : undefined;
-        grupo.replaceChildren(...botoesDocumento(e));
-        if (focado)
-          grupo.querySelector<HTMLElement>(`[data-tipo="${focado}"]`)?.focus();
-      }
       desenharListaDocumentos(e);
       atualizarAreaDocumentos(e);
       // As decisões lembradas marcam os CFOPs manuais no resumo do painel.
@@ -3249,7 +3292,7 @@ window.psApi.aoProgressoDocumento((p) => {
 });
 window.psApi.aoMudarDocumentos(atualizarDocumentos);
 
-// ---------- Configurações (engrenagem da barra preta) ----------
+// ---------- Configurações (menu do perfil) ----------
 
 /** Ferramentas do painel de cada perfil (Configurações, aba Ferramentas). */
 let ferramentasPerfis: EstadoFerramentas | null = null;
@@ -3293,11 +3336,6 @@ ligarConfiguracoes({
   editarColunas: () => void editarColunas(),
   escolherPasta,
 });
-for (const id of ['btn-config-barra', 'btn-config-inicio']) {
-  const b = $(id);
-  b.append(icone(...ICONES.engrenagem));
-  b.addEventListener('click', () => abrirConfiguracoes());
-}
 atualizarDocumentos();
 // Uma página recarregada começa sem pendências.
 window.psApi.informarPendentes(false);

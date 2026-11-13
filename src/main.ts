@@ -464,6 +464,11 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     // vem de --ps-branco (#ffffff). O main não lê CSS; se o token mudar, mude aqui.
     show: false,
     backgroundColor: '#ffffff',
+    // Barra de título própria (index.html, .titulo-janela): a faixa preta de
+    // 36 px é do app; minimizar, maximizar e fechar são os do Windows,
+    // desenhados por cima, na cor da barra (--ps-preto) e com símbolos claros.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#161616', symbolColor: '#ffffff', height: 36 },
     // Os padrões seguros do Electron, explícitos: janela isolada, sem Node e
     // em sandbox, com as regras de origem do navegador. DevTools só no
     // npm start.

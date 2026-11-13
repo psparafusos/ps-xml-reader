@@ -464,6 +464,7 @@ export function criarPainel(
       'conferencia__ferramenta',
       el('span', 'conferencia__linha-titulo', fe.titulo),
       el('p', 'conferencia__pendencia-detalhe', fe.descricao),
+      fe.documentos && el('div', 'conferencia__documentos', ...fe.documentos()),
       aviso && el('p', 'conferencia__aviso-ferramenta', aviso.texto),
       el('div', 'conferencia__acoes', rodar, atalho),
     );

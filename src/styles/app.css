@@ -54,7 +54,9 @@ ul {
   [contenteditable]:not([contenteditable='false']),
   .nota,
   .danfe,
-  .pasta-rapida__caminho,
+  .menu-app__caminho,
+  .menu-app__nota,
+  .inicio__destino-caminho,
   .config__caminho,
   .config__arquivo,
   .documento__arquivo strong,
@@ -248,9 +250,8 @@ ul {
 
 /* ---------- barra superior ---------- */
 
-/* Uma linha só na tela larga. Nas outras, duas: em cima título e situação,
-   embaixo as ações e a engrenagem (.barra__acoes). O título nunca fica mais
-   estreito que --largura-minima-titulo. */
+/* A barra preta da nota: o desenho dela (altura, abas, ações) fica em
+   janela.css. */
 .barra {
   position: sticky;
   top: 0;
@@ -263,36 +264,6 @@ ul {
   background: var(--cor-destaque);
   color: var(--cor-texto-sobre-destaque);
   box-shadow: var(--sombra-barra);
-}
-
-.barra__titulo {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 var(--largura-minima-titulo);
-  min-width: var(--largura-minima-titulo);
-}
-
-.barra__fornecedor {
-  font-size: var(--fs-lg);
-  font-weight: var(--peso-forte);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.barra__nota {
-  font-size: var(--fs-sm);
-  font-weight: var(--peso-medio);
-}
-
-.barra__copia {
-  align-self: flex-start;
-  margin-top: var(--esp-1);
-  padding: 0 var(--esp-2);
-  border: var(--borda) solid var(--ps-preto);
-  border-radius: var(--raio);
-  font-size: var(--fs-xs);
-  font-weight: var(--peso-forte);
 }
 
 /* Perfil de colunas ativo: etiqueta discreta sob o número da nota, que abre a
@@ -401,44 +372,6 @@ ul {
   margin: var(--esp-1) 0;
   border: none;
   border-top: var(--borda) solid var(--cor-borda-suave);
-}
-
-/* Ações em três grupos, nesta ordem: navegação, modo, saída; a engrenagem
-   vem logo depois do nav, sempre a última. Duas linhas: em cima o título e a
-   situação (pastilhas), embaixo o nav, que ocupa a linha menos o lugar da
-   engrenagem. Tela larga (1920 a 100%): tudo numa linha, um filete separa a
-   situação das ações. */
-.barra__acoes {
-  display: flex;
-  flex: 1 1 calc(100% - var(--altura-botao-barra) - var(--esp-5));
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-3);
-  min-width: 0;
-}
-
-@media (min-width: 1720px) {
-  .barra__acoes {
-    flex: 0 1 auto;
-    margin-left: var(--esp-2);
-    padding-left: var(--esp-4);
-    border-left: var(--borda) solid
-      color-mix(in srgb, var(--ps-branco) 25%, transparent);
-  }
-}
-
-.barra__grupo {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-}
-
-.barra__saida {
-  margin-left: auto;
-}
-
-.barra__modo {
-  position: relative;
 }
 
 /* Seletor de duas posições (Conferência | DANFE): a opção ativa fica
@@ -2089,24 +2022,6 @@ ul {
   border-radius: var(--raio);
   background: var(--ps-branco);
   box-shadow: var(--sombra-aviso);
-}
-
-.menu-salvar__opcao {
-  display: block;
-  width: 100%;
-  padding: var(--esp-2) var(--esp-4);
-  border: none;
-  background: none;
-  color: var(--cor-texto-forte);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.menu-salvar__opcao:hover,
-.menu-salvar__opcao:focus-visible {
-  outline: none;
-  background: var(--botao-sec-fundo-hover);
 }
 
 /* ---------- caixas de diálogo no visual do app (src/dialogos.ts) ---------- */

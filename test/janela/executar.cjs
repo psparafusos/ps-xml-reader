@@ -122,6 +122,37 @@ function abrir(caminho) {
   app.emit('second-instance', {}, [], RAIZ, { arquivos: [caminho] });
 }
 
+/**
+ * Abre as Configurações pelo menu do perfil (o único caminho desde que a
+ * engrenagem saiu da barra).
+ */
+async function abrirConfiguracoes() {
+  await avaliar(`document.getElementById('btn-perfil').click()`);
+  await aguardar(
+    `!!document.querySelector('#menu-perfil:not([hidden]) .perfil-rapido__opcao--config')`,
+    15000,
+    'o menu do perfil não abriu',
+  );
+  await avaliar(
+    `document.querySelector('#menu-perfil .perfil-rapido__opcao--config').click()`,
+  );
+}
+
+/**
+ * Troca a resposta do diálogo de pasta do processo principal por `pasta`
+ * enquanto `fn` roda (nenhum diálogo de verdade abre no teste).
+ */
+async function comPastaEscolhida(pasta, fn) {
+  const { dialog } = require('electron');
+  const original = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [pasta] });
+  try {
+    await fn();
+  } finally {
+    dialog.showOpenDialog = original;
+  }
+}
+
 /** Volta para a tela inicial (a janela fica vazia para o próximo arquivo). */
 async function inicio() {
   await avaliar(`document.getElementById('btn-inicio').click()`);
@@ -351,7 +382,7 @@ async function principal() {
     'app://: a tela vem do protocolo próprio e nada sai da pasta',
     async () => {
       const tela = await avaliar(`(() => {
-      const logo = document.querySelector('.inicio__logo, .barra__logo');
+      const logo = document.querySelector('.titulo-janela__logo');
       return {
         url: location.href,
         scripts: [...document.querySelectorAll('script[src]')].map((s) => s.src),
@@ -616,7 +647,7 @@ async function principal() {
     async () => {
       confere((await abrirEmAtivo()) === 'xml', 'o padrão não é o XML');
       try {
-        await avaliar(`document.getElementById('btn-config-inicio').click()`);
+        await abrirConfiguracoes();
         await aguardar(`!!document.getElementById('config-titulo')`);
         await avaliar(`[...document.querySelectorAll('dialog[open] button')]
         .find((b) => b.textContent.trim() === 'Ferramentas').click()`);
@@ -753,6 +784,276 @@ async function principal() {
     },
   );
 
+  // Desenho de 13/11: barra de título própria, barra preta só com as ações
+  // e o perfil, menus do Salvar e do perfil, Salvando em na tela inicial.
+  const textoTitulo = `[...document.querySelectorAll('#titulo-janela-textos > :not(.titulo-janela__sep)')].map((e) => e.textContent)`;
+
+  await caso(
+    'Barra de título própria: PS Reader na tela inicial; emitente, número e arquivo na nota',
+    async () => {
+      const inicial = await avaliar(textoTitulo);
+      confere(
+        inicial.join('|') === 'PS Reader|Conferência de notas fiscais',
+        `tela inicial: ${inicial.join(' | ')}`,
+      );
+      const barraTitulo = await avaliar(`(() => {
+        const t = document.getElementById('titulo-janela');
+        const s = getComputedStyle(t);
+        return { altura: Math.round(t.getBoundingClientRect().height), arrasta: s.getPropertyValue('app-region') || s.getPropertyValue('-webkit-app-region'), fundo: s.backgroundColor };
+      })()`);
+      confere(barraTitulo.altura === 36, `altura: ${barraTitulo.altura}`);
+      confere(
+        barraTitulo.arrasta === 'drag',
+        `app-region: ${barraTitulo.arrasta}`,
+      );
+      confere(
+        await avaliar(
+          `!document.querySelector('.inicio__titulo, .inicio__subtitulo')`,
+        ),
+        'o título repetido ficou na tela inicial',
+      );
+      await abrirNota(outra);
+      const nota = await avaliar(textoTitulo);
+      confere(
+        nota[0] === 'Fornecedor Inventado de Teste' &&
+          /^NF-e nº \d+ série \d+$/.test(nota[1]) &&
+          nota[2] === path.basename(outra),
+        `nota: ${nota.join(' | ')}`,
+      );
+      const barra = await avaliar(`(() => ({
+        documentos: document.querySelectorAll('#barra .pastilha--documento').length,
+        engrenagem: !!document.querySelector('#barra .config-engrenagem, #btn-config-barra'),
+        pasta: !!document.querySelector('#barra .pasta-rapida'),
+        titulo: !!document.querySelector('#barra-fornecedor, #barra-nota'),
+        botoes: [...document.querySelectorAll('#barra .barra__acoes > button, #barra .salvar-grupo > button:first-child')].map((b) => b.textContent.trim()),
+      }))()`);
+      confere(barra.documentos === 0, 'ST e TIPI continuam na barra');
+      confere(!barra.engrenagem, 'a engrenagem continua na barra');
+      confere(!barra.pasta, 'o Salvando em continua na barra');
+      confere(!barra.titulo, 'o título repetido continua na barra');
+      confere(
+        barra.botoes.join('|') === 'Início|Abrir outro XML|Imprimir|Salvar',
+        `botões: ${barra.botoes.join(', ')}`,
+      );
+      await inicio();
+      const deVolta = await avaliar(textoTitulo);
+      confere(deVolta[0] === 'PS Reader', `de volta: ${deVolta.join(' | ')}`);
+    },
+  );
+
+  await caso(
+    'Menu do Salvar: Salvar, Salvar PDF, Salvar cópia e Salvando em com a pasta de destino',
+    async () => {
+      apagarPdfs();
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+      await aguardar(
+        visivel('menu-salvar'),
+        15000,
+        'o menu do Salvar não abriu',
+      );
+      const menu = await avaliar(`(() => {
+        const m = document.getElementById('menu-salvar');
+        return {
+          itens: [...m.querySelectorAll('button')].map((b) => b.querySelector('.menu-app__rotulo').textContent.trim()),
+          ajuda: document.getElementById('menu-salvar-ajuda').textContent,
+          titulo: m.querySelector('.menu-app__titulo').textContent,
+          caminho: document.getElementById('menu-pasta-caminho').textContent,
+          caminhoSeleciona: getComputedStyle(document.getElementById('menu-pasta-caminho')).userSelect,
+          foco: document.activeElement?.id,
+        };
+      })()`);
+      confere(
+        menu.itens.join('|') ===
+          'Salvar|Salvar PDF|Salvar cópia...|Trocar pasta de destino...|Abrir pasta no Explorer',
+        `itens: ${menu.itens.join(', ')}`,
+      );
+      confere(menu.titulo === 'Salvando em', `título: ${menu.titulo}`);
+      const efetiva = (await avaliar(`window.psApi.pastaDestino()`)).caminho;
+      confere(
+        menu.caminho === efetiva,
+        `caminho: ${menu.caminho}, esperado ${efetiva}`,
+      );
+      confere(menu.caminhoSeleciona === 'text', 'o caminho não seleciona');
+      confere(
+        menu.ajuda === 'PDF do DANFE na pasta de destino',
+        `ajuda no DANFE: ${menu.ajuda}`,
+      );
+      confere(menu.foco === 'btn-menu-salvar', `foco: ${menu.foco}`);
+      // Salvar do menu: o mesmo do botão (no DANFE, o PDF).
+      await avaliar(`document.getElementById('btn-menu-salvar').click()`);
+      await pdfNoDestino('_DANFE.pdf');
+      confere(!(await avaliar(visivel('menu-salvar'))), 'o menu não fechou');
+      await irParaConferencia();
+      await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+      await aguardar(visivel('menu-salvar'));
+      const naConferencia = await avaliar(
+        `document.getElementById('menu-salvar-ajuda').textContent`,
+      );
+      confere(
+        naConferencia === 'Cópia editada (.psxml) na pasta de destino',
+        `ajuda na Conferência: ${naConferencia}`,
+      );
+      teclaEsc();
+      await aguardar(
+        `document.getElementById('menu-salvar').hidden`,
+        15000,
+        'o Esc não fechou o menu',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Menu do perfil: Perfil, a lista com a marca no atual, Gerenciar perfis e Configurações',
+    async () => {
+      const botao = await avaliar(`(() => {
+        const b = document.getElementById('btn-perfil');
+        return { texto: b.textContent.replace(/\s+/g, ' ').trim(), fundo: getComputedStyle(b).backgroundColor, naInicial: !!b.closest('#inicio-perfil') };
+      })()`);
+      confere(
+        botao.naInicial,
+        'o botão de perfil não está na barra da tela inicial',
+      );
+      confere(botao.fundo === 'rgb(255, 255, 255)', `fundo: ${botao.fundo}`);
+      await avaliar(`document.getElementById('btn-perfil').click()`);
+      await aguardar(
+        `!!document.querySelector('#menu-perfil:not([hidden]) .perfil-rapido__opcao--config')`,
+        15000,
+        'o menu do perfil não abriu',
+      );
+      const menu = await avaliar(`(() => {
+        const m = document.getElementById('menu-perfil');
+        const perfis = [...m.querySelectorAll('[role="menuitemradio"]')];
+        return {
+          titulo: m.querySelector('.menu-app__titulo')?.textContent,
+          perfis: perfis.length,
+          marcados: perfis.filter((p) => p.getAttribute('aria-checked') === 'true').length,
+          marcaNoAtivo: !!m.querySelector('[aria-checked="true"] svg:last-child:not(:first-child)'),
+          outros: [...m.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim()),
+          nome: document.getElementById('perfil-nome').textContent,
+        };
+      })()`);
+      confere(menu.titulo === 'Perfil', `título: ${menu.titulo}`);
+      confere(
+        menu.perfis >= 1 && menu.marcados === 1,
+        `perfis: ${JSON.stringify(menu)}`,
+      );
+      confere(menu.marcaNoAtivo, 'sem a marca no perfil atual');
+      confere(
+        menu.outros.join('|') === 'Gerenciar perfis...|Configurações',
+        `itens: ${menu.outros.join(', ')}`,
+      );
+      await avaliar(
+        `document.querySelector('#menu-perfil .perfil-rapido__opcao--config').click()`,
+      );
+      await aguardar(
+        configAberta,
+        15000,
+        'Configurações não abriu pelo menu do perfil',
+      );
+      teclaEsc();
+      await aguardar(
+        `!${configNaPagina}`,
+        15000,
+        'o Esc não fechou as Configurações',
+      );
+    },
+  );
+
+  await caso(
+    'Tela inicial: Salvando em com o caminho completo e Trocar dentro da área de anexar',
+    async () => {
+      const antes = await avaliar(`(() => {
+        const d = document.getElementById('inicio-destino');
+        return {
+          dentro: !!d.closest('#area-soltar'),
+          rotulo: document.getElementById('inicio-destino-rotulo').textContent,
+          caminho: document.getElementById('inicio-destino-caminho').textContent,
+          botao: document.getElementById('btn-trocar-destino').textContent.trim(),
+        };
+      })()`);
+      confere(antes.dentro, 'o Salvando em não está na área de anexar');
+      confere(antes.rotulo === 'Salvando em', `rótulo: ${antes.rotulo}`);
+      const efetiva = (await avaliar(`window.psApi.pastaDestino()`)).caminho;
+      confere(
+        antes.caminho === efetiva,
+        `caminho: ${antes.caminho}, esperado ${efetiva}`,
+      );
+      confere(antes.botao === 'Trocar', `botão: ${antes.botao}`);
+      const outraPasta = path.join(tmp, 'destino-2');
+      fs.mkdirSync(outraPasta, { recursive: true });
+      try {
+        await comPastaEscolhida(outraPasta, async () => {
+          await avaliar(
+            `document.getElementById('btn-trocar-destino').click()`,
+          );
+          await aguardar(
+            `document.getElementById('inicio-destino-caminho').textContent === ${JSON.stringify(outraPasta)}`,
+            15000,
+            'o Trocar não mudou o caminho',
+          );
+        });
+        confere(
+          (await avaliar(
+            `document.getElementById('menu-pasta-caminho').textContent`,
+          )) === outraPasta,
+          'o menu do Salvar não acompanhou a pasta nova',
+        );
+      } finally {
+        await comPastaEscolhida(destino, async () => {
+          await avaliar(
+            `document.getElementById('btn-trocar-destino').click()`,
+          );
+          await aguardar(
+            `document.getElementById('inicio-destino-caminho').textContent === ${JSON.stringify(destino)}`,
+            15000,
+            'a pasta de destino não voltou',
+          );
+        });
+      }
+    },
+  );
+
+  await caso(
+    'Cartão da ferramenta ST: pastilhas da Planilha de ST e da TIPI, que abrem os Documentos de referência',
+    async () => {
+      await abrirNota(outra);
+      await irParaConferencia();
+      await avaliar(
+        `document.querySelector('.conferencia__expandir, [aria-label="Expandir o painel"]')?.click(); true`,
+      );
+      await aguardar(
+        `!!document.querySelector('.conferencia__ferramenta .conferencia__documentos .pastilha')`,
+        15000,
+        'sem pastilhas no cartão da ferramenta ST',
+      );
+      const pastilhas = await avaliar(
+        `[...document.querySelectorAll('.conferencia__ferramenta .conferencia__documentos .pastilha')].map((p) => ({ texto: p.textContent.trim(), classe: p.className }))`,
+      );
+      confere(
+        pastilhas.map((p) => p.texto).join('|') === 'Planilha de ST|TIPI',
+        `pastilhas: ${JSON.stringify(pastilhas)}`,
+      );
+      confere(
+        pastilhas.every((p) => /pastilha--(ok|faltando|aviso)/.test(p.classe)),
+        `estado: ${JSON.stringify(pastilhas)}`,
+      );
+      await avaliar(
+        `document.querySelector('.conferencia__documentos .pastilha').click()`,
+      );
+      await aguardar(
+        configAberta,
+        15000,
+        'a pastilha não abriu os Documentos de referência',
+      );
+      teclaEsc();
+      await aguardar(`!${configNaPagina}`, 15000, 'o Esc não fechou');
+      await fecharAvisosDaNota();
+      await inicio();
+    },
+  );
+
   await caso(
     'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {
@@ -791,7 +1092,7 @@ async function principal() {
         );
       await inicio();
       // Configurações, aba por aba.
-      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await abrirConfiguracoes();
       await aguardar(`!!document.getElementById('config-titulo')`);
       const abas = await avaliar(
         `[...document.querySelectorAll('dialog[open] .config__aba')].map((b) => b.textContent.trim())`,
@@ -1156,7 +1457,7 @@ async function casosJanelasPorCima() {
   await caso(
     'Configurações: X no cabeçalho (só ícone, aria-label Fechar) e Esc fecham; sem Fechar no rodapé',
     async () => {
-      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await abrirConfiguracoes();
       await aguardar(configAberta, 15000, 'as Configurações não abriram');
       const x = await avaliar(`(() => {
         const d = document.querySelector('dialog.painel--config[open]');
@@ -1186,7 +1487,7 @@ async function casosJanelasPorCima() {
       );
       await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
       // De novo, agora pelo Esc.
-      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await abrirConfiguracoes();
       await aguardar(
         configAberta,
         15000,
@@ -1214,7 +1515,7 @@ async function casosJanelasPorCima() {
           'a tela inicial rola numa janela de 1000 px',
         );
         const semBarra = await avaliar(LARGURA_UTIL);
-        await avaliar(`document.getElementById('btn-config-inicio').click()`);
+        await abrirConfiguracoes();
         await aguardar(configAberta, 15000, 'as Configurações não abriram');
         await avaliar(DOIS_QUADROS);
         const semBarraAberta = await avaliar(LARGURA_UTIL);
@@ -1240,7 +1541,7 @@ async function casosJanelasPorCima() {
         // Rodar a ferramenta ST pelo painel.
         await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
           .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
-          .querySelector('button:not(:disabled)').click()`);
+          .querySelector('.botao--ferramenta:not(:disabled)').click()`);
         await aguardar(
           `!!document.querySelector('dialog.painel--st[open]')`,
           30000,
@@ -1408,7 +1709,7 @@ async function casosJanelasPorCima() {
       await irParaConferencia();
       await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
         .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
-        .querySelector('button:not(:disabled)').click()`);
+        .querySelector('.botao--ferramenta:not(:disabled)').click()`);
       await aguardar(
         `!!document.querySelector('dialog.painel--st[open]')`,
         30000,
