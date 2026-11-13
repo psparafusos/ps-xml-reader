@@ -113,6 +113,7 @@ import {
   zoomParaLargura,
   type ArranjoFolhas,
 } from './nfe/folhasDanfe';
+import { desenharMiniatura } from './miniaturaFolha';
 import { criarPainelLeitura, type ModoLeitura } from './painelLeitura';
 import './rolagemPagina';
 import {
@@ -1531,7 +1532,7 @@ let semDanfe: string | null = null;
 /** Folhas do DANFE na tela; ficam para a próxima nota desta janela. */
 let arranjoFolhas: ArranjoFolhas = 'uma';
 /**
- * Folha do PDF da Conferência escolhida no painel: vale só para a nota
+ * Folha da Conferência escolhida no painel ("Ao imprimir e no PDF"): vale só para a nota
  * aberta nesta janela (tela, Imprimir e Salvar PDF); null: a do perfil.
  */
 let orientacaoNota: Orientacao | null = null;
@@ -1693,7 +1694,11 @@ aoLerXml((dados) => {
 });
 window.psLeitorXml.aoMostrar(() => abrirGenerico());
 
-/** Retrato e Paisagem da Folha do PDF (painel da Conferência). */
+/**
+ * Seção "Ao imprimir e no PDF" do painel da Conferência: Retrato e Paisagem
+ * e, embaixo, a miniatura da folha A4 nessa orientação, com as colunas que
+ * cabem (a mesma do editor de colunas).
+ */
 function seletorFolhaPdf(): HTMLElement {
   const atual =
     orientacaoNota ??
@@ -1716,8 +1721,31 @@ function seletorFolhaPdf(): HTMLElement {
     }),
   );
   grupo.setAttribute('role', 'group');
-  grupo.setAttribute('aria-label', 'Folha do PDF');
-  return grupo;
+  grupo.setAttribute('aria-label', 'Folha ao imprimir e no PDF');
+  return el('div', 'folha-pdf__caixa', grupo, miniaturaFolhaPdf(atual));
+}
+
+/**
+ * A miniatura do editor de colunas com a tabela de itens da nota aberta, na
+ * orientação `o`: as colunas que cabem na folha e as que vão para a próxima.
+ */
+function miniaturaFolhaPdf(o: Orientacao): HTMLElement | null {
+  const tabela = notaEl.querySelector<HTMLTableElement>(
+    '.secao--itens table.tabela--itens',
+  );
+  if (!tabela) return null;
+  try {
+    const m = desenharMiniatura(
+      copiaParaFolha(tabela),
+      planoDaTabela(tabela, o),
+      true,
+    );
+    m.id = 'miniatura-folha-pdf';
+    return m;
+  } catch (erro) {
+    console.error(erro);
+    return null;
+  }
 }
 
 /** Orientação que a tabela da tela pede (perfil em Automática). */

@@ -1055,7 +1055,7 @@ async function principal() {
   );
 
   // Parte 4: abas PSXML e XML, painel Leitura (DANFE, Formato original,
-  // .XML, Folhas, Arquivo), .XML dentro da aba, Folha do PDF.
+  // .XML, Folhas, Arquivo), .XML dentro da aba, "Ao imprimir e no PDF".
   const leitura = (js) =>
     avaliar(
       `(() => { const p = document.getElementById('painel-leitura'); ${js} })()`,
@@ -1411,7 +1411,7 @@ async function principal() {
   );
 
   await caso(
-    'Folha do PDF na Conferência: Retrato ou Paisagem vale para o PDF e não grava no perfil',
+    'Ao imprimir e no PDF (Conferência): miniatura da folha, e Retrato ou Paisagem vale para o PDF e a impressão, sem gravar no perfil',
     async () => {
       await abrirNota(outra);
       await irParaConferencia();
@@ -1421,13 +1421,13 @@ async function principal() {
       await aguardar(
         `!!document.getElementById('btn-folha-paisagem')`,
         15000,
-        'sem a Folha do PDF no painel',
+        'sem a seção Ao imprimir e no PDF no painel',
       );
       const titulos = await avaliar(
         `[...document.querySelectorAll('#painel-conferencia .conferencia__subtitulo')].map((e) => e.textContent)`,
       );
       confere(
-        titulos[titulos.length - 1] === 'Folha do PDF',
+        titulos[titulos.length - 1] === 'Ao imprimir e no PDF',
         `seções: ${titulos.join(', ')}`,
       );
       const perfisAntes = JSON.stringify(
@@ -1443,6 +1443,25 @@ async function principal() {
           5000,
           `${id} não ficou marcado`,
         );
+        const mini = await avaliar(`(() => {
+          const m = document.getElementById('miniatura-folha-pdf');
+          const caixa = m?.getBoundingClientRect();
+          const painel = document.querySelector('#painel-conferencia .conferencia__corpo')?.getBoundingClientRect();
+          return {
+            orientacao: m?.dataset.orientacao,
+            legenda: m?.querySelector('.miniatura__legenda')?.textContent,
+            colunas: m ? m.querySelectorAll('.miniatura__tabela thead th').length : 0,
+            cabe: !!caixa && !!painel && caixa.right <= painel.right + 0.5,
+          };
+        })()`);
+        const nome = deitada ? 'paisagem' : 'retrato';
+        confere(
+          mini.orientacao === nome &&
+            mini.legenda?.includes(`Folha A4 em ${nome}`) &&
+            mini.colunas > 0 &&
+            mini.cabe,
+          `miniatura com ${id}: ${JSON.stringify(mini)}`,
+        );
         apagarPdfs();
         await avaliar(`document.getElementById('btn-salvar-mais').click()`);
         await aguardar(visivel('menu-salvar'));
@@ -1452,10 +1471,68 @@ async function principal() {
           deitada ? pdf.largura > pdf.altura : pdf.altura > pdf.largura,
           `PDF com ${id}: ${JSON.stringify(pdf)}`,
         );
+        // Imprimir: o diálogo do Windows não dá para conduzir; o teste fica
+        // no lugar dele e gera o PDF da página que iria para a impressora,
+        // com as opções que o app pediu (e o aviso de impressora de cupom,
+        // se a padrão for uma, respondido com Continuar).
+        const { dialog } = require('electron');
+        const proto = Object.getPrototypeOf(janela.webContents);
+        const printOriginal = proto.print;
+        const avisoOriginal = dialog.showMessageBox;
+        const arquivo = path.join(tmp, `impressao-${nome}.pdf`);
+        let impressao = null;
+        dialog.showMessageBox = async () => ({
+          response: 0,
+          checkboxChecked: false,
+        });
+        proto.print = function (opcoes, fim) {
+          impressao = (async () => {
+            const pagina = await this.executeJavaScript(
+              `[...document.querySelectorAll('style')].map((s) => s.textContent).filter((t) => t.includes('@page')).join(' ')`,
+            );
+            fs.writeFileSync(
+              arquivo,
+              await this.printToPDF({
+                landscape: opcoes.landscape === true,
+                printBackground: true,
+                preferCSSPageSize: true,
+              }),
+            );
+            fim(true, '');
+            return {
+              landscape: opcoes.landscape === true,
+              pagina,
+              pdf: paginasDoPdf(arquivo),
+            };
+          })();
+        };
+        try {
+          await avaliar(`document.getElementById('btn-imprimir').click()`);
+          const limite = Date.now() + 30000;
+          while (!impressao && Date.now() < limite) await espera(100);
+          confere(impressao, `Imprimir com ${id} não chegou à impressão`);
+          const r = await impressao;
+          await aguardar(
+            `!document.getElementById('btn-imprimir').disabled`,
+            10000,
+            'Imprimir não voltou',
+          );
+          confere(
+            r.landscape === deitada &&
+              r.pagina.includes(deitada ? 'landscape' : 'portrait') &&
+              (deitada
+                ? r.pdf.largura > r.pdf.altura
+                : r.pdf.altura > r.pdf.largura),
+            `impressão com ${id}: ${JSON.stringify(r)}`,
+          );
+        } finally {
+          proto.print = printOriginal;
+          dialog.showMessageBox = avisoOriginal;
+        }
       }
       confere(
         JSON.stringify(await avaliar(`window.psApi.perfis()`)) === perfisAntes,
-        'a Folha do PDF foi gravada no perfil',
+        'a orientação de Ao imprimir e no PDF foi gravada no perfil',
       );
       await fecharAvisosDaNota();
       await inicio();

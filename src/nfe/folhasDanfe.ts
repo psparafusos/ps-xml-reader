@@ -1,5 +1,5 @@
 // Folhas do DANFE na tela (painel Leitura da aba XML) e a orientação da
-// Folha do PDF (painel da Conferência). Lógica pura, sem DOM: o renderer
+// seção "Ao imprimir e no PDF" (painel da Conferência). Lógica pura, sem DOM: o renderer
 // aplica. Só a tela muda com as Folhas; o papel e o PDF do DANFE saem sempre
 // uma folha A4 retrato por página.
 
@@ -45,7 +45,7 @@ export function zoomParaLargura(
 }
 
 /**
- * Orientação da folha da Conferência: a escolhida na Folha do PDF (vale só
+ * Orientação da folha da Conferência: a escolhida em "Ao imprimir e no PDF" (vale só
  * para a nota aberta nesta janela, para a tela, o Imprimir e o Salvar PDF;
  * não grava no perfil) ou, sem escolha, a do perfil.
  */

@@ -46,8 +46,8 @@ export interface AcoesPainel {
    */
   ordemFerramentas?(): readonly string[];
   /**
-   * Conteúdo da seção "Folha do PDF" (Retrato e Paisagem), a última do
-   * painel. Sem a função: sem a seção.
+   * Conteúdo da seção "Ao imprimir e no PDF" (Retrato e Paisagem, e a
+   * miniatura da folha), a última do painel. Sem a função: sem a seção.
    */
   folhaPdf?(): HTMLElement;
 }
@@ -321,7 +321,9 @@ export function criarPainel(
       ),
       secao('Precisa de você', pendencias),
       ...(ferramentas.length > 0 ? [secao('Ferramentas', ...ferramentas)] : []),
-      ...(acoes.folhaPdf ? [secao('Folha do PDF', acoes.folhaPdf())] : []),
+      ...(acoes.folhaPdf
+        ? [secao('Ao imprimir e no PDF', acoes.folhaPdf())]
+        : []),
     );
   }
 

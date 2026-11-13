@@ -713,7 +713,7 @@
     stroke-width: 3;
   }
 
-  /* ---------- Folha do PDF (painel da Conferência) ---------- */
+  /* ---------- Ao imprimir e no PDF (painel da Conferência) ---------- */
 
   .folha-pdf {
     display: flex;
@@ -721,5 +721,16 @@
 
   .folha-pdf .seletor__opcao {
     flex: 1;
+  }
+
+  /* A miniatura do editor de colunas, menor, para caber no painel (a folha
+     em paisagem na largura dele). */
+  .folha-pdf__caixa .miniatura {
+    --escala-miniatura: 0.22;
+    margin-top: var(--esp-2);
+  }
+
+  .folha-pdf__caixa .miniatura__rolagem {
+    padding-inline: 0;
   }
 }
