@@ -144,7 +144,7 @@ describe('cópia editada (.psxml): a aba XML mostra o original de dentro dela', 
 
   it('com original: só o nfeProc, sem a cópia e as anotações', async () => {
     const r = await lerParaLeitor(
-      'C:\Notas\copia inventada.psxml',
+      'C:\\Notas\\copia inventada.psxml',
       disco(PSXML.length, PSXML),
       50,
       () => {},
@@ -163,7 +163,7 @@ describe('cópia editada (.psxml): a aba XML mostra o original de dentro dela', 
 
   it('sem pedir o original, ou num XML qualquer: o arquivo inteiro', async () => {
     const inteiro = await lerParaLeitor(
-      'C:\Notas\c.psxml',
+      'C:\\Notas\\c.psxml',
       disco(PSXML.length, PSXML),
       50,
     );

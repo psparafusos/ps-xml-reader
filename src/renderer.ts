@@ -113,11 +113,7 @@ import {
   zoomParaLargura,
   type ArranjoFolhas,
 } from './nfe/folhasDanfe';
-import {
-  criarPainelLeitura,
-  ROTULO_MODO,
-  type ModoLeitura,
-} from './painelLeitura';
+import { criarPainelLeitura, type ModoLeitura } from './painelLeitura';
 import {
   aoLerXml,
   arquivoXml,

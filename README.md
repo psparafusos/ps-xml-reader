@@ -1129,15 +1129,24 @@ da janela, dos atalhos, do executável (`PS Reader.exe`) e da pasta de dados
 (`%APPDATA%\PS Reader`). A instalação fica em `%LocalAppData%\PSXmlReader\`
 (nome do Squirrel, sem espaço) e não pede administrador.
 
-Os ícones ficam em `assets\`: `ps-reader.ico` (executável, janela, instalador,
-arquivos `.psxml` e Configurações > Aplicativos), `ps-logo.svg` e
-`ps-logo-icone-simplificado.svg` (logo vetorizado) e `ps-logo-1024.png`.
+Os ícones ficam em `assets\`: `ps-reader.ico` (executável, janela, instalador
+e Configurações > Aplicativos), `icone-xml.ico` (arquivos `.xml` no "Abrir
+com" do PS Reader), `icone-psxml.ico` (arquivos `.psxml`), `icone-xml.svg` e
+`icone-psxml.svg` (miniaturas das abas XML e PSXML), `ps-logo.svg` e
+`ps-logo-icone-simplificado.svg` (logo vetorizado) e `ps-logo-1024.png`. Os
+dois `.ico` dos arquivos vão no pacote, em `resources\` (`extraResource` do
+`forge.config.mts`).
 
 Na instalação e em cada atualização, o app associa a extensão `.psxml` (só ela)
 no registro do usuário atual, `HKCU\Software\Classes` (`src/associacao.ts`); a
-desinstalação apaga essas chaves. O comando de abrir e o ícone apontam para o
-executável fixo da raiz, `%LocalAppData%\PSXmlReader\PS Reader.exe`, que não
-muda entre versões. Depois de gravar ou apagar as chaves, o app avisa o
+desinstalação apaga essas chaves. O comando de abrir aponta para o executável
+fixo da raiz, `%LocalAppData%\PSXmlReader\PS Reader.exe`, que não muda entre
+versões. Os ícones dos arquivos são copiados de `resources\` para
+`%LocalAppData%\PSXmlReader\icones\` (que também não muda) e o
+`DefaultIcon` aponta para lá: `PSReader.psxml` com `icone-psxml.ico` e
+`PSReader.xml` (o "Abrir com" do `.xml`) com `icone-xml.ico`. Se a cópia
+falhar, o ícone fica o do app, como antes, e o log diz o motivo. Na
+desinstalação, a pasta `icones` sai junto com as chaves. Depois de gravar ou apagar as chaves, o app avisa o
 Explorer (SHChangeNotify com SHCNE_ASSOCCHANGED) para atualizar o ícone e o
 nome do tipo. Na instalação e na atualização, o app também apaga os atalhos
 `Leitor NF-e PS.lnk` que sobraram do nome antigo, só no menu Iniciar (pasta
@@ -1145,8 +1154,8 @@ nome do tipo. Na instalação e na atualização, o app também apaga os atalhos
 usuário, e só se o atalho aponta para dentro de `%LocalAppData%\PSXmlReader\`.
 Cada instalação, atualização ou desinstalação sobrescreve um log curto em
 `%TEMP%\ps-reader-associacao.log` (evento, resultado de cada chamada ao
-`reg.exe`, saída do aviso ao Explorer, atalhos antigos apagados ou mantidos e
-tempo total). Se o Explorer mesmo
+`reg.exe`, cópia dos ícones, saída do aviso ao Explorer, atalhos antigos
+apagados ou mantidos e tempo total). Se o Explorer mesmo
 assim não mostrar o ícone novo, reinicie o Explorer ou saia e entre no Windows.
 
 O ícone em Configurações > Aplicativos vem de `iconUrl` (`forge.config.mts`): o

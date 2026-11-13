@@ -909,7 +909,7 @@ async function principal() {
     async () => {
       const botao = await avaliar(`(() => {
         const b = document.getElementById('btn-perfil');
-        return { texto: b.textContent.replace(/\s+/g, ' ').trim(), fundo: getComputedStyle(b).backgroundColor, naInicial: !!b.closest('#inicio-perfil') };
+        return { texto: b.textContent.replace(/\\s+/g, ' ').trim(), fundo: getComputedStyle(b).backgroundColor, naInicial: !!b.closest('#inicio-perfil') };
       })()`);
       confere(
         botao.naInicial,
@@ -1635,6 +1635,30 @@ async function principal() {
         await inicio();
       } finally {
         fs.rmSync(grande, { force: true });
+      }
+    },
+  );
+
+  await caso(
+    'Ícones dos arquivos no pacote: icone-xml.ico e icone-psxml.ico em resources, iguais aos de assets',
+    async () => {
+      const saida = path.join(RAIZ, 'out');
+      const pacotes = fs.existsSync(saida)
+        ? fs
+            .readdirSync(saida)
+            .map((d) => path.join(saida, d, 'resources'))
+            .filter((d) => fs.existsSync(d))
+        : [];
+      confere(pacotes.length > 0, `sem o pacote em ${saida}`);
+      for (const nome of ['icone-xml.ico', 'icone-psxml.ico']) {
+        const noPacote = path.join(pacotes[0], nome);
+        confere(fs.existsSync(noPacote), `${nome} não está no pacote`);
+        confere(
+          fs
+            .readFileSync(noPacote)
+            .equals(fs.readFileSync(path.join(RAIZ, 'assets', nome))),
+          `${nome} do pacote difere do de assets`,
+        );
       }
     },
   );

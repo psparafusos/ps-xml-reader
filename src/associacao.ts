@@ -12,7 +12,14 @@
 // O Squirrel instala em %LocalAppData%\PSXmlReader\: cada versão fica em
 // app-<versão>\ (que muda a cada atualização) e na raiz fica um executável
 // fixo, com o mesmo nome do executável do app, que abre a versão atual. O
-// comando de abrir e o ícone apontam para esse executável da raiz.
+// comando de abrir aponta para esse executável da raiz.
+//
+// Ícones dos arquivos: o .xml (no "Abrir com", ProgID PSReader.xml) usa
+// icone-xml.ico e o .psxml usa icone-psxml.ico. Os dois vêm no pacote
+// (resources\, extraResource do forge.config.mts) e, a cada instalação e
+// atualização, são copiados para a raiz (PSXmlReader\icones\), que não muda
+// entre versões; o DefaultIcon aponta para lá. Se a cópia falhar, o ícone
+// fica o do app (o executável da raiz), como antes.
 //
 // Tudo síncrono, com o reg.exe e o PowerShell do próprio Windows: o Squirrel
 // dá 15 segundos para os eventos de instalação e atualização e 10 para o de
@@ -20,7 +27,7 @@
 // curto em %TEMP%\ps-reader-associacao.log.
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -38,6 +45,12 @@ const DESCRICAO_XML = 'Documento XML (PS Reader)';
 /** Onde o Explorer procura os programas do "Abrir com" do .xml. */
 export const CHAVE_ABRIR_COM_XML = `${CLASSES}\\.xml\\OpenWithProgids`;
 export const CHAVE_PROGID_XML = `${CLASSES}\\${PROGID_XML}`;
+
+/** Ícones dos arquivos, instalados junto do app. */
+export const ICONE_XML = 'icone-xml.ico';
+export const ICONE_PSXML = 'icone-psxml.ico';
+/** Pasta dos ícones na raiz da instalação (não muda entre versões). */
+export const PASTA_ICONES = 'icones';
 
 /** Tempo máximo de cada chamada ao reg.exe. */
 const ESPERA_REG_MS = 2000;
@@ -83,11 +96,6 @@ function reg(...args: string[]): string {
     );
     throw erro;
   }
-}
-
-/** Grava o valor padrão (/ve) de `chave`. */
-function gravarPadrao(chave: string, valor: string): void {
-  reg('add', chave, '/ve', '/t', 'REG_SZ', '/d', valor, '/f');
 }
 
 /**
@@ -214,18 +222,75 @@ function apagarAtalhosAntigos(): void {
 }
 
 /**
+ * Onde ficam os ícones na raiz da instalação `raiz` (a pasta do executável
+ * fixo). Puro, para testar.
+ */
+export function caminhosDosIcones(raiz: string): {
+  xml: string;
+  psxml: string;
+} {
+  return {
+    xml: path.join(raiz, PASTA_ICONES, ICONE_XML),
+    psxml: path.join(raiz, PASTA_ICONES, ICONE_PSXML),
+  };
+}
+
+/**
+ * Copia os ícones do pacote (`recursos`, a pasta resources\ da versão) para a
+ * raiz da instalação. Devolve os caminhos copiados, ou null se não deu (o
+ * DefaultIcon fica o do app). Cada passo vai para o log.
+ */
+function instalarIcones(
+  recursos: string,
+  raiz: string,
+): { xml: string; psxml: string } | null {
+  const destino = caminhosDosIcones(raiz);
+  try {
+    mkdirSync(path.join(raiz, PASTA_ICONES), { recursive: true });
+    copyFileSync(path.join(recursos, ICONE_XML), destino.xml);
+    copyFileSync(path.join(recursos, ICONE_PSXML), destino.psxml);
+    log(`ícones copiados para ${path.join(raiz, PASTA_ICONES)}`);
+    return destino;
+  } catch (erro) {
+    log(
+      `ícones: não copiados (${resumo(erro instanceof Error ? erro.message : erro)}); fica o ícone do app`,
+    );
+    return null;
+  }
+}
+
+/** Apaga a pasta dos ícones da raiz (desinstalação). */
+function removerIcones(raiz: string): void {
+  try {
+    rmSync(path.join(raiz, PASTA_ICONES), { recursive: true, force: true });
+    log('ícones apagados');
+  } catch (erro) {
+    log(
+      `ícones: não apagados (${resumo(erro instanceof Error ? erro.message : erro)})`,
+    );
+  }
+}
+
+/** Valor do DefaultIcon: o caminho e o índice 0 (sem aspas, como o Explorer lê). */
+const valorIcone = (arquivo: string) => `${arquivo},0`;
+
+/**
  * Comandos do reg.exe que põem o PS Reader no "Abrir com" do .xml, com o
- * executável da raiz `exe`. Puro, para testar. Nenhum toca no valor padrão de
- * .xml nem no UserChoice: o programa padrão do .xml continua o mesmo.
+ * executável da raiz `exe` e o ícone `icone` (icone-xml.ico; sem ele, o do
+ * app). Puro, para testar. Nenhum toca no valor padrão de .xml nem no
+ * UserChoice: o programa padrão do .xml continua o mesmo.
  * O "--" antes do "%1": nada depois dele é lido como opção (pelo Chromium e
  * por src/seguranca/argumentos.ts), mesmo que o caminho pareça uma.
  */
-export function comandosAbrirComXml(exe: string): string[][] {
+export function comandosAbrirComXml(
+  exe: string,
+  icone: string = exe,
+): string[][] {
   return [
     // Valor vazio do tipo REG_NONE, como a Microsoft documenta.
     ['add', CHAVE_ABRIR_COM_XML, '/v', PROGID_XML, '/t', 'REG_NONE', '/f'],
     ['add', CHAVE_PROGID_XML, '/ve', '/t', 'REG_SZ', '/d', DESCRICAO_XML, '/f'],
-    // Ícone do app; sem aspas, o Explorer separa o índice pela última vírgula.
+    // Ícone do .xml; sem aspas, o Explorer separa o índice pela última vírgula.
     [
       'add',
       `${CHAVE_PROGID_XML}\\DefaultIcon`,
@@ -233,7 +298,7 @@ export function comandosAbrirComXml(exe: string): string[][] {
       '/t',
       'REG_SZ',
       '/d',
-      `${exe},0`,
+      valorIcone(icone),
       '/f',
     ],
     [
@@ -262,8 +327,35 @@ export function comandosRemoverAbrirComXml(): string[][] {
 }
 
 /** Põe o PS Reader no "Abrir com" do .xml (instalação e atualização). */
-function registrarAbrirComXml(exe: string): void {
-  for (const args of comandosAbrirComXml(exe)) reg(...args);
+function registrarAbrirComXml(exe: string, icone: string): void {
+  for (const args of comandosAbrirComXml(exe, icone)) reg(...args);
+}
+
+/**
+ * Comandos do reg.exe da associação do .psxml: a extensão, o ProgID com a
+ * descrição, o ícone `icone` (icone-psxml.ico; sem ele, o do app) e o
+ * comando de abrir. Puro, para testar.
+ */
+export function comandosAssociacaoPsxml(
+  exe: string,
+  icone: string = exe,
+): string[][] {
+  const padrao = (chave: string, valor: string) => [
+    'add',
+    chave,
+    '/ve',
+    '/t',
+    'REG_SZ',
+    '/d',
+    valor,
+    '/f',
+  ];
+  return [
+    padrao(CHAVE_EXTENSAO, PROGID),
+    padrao(CHAVE_PROGID, DESCRICAO),
+    padrao(`${CHAVE_PROGID}\\DefaultIcon`, valorIcone(icone)),
+    padrao(`${CHAVE_PROGID}\\shell\\open\\command`, `"${exe}" "%1"`),
+  ];
 }
 
 /** Tira o PS Reader do "Abrir com" do .xml; parte que já não existia, segue. */
@@ -281,15 +373,13 @@ function removerAbrirComXml(): void {
 export function registrarAssociacao(): void {
   const exe = executavelDaRaiz();
   log(`executável da raiz: ${exe}`);
-  gravarPadrao(CHAVE_EXTENSAO, PROGID);
-  gravarPadrao(CHAVE_PROGID, DESCRICAO);
-  // O executável da raiz leva o ícone do app (o da PS) e não muda entre versões.
-  // Sem aspas: o Explorer separa o índice pela última vírgula.
-  gravarPadrao(`${CHAVE_PROGID}\\DefaultIcon`, `${exe},0`);
-  gravarPadrao(`${CHAVE_PROGID}\\shell\\open\\command`, `"${exe}" "%1"`);
+  // Os ícones vão para a raiz (não muda entre versões); sem eles, o do app.
+  const icones = instalarIcones(process.resourcesPath, path.dirname(exe));
+  for (const args of comandosAssociacaoPsxml(exe, icones?.psxml ?? exe))
+    reg(...args);
   // O .xml no "Abrir com": um erro aqui não desfaz o .psxml já gravado.
   try {
-    registrarAbrirComXml(exe);
+    registrarAbrirComXml(exe, icones?.xml ?? exe);
   } catch {
     log('abrir com do .xml: interrompido');
   }
@@ -315,6 +405,7 @@ export function removerAssociacao(): void {
     // Chave já não existia.
   }
   if (padrao.includes(PROGID)) reg('delete', CHAVE_EXTENSAO, '/f');
+  removerIcones(path.dirname(executavelDaRaiz()));
   avisarExplorer();
 }
 
