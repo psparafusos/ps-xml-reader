@@ -114,6 +114,7 @@ import {
   type ArranjoFolhas,
 } from './nfe/folhasDanfe';
 import { criarPainelLeitura, type ModoLeitura } from './painelLeitura';
+import './rolagemPagina';
 import {
   aoLerXml,
   arquivoXml,
@@ -1375,13 +1376,20 @@ new MutationObserver(agendarLarguraItens).observe(painelEl, {
   attributeFilter: ['data-estado', 'data-layout', 'hidden'],
 });
 // O painel fica logo abaixo da barra preta (e da barra de título), que muda
-// de altura quando os botões descem para uma segunda linha.
-new ResizeObserver(() =>
-  document.documentElement.style.setProperty(
-    '--altura-barra',
-    `${barra.hidden ? tituloJanela.getBoundingClientRect().bottom : barra.getBoundingClientRect().bottom}px`,
-  ),
-).observe(barra);
+// de altura quando os botões descem para uma segunda linha. Na tela inicial,
+// a borda de baixo é a da barra preta de lá. A barra de rolagem da página
+// começa nessa altura (src/rolagemPagina.ts).
+const faixaInicio = vazio.querySelector<HTMLElement>('.inicio__faixa');
+function medirAlturaBarra(): void {
+  const fundo = !barra.hidden
+    ? barra.getBoundingClientRect().bottom
+    : !vazio.hidden && faixaInicio
+      ? faixaInicio.getBoundingClientRect().bottom
+      : tituloJanela.getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty('--altura-barra', `${fundo}px`);
+}
+new ResizeObserver(medirAlturaBarra).observe(barra);
+if (faixaInicio) new ResizeObserver(medirAlturaBarra).observe(faixaInicio);
 const danfeEl = $('danfe');
 const mensagem = $('mensagem');
 const mensagemTexto = $('mensagem-texto');
@@ -1554,7 +1562,10 @@ function mostrarTela(tela: Tela): void {
   else esconderXml();
   if (tela === 'formato') mostrarFormato(() => escolherModoXml('xml'));
   else esconderFormato();
-  if (naAbaXml) modoXml = tela;
+  if (naAbaXml) {
+    modoXml = tela;
+    ajustarLayoutLeitura();
+  }
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
     document.body.dataset.modo = modoAtual;
@@ -1633,6 +1644,9 @@ function cartaoArquivo(): { nome: string; linhas: string[] } | null {
  */
 function novoDocumento(): void {
   generico = null;
+  // A largura pode ter mudado com o painel escondido (tela inicial).
+  ajustarLayoutLeitura();
+  painelLeitura.novoDocumento();
   novoDocumentoXml();
   novoDocumentoFormato();
   folhasDanfe = 0;
@@ -1802,8 +1816,28 @@ function escolherFolhas(a: ArranjoFolhas): void {
   aplicarZoom();
 }
 
-// A janela mudou de largura: o "Ajustar à largura" acompanha.
+/**
+ * O painel Leitura cabe ao lado do DANFE (uma folha A4 com o respiro dos dois
+ * lados, mais o painel e a folga)? Senão, abre por cima, como o da
+ * Conferência, e a folha não passa da largura da janela.
+ */
+function ajustarLayoutLeitura(): void {
+  const raiz = getComputedStyle(document.documentElement);
+  const px = (nome: string) => parseFloat(raiz.getPropertyValue(nome)) || 0;
+  const respiro = 2 * (parseFloat(getComputedStyle(danfeEl).paddingRight) || 0);
+  painelLeitura.ajustarLayout(
+    document.documentElement.clientWidth >=
+      mmParaPx(A4.largura) +
+        respiro +
+        px('--largura-painel-conferencia') +
+        px('--folga-painel-conferencia'),
+  );
+}
+
+// A janela mudou de largura: o painel Leitura e o "Ajustar à largura"
+// acompanham.
 window.addEventListener('resize', () => {
+  if (!painelLeituraEl.hidden) ajustarLayoutLeitura();
   if (telaAtual === 'danfe' && arranjoFolhas === 'largura') {
     calcularZoomLargura();
     aplicarZoom();

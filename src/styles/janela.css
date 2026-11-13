@@ -21,9 +21,50 @@
     --menu-marca: #1f7a3a;
   }
 
-  /* Fundo da janela inteira (abaixo do conteúdo também), no bege do app. */
+  /* Fundo da janela inteira, no bege do app. A página não tem a barra de
+     rolagem nativa (largura zero, sem o "corredor" à direita): as barras do
+     alto e o conteúdo vão até a borda da janela, e abrir uma janela por cima
+     não muda a largura da página. A rolagem aparece só como o polegar fino
+     de src/rolagemPagina.ts, por cima do conteúdo, na área que rola. */
   html {
     background: var(--bancada-fundo);
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .rolagem-pagina {
+    position: fixed;
+    right: 2px;
+    bottom: 2px;
+    z-index: 30;
+    width: 10px;
+    pointer-events: none;
+  }
+
+  .rolagem-pagina[hidden] {
+    display: none;
+  }
+
+  .rolagem-pagina__polegar {
+    width: 8px;
+    margin-left: auto;
+    border-radius: 4px;
+    background: rgb(22 22 22 / 0.32);
+    pointer-events: auto;
+    cursor: default;
+    transition:
+      width var(--transicao),
+      background-color var(--transicao);
+  }
+
+  .rolagem-pagina__polegar:hover,
+  .rolagem-pagina--arrastando .rolagem-pagina__polegar {
+    width: 10px;
+    background: rgb(22 22 22 / 0.55);
   }
 
   /* O conteúdo começa abaixo da barra de título (fixa no alto). A altura

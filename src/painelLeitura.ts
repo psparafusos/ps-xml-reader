@@ -102,6 +102,13 @@ export interface PainelLeitura {
   atualizar(estado: EstadoLeitura): void;
   /** Aberto ou recolhido (a área ao lado começa depois dele). */
   aberto(): boolean;
+  /**
+   * Cabe ao lado do DANFE (empurra a área) ou não (janela estreita: abre por
+   * cima, com sombra, e começa recolhido), como o painel da Conferência.
+   */
+  ajustarLayout(aoLado: boolean): void;
+  /** Documento novo: na janela estreita, volta a começar recolhido. */
+  novoDocumento(): void;
 }
 
 export function criarPainelLeitura(
@@ -109,6 +116,7 @@ export function criarPainelLeitura(
   acoes: AcoesLeitura,
 ): PainelLeitura {
   let estaAberto = true;
+  let aoLado = true;
   let estado: EstadoLeitura | null = null;
 
   const corpo = el('div', 'conferencia__corpo leitura__corpo');
@@ -119,6 +127,7 @@ export function criarPainelLeitura(
   raiz.dataset.layout = 'lado';
 
   function aplicarEstado(focar?: 'corpo' | 'trilho'): void {
+    raiz.dataset.layout = aoLado ? 'lado' : 'sobre';
     raiz.dataset.estado = estaAberto ? 'aberto' : 'recolhido';
     corpo.hidden = !estaAberto;
     trilho.hidden = estaAberto;
@@ -127,7 +136,8 @@ export function criarPainelLeitura(
       corpo.querySelector<HTMLElement>('.conferencia__recolher')?.focus();
     if (focar === 'trilho')
       trilho.querySelector<HTMLElement>('.conferencia__expandir')?.focus();
-    acoes.mudouLargura(estaAberto);
+    // Por cima (janela estreita), o painel aberto não empurra a área.
+    acoes.mudouLargura(estaAberto && aoLado);
   }
 
   function abrir(): void {
@@ -272,8 +282,34 @@ export function criarPainelLeitura(
     trilho.replaceChildren(expandir, modo);
   }
 
+  // Por cima da área: Esc ou um clique fora fecham.
+  raiz.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || aoLado || !estaAberto) return;
+    e.preventDefault();
+    e.stopPropagation();
+    recolher();
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (aoLado || !estaAberto || raiz.hidden) return;
+    if (!raiz.contains(e.target as Node)) {
+      estaAberto = false;
+      aplicarEstado();
+    }
+  });
+
   aplicarEstado();
   return {
+    ajustarLayout(lado: boolean): void {
+      if (lado === aoLado) return;
+      aoLado = lado;
+      // Por cima ele começa recolhido; de volta ao lado, abre de novo.
+      estaAberto = lado;
+      aplicarEstado();
+    },
+    novoDocumento(): void {
+      if (!aoLado) estaAberto = false;
+      aplicarEstado();
+    },
     atualizar(novo: EstadoLeitura): void {
       estado = novo;
       desenhar();

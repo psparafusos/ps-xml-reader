@@ -25,7 +25,8 @@
   .vazio,
   .painel,
   .caixa-dialogo,
-  .rolagem__seta {
+  .rolagem__seta,
+  .rolagem-pagina {
     display: none !important;
   }
 

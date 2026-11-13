@@ -1663,6 +1663,96 @@ async function principal() {
     },
   );
 
+  // Borda direita: nada passa da largura visível (sem contar o que rola
+  // dentro de uma área própria, como a tabela de itens), em 1366 e 1920 e na
+  // área de um 1366 a 125% (1093 px), na tela inicial, no DANFE, na
+  // Conferência, no Formato original e no .XML. A página não reserva o
+  // corredor da barra de rolagem (a barra é só o polegar, por cima).
+  const FORA_DA_LARGURA = `(() => {
+    const d = document.documentElement;
+    const largura = d.clientWidth + 0.5;
+    const cortado = (e) => {
+      for (let p = e.parentElement; p && p !== d; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox !== 'visible' && p.getBoundingClientRect().right <= largura) return true;
+      }
+      return false;
+    };
+    const fora = [...document.querySelectorAll('body *')].filter((e) => {
+      if (!e.getClientRects().length || e.closest('[hidden], dialog:not([open])')) return false;
+      const r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.right > largura && !cortado(e);
+    }).slice(0, 5).map((e) => (e.id || String(e.className) || e.tagName).slice(0, 40) + ':' + Math.round(e.getBoundingClientRect().right));
+    return { fora, rolaDeLado: d.scrollWidth > d.clientWidth, largura: d.clientWidth, corredor: innerWidth - d.clientWidth };
+  })()`;
+
+  await caso(
+    'Borda direita: nenhum elemento passa da largura visível (1366, 1920 e 1366 a 125%)',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of [
+          [1366, 728],
+          [1093, 614],
+          [1920, 1040],
+        ]) {
+          janela.setContentSize(w, h);
+          await avaliar(DOIS_QUADROS);
+          const conferir = async (tela) => {
+            await espera(300);
+            await avaliar(DOIS_QUADROS);
+            const m = await avaliar(FORA_DA_LARGURA);
+            confere(
+              m.fora.length === 0 && !m.rolaDeLado && m.corredor === 0,
+              `${w}px, ${tela}: ${JSON.stringify(m)}`,
+            );
+          };
+          await conferir('tela inicial');
+          await abrirNota(outra);
+          await conferir('DANFE');
+          await irParaConferencia();
+          await conferir('Conferência');
+          await avaliar(`document.getElementById('btn-aba-xml').click()`);
+          await avaliar(`document.getElementById('btn-modo-formato').click()`);
+          await aguardar(
+            `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && !!f.querySelector('.formato-original__secao'); })()`,
+            30000,
+            'o Formato original não abriu',
+          );
+          await conferir('Formato original');
+          await avaliar(`document.getElementById('btn-modo-xml').click()`);
+          await conferir('.XML');
+          await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+          await inicio();
+        }
+        // Janela estreita: o painel Leitura abre por cima do DANFE e começa
+        // recolhido; na larga, fica ao lado.
+        janela.setContentSize(1093, 614);
+        await abrirNota(outra);
+        const estreita = await avaliar(
+          `(() => { const p = document.getElementById('painel-leitura'); return p.dataset.layout + '/' + p.dataset.estado; })()`,
+        );
+        confere(
+          estreita === 'sobre/recolhido',
+          `painel Leitura na janela estreita: ${estreita}`,
+        );
+        await inicio();
+        janela.setContentSize(1920, 1040);
+        await abrirNota(outra);
+        const larga = await avaliar(
+          `(() => { const p = document.getElementById('painel-leitura'); return p.dataset.layout + '/' + p.dataset.estado; })()`,
+        );
+        confere(
+          larga === 'lado/aberto',
+          `painel Leitura na janela larga: ${larga}`,
+        );
+        await inicio();
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
   await caso(
     'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {

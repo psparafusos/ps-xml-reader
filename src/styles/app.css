@@ -1446,24 +1446,18 @@ ul {
 /* Janela por cima (ferramenta ST, Configurações, editor de colunas,
    diálogos): a página de baixo não rola; rolar sobre a janela rola só a
    janela. overflow: hidden guarda a posição: ao fechar, a página volta a
-   rolar de onde estava. O espaço da barra de rolagem fica sempre reservado
-   (com e sem barra): abrir ou fechar uma janela não faz a página andar para
-   o lado. */
+   rolar de onde estava. A barra de rolagem da página não ocupa espaço
+   (janela.css e src/rolagemPagina.ts): abrir ou fechar uma janela não faz a
+   página andar para o lado. */
 @media screen {
-  html {
-    scrollbar-gutter: stable;
-  }
-
   html:has(dialog:modal) {
     overflow: hidden;
   }
 
-  /* Leitor de XML genérico aberto (src/leitorXml, camada fixa sobre a
-     janela, com rolagem própria): a página de baixo não rola e o espaço da
-     barra não fica reservado, senão o leitor perde 15 px à direita. */
+  /* Modo .XML da aba XML (camada fixa, com rolagem própria): a página de
+     baixo não rola. */
   html:has(> body > .leitor-xml:not([hidden])) {
     overflow: hidden;
-    scrollbar-gutter: auto;
   }
 }
 
