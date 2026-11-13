@@ -1965,6 +1965,129 @@ async function principal() {
   );
 
   await caso(
+    'Abas PSXML e XML: a ativa inclinada não corta nem cobre a barra (1366 e 1920), entrada uma vez, teclado e sem movimento com animações desligadas',
+    async () => {
+      const MEDIR_ABAS = `(() => {
+        const r = (e) => e.getBoundingClientRect();
+        const barra = r(document.getElementById('barra'));
+        const titulo = r(document.getElementById('titulo-janela'));
+        const acoes = [...document.querySelectorAll('.barra__acoes > *')].filter((e) => e.getClientRects().length).map(r);
+        const abas = [...document.querySelectorAll('.aba')].map((a) => {
+          const c = r(a), i = r(a.querySelector('.aba__icone'));
+          const cruza = (b) => !(c.right <= b.left || b.right <= c.left || c.bottom <= b.top || b.bottom <= c.top);
+          return {
+            id: a.id,
+            ativa: a.getAttribute('aria-selected'),
+            esquerda: Math.round(c.left), topo: Math.round(Math.min(c.top, i.top)), baixo: Math.round(c.bottom),
+            sobreAcoes: acoes.some(cruza),
+            icone: getComputedStyle(a.querySelector('.aba__icone')).width,
+            altura: getComputedStyle(a).height,
+          };
+        });
+        return { abas, barra: { topo: barra.top, baixo: barra.bottom }, tituloBaixo: titulo.bottom, cortada: getComputedStyle(document.getElementById('barra')).overflow };
+      })()`;
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of [
+          [1366, 728],
+          [1920, 1040],
+        ]) {
+          janela.setContentSize(w, h);
+          await abrirNota(outra);
+          for (const id of ['btn-aba-xml', 'btn-aba-psxml']) {
+            if (id === 'btn-aba-psxml') await irParaConferencia();
+            await espera(900);
+            const m = await avaliar(MEDIR_ABAS);
+            for (const a of m.abas)
+              confere(
+                a.icone === '36px' &&
+                  a.altura === '48px' &&
+                  a.esquerda >= 0 &&
+                  a.topo >= m.tituloBaixo &&
+                  a.baixo <= m.barra.baixo + 0.5 &&
+                  !a.sobreAcoes &&
+                  m.cortada === 'visible',
+                `${w}px, ${id}: ${JSON.stringify(m)}`,
+              );
+            const ativa = await avaliar(
+              `(() => { const a = document.querySelector('.aba[aria-selected="true"]'); return { id: a?.id, transformada: getComputedStyle(a).transform !== 'none', entrando: a.classList.contains('aba--entrando') }; })()`,
+            );
+            confere(
+              ativa.id === id && ativa.transformada && !ativa.entrando,
+              `aba ativa ${w}px: ${JSON.stringify(ativa)}`,
+            );
+          }
+          await fecharAvisosDaNota();
+          await inicio();
+        }
+        // A troca toca a entrada (popA) uma vez.
+        await abrirNota(outra);
+        await avaliar(`document.getElementById('btn-aba-psxml').click()`);
+        const entrada = await avaliar(
+          `(() => { const a = document.getElementById('btn-aba-psxml'); return { classe: a.classList.contains('aba--entrando'), animacao: getComputedStyle(a).animationName }; })()`,
+        );
+        confere(
+          entrada.classe && entrada.animacao === 'popA',
+          `entrada: ${JSON.stringify(entrada)}`,
+        );
+        await espera(900);
+        await fecharAvisosDaNota();
+        // Teclado: Tab chega na aba XML, com o foco visível, e Enter troca.
+        await avaliar(`document.getElementById('btn-aba-psxml').focus(); true`);
+        janela.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+        janela.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+        await espera(200);
+        const foco = await avaliar(
+          `(() => { const a = document.activeElement; return { id: a?.id, visivel: a?.matches(':focus-visible'), contorno: getComputedStyle(a).outlineStyle }; })()`,
+        );
+        confere(
+          foco.id === 'btn-aba-xml' && foco.visivel && foco.contorno !== 'none',
+          `foco: ${JSON.stringify(foco)}`,
+        );
+        janela.webContents.sendInputEvent({
+          type: 'keyDown',
+          keyCode: 'Enter',
+        });
+        janela.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
+        janela.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+        await aguardar(
+          `document.getElementById('btn-aba-xml').getAttribute('aria-selected') === 'true'`,
+          5000,
+          'Enter na aba XML não trocou de aba',
+        );
+        // Animações desligadas (prefers-reduced-motion): sem movimento.
+        const wc = janela.webContents;
+        wc.debugger.attach('1.3');
+        try {
+          await wc.debugger.sendCommand('Emulation.setEmulatedMedia', {
+            features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+          });
+          await avaliar(`document.getElementById('btn-aba-psxml').click()`);
+          const parada = await avaliar(
+            `(() => { const a = document.getElementById('btn-aba-psxml'); const s = getComputedStyle(a), i = getComputedStyle(a.querySelector('.aba__icone')); return { animacao: s.animationName, transicao: s.transitionDuration, icone: i.transitionDuration, ativa: a.getAttribute('aria-selected') }; })()`,
+          );
+          confere(
+            parada.animacao === 'none' &&
+              /^0s(, 0s)*$/.test(parada.transicao) &&
+              /^0s(, 0s)*$/.test(parada.icone) &&
+              parada.ativa === 'true',
+            `animações desligadas: ${JSON.stringify(parada)}`,
+          );
+          await wc.debugger.sendCommand('Emulation.setEmulatedMedia', {
+            features: [],
+          });
+        } finally {
+          wc.debugger.detach();
+        }
+        await fecharAvisosDaNota();
+        await inicio();
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
+  await caso(
     'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {
       const semDica = async (onde) => {

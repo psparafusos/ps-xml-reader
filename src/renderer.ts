@@ -1574,8 +1574,8 @@ function mostrarTela(tela: Tela): void {
     atualizarMenuSalvar();
   }
   // Abas: PSXML na Conferência; XML nos modos de leitura.
-  btnAbaPsxml.setAttribute('aria-selected', String(tela === 'nota'));
-  btnAbaXml.setAttribute('aria-selected', String(naAbaXml));
+  marcarAba(btnAbaPsxml, tela === 'nota');
+  marcarAba(btnAbaXml, naAbaXml);
   if (generico) btnAbaPsxml.setAttribute('aria-disabled', 'true');
   else btnAbaPsxml.removeAttribute('aria-disabled');
   atualizarAcoesSaida();
@@ -1596,6 +1596,24 @@ function atualizarAcoesSaida(): void {
   const comSaida = telaAtual === 'nota' || telaAtual === 'danfe';
   for (const b of [btnImprimir, btnSalvar, btnSalvarMais])
     b.disabled = acoesBloqueadas || !comSaida;
+}
+
+/**
+ * Marca a aba; a que acabou de ficar ativa toca a entrada (popA, janela.css)
+ * uma vez.
+ */
+function marcarAba(aba: HTMLElement, ativa: boolean): void {
+  const era = aba.getAttribute('aria-selected') === 'true';
+  aba.setAttribute('aria-selected', String(ativa));
+  if (!ativa) aba.classList.remove('aba--entrando');
+  if (!ativa || era) return;
+  aba.classList.remove('aba--entrando');
+  void aba.offsetWidth;
+  aba.classList.add('aba--entrando');
+  // Como no arquivo aprovado: a classe sai depois da entrada (0,45 s), com
+  // folga, mesmo se a janela estiver em segundo plano e a animação não
+  // chegar ao fim.
+  setTimeout(() => aba.classList.remove('aba--entrando'), 700);
 }
 
 /** O painel Leitura com o estado de agora. */

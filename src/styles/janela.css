@@ -7,7 +7,9 @@
 @media screen {
   :root {
     --altura-titulo: 36px;
-    --altura-barra-nota: 58px;
+    /* Cabe a aba ativa inclinada com o ícone acima dela (abas PSXML e XML),
+       sem passar para baixo da barra de título. */
+    --altura-barra-nota: 72px;
     --linha-barra-nota: 4px;
     --barra-botao-altura: 38px;
     --barra-botao-raio: 7px;
@@ -543,32 +545,80 @@
 
   /* ---------- abas PSXML e XML (canto de baixo da barra) ---------- */
 
+  /* Valores da animação aprovada (animacao-abas-aprovada.html, 13/11/2026):
+     a aba ativa cresce, inclina, sobe e ganha sombra; o ícone passa por
+     cima da borda de cima da aba, maior e girado. A troca toca a entrada
+     (popA) uma vez (renderer.ts, aba--entrando). */
   .barra__vistas.abas {
     display: flex;
     align-self: flex-end;
-    gap: 4px;
+    gap: 6px;
   }
 
   .aba {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 40px;
-    padding: 0 16px 0 12px;
+    gap: 10px;
+    height: 48px;
+    padding: 0 18px 0 12px;
     border: none;
-    border-radius: 8px 8px 0 0;
+    border-radius: 9px 9px 0 0;
     background: #2c2c2c;
     color: #e5e5e5;
     font: inherit;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: var(--peso-forte);
     letter-spacing: 0.3px;
     cursor: pointer;
+    transform-origin: 50% 100%;
+    transition:
+      transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.3s;
   }
 
   .aba__icone {
-    width: 24px;
-    height: 24px;
+    width: 36px;
+    height: 36px;
+    transform-origin: 50% 80%;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .aba[aria-selected='true'] {
+    z-index: 2;
+    box-shadow: 0 8px 18px rgb(0 0 0 / 0.45);
+    transform: translateY(-4px) scale(1.06) rotate(-2.5deg);
+  }
+
+  .aba[aria-selected='true'] .aba__icone {
+    transform: translate(-5px, -9px) scale(1.25) rotate(-6deg);
+  }
+
+  .aba--entrando {
+    animation: popA 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes popA {
+    0% {
+      transform: translateY(0) scale(1) rotate(0);
+    }
+
+    50% {
+      transform: translateY(-8px) scale(1.12) rotate(-5deg);
+    }
+
+    100% {
+      transform: translateY(-4px) scale(1.06) rotate(-2.5deg);
+    }
+  }
+
+  /* Animações desligadas no Windows: a troca acontece sem movimento. */
+  @media (prefers-reduced-motion: reduce) {
+    .aba,
+    .aba__icone {
+      animation: none !important;
+      transition: none !important;
+    }
   }
 
   .aba:hover:not([aria-selected='true'], [aria-disabled='true']) {
