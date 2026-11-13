@@ -1,5 +1,5 @@
-// Limites do leitor genérico de XML (etapa 3 do plano da visualização
-// protegida). Valores aprovados pelo Daniel em 06/11/2026: árvore até 20 MB,
+// Limites do leitor genérico de XML. Valores aprovados pelo Daniel em
+// 06/11/2026: árvore até 20 MB,
 // só texto até 100 MB, acima disso o arquivo não é lido (só o stat).
 // Lógica pura, sem Electron e sem DOM.
 

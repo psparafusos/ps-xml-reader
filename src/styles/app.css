@@ -54,7 +54,9 @@ ul {
   [contenteditable]:not([contenteditable='false']),
   .nota,
   .danfe,
-  .pasta-rapida__caminho,
+  .menu-app__caminho,
+  .menu-app__nota,
+  .inicio__destino-caminho,
   .config__caminho,
   .config__arquivo,
   .documento__arquivo strong,
@@ -246,99 +248,10 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- leitura protegida: faixa na base da barra ---------- */
-
-/* Última peça da barra, ocupando a largura toda (sem o recuo da barra). A
-   altura da barra (--altura-barra) já inclui a faixa: o painel e a nota
-   descem junto. Interface: não seleciona (regra da seleção, acima). */
-.faixa-leitura {
-  order: 99;
-  /* A largura da barra mais o recuo dos dois lados (as margens negativas
-     abaixo levam a faixa até as bordas). */
-  flex: 0 0 calc(100% + 2 * var(--esp-5));
-  display: flex;
-  align-items: center;
-  gap: var(--esp-3);
-  margin: 0 calc(-1 * var(--esp-5)) calc(-1 * var(--esp-3));
-  padding: var(--esp-2) var(--esp-5);
-  background: var(--cor-destaque-suave);
-  color: var(--cor-texto-forte);
-}
-
-.faixa-leitura[hidden] {
-  display: none;
-}
-
-.faixa-leitura__icone {
-  flex: none;
-}
-
-.faixa-leitura__texto {
-  font-weight: var(--peso-forte);
-}
-
-/* Folhas do DANFE e orientação da Conferência, à direita do texto, antes do
-   Usar a Conferência. Janela estreita: descem para a linha de baixo. */
-.faixa-leitura {
-  flex-wrap: wrap;
-}
-
-.faixa-leitura__vista {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-3);
-  margin-left: auto;
-}
-
-.faixa-leitura__grupo {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-}
-
-.faixa-leitura__grupo[hidden] {
-  display: none;
-}
-
-.faixa-leitura__rotulo {
-  font-size: var(--fs-sm);
-}
-
-.faixa-leitura__seletor {
-  display: inline-flex;
-}
-
-.faixa-leitura__seletor .seletor__opcao {
-  padding: var(--esp-1) var(--esp-3);
-  font-size: var(--fs-sm);
-}
-
-/* DANFE com as folhas lado a lado (leitura protegida, só a tela): quantas
-   couberem na largura, de cima para baixo. No papel, print.css e danfe.css
-   voltam a uma folha por página. */
-@media screen {
-  .danfe[data-folhas='lado'] {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: safe center;
-    align-items: flex-start;
-  }
-}
-
-/* Anotações travadas na leitura protegida: o campo mostra o texto, mas
-   digitar ou clicar pede o aviso para sair da leitura. */
-.anotacao__campo:read-only {
-  border-style: dashed;
-  background: transparent;
-  cursor: default;
-}
-
 /* ---------- barra superior ---------- */
 
-/* Uma linha só na tela larga. Nas outras, duas: em cima título e situação,
-   embaixo as ações e a engrenagem (.barra__acoes). O título nunca fica mais
-   estreito que --largura-minima-titulo. */
+/* A barra preta da nota: o desenho dela (altura, abas, ações) fica em
+   janela.css. */
 .barra {
   position: sticky;
   top: 0;
@@ -351,36 +264,6 @@ ul {
   background: var(--cor-destaque);
   color: var(--cor-texto-sobre-destaque);
   box-shadow: var(--sombra-barra);
-}
-
-.barra__titulo {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 var(--largura-minima-titulo);
-  min-width: var(--largura-minima-titulo);
-}
-
-.barra__fornecedor {
-  font-size: var(--fs-lg);
-  font-weight: var(--peso-forte);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.barra__nota {
-  font-size: var(--fs-sm);
-  font-weight: var(--peso-medio);
-}
-
-.barra__copia {
-  align-self: flex-start;
-  margin-top: var(--esp-1);
-  padding: 0 var(--esp-2);
-  border: var(--borda) solid var(--ps-preto);
-  border-radius: var(--raio);
-  font-size: var(--fs-xs);
-  font-weight: var(--peso-forte);
 }
 
 /* Perfil de colunas ativo: etiqueta discreta sob o número da nota, que abre a
@@ -489,44 +372,6 @@ ul {
   margin: var(--esp-1) 0;
   border: none;
   border-top: var(--borda) solid var(--cor-borda-suave);
-}
-
-/* Ações em três grupos, nesta ordem: navegação, modo, saída; a engrenagem
-   vem logo depois do nav, sempre a última. Duas linhas: em cima o título e a
-   situação (pastilhas), embaixo o nav, que ocupa a linha menos o lugar da
-   engrenagem. Tela larga (1920 a 100%): tudo numa linha, um filete separa a
-   situação das ações. */
-.barra__acoes {
-  display: flex;
-  flex: 1 1 calc(100% - var(--altura-botao-barra) - var(--esp-5));
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-3);
-  min-width: 0;
-}
-
-@media (min-width: 1720px) {
-  .barra__acoes {
-    flex: 0 1 auto;
-    margin-left: var(--esp-2);
-    padding-left: var(--esp-4);
-    border-left: var(--borda) solid
-      color-mix(in srgb, var(--ps-branco) 25%, transparent);
-  }
-}
-
-.barra__grupo {
-  display: flex;
-  align-items: center;
-  gap: var(--esp-2);
-}
-
-.barra__saida {
-  margin-left: auto;
-}
-
-.barra__modo {
-  position: relative;
 }
 
 /* Seletor de duas posições (Conferência | DANFE): a opção ativa fica
@@ -1601,24 +1446,18 @@ ul {
 /* Janela por cima (ferramenta ST, Configurações, editor de colunas,
    diálogos): a página de baixo não rola; rolar sobre a janela rola só a
    janela. overflow: hidden guarda a posição: ao fechar, a página volta a
-   rolar de onde estava. O espaço da barra de rolagem fica sempre reservado
-   (com e sem barra): abrir ou fechar uma janela não faz a página andar para
-   o lado. */
+   rolar de onde estava. A barra de rolagem da página não ocupa espaço
+   (janela.css e src/rolagemPagina.ts): abrir ou fechar uma janela não faz a
+   página andar para o lado. */
 @media screen {
-  html {
-    scrollbar-gutter: stable;
-  }
-
   html:has(dialog:modal) {
     overflow: hidden;
   }
 
-  /* Leitor de XML genérico aberto (src/leitorXml, camada fixa sobre a
-     janela, com rolagem própria): a página de baixo não rola e o espaço da
-     barra não fica reservado, senão o leitor perde 15 px à direita. */
+  /* Modo .XML da aba XML (camada fixa, com rolagem própria): a página de
+     baixo não rola. */
   html:has(> body > .leitor-xml:not([hidden])) {
     overflow: hidden;
-    scrollbar-gutter: auto;
   }
 }
 
@@ -2177,24 +2016,6 @@ ul {
   border-radius: var(--raio);
   background: var(--ps-branco);
   box-shadow: var(--sombra-aviso);
-}
-
-.menu-salvar__opcao {
-  display: block;
-  width: 100%;
-  padding: var(--esp-2) var(--esp-4);
-  border: none;
-  background: none;
-  color: var(--cor-texto-forte);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.menu-salvar__opcao:hover,
-.menu-salvar__opcao:focus-visible {
-  outline: none;
-  background: var(--botao-sec-fundo-hover);
 }
 
 /* ---------- caixas de diálogo no visual do app (src/dialogos.ts) ---------- */

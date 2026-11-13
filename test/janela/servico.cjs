@@ -43,7 +43,8 @@ async function casosServico(c) {
   const { notas, caso, avaliar, aguardar, confere, espera, rede } = c;
   const { app: electronApp } = require('electron');
 
-  const leitorAberto = `(() => { const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
+  // XML que não é nota abre no Formato original: passa para o .XML.
+  const leitorAberto = `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
   const estado = () =>
     avaliar(
       `(() => { const e = document.querySelector('.leitor-xml__estado'); return e && !e.hidden ? e.innerText : ''; })()`,
@@ -60,9 +61,7 @@ async function casosServico(c) {
   // Como num duplo clique (XML que não é NF-e vai para o leitor).
   const abrir = (caminho) => c.abrir(caminho);
   const fechar = async () => {
-    await avaliar(
-      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
-    );
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
     await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
   };
   const aguardarEstado = async (trecho, prazo = 60000) => {

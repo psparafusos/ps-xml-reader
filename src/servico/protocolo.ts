@@ -19,7 +19,12 @@ export const LIMITE_PLANILHA_BYTES = 30 * 1024 * 1024;
 const DOCUMENTOS: readonly TipoDocumento[] = ['st', 'tipi', 'combustiveis'];
 
 export type Tarefa =
-  | { tipo: 'xml'; caminho: string }
+  | {
+      tipo: 'xml';
+      caminho: string;
+      /** .psxml: ler o XML original guardado dentro da cópia. */
+      original?: boolean;
+    }
   | { tipo: 'nfe'; caminho: string }
   | { tipo: 'planilha'; documento: TipoDocumento; dados: Uint8Array };
 
@@ -83,7 +88,12 @@ function caminhoValido(v: unknown): v is string {
 export function pedidoValido(v: unknown): v is Pedido {
   if (!objeto(v) || !inteiro(v.id) || !objeto(v.tarefa)) return false;
   const t = v.tarefa;
-  if (t.tipo === 'xml' || t.tipo === 'nfe') return caminhoValido(t.caminho);
+  if (t.tipo === 'xml')
+    return (
+      caminhoValido(t.caminho) &&
+      (t.original === undefined || typeof t.original === 'boolean')
+    );
+  if (t.tipo === 'nfe') return caminhoValido(t.caminho);
   if (t.tipo === 'planilha') {
     return (
       DOCUMENTOS.includes(t.documento as TipoDocumento) &&

@@ -1,0 +1,786 @@
+/* Barra de título própria, barra preta da nota e da tela inicial, botão e
+   menu do perfil, menu do Salvar e a pasta de destino na tela inicial
+   (desenho aprovado em 13/11/2026, protótipo das telas). Carregado depois
+   de app.css e bancada.css: o que está aqui vale sobre a barra antiga. Só na
+   tela: print.css esconde tudo isto no papel e no PDF. */
+
+@media screen {
+  :root {
+    --altura-titulo: 36px;
+    /* Cabe a aba ativa inclinada com o ícone acima dela (abas PSXML e XML),
+       sem passar para baixo da barra de título. */
+    --altura-barra-nota: 72px;
+    --linha-barra-nota: 4px;
+    --barra-botao-altura: 38px;
+    --barra-botao-raio: 7px;
+    --barra-divisa: #444444;
+    --titulo-texto: #bdbdbd;
+    --titulo-sep: #555555;
+    --menu-destaque: #fff4cc;
+    --menu-caminho-fundo: #f3f2ef;
+    --menu-ajuda: #666666;
+    --menu-sombra: 0 10px 30px rgb(0 0 0 / 0.3);
+    --menu-marca: #1f7a3a;
+  }
+
+  /* Fundo da janela inteira, no bege do app. A página não tem a barra de
+     rolagem nativa (largura zero, sem o "corredor" à direita): as barras do
+     alto e o conteúdo vão até a borda da janela, e abrir uma janela por cima
+     não muda a largura da página. A rolagem aparece só como o polegar fino
+     de src/rolagemPagina.ts, por cima do conteúdo, na área que rola. */
+  html {
+    background: var(--bancada-fundo);
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .rolagem-pagina {
+    position: fixed;
+    right: 2px;
+    bottom: 2px;
+    z-index: 30;
+    width: 10px;
+    pointer-events: none;
+  }
+
+  .rolagem-pagina[hidden] {
+    display: none;
+  }
+
+  .rolagem-pagina__polegar {
+    width: 8px;
+    margin-left: auto;
+    border-radius: 4px;
+    background: rgb(22 22 22 / 0.32);
+    pointer-events: auto;
+    cursor: default;
+    transition:
+      width var(--transicao),
+      background-color var(--transicao);
+  }
+
+  .rolagem-pagina__polegar:hover,
+  .rolagem-pagina--arrastando .rolagem-pagina__polegar {
+    width: 10px;
+    background: rgb(22 22 22 / 0.55);
+  }
+
+  /* O conteúdo começa abaixo da barra de título (fixa no alto). A altura
+     mínima desconta a faixa, para a tela inicial não rolar. */
+  body {
+    min-height: calc(100% - var(--altura-titulo));
+    padding-top: var(--altura-titulo);
+  }
+
+  /* ---------- barra de título própria ---------- */
+
+  /* 36 px, preta e arrastável (o duplo clique maximiza, como numa janela
+     normal). Os botões do Windows ficam por cima, à direita: o texto vai só
+     até a área livre (env(titlebar-area-*)). Interface: não seleciona. */
+  .titulo-janela {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--altura-titulo);
+    padding-left: 12px;
+    padding-right: calc(
+      100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)
+    );
+    background: var(--ps-preto);
+    color: var(--ps-branco);
+    user-select: none;
+    app-region: drag;
+  }
+
+  .titulo-janela__logo {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+  }
+
+  .titulo-janela__textos {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .titulo-janela__forte {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 14.5px;
+    font-weight: var(--peso-forte);
+    letter-spacing: 0.1px;
+    text-overflow: ellipsis;
+  }
+
+  .titulo-janela__texto {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--titulo-texto);
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .titulo-janela__sep {
+    flex: none;
+    color: var(--titulo-sep);
+    font-size: 13px;
+  }
+
+  /* O leitor de XML genérico começa abaixo da barra de título. */
+  .leitor-xml {
+    top: var(--altura-titulo);
+  }
+
+  /* ---------- barra preta da nota ---------- */
+
+  /* À esquerda, embaixo, o que troca a vista; à direita, as ações. Janela
+     estreita: as ações descem para a linha de baixo. */
+  .barra {
+    top: var(--altura-titulo);
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0 var(--esp-3);
+    min-height: calc(var(--altura-barra-nota) + var(--linha-barra-nota));
+    padding: 0 14px;
+    border-bottom: var(--linha-barra-nota) solid var(--ps-amarelo);
+    background: var(--ps-preto);
+    color: var(--ps-branco);
+    box-shadow: none;
+  }
+
+  .barra__vistas {
+    display: flex;
+    align-self: center;
+    gap: 4px;
+  }
+
+  .barra__acoes {
+    display: flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    align-self: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    margin-left: auto;
+    padding: 10px 0;
+  }
+
+  .barra__divisa {
+    flex: none;
+    width: 1px;
+    height: 26px;
+    margin: 0 4px;
+    background: var(--barra-divisa);
+  }
+
+  /* Início, Abrir outro XML e Imprimir: fundo branco, letras pretas. */
+  .botao--barra {
+    gap: 8px;
+    height: var(--barra-botao-altura);
+    min-height: var(--barra-botao-altura);
+    padding: 0 14px;
+    border: var(--borda) solid var(--ps-branco);
+    border-radius: var(--barra-botao-raio);
+    background: var(--ps-branco);
+    color: var(--ps-preto);
+    font-size: 13.5px;
+    font-weight: var(--peso-medio);
+    white-space: nowrap;
+  }
+
+  .botao--barra .icone {
+    width: 18px;
+    height: 18px;
+  }
+
+  .botao--barra:hover:not(:disabled) {
+    border-color: var(--ps-branco);
+    background: var(--bancada-fundo);
+    color: var(--ps-preto);
+  }
+
+  /* Salvar e a seta: amarelos, colados, com um filete escuro entre eles. */
+  .barra .salvar-grupo .botao--amarelo {
+    height: var(--barra-botao-altura);
+    min-height: var(--barra-botao-altura);
+    border: var(--borda) solid var(--ps-amarelo);
+    background: var(--ps-amarelo);
+    color: var(--ps-preto);
+    font-size: 13.5px;
+    font-weight: var(--peso-medio);
+  }
+
+  .barra .salvar-grupo .botao--amarelo:hover:not(:disabled) {
+    border-color: var(--botao-amarelo-hover);
+    background: var(--botao-amarelo-hover);
+  }
+
+  .barra .salvar-grupo__principal {
+    gap: 8px;
+    padding: 0 16px;
+    border-radius: var(--barra-botao-raio) 0 0 var(--barra-botao-raio);
+  }
+
+  .barra .salvar-grupo__seta {
+    padding: 0 10px;
+    border-left-color: color-mix(in srgb, var(--ps-preto) 25%, transparent);
+    border-radius: 0 var(--barra-botao-raio) var(--barra-botao-raio) 0;
+  }
+
+  .barra .salvar-grupo .icone {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ---------- botão de perfil (barra da nota e da tela inicial) ---------- */
+
+  .barra__perfil,
+  .inicio__perfil {
+    display: flex;
+  }
+
+  .perfil-rapido {
+    position: relative;
+    margin: 0;
+  }
+
+  .perfil-rapido__botao {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: var(--barra-botao-altura);
+    padding: 0 10px 0 6px;
+    border: var(--borda) solid var(--ps-branco);
+    border-radius: calc(var(--barra-botao-altura) / 2);
+    background: var(--ps-branco);
+    color: var(--ps-preto);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: var(--peso-medio);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .perfil-rapido__botao:hover,
+  .perfil-rapido__botao[aria-expanded='true'] {
+    border-color: var(--ps-branco);
+    background: var(--bancada-fundo);
+  }
+
+  .perfil-rapido__botao:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .perfil-rapido__botao > .icone {
+    flex: none;
+    width: 18px;
+    height: 18px;
+  }
+
+  .perfil-rapido__avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1.5px solid var(--ps-preto);
+    border-radius: 50%;
+  }
+
+  .perfil-rapido__avatar .icone {
+    width: 17px;
+    height: 17px;
+  }
+
+  /* "Perfil:" fica só para o leitor de tela. */
+  .perfil-rapido__rotulo {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .perfil-rapido__nome {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---------- menus da barra (Salvar e perfil) ---------- */
+
+  .menu-app {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: auto;
+    z-index: 40;
+    width: max-content;
+    min-width: 280px;
+    max-width: 380px;
+    max-height: none;
+    padding: 6px;
+    border: none;
+    border-radius: 10px;
+    background: var(--ps-branco);
+    box-shadow: var(--menu-sombra);
+    color: var(--ps-preto);
+    font-size: 13.5px;
+  }
+
+  .menu-app__titulo {
+    margin: 0;
+    padding: 8px 10px 6px;
+    color: var(--menu-ajuda);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+
+  .menu-app__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .menu-app__item:hover:not(:disabled),
+  .menu-app__item:focus-visible {
+    outline: none;
+    background: var(--menu-destaque);
+  }
+
+  .menu-app__item:disabled {
+    cursor: not-allowed;
+    opacity: var(--botao-desabilitado-opacidade);
+  }
+
+  .menu-app__item > .icone {
+    flex: none;
+    width: 18px;
+    height: 18px;
+  }
+
+  .menu-app__item--secundario {
+    color: var(--cor-texto);
+  }
+
+  .menu-app__textos {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .menu-app__textos .menu-app__rotulo {
+    font-weight: var(--peso-medio);
+  }
+
+  .menu-app__ajuda {
+    color: var(--menu-ajuda);
+    font-size: 12px;
+  }
+
+  .menu-app__vazio {
+    flex: none;
+    width: 18px;
+    margin-left: auto;
+  }
+
+  /* A marca do perfil escolhido fica à direita, verde. */
+  .perfil-rapido__opcao > .icone:last-child:not(:first-child) {
+    margin-left: auto;
+    color: var(--menu-marca);
+  }
+
+  .menu-app__separador {
+    margin: 5px 4px;
+    border: none;
+    border-top: var(--borda) solid #eeeeee;
+  }
+
+  .menu-app__caminho {
+    margin: 0 10px 6px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: var(--menu-caminho-fundo);
+    font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .menu-app__caminho--vazio {
+    font-family: inherit;
+    color: var(--cor-texto);
+  }
+
+  .menu-app__nota {
+    max-width: 340px;
+    margin: 0 10px 6px;
+    color: var(--cor-texto);
+    font-size: 12px;
+  }
+
+  /* ---------- tela inicial ---------- */
+
+  .vazio.inicio {
+    min-height: calc(100vh - var(--altura-titulo));
+  }
+
+  /* A barra preta da tela inicial: só o perfil, à direita, na mesma altura
+     da barra da nota. */
+  .inicio__faixa {
+    justify-content: flex-end;
+    min-height: calc(var(--altura-barra-nota) + var(--linha-barra-nota));
+    padding: 0 14px;
+    border-bottom: var(--linha-barra-nota) solid var(--ps-amarelo);
+  }
+
+  /* Salvando em, embaixo do Abrir arquivo: o caminho completo e Trocar. */
+  .inicio__destino {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    max-width: 100%;
+    margin: var(--esp-2) 0 0;
+    color: var(--cor-texto);
+    font-size: 12.5px;
+  }
+
+  .inicio__destino .icone {
+    flex: none;
+    width: 18px;
+    height: 18px;
+  }
+
+  .inicio__destino-caminho {
+    color: var(--cor-texto-forte);
+    font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+    overflow-wrap: anywhere;
+  }
+
+  .inicio__destino[data-estado='sem'] .inicio__destino-rotulo {
+    color: var(--cor-texto-forte);
+    font-weight: var(--peso-forte);
+  }
+
+  .inicio__destino .link {
+    font-size: 12.5px;
+  }
+
+  /* ---------- cartão da ferramenta ST: Planilha de ST e TIPI ---------- */
+
+  .conferencia__documentos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 7px 0;
+  }
+
+  .conferencia__documentos .pastilha {
+    min-height: 0;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 12px;
+    font-size: 11.5px;
+    font-weight: var(--peso-forte);
+    cursor: pointer;
+  }
+
+  .conferencia__documentos .pastilha .icone {
+    width: 13px;
+    height: 13px;
+  }
+
+  .conferencia__documentos .pastilha--ok {
+    background: #e3f2e7;
+    color: var(--menu-marca);
+  }
+
+  .conferencia__documentos .pastilha--faltando {
+    background: #fde7e5;
+    color: var(--semaforo-vermelho);
+  }
+
+  .conferencia__documentos .pastilha--aviso {
+    background: var(--menu-destaque);
+    color: var(--cor-texto-forte);
+  }
+
+  .conferencia__documentos .pastilha:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  /* ---------- abas PSXML e XML (canto de baixo da barra) ---------- */
+
+  /* Valores da animação aprovada (animacao-abas-aprovada.html, 13/11/2026):
+     a aba ativa cresce, inclina, sobe e ganha sombra; o ícone passa por
+     cima da borda de cima da aba, maior e girado. A troca toca a entrada
+     (popA) uma vez (renderer.ts, aba--entrando). */
+  .barra__vistas.abas {
+    display: flex;
+    align-self: flex-end;
+    gap: 6px;
+  }
+
+  .aba {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 48px;
+    padding: 0 18px 0 12px;
+    border: none;
+    border-radius: 9px 9px 0 0;
+    background: #2c2c2c;
+    color: #e5e5e5;
+    font: inherit;
+    font-size: 14px;
+    font-weight: var(--peso-forte);
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transform-origin: 50% 100%;
+    transition:
+      transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.3s;
+  }
+
+  .aba__icone {
+    width: 36px;
+    height: 36px;
+    transform-origin: 50% 80%;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .aba[aria-selected='true'] {
+    z-index: 2;
+    box-shadow: 0 8px 18px rgb(0 0 0 / 0.45);
+    transform: translateY(-4px) scale(1.06) rotate(-2.5deg);
+  }
+
+  .aba[aria-selected='true'] .aba__icone {
+    transform: translate(-5px, -9px) scale(1.25) rotate(-6deg);
+  }
+
+  .aba--entrando {
+    animation: popA 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes popA {
+    0% {
+      transform: translateY(0) scale(1) rotate(0);
+    }
+
+    50% {
+      transform: translateY(-8px) scale(1.12) rotate(-5deg);
+    }
+
+    100% {
+      transform: translateY(-4px) scale(1.06) rotate(-2.5deg);
+    }
+  }
+
+  /* Animações desligadas no Windows: a troca acontece sem movimento. */
+  @media (prefers-reduced-motion: reduce) {
+    .aba,
+    .aba__icone {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  .aba:hover:not([aria-selected='true'], [aria-disabled='true']) {
+    background: #3a3a3a;
+  }
+
+  .aba[aria-selected='true'] {
+    background: var(--ps-amarelo);
+    color: var(--ps-preto);
+  }
+
+  .aba[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .aba[aria-disabled='true'] .aba__icone {
+    filter: grayscale(1);
+  }
+
+  .aba:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--ps-branco);
+    outline-offset: calc(-1 * var(--botao-foco-espessura));
+  }
+
+  .aba[aria-selected='true']:focus-visible {
+    outline-color: var(--ps-preto);
+  }
+
+  /* ---------- painel Leitura da aba XML ---------- */
+
+  :root {
+    --leitura-largura: var(--largura-painel-conferencia);
+    --folga-leitura: var(--folga-painel-conferencia);
+  }
+
+  /* O DANFE e o .XML começam depois do painel (aberto ou recolhido). */
+  body:has(#painel-leitura:not([hidden])) #danfe {
+    padding-left: calc(var(--leitura-largura) + var(--folga-leitura));
+  }
+
+  /* Folhas lado a lado (só a tela): quantas couberem na largura. No papel,
+     print.css e danfe.css voltam a uma folha por página. */
+  #danfe[data-folhas='lado'] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: safe center;
+    align-items: flex-start;
+  }
+
+  .leitura__ladrilhos {
+    display: grid;
+    gap: 6px;
+  }
+
+  .leitura__ladrilhos--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .leitura__ladrilho {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px 4px 7px;
+    border: var(--borda) solid var(--cor-borda-suave);
+    border-radius: 8px;
+    background: var(--ps-branco);
+    color: var(--ps-preto);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: var(--peso-medio);
+    line-height: 1.15;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .leitura__icone {
+    width: 34px;
+    height: 34px;
+    fill: none;
+    stroke: var(--ps-preto);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .leitura__ladrilho:hover:not([aria-pressed='true'], [aria-disabled='true']) {
+    border-color: var(--ps-preto);
+    background: var(--menu-destaque);
+  }
+
+  .leitura__ladrilho[aria-pressed='true'] {
+    border-color: #e0ac00;
+    background: var(--ps-amarelo);
+  }
+
+  .leitura__ladrilho[aria-disabled='true'] {
+    color: #aaaaaa;
+    cursor: not-allowed;
+  }
+
+  .leitura__ladrilho[aria-disabled='true'] .leitura__icone {
+    stroke: #bbbbbb;
+  }
+
+  .leitura__ladrilho:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: var(--botao-foco-afastamento);
+  }
+
+  .leitura__aviso {
+    margin: 6px 0 0;
+    color: var(--cor-texto);
+    font-size: 12px;
+    user-select: text;
+  }
+
+  .leitura__arquivo {
+    display: flex;
+    flex-direction: column;
+    padding: 9px 11px;
+    border: var(--borda) solid var(--cor-borda-suave);
+    border-radius: 8px;
+    background: var(--ps-branco);
+    color: #333333;
+    font-size: 12.5px;
+    line-height: 1.55;
+    user-select: text;
+  }
+
+  .leitura__arquivo-nome {
+    color: var(--ps-preto);
+    overflow-wrap: anywhere;
+  }
+
+  /* Recolhido: o ícone do modo de leitura, no traço do desenho de 40. */
+  .leitura__modo-trilho .icone {
+    width: 20px;
+    height: 20px;
+    stroke-width: 3;
+  }
+
+  /* ---------- Ao imprimir e no PDF (painel da Conferência) ---------- */
+
+  .folha-pdf {
+    display: flex;
+  }
+
+  .folha-pdf .seletor__opcao {
+    flex: 1;
+  }
+
+  /* A miniatura do editor de colunas, menor, para caber no painel (a folha
+     em paisagem na largura dele). */
+  .folha-pdf__caixa .miniatura {
+    --escala-miniatura: 0.22;
+    margin-top: var(--esp-2);
+  }
+
+  .folha-pdf__caixa .miniatura__rolagem {
+    padding-inline: 0;
+  }
+}

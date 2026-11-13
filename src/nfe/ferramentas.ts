@@ -56,8 +56,8 @@ export interface FerramentaJanela {
   podeRodar(): boolean;
   rodar(): Promise<void>;
   /**
-   * Antes de Rodar, fora do processando: false desiste (por exemplo, a
-   * pessoa escolheu ficar na leitura protegida). Sem a função: roda direto.
+   * Situação dos documentos de que a ferramenta precisa (pastilhas que abrem
+   * os Documentos de referência), mostrada no cartão dela. Sem a função: nada.
    */
-  antesDeRodar?(): Promise<boolean>;
+  documentos?(): HTMLElement[];
 }

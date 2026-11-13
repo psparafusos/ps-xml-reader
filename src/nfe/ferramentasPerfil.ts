@@ -8,9 +8,10 @@
 // No config.json, chave "ferramentasPerfis" (fora dos perfis, para o arquivo
 // exportado de um perfil e uma versão anterior do app continuarem iguais):
 //   { "<id do perfil>": { ordem: [{ id, visivel }], camposST: { mva, aliquota },
-//                         abrirEm: "leitura" | "conferencia" } }
-// Perfil sem entrada: o padrão (as duas ferramentas, os dois campos, notas
-// abertas em leitura protegida).
+//                         abrirEm: "xml" | "psxml" } }
+// Perfil sem entrada: o padrão (as duas ferramentas, os dois campos, NF-e
+// aberta na aba XML, no DANFE). Os valores de versões anteriores ("leitura"
+// e "conferencia") são lidos como "xml" e "psxml" (lerAbrirEm).
 
 import { planoAplicar, type PlanoAplicar } from '../fiscal/entrada';
 import { gravacoesAliquota, type LinhaPrevia } from '../previaST';
@@ -56,18 +57,35 @@ export interface FerramentaNaOrdem {
 }
 
 /**
- * Como um XML de NF-e abre neste perfil: em leitura protegida (só ver, o
- * padrão) ou direto na Conferência, para editar.
+ * "NF-e abre em": onde um XML de NF-e abre neste perfil. "xml": na aba XML,
+ * no DANFE (o padrão); "psxml": na aba PSXML (a Conferência, para anotar).
  */
-export type AbrirNotasEm = 'leitura' | 'conferencia';
+export type AbrirNotasEm = 'xml' | 'psxml';
 
 export const ROTULO_ABRIR_EM: Record<AbrirNotasEm, string> = {
-  leitura: 'Leitura protegida',
-  conferencia: 'Conferência',
+  xml: 'XML (DANFE)',
+  psxml: 'PSXML',
 };
 
-const ehAbrirEm = (v: unknown): v is AbrirNotasEm =>
-  v === 'leitura' || v === 'conferencia';
+/**
+ * Valores gravados por versões anteriores ("Abrir notas em"): a leitura
+ * protegida abria a NF-e no DANFE; a Conferência, na tabela para anotar.
+ */
+const ABRIR_EM_ANTIGO: Readonly<Record<string, AbrirNotasEm>> = {
+  leitura: 'xml',
+  conferencia: 'psxml',
+};
+
+/**
+ * O "NF-e abre em" de um valor gravado: o atual, o de uma versão anterior
+ * (convertido) ou null se não for nenhum deles.
+ */
+export function lerAbrirEm(v: unknown): AbrirNotasEm | null {
+  if (v === 'xml' || v === 'psxml') return v;
+  if (typeof v === 'string' && Object.hasOwn(ABRIR_EM_ANTIGO, v))
+    return ABRIR_EM_ANTIGO[v];
+  return null;
+}
 
 export interface FerramentasPerfil {
   ordem: FerramentaNaOrdem[];
@@ -86,15 +104,15 @@ export function ferramentasPadrao(): FerramentasPerfil {
   return {
     ordem: FERRAMENTAS_PAINEL.map((f) => ({ id: f.id, visivel: true })),
     camposST: { mva: true, aliquota: true },
-    abrirEm: 'leitura',
+    abrirEm: 'xml',
   };
 }
 
 /**
  * Lê o que veio do config.json ou da tela, sem lançar: id desconhecido ou
  * repetido sai, ferramenta que faltou entra no fim (visível), campo que não
- * é booleano fica no padrão (à mostra), "Abrir notas em" desconhecido fica
- * em leitura protegida.
+ * é booleano fica no padrão (à mostra), "NF-e abre em" de uma versão
+ * anterior é convertido e o desconhecido fica no XML (DANFE).
  */
 export function lerFerramentas(v: unknown): FerramentasPerfil {
   const padrao = ferramentasPadrao();
@@ -115,7 +133,7 @@ export function lerFerramentas(v: unknown): FerramentasPerfil {
       mva: typeof c.mva === 'boolean' ? c.mva : true,
       aliquota: typeof c.aliquota === 'boolean' ? c.aliquota : true,
     },
-    abrirEm: ehAbrirEm(v.abrirEm) ? v.abrirEm : 'leitura',
+    abrirEm: lerAbrirEm(v.abrirEm) ?? 'xml',
   };
 }
 
@@ -188,8 +206,9 @@ export function planoDoAplicar(
 /**
  * Validação estrita da chave "ferramentasPerfis" vinda de fora (backup):
  * cada entrada precisa ser de um perfil de `idsPerfis`, com a ordem só de
- * ferramentas conhecidas, sem repetir, as marcas booleanas e o "Abrir notas
- * em" (leitura ou conferencia), quando vier. Campo que esta versão não
+ * ferramentas conhecidas, sem repetir, as marcas booleanas e o "NF-e abre
+ * em" (xml ou psxml, ou leitura ou conferencia de uma versão anterior),
+ * quando vier. Campo que esta versão não
  * conhece fica de fora sem recusar (uma versão nova pode guardar mais coisas
  * por perfil). Lança Error com o motivo, em português.
  */
@@ -223,8 +242,8 @@ export function validarFerramentasPorPerfil(
           'Os campos da ferramenta ST de um perfil estão inválidos.',
         );
     }
-    if (f.abrirEm !== undefined && !ehAbrirEm(f.abrirEm))
-      throw new Error('O "Abrir notas em" de um perfil está inválido.');
+    if (f.abrirEm !== undefined && lerAbrirEm(f.abrirEm) === null)
+      throw new Error('O "NF-e abre em" de um perfil está inválido.');
     r[id] = lerFerramentas(f);
   }
   return r;

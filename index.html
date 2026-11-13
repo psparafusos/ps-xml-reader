@@ -15,111 +15,213 @@
     <link rel="stylesheet" href="/src/styles/configuracoes.css" />
     <link rel="stylesheet" href="/src/styles/print.css" />
     <link rel="stylesheet" href="/src/danfe/danfe.css" />
+    <link rel="stylesheet" href="/src/styles/janela.css" />
     <script type="module" src="/src/renderer.ts"></script>
-    <!-- Leitor de XML genérico: módulo separado, que monta a própria seção
-         e abre os XML que não são NF-e (src/leitorXml/tela.ts). -->
+    <!-- Modo .XML da aba XML (src/leitorXml/tela.ts, importado pelo
+         renderer.ts). -->
     <link rel="stylesheet" href="/src/leitorXml/leitorXml.css" />
-    <script type="module" src="/src/leitorXml/tela.ts"></script>
+    <!-- Modo Formato original da aba XML (src/formatoOriginal/tela.ts). -->
+    <link rel="stylesheet" href="/src/formatoOriginal/formatoOriginal.css" />
     <!-- Serviço de leitura pesada (parte 2): cartão de andamento com Cancelar
          (src/servico/progresso.ts). -->
     <link rel="stylesheet" href="/src/servico/progresso.css" />
     <script type="module" src="/src/servico/progresso.ts"></script>
   </head>
   <body>
-    <!-- Barra no visual "Bancada" (bancada.css), a mesma faixa preta com o
-         filete amarelo da tela inicial: logo, emitente e número da nota, as
-         pastilhas dos documentos, da pasta de destino e do perfil e, à direita,
-         as ações. -->
+    <!-- Barra de título própria (titleBarOverlay, main.ts): 36 px, preta,
+         arrastável. Os botões de minimizar, maximizar e fechar são os do
+         Windows, desenhados por cima da área à direita (env(titlebar-area-*)).
+         O texto vem do renderer (atualizarTituloJanela). -->
+    <div id="titulo-janela" class="titulo-janela">
+      <img class="titulo-janela__logo" src="/assets/ps-logo.svg" alt="" />
+      <div id="titulo-janela-textos" class="titulo-janela__textos"></div>
+    </div>
+
+    <!-- Barra preta da nota (janela.css): à esquerda, o que troca a vista;
+         à direita, Início e Abrir outro XML, Imprimir e Salvar, e o botão de
+         perfil (que leva também às Configurações). -->
     <header id="barra" class="barra" hidden>
-      <img class="barra__logo" src="/assets/ps-logo.svg" alt="" />
-      <div class="barra__titulo">
-        <strong id="barra-fornecedor" class="barra__fornecedor"></strong>
-        <span id="barra-nota" class="barra__nota"></span>
-        <span id="barra-copia" class="barra__copia" hidden
-          >Cópia editada, sem validade fiscal</span
+      <!-- Abas da nota: PSXML (a Conferência) e XML (o arquivo original, só
+           leitura, com o painel Leitura). Presas no canto de baixo da barra,
+           com a miniatura do ícone de cada uma (renderer.ts, mostrarTela). -->
+      <div class="barra__vistas abas" role="tablist" aria-label="Abas da nota">
+        <button
+          id="btn-aba-psxml"
+          type="button"
+          class="aba"
+          role="tab"
+          aria-selected="false"
         >
+          <img class="aba__icone" src="/assets/icone-psxml.svg" alt="" />
+          <span>PSXML</span>
+        </button>
+        <button
+          id="btn-aba-xml"
+          type="button"
+          class="aba"
+          role="tab"
+          aria-selected="false"
+        >
+          <img class="aba__icone" src="/assets/icone-xml.svg" alt="" />
+          <span>XML</span>
+        </button>
       </div>
-      <div class="barra__pastilhas">
-        <!-- Situação dos documentos de referência: uma pastilha por
-             documento, cada uma um botão que abre o cartão dele na área de
-             Documentos (renderer.ts, atualizarDocumentos). -->
-        <div
-          id="barra-documentos"
-          class="barra__documentos"
-          role="group"
-          aria-label="Documentos de referência"
-        ></div>
-        <!-- Pasta de destino: pastilha antes do Perfil, na barra e na faixa da
-             tela inicial (renderer.ts, mostrarTela e atualizarPasta). Com
-             pasta, "Salvando em: <última pasta>" abre o menu (caminho
-             completo, Trocar pasta..., Abrir pasta no Explorer); sem pasta,
-             amarela, "Escolha onde salvar" abre direto o seletor. -->
-        <div id="barra-pasta" class="barra__pasta">
-          <div class="pasta-rapida" data-estado="sem">
+      <nav class="barra__acoes" aria-label="Ações da nota">
+        <button id="btn-inicio" type="button" class="botao botao--barra">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"
+            />
+          </svg>
+          <span>Início</span>
+        </button>
+        <button
+          id="btn-abrir-outro"
+          type="button"
+          class="botao botao--barra"
+          aria-keyshortcuts="Control+O"
+        >
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
+            />
+            <path d="M14 3v6h6M12 18v-6M9 15l3-3 3 3" />
+          </svg>
+          <span>Abrir outro XML</span>
+        </button>
+        <span class="barra__divisa" aria-hidden="true"></span>
+        <button
+          id="btn-imprimir"
+          type="button"
+          class="botao botao--barra"
+          aria-keyshortcuts="Control+P"
+        >
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"
+            />
+            <rect x="6" y="14" width="12" height="7" />
+          </svg>
+          <span>Imprimir</span>
+        </button>
+        <!-- Salvar: na Conferência grava o .psxml; no DANFE, o PDF. A seta
+             abre Salvar, Salvar PDF, Salvar cópia e a pasta de destino
+             (Salvando em, Trocar pasta de destino, Abrir pasta no Explorer). -->
+        <div class="salvar-grupo">
+          <button
+            id="btn-salvar"
+            type="button"
+            class="botao botao--amarelo salvar-grupo__principal"
+            aria-keyshortcuts="Control+S"
+          >
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
+            </svg>
+            <span id="btn-salvar-texto">Salvar</span>
+          </button>
+          <button
+            id="btn-salvar-mais"
+            type="button"
+            class="botao botao--amarelo salvar-grupo__seta"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="menu-salvar"
+            aria-label="Mais opções de salvar"
+          >
+            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div
+            id="menu-salvar"
+            class="menu-app menu-salvar"
+            role="menu"
+            aria-label="Salvar"
+            hidden
+          >
             <button
-              id="btn-pasta"
+              id="btn-menu-salvar"
               type="button"
-              class="pasta-rapida__botao"
-              aria-expanded="false"
+              class="menu-app__item"
+              role="menuitem"
             >
-              <svg
-                class="icone pasta-rapida__icone"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
+              </svg>
+              <span class="menu-app__textos">
+                <span class="menu-app__rotulo">Salvar</span>
+                <span id="menu-salvar-ajuda" class="menu-app__ajuda"></span>
+              </span>
+            </button>
+            <button
+              id="btn-salvar-pdf"
+              type="button"
+              class="menu-app__item"
+              role="menuitem"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
+              </svg>
+              <span class="menu-app__textos">
+                <span class="menu-app__rotulo">Salvar PDF</span>
+                <span id="menu-pdf-ajuda" class="menu-app__ajuda"></span>
+              </span>
+            </button>
+            <button
+              id="btn-salvar-copia"
+              type="button"
+              class="menu-app__item"
+              role="menuitem"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5M4 19h16" />
+              </svg>
+              <span class="menu-app__textos">
+                <span class="menu-app__rotulo">Salvar cópia...</span>
+                <span class="menu-app__ajuda"
+                  >Com outro nome, na pasta de destino</span
+                >
+              </span>
+            </button>
+            <hr class="menu-app__separador" />
+            <p class="menu-app__titulo">Salvando em</p>
+            <p id="menu-pasta-caminho" class="menu-app__caminho"></p>
+            <p id="menu-pasta-sessao" class="menu-app__nota" hidden>
+              Só nesta janela: a pasta do arquivo aberto. A pasta salva volta
+              quando você fechar esta janela.
+            </p>
+            <button
+              id="btn-trocar-pasta"
+              type="button"
+              class="menu-app__item"
+              role="menuitem"
+            >
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                  d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"
                 />
               </svg>
-              <span id="pasta-rapida-rotulo" class="pasta-rapida__rotulo"
-                >Escolha onde salvar</span
-              >
-              <span id="pasta-rapida-nome" class="pasta-rapida__nome"></span>
-              <svg
-                class="icone pasta-rapida__seta"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              <span class="menu-app__rotulo">Trocar pasta de destino...</span>
             </button>
-            <div
-              id="menu-pasta"
-              class="perfil-rapido__menu pasta-rapida__menu"
-              role="menu"
-              aria-label="Pasta de destino"
-              hidden
+            <button
+              id="btn-abrir-pasta"
+              type="button"
+              class="menu-app__item"
+              role="menuitem"
             >
-              <p id="menu-pasta-caminho" class="pasta-rapida__caminho"></p>
-              <p id="menu-pasta-sessao" class="pasta-rapida__caminho" hidden>
-                Só nesta janela: a pasta do arquivo aberto. A pasta salva volta
-                quando você fechar esta janela.
-              </p>
-              <hr class="perfil-rapido__separador" />
-              <button
-                id="btn-trocar-pasta"
-                type="button"
-                class="perfil-rapido__opcao"
-                role="menuitem"
-              >
-                <span class="perfil-rapido__texto">Trocar pasta...</span>
-              </button>
-              <button
-                id="btn-abrir-pasta"
-                type="button"
-                class="perfil-rapido__opcao"
-                role="menuitem"
-              >
-                <span class="perfil-rapido__texto"
-                  >Abrir pasta no Explorer</span
-                >
-              </button>
-            </div>
+              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"
+                />
+              </svg>
+              <span class="menu-app__rotulo">Abrir pasta no Explorer</span>
+            </button>
           </div>
         </div>
-        <!-- Troca rápida do perfil de colunas; a lista é montada no
-             renderer.ts a cada abertura. Na tela inicial o bloco vai para a
-             faixa de lá (renderer.ts, mostrarTela). -->
+        <span class="barra__divisa" aria-hidden="true"></span>
+        <!-- Botão de perfil: na barra da nota e na barra da tela inicial
+             (renderer.ts, mostrarTela). O menu é montado a cada abertura:
+             perfis, Gerenciar perfis... e Configurações. -->
         <div id="barra-perfil" class="barra__perfil">
           <div class="perfil-rapido">
             <button
@@ -130,6 +232,12 @@
               aria-expanded="false"
               aria-controls="menu-perfil"
             >
+              <span class="perfil-rapido__avatar" aria-hidden="true">
+                <svg class="icone" viewBox="0 0 24 24">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+                </svg>
+              </span>
               <span class="perfil-rapido__rotulo">Perfil:</span>
               <span id="perfil-nome" class="perfil-rapido__nome"></span>
               <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
@@ -138,194 +246,24 @@
             </button>
             <div
               id="menu-perfil"
-              class="perfil-rapido__menu"
+              class="menu-app perfil-rapido__menu"
               role="menu"
-              aria-label="Perfis"
+              aria-label="Perfil"
               hidden
             ></div>
-          </div>
-        </div>
-      </div>
-      <!-- Grupos por função: navegação, modo, saída. Salvar é o único botão
-           principal; os demais são secundários. Tela estreita: as ações e a
-           engrenagem descem juntas para a linha de baixo (app.css). -->
-      <nav class="barra__acoes" aria-label="Ações da nota">
-        <div class="barra__grupo" role="group" aria-label="Navegação">
-          <button id="btn-inicio" type="button" class="botao botao--claro">
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 11l8-7 8 7" />
-              <path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" />
-            </svg>
-            <span>Início</span>
-          </button>
-          <button
-            id="btn-abrir-outro"
-            type="button"
-            class="botao botao--claro"
-            aria-keyshortcuts="Control+O"
-          >
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-              />
-            </svg>
-            <span>Abrir outro XML</span>
-          </button>
-        </div>
-        <div class="barra__grupo barra__modo">
-          <div class="seletor" role="group" aria-label="Modo">
-            <button
-              id="btn-modo-conferencia"
-              type="button"
-              class="seletor__opcao"
-              aria-pressed="true"
-            >
-              Conferência
-            </button>
-            <button
-              id="btn-modo-danfe"
-              type="button"
-              class="seletor__opcao"
-              aria-pressed="false"
-            >
-              DANFE
-            </button>
-          </div>
-        </div>
-        <div class="barra__grupo barra__saida" role="group" aria-label="Saída">
-          <button
-            id="btn-imprimir"
-            type="button"
-            class="botao botao--claro"
-            aria-keyshortcuts="Control+P"
-          >
-            <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 9V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v4" />
-              <path
-                d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"
-              />
-              <path d="M7 14h10v5a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" />
-            </svg>
-            <span>Imprimir</span>
-          </button>
-          <!-- Salvar: na Conferência grava o .psxml; no DANFE, o PDF. A seta
-               ao lado abre Salvar PDF e Salvar cópia (sem botões novos na
-               barra). -->
-          <div class="salvar-grupo">
-            <button
-              id="btn-salvar"
-              type="button"
-              class="botao botao--principal salvar-grupo__principal"
-              aria-keyshortcuts="Control+S"
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 4v11" />
-                <path d="M7 10l5 5 5-5" />
-                <path d="M5 20h14" />
-              </svg>
-              <span id="btn-salvar-texto">Salvar</span>
-            </button>
-            <button
-              id="btn-salvar-mais"
-              type="button"
-              class="botao botao--principal salvar-grupo__seta"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              aria-controls="menu-salvar"
-              aria-label="Mais opções de salvar"
-            >
-              <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            <div
-              id="menu-salvar"
-              class="menu-salvar"
-              role="menu"
-              aria-label="Salvar"
-              hidden
-            >
-              <button
-                id="btn-salvar-pdf"
-                type="button"
-                class="menu-salvar__opcao"
-                role="menuitem"
-              >
-                Salvar PDF
-              </button>
-              <button
-                id="btn-salvar-copia"
-                type="button"
-                class="menu-salvar__opcao"
-                role="menuitem"
-              >
-                Salvar cópia...
-              </button>
-            </div>
           </div>
         </div>
       </nav>
-      <!-- Engrenagem: abre as Configurações (src/configuracoes.ts). Sempre a
-           última da barra, depois do Salvar. O ícone vem de src/icones.ts
-           (renderer.ts). -->
-      <button
-        id="btn-config-barra"
-        type="button"
-        class="config-engrenagem"
-        aria-label="Configurações"
-      ></button>
-      <!-- Leitura protegida (src/nfe/leituraProtegida.ts): a NF-e aberta só
-           para ver. Abaixo do filete amarelo; o texto e o botão vêm do
-           renderer. Usar a Conferência pergunta antes de sair da leitura. -->
-      <div id="faixa-leitura" class="faixa-leitura" hidden>
-        <svg
-          class="icone faixa-leitura__icone"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            d="M7 11h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z"
-          />
-          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-        </svg>
-        <span id="faixa-leitura-texto" class="faixa-leitura__texto"></span>
-        <!-- Só a tela desta janela: as folhas do DANFE (Uma, Lado a lado,
-             Ajustar à largura) e a orientação da Conferência (vale também
-             para o PDF e a impressão; não grava no perfil). Os botões vêm do
-             renderer. -->
-        <div class="faixa-leitura__vista">
-          <div id="faixa-folhas" class="faixa-leitura__grupo" hidden>
-            <span id="rotulo-folhas" class="faixa-leitura__rotulo">Folhas</span>
-            <div
-              id="seletor-folhas"
-              class="seletor faixa-leitura__seletor"
-              role="group"
-              aria-labelledby="rotulo-folhas"
-            ></div>
-          </div>
-          <div id="faixa-orientacao" class="faixa-leitura__grupo" hidden>
-            <span id="rotulo-orientacao-leitura" class="faixa-leitura__rotulo"
-              >Orientação</span
-            >
-            <div
-              id="seletor-orientacao-leitura"
-              class="seletor faixa-leitura__seletor"
-              role="group"
-              aria-labelledby="rotulo-orientacao-leitura"
-            ></div>
-          </div>
-        </div>
-        <button
-          id="btn-usar-conferencia"
-          type="button"
-          class="botao botao--claro botao--pequeno faixa-leitura__botao"
-        ></button>
-      </div>
     </header>
 
     <!-- Painel de conferência, à esquerda da nota (só na Conferência e só
          na tela): montado no renderer.ts (painelConferencia.ts). -->
     <aside id="painel-conferencia" class="conferencia" hidden></aside>
+
+    <!-- Painel Leitura da aba XML, à esquerda: Modo de leitura, Folhas (só
+         no DANFE) e Arquivo (painelLeitura.ts). Mesmo visual do painel da
+         Conferência. -->
+    <aside id="painel-leitura" class="conferencia leitura" hidden></aside>
 
     <!-- Erro: fica visível em qualquer posição de rolagem até a pessoa fechar. -->
     <div id="mensagem" class="mensagem" role="alert" hidden>
@@ -387,35 +325,10 @@
          logo e as pastilhas (documentos, pasta de destino e perfil), a zona de
          soltar, o cartão dos documentos e as notas recentes. -->
     <section id="vazio" class="vazio inicio">
+      <!-- Barra preta da tela inicial: só o botão de perfil, à direita, na
+           mesma altura da barra da nota. -->
       <header class="inicio__faixa">
-        <div class="inicio__marca">
-          <img class="inicio__logo" src="/assets/ps-logo.svg" alt="" />
-          <div class="inicio__nome">
-            <h1 class="inicio__titulo">PS Reader</h1>
-            <p class="inicio__subtitulo">Conferência de notas fiscais</p>
-          </div>
-        </div>
-        <div class="inicio__pastilhas">
-          <!-- Pastilhas dos documentos: botões, como na barra da nota
-               (renderer.ts, atualizarDocumentos). -->
-          <div
-            id="inicio-documentos"
-            class="inicio__documentos"
-            role="group"
-            aria-label="Documentos de referência"
-          ></div>
-          <!-- A pastilha da pasta de destino vem para cá na tela inicial. -->
-          <div id="inicio-pasta" class="inicio__pasta"></div>
-          <!-- O seletor de perfil da barra amarela vem para cá enquanto a
-               tela inicial está à mostra (renderer.ts, mostrarTela). -->
-          <div id="inicio-perfil" class="inicio__perfil"></div>
-          <button
-            id="btn-config-inicio"
-            type="button"
-            class="config-engrenagem"
-            aria-label="Configurações"
-          ></button>
-        </div>
+        <div id="inicio-perfil" class="inicio__perfil"></div>
       </header>
 
       <div class="inicio__grade">
@@ -424,11 +337,9 @@
             <div class="inicio__soltar-centro">
               <svg class="inicio__icone" viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+                  d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
                 />
-                <path d="M14 3v5h5" />
-                <path d="M12 11v6" />
-                <path d="M9.5 14.5L12 17l2.5-2.5" />
+                <path d="M14 3v6h6M12 18v-6M9 15l3-3 3 3" />
               </svg>
               <h2 class="inicio__soltar-titulo">Anexe aqui o XML da nota</h2>
               <p id="vazio-formatos" class="inicio__soltar-texto">
@@ -444,11 +355,31 @@
               >
                 <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
                   <path
-                    d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                    d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
                   />
+                  <path d="M14 3v6h6M12 18v-6M9 15l3-3 3 3" />
                 </svg>
                 <span>Abrir arquivo</span>
               </button>
+              <!-- Pasta de destino (renderer.ts, atualizarPasta): o caminho
+                   completo e Trocar; sem pasta, Escolher. -->
+              <p id="inicio-destino" class="inicio__destino">
+                <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"
+                  />
+                </svg>
+                <span id="inicio-destino-rotulo" class="inicio__destino-rotulo"
+                  >Salvando em</span
+                >
+                <span
+                  id="inicio-destino-caminho"
+                  class="inicio__destino-caminho"
+                ></span>
+                <button id="btn-trocar-destino" type="button" class="link">
+                  Trocar
+                </button>
+              </p>
             </div>
           </div>
 

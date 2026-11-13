@@ -45,7 +45,9 @@ async function limparLeitorXml(avaliar, espera, prazo = 60000) {
       const estado = document.querySelector('.leitor-xml__estado');
       if (estado && !estado.hidden && estado.innerText.trim() === 'Lendo o arquivo…')
         return 'lendo';
-      [...leitor.querySelectorAll('button')].find((x) => x.textContent === 'Fechar')?.click();
+      // Uma pergunta aberta (anotação não salva): o estado limpo responde.
+      if (document.querySelector('dialog[open]')) return 'limpo';
+      document.getElementById('btn-inicio')?.click();
       return 'fechando';
     })()`).catch(() => 'limpo');
     if (passo === 'limpo') return;
@@ -72,7 +74,8 @@ async function casosLeitorXml(c) {
     avaliar(
       `document.querySelector(${JSON.stringify(seletor)})?.innerText ?? ''`,
     );
-  const leitorAberto = `(() => { const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
+  // XML que não é nota abre no Formato original: passa para o .XML.
+  const leitorAberto = `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
   /** Botão da tela do leitor pelo texto (nunca um "Copiar"). */
   const clicarBotao = async (rotulo) => {
     confere(!/copiar/i.test(rotulo), 'teste tentou acionar Copiar');
@@ -111,16 +114,16 @@ async function casosLeitorXml(c) {
         'a árvore não apareceu',
       );
 
-      // Barra: nome, caminho, tamanho e codificação.
+      // Título da janela, cartão Arquivo, tamanho e codificação.
       confere(
-        (await texto('.leitor-xml__nome')) === 'catalogo-inventado.xml',
-        'nome do arquivo na barra',
+        (await texto('#titulo-janela-textos .titulo-janela__forte')) ===
+          'catalogo-inventado.xml',
+        'nome do arquivo no título da janela',
       );
       confere(
-        (await texto('.leitor-xml__caminho')).endsWith(
+        (await texto('#painel-leitura .leitura__arquivo-nome')) ===
           'catalogo-inventado.xml',
-        ),
-        'caminho na barra',
+        'nome do arquivo no cartão Arquivo',
       );
       const info = await texto('.leitor-xml__info');
       confere(
@@ -220,7 +223,7 @@ async function casosLeitorXml(c) {
         5000,
         'voltar para a Árvore',
       );
-      await clicarBotao('Fechar');
+      await avaliar(`document.getElementById('btn-inicio').click(); true`);
       await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
       confere(
         await avaliar(`[...document.body.children].every((e) => !e.inert)`),
@@ -254,7 +257,7 @@ async function casosLeitorXml(c) {
         (await texto('.leitor-xml__linha--erro')).includes('</itens>'),
         'linha do erro',
       );
-      await clicarBotao('Fechar');
+      await avaliar(`document.getElementById('btn-inicio').click(); true`);
       await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
     },
   );
@@ -275,7 +278,7 @@ async function casosLeitorXml(c) {
       ),
       'botão do Bloco de Notas',
     );
-    await clicarBotao('Fechar');
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
     await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
   });
 }

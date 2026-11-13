@@ -17,7 +17,7 @@
     "lint:fix": "oxlint --fix && oxfmt --write",
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/registrar-hook.mjs --test \"test/**/*.test.mts\"",
-    "test:janela": "electron-forge package && electron test/janela/executar.cjs"
+    "test:janela": "electron-forge package && node test/janela/rodar.cjs"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",

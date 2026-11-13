@@ -1,5 +1,5 @@
-// Leitor de XML próprio do leitor genérico (etapa 3 do plano da
-// visualização protegida). Puro: sem DOM, sem Electron, sem rede, sem disco.
+// Leitor de XML próprio do leitor genérico. Puro: sem DOM, sem Electron, sem
+// rede, sem disco.
 // Roda fora da janela (utilityProcess) e devolve uma árvore compacta.
 //
 // Regras de segurança:

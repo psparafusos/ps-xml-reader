@@ -51,15 +51,14 @@ async function casosNavegacao(c) {
     fs.writeFileSync(alvo, conteudo);
     return alvo;
   };
-  const leitorAberto = `(() => { const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
+  // XML que não é nota abre no Formato original: passa para o .XML.
+  const leitorAberto = `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
   const arvoreCom = (trecho) =>
     `(document.querySelector('.leitor-xml__vista--arvore')?.innerText ?? '').includes(${JSON.stringify(trecho)})`;
   const cartaoVisivel = `(() => { const e = document.querySelector('.servico-progresso'); return !!e && !e.hidden; })()`;
-  /** Botão Fechar do leitor (nunca um "Copiar"). */
+  /** Início: tira o XML desta janela (o Fechar do leitor saiu). */
   const fecharLeitor = async () => {
-    await avaliar(
-      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
-    );
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
     await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
   };
   /** A janela nova que aparecer depois de `antes`. */
@@ -108,10 +107,6 @@ async function casosNavegacao(c) {
         !(await avaliar(visivel('mensagem'))),
         'apareceu mensagem (o aviso de "não é NF-e"?)',
       );
-      confere(
-        !(await avaliar(visivel('faixa-leitura'))),
-        'o leitor genérico não tem faixa de leitura protegida',
-      );
       await fecharLeitor();
       confere(await avaliar(visivel('vazio')), 'Fechar não voltou ao início');
     },
@@ -145,7 +140,7 @@ async function casosNavegacao(c) {
       );
       confere(
         (await avaliar(
-          `document.querySelector('.leitor-xml__nome').textContent`,
+          `document.querySelector('#titulo-janela-textos .titulo-janela__forte').textContent`,
         )) === 'catalogo-arrastado.xml',
         'nome do arquivo na barra do leitor',
       );
@@ -221,7 +216,7 @@ async function casosNavegacao(c) {
         );
         confere(
           (await avaliar(
-            `document.querySelector('.leitor-xml__nome').textContent`,
+            `document.querySelector('#titulo-janela-textos .titulo-janela__forte').textContent`,
           )) === 'catalogo-depois.xml',
           'a leitura cancelada apareceu por cima da nova',
         );

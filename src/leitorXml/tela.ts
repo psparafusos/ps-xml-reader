@@ -1,15 +1,12 @@
-// Tela do leitor genérico de XML (parte 1): um XML qualquer, só leitura, em
-// duas vistas (Árvore e Texto), com busca, a barra do arquivo e o Bloco de
-// Notas. Módulo separado: monta a própria seção por cima do app e só fala com
-// o processo principal pela ponte window.psLeitorXml.
-//
-// Abre quando o principal manda mostrar: XML que não é NF-e pelo botão
-// Abrir, pelo arrastar, pela nota recente, pelo duplo clique ou pelo "Abrir
-// com" (src/leitorXml/destino.ts e decidirAbertura em main.ts).
+// Modo .XML da aba XML (o antigo leitor genérico de XML): o arquivo, só
+// leitura, em duas vistas (Árvore e Texto), com busca e o Bloco de Notas.
+// Monta a própria seção, ao lado do painel Leitura, e só fala com o processo
+// principal pela ponte window.psLeitorXml. Quem manda mostrar e esconder é a
+// tela da nota (renderer.ts): XML que não é NF-e, NF-e e .psxml (do .psxml,
+// o XML original guardado dentro da cópia).
 //
 // Texto do arquivo nunca vira HTML: cada pedaço entra com textContent.
 
-import logoUrl from '../../assets/ps-logo.svg?url';
 import { marcarControles } from '../xml/leitor';
 import {
   linhaDaPosicao,
@@ -42,7 +39,8 @@ import {
   type PedacoArvore,
 } from './modeloArvore';
 import { RolagemVirtual } from './rolagem';
-import type { LeituraSemTexto, ResultadoLeitorXml } from './tipos';
+import { NENHUM, nomeDe, TIPOS } from '../xml/arvore';
+import type { InfoArquivo, LeituraSemTexto, ResultadoLeitorXml } from './tipos';
 
 /** Altura de cada linha das duas vistas, em pixels (o CSS usa a mesma). */
 const ALTURA_LINHA = 22;
@@ -77,14 +75,7 @@ function botao(classe: string, texto: string): HTMLButtonElement {
 const raiz = el('section', 'leitor-xml');
 raiz.hidden = true;
 raiz.tabIndex = -1;
-raiz.setAttribute('aria-label', 'Leitor de XML');
-
-const logo = el('img', 'leitor-xml__logo');
-logo.src = logoUrl;
-logo.alt = '';
-const nomeArquivo = el('strong', 'leitor-xml__nome');
-const caminhoArquivo = el('span', 'leitor-xml__caminho');
-const titulo = el('div', 'leitor-xml__titulo', nomeArquivo, caminhoArquivo);
+raiz.setAttribute('aria-label', 'XML do arquivo');
 
 const btnArvore = botao('seletor__opcao', 'Árvore');
 const btnTexto = botao('seletor__opcao', 'Texto');
@@ -96,10 +87,10 @@ const seletorVista = el(
 );
 seletorVista.setAttribute('role', 'group');
 seletorVista.setAttribute('aria-label', 'Vista');
-const btnBloco = botao('botao botao--claro', 'Abrir no Bloco de Notas');
-const btnFechar = botao('botao botao--claro', 'Fechar');
-const acoes = el('div', 'leitor-xml__acoes', seletorVista, btnBloco, btnFechar);
-const barra = el('header', 'leitor-xml__barra', logo, titulo, acoes);
+const btnBloco = botao(
+  'botao botao--claro leitor-xml__bloco',
+  'Abrir no Bloco de Notas',
+);
 
 const info = el('div', 'leitor-xml__info');
 const avisos = el('div', 'leitor-xml__avisos');
@@ -145,7 +136,15 @@ const conteudo = el(
   estado,
 );
 
-raiz.append(barra, info, avisos, faixaErro, faixaBusca, conteudo);
+// Uma linha só: Árvore | Texto, a busca e o Bloco de Notas.
+const ferramentas = el(
+  'div',
+  'leitor-xml__ferramentas',
+  seletorVista,
+  faixaBusca,
+  btnBloco,
+);
+raiz.append(ferramentas, info, avisos, faixaErro, conteudo);
 document.body.append(raiz);
 
 const rolagemArvore = new RolagemVirtual(areaArvore, ALTURA_LINHA, (i) =>
@@ -176,8 +175,12 @@ interface Busca {
 }
 let busca: Busca = { termo: '', achados: [], truncado: false, atual: -1 };
 let relogioBusca: ReturnType<typeof setTimeout> | undefined;
-/** Elementos que ficaram inertes enquanto a tela está aberta. */
-let inertes: Element[] = [];
+/** Arquivo lido (nome e tamanho) e o nome do elemento raiz, ou null. */
+let arquivoLido: { arquivo: InfoArquivo; raiz: string | null } | null = null;
+/** Avisado a cada leitura terminada (a tela da nota mostra no título). */
+let aoLer: (
+  dados: { arquivo: InfoArquivo; raiz: string | null } | null,
+) => void = () => {};
 
 // ---------- desenho das linhas ----------
 
@@ -542,12 +545,11 @@ btnBloco.addEventListener('click', async () => {
   }
 });
 
-btnFechar.addEventListener('click', () => void fechar());
-
 // ---------- abrir e fechar ----------
 
 function limpar(): void {
   leitura = null;
+  falha = null;
   texto = '';
   linhas = null;
   modelo = null;
@@ -561,8 +563,7 @@ function limpar(): void {
   mostrarInfo([]);
   mostrarAvisos([]);
   faixaErro.hidden = true;
-  nomeArquivo.textContent = '';
-  caminhoArquivo.textContent = '';
+  arquivoLido = null;
 }
 
 function mostrarEstado(titulo: string | null, ...linhasEstado: string[]): void {
@@ -577,29 +578,17 @@ function mostrarEstado(titulo: string | null, ...linhasEstado: string[]): void {
   seletorVista.hidden = true;
 }
 
-function travarResto(sim: boolean): void {
-  if (sim) {
-    // O cartão de andamento do serviço (com o Cancelar) fica de fora.
-    inertes = [...document.body.children].filter(
-      (e) =>
-        e !== raiz &&
-        !(e as HTMLElement).inert &&
-        !(e as HTMLElement).hasAttribute('data-fora-do-leitor'),
-    );
-    for (const e of inertes) (e as HTMLElement).inert = true;
-  } else {
-    for (const e of inertes) (e as HTMLElement).inert = false;
-    inertes = [];
-  }
-}
-
 function mostrarRecusa(
   r: Extract<ResultadoLeitorXml, { status: 'recusado' }>,
 ): void {
-  nomeArquivo.textContent = r.arquivo.nome;
-  caminhoArquivo.textContent = r.arquivo.caminho;
+  arquivoLido = { arquivo: r.arquivo, raiz: null };
+  aoLer(arquivoLido);
   if (r.arquivo.tamanho !== null)
     mostrarInfo([formatarTamanho(r.arquivo.tamanho)]);
+  falha =
+    r.motivo === 'cancelado'
+      ? 'Leitura cancelada. Para ver o arquivo, abra de novo.'
+      : r.mensagem;
   if (r.motivo === 'cancelado') {
     mostrarEstado('Leitura cancelada', 'Para ver o arquivo, abra de novo.');
     return;
@@ -621,8 +610,8 @@ function mostrarLeitura(
   texto = textoLido;
   linhas = r.leitura.linhas;
   modelo = r.leitura.arvore ? new ModeloArvore(r.leitura.arvore) : null;
-  nomeArquivo.textContent = r.arquivo.nome;
-  caminhoArquivo.textContent = r.arquivo.caminho;
+  arquivoLido = { arquivo: r.arquivo, raiz: nomeDaRaiz(r.leitura) };
+  aoLer(arquivoLido);
 
   const tamanho = r.arquivo.tamanho ?? textoLido.length;
   mostrarInfo([
@@ -671,26 +660,33 @@ function mostrarLeitura(
 }
 
 /**
- * Cada abertura ganha um número. Fechar, ou uma abertura nova, descarta o
- * que a anterior ainda estava lendo (o Fechar também cancela a leitura no
- * serviço, no principal).
+ * Cada documento ganha um número. Um documento novo (ou a volta para a tela
+ * inicial) descarta o que o anterior ainda estava lendo (o processo
+ * principal cancela a leitura no serviço).
  */
 let abertura = 0;
+/** A leitura do documento atual já foi pedida. */
+let pedida = false;
+/** A leitura pedida (termina sem lançar). */
+let promessa: Promise<void> = Promise.resolve();
+/** Por que o documento atual não foi lido, ou null. */
+let falha: string | null = null;
 
-/** Mostra a tela e lê o arquivo que o principal guardou para esta janela. */
-async function mostrar(): Promise<void> {
+/** Lê o arquivo que o principal guardou para esta janela. */
+async function ler(): Promise<void> {
   const esta = ++abertura;
   const atual = () => esta === abertura;
   try {
     limpar();
-    if (raiz.hidden) travarResto(true);
-    raiz.hidden = false;
-    raiz.focus();
     mostrarEstado(null, 'Lendo o arquivo…');
     const r = await api.carregar();
     if (!atual()) return;
     if (r.status === 'sem-arquivo') {
-      await fechar();
+      mostrarEstado(
+        'Não foi possível mostrar este arquivo',
+        'O arquivo não está mais aberto nesta janela.',
+      );
+      falha = 'O arquivo não está mais aberto nesta janela.';
       return;
     }
     if (r.status === 'recusado') {
@@ -704,6 +700,7 @@ async function mostrar(): Promise<void> {
         'Não foi possível mostrar este arquivo',
         'O arquivo mudou enquanto era lido. Tente de novo.',
       );
+      falha = 'O arquivo mudou enquanto era lido. Tente de novo.';
       return;
     }
     mostrarLeitura(r, textoLido);
@@ -713,21 +710,102 @@ async function mostrar(): Promise<void> {
       'Não foi possível mostrar este arquivo',
       'Aconteceu um erro ao ler o arquivo.',
     );
+    falha = 'Aconteceu um erro ao ler o arquivo.';
   }
 }
 
-async function fechar(): Promise<void> {
-  abertura++;
+/** Nome do elemento raiz da leitura, ou null (sem árvore). */
+function nomeDaRaiz(l: LeituraSemTexto): string | null {
+  const a = l.arvore;
+  if (!a) return null;
+  for (let no = a.primeiraRaiz; no !== NENHUM; no = a.proximoIrmao[no])
+    if (TIPOS[a.tipo[no]] === 'elemento') return nomeDe(a, no);
+  return null;
+}
+
+/**
+ * Mostra o modo .XML (lê o arquivo na primeira vez de cada documento). As
+ * vistas são redesenhadas: escondidas, elas não tinham medida.
+ */
+export function mostrarXml(): void {
+  raiz.hidden = false;
+  if (!pedida) {
+    void carregarXml();
+    return;
+  }
+  rolagemArvore.redesenhar();
+  rolagemTexto.redesenhar();
+}
+
+/**
+ * Lê o arquivo (uma vez por documento) e devolve quando a leitura acabar.
+ * O Formato original usa a mesma leitura.
+ */
+export function carregarXml(): Promise<void> {
+  if (!pedida) {
+    pedida = true;
+    promessa = ler();
+  }
+  return promessa;
+}
+
+/**
+ * A leitura do documento atual: a árvore e os dados dela, ou o motivo de
+ * não ter lido (recusado, cancelado, erro). Antes de terminar: os dois null.
+ */
+export function leituraXml(): {
+  leitura: LeituraSemTexto | null;
+  falha: string | null;
+} {
+  return { leitura, falha };
+}
+
+/** Esconde o modo .XML (a leitura feita fica guardada). */
+export function esconderXml(): void {
   raiz.hidden = true;
-  travarResto(false);
+}
+
+/**
+ * Documento novo na janela, ou a volta para a tela inicial: esquece a
+ * leitura e descarta a que estiver em andamento.
+ */
+export function novoDocumentoXml(): void {
+  abertura++;
+  pedida = false;
+  promessa = Promise.resolve();
+  raiz.hidden = true;
   limpar();
-  await api.fechar();
+}
+
+/**
+ * Pede a leitura sem mostrar (XML que não é NF-e: o título da janela precisa
+ * do nome do arquivo e da raiz).
+ */
+export function lerXml(): void {
+  void carregarXml();
+}
+
+/** Avisa a cada leitura terminada: o arquivo e a raiz (ou null). */
+export function aoLerXml(
+  callback: (
+    dados: { arquivo: InfoArquivo; raiz: string | null } | null,
+  ) => void,
+): void {
+  aoLer = callback;
+}
+
+/** O arquivo da última leitura (nome e tamanho), ou null. */
+export function arquivoXml(): {
+  arquivo: InfoArquivo;
+  raiz: string | null;
+} | null {
+  return arquivoLido;
 }
 
 // ---------- teclado e arrastar ----------
 
-// Atalhos do leitor. As teclas apertadas aqui dentro não chegam aos atalhos
-// da tela da nota (Ctrl+O, Ctrl+S, Ctrl+P, zoom).
+// Atalhos do modo .XML: Ctrl+F vai para a busca e F3 passa pelos achados.
+// As outras teclas seguem para os atalhos da tela (Ctrl+O, por exemplo).
 raiz.addEventListener('keydown', (e) => {
   const ctrl = e.ctrlKey && !e.altKey && !e.metaKey;
   if (
@@ -737,22 +815,12 @@ raiz.addEventListener('keydown', (e) => {
     !faixaBusca.hidden
   ) {
     e.preventDefault();
+    e.stopPropagation();
     campoBusca.focus();
     campoBusca.select();
   } else if (e.key === 'F3' && !e.ctrlKey && !e.altKey) {
     e.preventDefault();
+    e.stopPropagation();
     passo(e.shiftKey ? -1 : 1);
   }
-  e.stopPropagation();
 });
-
-// Arquivo solto por cima do leitor não abre por baixo, na tela da nota.
-for (const tipo of ['dragover', 'drop'] as const) {
-  raiz.addEventListener(tipo, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
-  });
-}
-
-api.aoMostrar(() => void mostrar());

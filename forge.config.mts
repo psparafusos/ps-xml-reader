@@ -11,6 +11,9 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     icon: './assets/ps-reader',
+    // Ícones dos arquivos .xml e .psxml (src/associacao.ts): vão para
+    // resources\ e, na instalação, para a raiz (PSXmlReader\icones\).
+    extraResource: ['./assets/icone-xml.ico', './assets/icone-psxml.ico'],
   },
   rebuildConfig: {},
   makers: [

@@ -1,0 +1,357 @@
+/* Modo Formato original da aba XML (src/formatoOriginal/tela.ts). Ao lado do
+   painel Leitura, com rolagem própria, no visual dos cartões do app. A
+   interface (títulos, rótulos, tags, botões, cabeçalhos) não seleciona; os
+   valores, as células e os atributos selecionam. Só na tela. */
+
+@media screen {
+  .formato-original {
+    position: fixed;
+    top: var(--altura-barra, 0px);
+    right: 0;
+    bottom: 0;
+    left: calc(var(--leitura-largura, 0px) + var(--folga-leitura, 0px));
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    background: var(--bancada-fundo);
+    color: var(--cor-texto);
+    font-size: var(--fs-md);
+    user-select: none;
+  }
+
+  .formato-original__ferramentas {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2);
+    padding: var(--esp-2) var(--esp-5);
+    border-bottom: var(--borda) solid var(--cartao-borda);
+    background: var(--bancada-fundo);
+  }
+
+  .formato-original__ferramentas[hidden] {
+    display: none;
+  }
+
+  .formato-original__rotulo {
+    color: var(--titulo-secao-cor);
+    font-size: var(--titulo-secao-tamanho);
+    font-weight: var(--peso-forte);
+    letter-spacing: var(--titulo-secao-espaco);
+    text-transform: uppercase;
+  }
+
+  .formato-original__campo {
+    width: min(300px, 100%);
+    padding: var(--esp-1) var(--esp-2);
+    border: var(--borda) solid var(--cor-borda);
+    border-radius: var(--raio);
+    color: var(--cor-texto-forte);
+    font: inherit;
+    user-select: text;
+  }
+
+  .formato-original__campo:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: 0;
+  }
+
+  .formato-original__contador {
+    min-width: 7em;
+    font-size: var(--fs-sm);
+  }
+
+  .formato-original__espaco {
+    flex: 1;
+  }
+
+  .formato-original__conteudo {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--esp-4) var(--esp-5) var(--esp-6);
+  }
+
+  .formato-original__conteudo:focus {
+    outline: none;
+  }
+
+  .formato-original__resumo {
+    margin: 0 0 var(--esp-3);
+    color: var(--cor-texto);
+    font-size: var(--fs-sm);
+  }
+
+  .formato-original__estado {
+    display: grid;
+    justify-items: center;
+    gap: var(--esp-3);
+    max-width: var(--largura-aviso);
+    margin: var(--esp-7) auto;
+    color: var(--cor-texto-forte);
+    text-align: center;
+    user-select: text;
+  }
+
+  /* ---------- seções ---------- */
+
+  .formato-original__secao {
+    margin-bottom: var(--esp-3);
+    overflow: hidden;
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--cartao-raio);
+    background: var(--cartao-fundo);
+  }
+
+  .formato-original__secao--solta {
+    padding: var(--esp-3) var(--esp-4);
+  }
+
+  .formato-original__sub {
+    margin-top: var(--esp-3);
+    border: var(--borda) solid #efece6;
+    border-radius: 8px;
+    background: var(--cartao-fundo);
+  }
+
+  .formato-original__cabecalho {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2) 10px;
+    width: 100%;
+    padding: 10px var(--esp-4);
+    border: none;
+    border-bottom: var(--borda) solid #efece6;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .formato-original__sub > .formato-original__cabecalho {
+    padding: 7px var(--esp-3);
+    border-radius: 8px 8px 0 0;
+    background: #faf9f6;
+  }
+
+  .formato-original__cabecalho[aria-expanded='false'] {
+    border-bottom-color: transparent;
+  }
+
+  .formato-original__cabecalho:focus-visible {
+    outline: var(--botao-foco-espessura) solid var(--botao-foco);
+    outline-offset: calc(-1 * var(--botao-foco-espessura));
+  }
+
+  .formato-original__seta {
+    width: 14px;
+    color: var(--cor-texto);
+    font-size: 12px;
+  }
+
+  .formato-original__titulo {
+    color: var(--cor-texto-forte);
+    font-size: 15px;
+    font-weight: var(--peso-forte);
+  }
+
+  .formato-original__sub .formato-original__titulo {
+    font-size: 13px;
+  }
+
+  .formato-original__titulo--tag {
+    font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  }
+
+  .formato-original__tag {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #f1efe9;
+    color: #6b6b6b;
+    font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+    font-size: 11px;
+    font-weight: var(--peso-normal);
+  }
+
+  .formato-original__atributo {
+    padding: 1px 8px;
+    border: var(--borda) solid var(--cartao-borda);
+    border-radius: var(--pastilha-raio);
+    color: var(--cor-texto);
+    font-size: 11px;
+    user-select: text;
+  }
+
+  .formato-original__atributo b {
+    color: var(--cor-texto-forte);
+  }
+
+  .formato-original__quantidade {
+    margin-left: auto;
+    color: var(--ps-cinza-medio);
+    font-size: 12px;
+  }
+
+  .formato-original__corpo {
+    padding: var(--esp-3) var(--esp-4) 14px;
+  }
+
+  .formato-original__corpo[hidden] {
+    display: none;
+  }
+
+  .formato-original__sub > .formato-original__corpo {
+    padding: 10px var(--esp-3);
+  }
+
+  .formato-original__lado {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 10px;
+    margin-top: var(--esp-2);
+  }
+
+  .formato-original__lado > .formato-original__sub {
+    margin-top: 0;
+  }
+
+  /* ---------- pares rótulo e valor ---------- */
+
+  .formato-original__campos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px 18px;
+  }
+
+  .formato-original__campo-par {
+    min-width: 0;
+    padding: 6px 10px;
+    border-left: 3px solid #f1efe9;
+  }
+
+  .formato-original__campo-par--largo {
+    grid-column: 1 / -1;
+  }
+
+  .formato-original__rotulo-campo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    color: #6b6b6b;
+    font-size: 11px;
+  }
+
+  .formato-original__valor {
+    margin-top: 2px;
+    overflow-wrap: anywhere;
+    color: var(--cor-texto-forte);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    user-select: text;
+  }
+
+  .formato-original__sentido {
+    margin-left: var(--esp-2);
+    color: #6b6b6b;
+    font-size: 12px;
+  }
+
+  /* ---------- tabelas ---------- */
+
+  .formato-original__rolagem-tabela {
+    overflow-x: auto;
+  }
+
+  .formato-original__tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .formato-original__tabela th {
+    padding: 6px 8px;
+    border-bottom: var(--borda-forte) solid var(--ps-preto);
+    color: var(--cor-texto-forte);
+    font-size: 12px;
+    text-align: left;
+    vertical-align: bottom;
+  }
+
+  .formato-original__tabela th .formato-original__tag {
+    display: block;
+    width: fit-content;
+    margin-top: 2px;
+  }
+
+  .formato-original__tabela th.num {
+    text-align: right;
+  }
+
+  .formato-original__tabela th.num .formato-original__tag {
+    margin-left: auto;
+  }
+
+  .formato-original__tabela td {
+    padding: 6px 8px;
+    border-bottom: var(--borda) solid #efece6;
+    color: var(--cor-texto-forte);
+    font-variant-numeric: tabular-nums;
+    user-select: text;
+  }
+
+  .formato-original__tabela td.num {
+    text-align: right;
+  }
+
+  .formato-original__abrir-col {
+    width: 28px;
+  }
+
+  .formato-original__abrir {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: var(--raio);
+    background: none;
+    color: var(--cor-texto);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .formato-original__abrir:hover {
+    background: var(--cor-destaque-suave);
+  }
+
+  .formato-original__detalhe > td {
+    padding: 4px 8px 12px 36px;
+    background: #fffdf5;
+  }
+
+  .formato-original__detalhe[hidden] {
+    display: none;
+  }
+
+  .formato-original__mais {
+    margin-top: var(--esp-2);
+  }
+
+  .formato-original__mais[hidden] {
+    display: none;
+  }
+
+  /* ---------- busca ---------- */
+
+  .formato-original__achado {
+    background: var(--cor-destaque-suave);
+  }
+
+  .formato-original__achado--atual {
+    outline: var(--borda-forte) solid var(--ps-amarelo);
+    background: var(--cor-destaque-suave);
+  }
+}

@@ -45,6 +45,11 @@ export interface AcoesPainel {
    * de sempre.
    */
   ordemFerramentas?(): readonly string[];
+  /**
+   * Conteúdo da seção "Ao imprimir e no PDF" (Retrato e Paisagem, e a
+   * miniatura da folha), a última do painel. Sem a função: sem a seção.
+   */
+  folhaPdf?(): HTMLElement;
 }
 
 export interface PainelConferencia {
@@ -316,6 +321,9 @@ export function criarPainel(
       ),
       secao('Precisa de você', pendencias),
       ...(ferramentas.length > 0 ? [secao('Ferramentas', ...ferramentas)] : []),
+      ...(acoes.folhaPdf
+        ? [secao('Ao imprimir e no PDF', acoes.folhaPdf())]
+        : []),
     );
   }
 
@@ -447,10 +455,7 @@ export function criarPainel(
     rodar.disabled = !fe.podeRodar();
     rodar.addEventListener('click', () => {
       if (!fe.podeRodar()) return;
-      void (async () => {
-        if (fe.antesDeRodar && !(await fe.antesDeRodar())) return;
-        await indicador.rodar(() => fe.rodar());
-      })();
+      void indicador.rodar(() => fe.rodar());
     });
     const aviso = fe.aviso();
     let atalho: HTMLButtonElement | null = null;
@@ -467,6 +472,7 @@ export function criarPainel(
       'conferencia__ferramenta',
       el('span', 'conferencia__linha-titulo', fe.titulo),
       el('p', 'conferencia__pendencia-detalhe', fe.descricao),
+      fe.documentos && el('div', 'conferencia__documentos', ...fe.documentos()),
       aviso && el('p', 'conferencia__aviso-ferramenta', aviso.texto),
       el('div', 'conferencia__acoes', rodar, atalho),
     );

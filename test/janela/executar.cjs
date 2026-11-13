@@ -6,8 +6,9 @@
 // executeJavaScript, sem porta de depuração. Nenhum teste aciona Copiar.
 //
 // Casos (test/janela/fixtures, NF-e inventadas): a tela pelo app://, a
-// abertura direta (parte 2A: sem a tela de escolha), a leitura protegida
-// (partes 2B, 2C e 2D), T6, T8 (gerado aqui), T9, T10, T11 e T12 do plano
+// abertura direta (parte 2A: sem a tela de escolha), a nota sem leitura
+// protegida e o "NF-e abre em" por perfil, T6, T8 (gerado aqui), T9, T10,
+// T11 e T12 do plano
 // de segurança; a tela do leitor genérico de XML (leitorXml.cjs) e o serviço
 // de leitura pesada (servico.cjs), com XML inventado gerado no teste; as
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
@@ -33,7 +34,11 @@ if (!fs.existsSync(MAIN)) {
   process.exit(1);
 }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ps-janela-'));
+// Pasta temporária: a de rodar.cjs (npm run test:janela), que a apaga
+// depois que o Electron sai; rodando este arquivo direto, uma nova.
+const tmp =
+  process.env.PS_JANELA_TMP ||
+  fs.mkdtempSync(path.join(os.tmpdir(), 'ps-janela-'));
 const dados = path.join(tmp, 'dados');
 const notas = path.join(tmp, 'notas');
 const destino = path.join(tmp, 'destino');
@@ -118,6 +123,37 @@ function abrir(caminho) {
   app.emit('second-instance', {}, [], RAIZ, { arquivos: [caminho] });
 }
 
+/**
+ * Abre as Configurações pelo menu do perfil (o único caminho desde que a
+ * engrenagem saiu da barra).
+ */
+async function abrirConfiguracoes() {
+  await avaliar(`document.getElementById('btn-perfil').click()`);
+  await aguardar(
+    `!!document.querySelector('#menu-perfil:not([hidden]) .perfil-rapido__opcao--config')`,
+    15000,
+    'o menu do perfil não abriu',
+  );
+  await avaliar(
+    `document.querySelector('#menu-perfil .perfil-rapido__opcao--config').click()`,
+  );
+}
+
+/**
+ * Troca a resposta do diálogo de pasta do processo principal por `pasta`
+ * enquanto `fn` roda (nenhum diálogo de verdade abre no teste).
+ */
+async function comPastaEscolhida(pasta, fn) {
+  const { dialog } = require('electron');
+  const original = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [pasta] });
+  try {
+    await fn();
+  } finally {
+    dialog.showOpenDialog = original;
+  }
+}
+
 /** Volta para a tela inicial (a janela fica vazia para o próximo arquivo). */
 async function inicio() {
   await avaliar(`document.getElementById('btn-inicio').click()`);
@@ -125,20 +161,14 @@ async function inicio() {
   await espera(300);
 }
 
-/** Título do aviso para sair da leitura protegida (dialogos.ts). */
-const TITULO_AVISO_LEITURA = 'Sair da leitura protegida?';
-
 /**
  * Fecha os diálogos abertos como o Esc (o que não fechar com o Esc, fecha
- * direto). Com `manterAviso`, deixa o aviso da leitura protegida. Devolve
- * quantos fechou.
+ * direto). Devolve quantos fechou.
  */
-function fecharDialogos(manterAviso = false) {
+function fecharDialogos() {
   return avaliar(`(() => {
     let n = 0;
     for (const d of document.querySelectorAll('dialog[open]')) {
-      const titulo = d.querySelector('.caixa-dialogo__titulo')?.textContent;
-      if (${manterAviso} && titulo === ${JSON.stringify(TITULO_AVISO_LEITURA)}) continue;
       d.dispatchEvent(new Event('cancel', { cancelable: true }));
       if (d.open) d.close();
       n++;
@@ -161,7 +191,7 @@ async function fecharAvisosDaNota() {
   );
   let quieto = 0;
   while (quieto < 600) {
-    quieto = (await fecharDialogos(true)) > 0 ? 0 : quieto + 100;
+    quieto = (await fecharDialogos()) > 0 ? 0 : quieto + 100;
     await espera(100);
   }
 }
@@ -176,9 +206,9 @@ async function abrirNota(caminho, tela = 'danfe') {
   await fecharAvisosDaNota();
 }
 
-/** Passa para a Conferência pelo botão da barra. */
+/** Passa para a Conferência pela aba PSXML. */
 async function irParaConferencia() {
-  await avaliar(`document.getElementById('btn-modo-conferencia').click()`);
+  await avaliar(`document.getElementById('btn-aba-psxml').click()`);
   await aguardar(visivel('nota'), 30000, 'a Conferência não apareceu');
   await fecharAvisosDaNota();
 }
@@ -236,7 +266,7 @@ function paginasDoPdf(arquivo) {
 }
 
 // Onde o Salvar PDF grava: a pasta de destino, ou a pasta da sessão (a do
-// .psxml aberto por duplo clique, a partir do caso 2C).
+// .psxml aberto por duplo clique).
 const pastasDoPdf = [destino, notas];
 const pdfsGravados = () =>
   pastasDoPdf.flatMap((d) =>
@@ -353,7 +383,7 @@ async function principal() {
     'app://: a tela vem do protocolo próprio e nada sai da pasta',
     async () => {
       const tela = await avaliar(`(() => {
-      const logo = document.querySelector('.inicio__logo, .barra__logo');
+      const logo = document.querySelector('.titulo-janela__logo');
       return {
         url: location.href,
         scripts: [...document.querySelectorAll('script[src]')].map((s) => s.src),
@@ -438,6 +468,22 @@ async function principal() {
 
   // Parte 2A: a tela "Como deseja abrir a nota?" não existe mais.
   const outra = path.join(notas, 't2a-outra-nota.xml');
+  // Nota de várias folhas no DANFE: o item da primeira repetido 60 vezes,
+  // com outra chave de acesso.
+  const variasFolhas = path.join(notas, 't4-varias-folhas.xml');
+  {
+    const base = fs
+      .readFileSync(primeiro, 'utf8')
+      .replaceAll(
+        '35261100000000000000550010000000011000000010',
+        '35261100000000000000550010000000031000000030',
+      );
+    const det = /<det nItem="1">[\s\S]*?<\/det>/.exec(base)[0];
+    const itens = Array.from({ length: 60 }, (_, i) =>
+      det.replace('nItem="1"', `nItem="${i + 1}"`),
+    ).join('');
+    fs.writeFileSync(variasFolhas, base.replace(det, itens));
+  }
   // Outra chave de acesso: a lista de recentes guarda uma entrada por chave.
   fs.writeFileSync(
     outra,
@@ -539,10 +585,9 @@ async function principal() {
     },
   );
 
-  // Parte 2B: leitura protegida.
-  // O aviso da leitura pelo título; os avisos de abertura da nota (nota de
-  // outra empresa, já conferida) são outros diálogos e são fechados antes.
-  const dialogoAberto = `[...document.querySelectorAll('dialog[open] .caixa-dialogo__titulo')].some((t) => t.textContent === ${JSON.stringify(TITULO_AVISO_LEITURA)})`;
+  // Sem leitura protegida: o XML abre no DANFE e a Conferência fica livre
+  // para anotar; "NF-e abre em" por perfil; a marca de baixado da internet
+  // não muda nada.
   const clicarNoDialogo = (rotulo) =>
     avaliar(`(() => {
       const b = [...document.querySelectorAll('dialog[open] button')]
@@ -553,213 +598,56 @@ async function principal() {
     })()`);
   const psxmlNoDestino = () =>
     fs.readdirSync(destino).filter((n) => n.toLowerCase().endsWith('.psxml'));
+  /** Os elementos da leitura protegida que saíram da página. */
+  const restosDaLeitura = `['faixa-leitura', 'btn-usar-conferencia', 'faixa-folhas', 'seletor-orientacao-leitura'].filter((id) => document.getElementById(id))`;
 
   await caso(
-    '2B: XML abre em leitura protegida: faixa, anotações travadas, só ver',
+    'Sem leitura protegida: XML no DANFE sem faixa; na Conferência anota, edita colunas e grava o .psxml',
     async () => {
       await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'sem a faixa');
-      confere(
-        (await avaliar(
-          `document.getElementById('faixa-leitura-texto').textContent`,
-        )) === 'Leitura protegida: só visualização.',
-        'texto da faixa',
-      );
-      confere(
-        (await avaliar(
-          `document.getElementById('btn-usar-conferencia').textContent`,
-        )) === 'Usar a Conferência',
-        'botão da faixa',
-      );
-      confere(
-        (await avaliar(
-          `document.getElementById('btn-salvar-texto').textContent`,
-        )) === 'Salvar PDF',
-        'o Salvar não virou Salvar PDF',
-      );
-      // Trocar para a Conferência é só ver: sem aviso, anotações travadas.
-      await avaliar(`document.getElementById('btn-modo-conferencia').click()`);
-      await aguardar(visivel('nota'));
-      await espera(300);
-      confere(!(await avaliar(dialogoAberto)), 'trocar de modo pediu aviso');
-      await fecharAvisosDaNota();
-      confere(
-        await avaliar(
-          `(() => { const c = [...document.querySelectorAll('input.anotacao__campo')]; return c.length > 0 && c.every((x) => x.readOnly); })()`,
-        ),
-        'anotações não estão travadas',
-      );
-      confere(
-        await avaliar(visivel('painel-conferencia')),
-        'o painel de avisos sumiu na leitura',
-      );
-    },
-  );
-
-  await caso(
-    '2B: o processo principal recusa gravar o .psxml numa janela protegida',
-    async () => {
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      const antes = psxmlNoDestino().length;
-      const r1 = await avaliar(`window.psApi.salvar('<x/>', null)`);
-      const r2 = await avaliar(`window.psApi.salvarCopia('<x/>', 'teste-2b')`);
-      for (const r of [r1, r2])
-        confere(
-          r.status === 'erro' && /leitura protegida/.test(r.mensagem),
-          `resposta: ${JSON.stringify(r)}`,
-        );
-      confere(psxmlNoDestino().length === antes, 'um .psxml foi gravado');
-    },
-  );
-
-  await caso(
-    '2B: na leitura, Salvar grava o PDF na pasta de destino, sem .psxml',
-    async () => {
-      apagarPdfs();
-      await abrirNota(outra);
-      await irParaConferencia();
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      const antes = psxmlNoDestino().length;
-      await avaliar(`document.getElementById('btn-salvar').click()`);
-      const pdf = await pdfNoDestino('_Conferencia.pdf');
-      confere(
-        path.dirname(pdf) === destino,
-        `o PDF não foi para a pasta de destino: ${pdf}`,
-      );
-      confere(psxmlNoDestino().length === antes, 'o Salvar gravou .psxml');
-    },
-  );
-
-  await caso(
-    '2B: ação que edita pede o aviso; "Ficar na leitura" vem com o foco e mantém a leitura',
-    async () => {
-      await abrirNota(outra);
-      await irParaConferencia();
-      // Editar colunas.
-      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
-      await aguardar(dialogoAberto, 15000, 'o aviso não abriu');
-      const aviso = await avaliar(`(() => {
-        const d = document.querySelector('dialog[open]');
-        return {
-          titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent,
-          texto: d.querySelector('.caixa-dialogo__texto')?.textContent,
-          foco: document.activeElement?.textContent?.trim(),
-          botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()),
-        };
-      })()`);
-      confere(
-        aviso.texto ===
-          'Você vai sair da leitura protegida e começar a editar. O XML original não muda; o que você fizer fica numa cópia (.psxml).',
-        `texto: ${aviso.texto}`,
-      );
-      confere(aviso.foco === 'Ficar na leitura', `foco em: ${aviso.foco}`);
-      confere(
-        aviso.botoes.includes('Continuar'),
-        `botões: ${aviso.botoes.join(', ')}`,
-      );
-      confere(
-        await clicarNoDialogo('Ficar na leitura'),
-        'sem Ficar na leitura',
-      );
-      await espera(300);
-      confere(await avaliar(visivel('faixa-leitura')), 'saiu da leitura');
-      confere(
-        !(await avaliar(
-          `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
-        )),
-        'o editor de colunas abriu mesmo assim',
-      );
-      // Clicar numa anotação.
-      await avaliar(`(() => {
-        const c = document.querySelector('input.anotacao__campo');
-        c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        return true;
-      })()`);
-      await aguardar(
-        dialogoAberto,
-        15000,
-        'clicar na anotação não pediu aviso',
-      );
-      await clicarNoDialogo('Ficar na leitura');
-      await espera(300);
-      confere(
-        await avaliar(
-          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => x.readOnly)`,
-        ),
-        'a anotação destravou sem Continuar',
-      );
-      // Ferramenta ST (com a planilha faltando, Rodar fica desabilitado; a
-      // regra da ferramenta é testada em test/leituraProtegida.test.mts).
-    },
-  );
-
-  await caso(
-    '2B: "Usar a Conferência" e Continuar saem da leitura para editar',
-    async () => {
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(dialogoAberto, 15000, 'o aviso não abriu');
-      confere(await clicarNoDialogo('Continuar'), 'sem Continuar');
-      await aguardar(
-        `!${visivel('faixa-leitura')}`,
-        15000,
-        'a faixa não sumiu',
-      );
-      confere(await avaliar(visivel('nota')), 'não ficou na Conferência');
-      confere(
-        await avaliar(
-          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
-        ),
-        'as anotações continuam travadas',
-      );
+      const restos = await avaliar(restosDaLeitura);
+      confere(restos.length === 0, `restos da leitura protegida: ${restos}`);
       confere(
         (await avaliar(
           `document.getElementById('btn-salvar-texto').textContent`,
         )) === 'Salvar',
-        'o Salvar continua como Salvar PDF',
+        'o Salvar não diz Salvar',
       );
-      // Agora o processo principal aceita gravar o .psxml desta janela.
+      await irParaConferencia();
+      confere(
+        await avaliar(
+          `(() => { const c = [...document.querySelectorAll('input.anotacao__campo')]; return c.length > 0 && c.every((x) => !x.readOnly); })()`,
+        ),
+        'anotações travadas',
+      );
+      // Editar colunas abre direto, sem aviso.
+      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
+      await aguardar(
+        `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
+        15000,
+        'o Editar colunas não abriu',
+      );
+      await avaliar(`(() => {
+        const d = document.getElementById('painel-colunas-titulo').closest('dialog[open]');
+        d.dispatchEvent(new Event('cancel', { cancelable: true }));
+        return true;
+      })()`);
+      await espera(500);
+      await fecharAvisosDaNota();
+      // O processo principal grava o .psxml desta janela sem pedir nada.
+      const antes = psxmlNoDestino().length;
       const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
       confere(r.status === 'salvo', `resposta: ${JSON.stringify(r)}`);
+      confere(psxmlNoDestino().length === antes + 1, 'o .psxml não apareceu');
       await inicio();
     },
   );
 
-  // Parte 2C: seletor de perfil livre, "Abrir notas em" por perfil e .psxml
-  // vindo da internet.
-  await caso(
-    '2C: na leitura, o seletor de perfil abre sem aviso; Gerenciar perfis pede o aviso',
-    async () => {
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-leitura')), 'não abriu em leitura');
-      await avaliar(`document.getElementById('btn-perfil').click()`);
-      await aguardar(
-        visivel('menu-perfil'),
-        15000,
-        'o menu de perfil não abriu',
-      );
-      confere(
-        !(await avaliar(dialogoAberto)),
-        'o seletor de perfil pediu aviso',
-      );
-      // Gerenciar perfis abre o Editar colunas: pede o aviso.
-      await avaliar(`[...document.querySelectorAll('#menu-perfil button')]
-        .find((b) => b.textContent.includes('Gerenciar perfis')).click()`);
-      await aguardar(dialogoAberto, 15000, 'Gerenciar perfis não pediu aviso');
-      await clicarNoDialogo('Ficar na leitura');
-      await espera(300);
-      confere(await avaliar(visivel('faixa-leitura')), 'saiu da leitura');
-      await inicio();
-    },
-  );
-
-  /** "Abrir notas em" do perfil ativo, lido do processo principal. */
+  /** "NF-e abre em" do perfil ativo, lido do processo principal. */
   const abrirEmAtivo = () =>
     avaliar(`window.psApi.ferramentasPerfis().then((e) =>
       e.lista.find((p) => p.id === e.ativo).ferramentas.abrirEm)`);
-  /** Grava o "Abrir notas em" do perfil ativo, pelo canal das Configurações. */
+  /** Grava o "NF-e abre em" do perfil ativo, pelo canal das Configurações. */
   const gravarAbrirEm = async (valor) => {
     await avaliar(`window.psApi.ferramentasPerfis().then((e) => {
       const f = e.lista.find((p) => p.id === e.ativo).ferramentas;
@@ -767,50 +655,57 @@ async function principal() {
     })`);
     confere(
       (await abrirEmAtivo()) === valor,
-      `"Abrir notas em" não ficou ${valor}`,
+      `"NF-e abre em" não ficou ${valor}`,
     );
   };
 
   await caso(
-    '2C: a aba Ferramentas das Configurações mostra e grava "Abrir notas em"',
+    'A aba Ferramentas das Configurações mostra e grava "NF-e abre em"',
     async () => {
-      confere((await abrirEmAtivo()) === 'leitura', 'o padrão não é a leitura');
+      confere((await abrirEmAtivo()) === 'xml', 'o padrão não é o XML');
       try {
-        await avaliar(`document.getElementById('btn-config-inicio').click()`);
+        await abrirConfiguracoes();
         await aguardar(`!!document.getElementById('config-titulo')`);
         await avaliar(`[...document.querySelectorAll('dialog[open] button')]
         .find((b) => b.textContent.trim() === 'Ferramentas').click()`);
-        await aguardar(`!!document.getElementById('config-abrir-em-leitura')`);
+        await aguardar(`!!document.getElementById('config-abrir-em-xml')`);
+        const textos = await avaliar(`(() => {
+          const d = document.querySelector('dialog[open]');
+          return {
+            titulos: [...d.querySelectorAll('.config__opcao .config__ferramenta-titulo')].map((e) => e.textContent),
+            cartao: d.textContent.includes('NF-e abre em'),
+            marcado: document.getElementById('config-abrir-em-xml').checked,
+          };
+        })()`);
         confere(
-          await avaliar(
-            `document.getElementById('config-abrir-em-leitura').checked`,
-          ),
-          'Leitura protegida não vem marcada',
+          textos.titulos.join() === 'XML (DANFE),PSXML',
+          `opções: ${textos.titulos.join(', ')}`,
         );
+        confere(textos.cartao, 'sem o cartão "NF-e abre em"');
+        confere(textos.marcado, 'XML (DANFE) não vem marcado');
         await avaliar(
-          `document.getElementById('config-abrir-em-conferencia').click()`,
+          `document.getElementById('config-abrir-em-psxml').click()`,
         );
         const limite = Date.now() + 30000;
-        while ((await abrirEmAtivo()) !== 'conferencia' && Date.now() < limite)
+        while ((await abrirEmAtivo()) !== 'psxml' && Date.now() < limite)
           await espera(200);
         confere(
-          (await abrirEmAtivo()) === 'conferencia',
-          'a opção Conferência não foi gravada',
+          (await abrirEmAtivo()) === 'psxml',
+          'a opção PSXML não foi gravada',
         );
         await fecharDialogos();
       } finally {
-        await gravarAbrirEm('leitura');
+        await gravarAbrirEm('xml');
       }
     },
   );
 
   await caso(
-    '2C: perfil em "Conferência" abre o XML direto na Conferência, em edição',
+    'Perfil com "NF-e abre em: PSXML" abre o XML direto na Conferência',
     async () => {
-      await gravarAbrirEm('conferencia');
+      await gravarAbrirEm('psxml');
       try {
         await abrirNota(outra, 'nota');
-        confere(!(await avaliar(visivel('faixa-leitura'))), 'abriu em leitura');
         confere(
           await avaliar(
             `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
@@ -820,13 +715,38 @@ async function principal() {
         await inicio();
       } finally {
         // Volta o perfil ao padrão mesmo se o caso falhar.
-        await gravarAbrirEm('leitura');
+        await gravarAbrirEm('xml');
       }
     },
   );
 
   await caso(
-    '2C: .psxml baixado da internet abre em leitura protegida, com aviso',
+    'Perfil gravado por uma versão anterior: "conferencia" vira PSXML e abre na Conferência',
+    async () => {
+      // config.json como a versão 1.2.6 deixava: abrirEm "conferencia".
+      await gravarAbrirEm('xml');
+      const arquivo = path.join(dados, 'config.json');
+      const config = JSON.parse(fs.readFileSync(arquivo, 'utf8'));
+      const ativo = await avaliar(
+        `window.psApi.ferramentasPerfis().then((e) => e.ativo)`,
+      );
+      config.ferramentasPerfis[ativo].abrirEm = 'conferencia';
+      fs.writeFileSync(arquivo, JSON.stringify(config, null, 2));
+      try {
+        confere(
+          (await abrirEmAtivo()) === 'psxml',
+          `lido como: ${await abrirEmAtivo()}`,
+        );
+        await abrirNota(outra, 'nota');
+        await inicio();
+      } finally {
+        await gravarAbrirEm('xml');
+      }
+    },
+  );
+
+  await caso(
+    '.psxml com a marca de baixado da internet abre na Conferência e grava',
     async () => {
       const baixado = path.join(notas, 't2c-baixado.psxml');
       fs.copyFileSync(path.join(FIXTURES, 't12-anotacao-html.psxml'), baixado);
@@ -837,75 +757,472 @@ async function principal() {
       );
       abrir(baixado);
       await aguardar(visivel('nota'));
-      await aguardar(
-        `${visivel('mensagem')} && /veio da internet/.test(document.getElementById('mensagem-texto').textContent)`,
-        30000,
-        'sem o aviso do .psxml da internet',
-      );
       await fecharAvisosDaNota();
-      confere(await avaliar(visivel('faixa-leitura')), 'abriu em edição');
-      const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
       confere(
-        r.status === 'erro' && /leitura protegida/.test(r.mensagem),
-        `o .psxml da internet pôde ser gravado: ${JSON.stringify(r)}`,
+        !(await avaliar(
+          `${visivel('mensagem')} && /internet/.test(document.getElementById('mensagem-texto').textContent)`,
+        )),
+        'apareceu aviso de arquivo da internet',
+      );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('input.anotacao__campo')].every((x) => !x.readOnly)`,
+        ),
+        'as anotações estão travadas',
+      );
+      const r = await avaliar(`window.psApi.salvar('<x/>', null)`);
+      confere(r.status === 'salvo', `não gravou: ${JSON.stringify(r)}`);
+      await inicio();
+    },
+  );
+
+  // Regra da seleção de texto, as dicas e o PDF do DANFE.
+  /** Elementos com title (dica nativa) na página, fora da ferramenta ST. */
+  const comTitle = `[...document.querySelectorAll('[title]')].filter((e) => !e.closest('.st')).map((e) => e.id || e.className || e.tagName)`;
+
+  await caso(
+    'DANFE: uma folha embaixo da outra na tela e uma folha A4 retrato por página no PDF',
+    async () => {
+      apagarPdfs();
+      await abrirNota(outra);
+      const tela = await avaliar(`(() => {
+        const d = document.getElementById('danfe');
+        return { dir: getComputedStyle(d).flexDirection, folhas: d.querySelectorAll('.folha').length };
+      })()`);
+      confere(tela.dir === 'column', `DANFE na tela: ${JSON.stringify(tela)}`);
+      await avaliar(`document.getElementById('btn-salvar').click()`);
+      const pdf = paginasDoPdf(await pdfNoDestino('_DANFE.pdf'));
+      confere(
+        pdf.paginas === tela.folhas,
+        `PDF com ${pdf.paginas} páginas para ${tela.folhas} folhas`,
+      );
+      confere(pdf.altura > pdf.largura, `PDF do DANFE: ${JSON.stringify(pdf)}`);
+      await inicio();
+    },
+  );
+
+  // Desenho de 13/11: barra de título própria, barra preta só com as ações
+  // e o perfil, menus do Salvar e do perfil, Salvando em na tela inicial.
+  const textoTitulo = `[...document.querySelectorAll('#titulo-janela-textos > :not(.titulo-janela__sep)')].map((e) => e.textContent)`;
+
+  await caso(
+    'Barra de título própria: PS Reader na tela inicial; emitente, número e arquivo na nota',
+    async () => {
+      const inicial = await avaliar(textoTitulo);
+      confere(
+        inicial.join('|') === 'PS Reader|Conferência de notas fiscais',
+        `tela inicial: ${inicial.join(' | ')}`,
+      );
+      const barraTitulo = await avaliar(`(() => {
+        const t = document.getElementById('titulo-janela');
+        const s = getComputedStyle(t);
+        return { altura: Math.round(t.getBoundingClientRect().height), arrasta: s.getPropertyValue('app-region') || s.getPropertyValue('-webkit-app-region'), fundo: s.backgroundColor };
+      })()`);
+      confere(barraTitulo.altura === 36, `altura: ${barraTitulo.altura}`);
+      confere(
+        barraTitulo.arrasta === 'drag',
+        `app-region: ${barraTitulo.arrasta}`,
+      );
+      confere(
+        await avaliar(
+          `!document.querySelector('.inicio__titulo, .inicio__subtitulo')`,
+        ),
+        'o título repetido ficou na tela inicial',
+      );
+      await abrirNota(outra);
+      const nota = await avaliar(textoTitulo);
+      confere(
+        nota[0] === 'Fornecedor Inventado de Teste' &&
+          /^NF-e nº \d+ série \d+$/.test(nota[1]) &&
+          nota[2] === path.basename(outra),
+        `nota: ${nota.join(' | ')}`,
+      );
+      const barra = await avaliar(`(() => ({
+        documentos: document.querySelectorAll('#barra .pastilha--documento').length,
+        engrenagem: !!document.querySelector('#barra .config-engrenagem, #btn-config-barra'),
+        pasta: !!document.querySelector('#barra .pasta-rapida'),
+        titulo: !!document.querySelector('#barra-fornecedor, #barra-nota'),
+        botoes: [...document.querySelectorAll('#barra .barra__acoes > button, #barra .salvar-grupo > button:first-child')].map((b) => b.textContent.trim()),
+      }))()`);
+      confere(barra.documentos === 0, 'ST e TIPI continuam na barra');
+      confere(!barra.engrenagem, 'a engrenagem continua na barra');
+      confere(!barra.pasta, 'o Salvando em continua na barra');
+      confere(!barra.titulo, 'o título repetido continua na barra');
+      confere(
+        barra.botoes.join('|') === 'Início|Abrir outro XML|Imprimir|Salvar',
+        `botões: ${barra.botoes.join(', ')}`,
+      );
+      await inicio();
+      const deVolta = await avaliar(textoTitulo);
+      confere(deVolta[0] === 'PS Reader', `de volta: ${deVolta.join(' | ')}`);
+    },
+  );
+
+  await caso(
+    'Menu do Salvar: Salvar, Salvar PDF, Salvar cópia e Salvando em com a pasta de destino',
+    async () => {
+      apagarPdfs();
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+      await aguardar(
+        visivel('menu-salvar'),
+        15000,
+        'o menu do Salvar não abriu',
+      );
+      const menu = await avaliar(`(() => {
+        const m = document.getElementById('menu-salvar');
+        return {
+          itens: [...m.querySelectorAll('button')].map((b) => b.querySelector('.menu-app__rotulo').textContent.trim()),
+          ajuda: document.getElementById('menu-salvar-ajuda').textContent,
+          titulo: m.querySelector('.menu-app__titulo').textContent,
+          caminho: document.getElementById('menu-pasta-caminho').textContent,
+          caminhoSeleciona: getComputedStyle(document.getElementById('menu-pasta-caminho')).userSelect,
+          foco: document.activeElement?.id,
+        };
+      })()`);
+      confere(
+        menu.itens.join('|') ===
+          'Salvar|Salvar PDF|Salvar cópia...|Trocar pasta de destino...|Abrir pasta no Explorer',
+        `itens: ${menu.itens.join(', ')}`,
+      );
+      confere(menu.titulo === 'Salvando em', `título: ${menu.titulo}`);
+      const efetiva = (await avaliar(`window.psApi.pastaDestino()`)).caminho;
+      confere(
+        menu.caminho === efetiva,
+        `caminho: ${menu.caminho}, esperado ${efetiva}`,
+      );
+      confere(menu.caminhoSeleciona === 'text', 'o caminho não seleciona');
+      confere(
+        menu.ajuda === 'PDF do DANFE na pasta de destino',
+        `ajuda no DANFE: ${menu.ajuda}`,
+      );
+      confere(menu.foco === 'btn-menu-salvar', `foco: ${menu.foco}`);
+      // Salvar do menu: o mesmo do botão (no DANFE, o PDF).
+      await avaliar(`document.getElementById('btn-menu-salvar').click()`);
+      await pdfNoDestino('_DANFE.pdf');
+      confere(!(await avaliar(visivel('menu-salvar'))), 'o menu não fechou');
+      await irParaConferencia();
+      await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+      await aguardar(visivel('menu-salvar'));
+      const naConferencia = await avaliar(
+        `document.getElementById('menu-salvar-ajuda').textContent`,
+      );
+      confere(
+        naConferencia === 'Cópia editada (.psxml) na pasta de destino',
+        `ajuda na Conferência: ${naConferencia}`,
+      );
+      teclaEsc();
+      await aguardar(
+        `document.getElementById('menu-salvar').hidden`,
+        15000,
+        'o Esc não fechou o menu',
       );
       await inicio();
     },
   );
 
-  // Parte 2D: folhas do DANFE e orientação da Conferência na leitura (só a
-  // tela e o PDF que sai dela), regra da seleção de texto e as dicas.
-  const marcados = (grupo) =>
-    avaliar(
-      `[...document.querySelectorAll('#${grupo} [aria-pressed="true"]')].map((b) => b.textContent.trim()).join()`,
-    );
-  const clicarOpcao = (grupo, rotulo) =>
-    avaliar(`(() => {
-      const b = [...document.querySelectorAll('#${grupo} button')]
-        .find((x) => x.textContent.trim() === ${JSON.stringify(rotulo)});
-      if (!b) return false;
-      b.click();
-      return true;
-    })()`);
-  const atalhoZoom = (key) =>
-    avaliar(
-      `window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, ctrlKey: true })); true`,
-    );
-  /** Elementos com title (dica nativa) na página, fora da ferramenta ST. */
-  const comTitle = `[...document.querySelectorAll('[title]')].filter((e) => !e.closest('.st')).map((e) => e.id || e.className || e.tagName)`;
+  await caso(
+    'Menu do perfil: Perfil, a lista com a marca no atual, Gerenciar perfis e Configurações',
+    async () => {
+      const botao = await avaliar(`(() => {
+        const b = document.getElementById('btn-perfil');
+        return { texto: b.textContent.replace(/\\s+/g, ' ').trim(), fundo: getComputedStyle(b).backgroundColor, naInicial: !!b.closest('#inicio-perfil') };
+      })()`);
+      confere(
+        botao.naInicial,
+        'o botão de perfil não está na barra da tela inicial',
+      );
+      confere(botao.fundo === 'rgb(255, 255, 255)', `fundo: ${botao.fundo}`);
+      await avaliar(`document.getElementById('btn-perfil').click()`);
+      await aguardar(
+        `!!document.querySelector('#menu-perfil:not([hidden]) .perfil-rapido__opcao--config')`,
+        15000,
+        'o menu do perfil não abriu',
+      );
+      const menu = await avaliar(`(() => {
+        const m = document.getElementById('menu-perfil');
+        const perfis = [...m.querySelectorAll('[role="menuitemradio"]')];
+        return {
+          titulo: m.querySelector('.menu-app__titulo')?.textContent,
+          perfis: perfis.length,
+          marcados: perfis.filter((p) => p.getAttribute('aria-checked') === 'true').length,
+          marcaNoAtivo: !!m.querySelector('[aria-checked="true"] svg:last-child:not(:first-child)'),
+          outros: [...m.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim()),
+          nome: document.getElementById('perfil-nome').textContent,
+        };
+      })()`);
+      confere(menu.titulo === 'Perfil', `título: ${menu.titulo}`);
+      confere(
+        menu.perfis >= 1 && menu.marcados === 1,
+        `perfis: ${JSON.stringify(menu)}`,
+      );
+      confere(menu.marcaNoAtivo, 'sem a marca no perfil atual');
+      confere(
+        menu.outros.join('|') === 'Gerenciar perfis...|Configurações',
+        `itens: ${menu.outros.join(', ')}`,
+      );
+      await avaliar(
+        `document.querySelector('#menu-perfil .perfil-rapido__opcao--config').click()`,
+      );
+      await aguardar(
+        configAberta,
+        15000,
+        'Configurações não abriu pelo menu do perfil',
+      );
+      teclaEsc();
+      await aguardar(
+        `!${configNaPagina}`,
+        15000,
+        'o Esc não fechou as Configurações',
+      );
+    },
+  );
 
   await caso(
-    '2D: no DANFE da leitura, Folhas: Uma, Lado a lado e Ajustar à largura (só a tela)',
+    'Tela inicial: Salvando em com o caminho completo e Trocar dentro da área de anexar',
+    async () => {
+      const antes = await avaliar(`(() => {
+        const d = document.getElementById('inicio-destino');
+        return {
+          dentro: !!d.closest('#area-soltar'),
+          rotulo: document.getElementById('inicio-destino-rotulo').textContent,
+          caminho: document.getElementById('inicio-destino-caminho').textContent,
+          botao: document.getElementById('btn-trocar-destino').textContent.trim(),
+        };
+      })()`);
+      confere(antes.dentro, 'o Salvando em não está na área de anexar');
+      confere(antes.rotulo === 'Salvando em', `rótulo: ${antes.rotulo}`);
+      const efetiva = (await avaliar(`window.psApi.pastaDestino()`)).caminho;
+      confere(
+        antes.caminho === efetiva,
+        `caminho: ${antes.caminho}, esperado ${efetiva}`,
+      );
+      confere(antes.botao === 'Trocar', `botão: ${antes.botao}`);
+      const outraPasta = path.join(tmp, 'destino-2');
+      fs.mkdirSync(outraPasta, { recursive: true });
+      try {
+        await comPastaEscolhida(outraPasta, async () => {
+          await avaliar(
+            `document.getElementById('btn-trocar-destino').click()`,
+          );
+          await aguardar(
+            `document.getElementById('inicio-destino-caminho').textContent === ${JSON.stringify(outraPasta)}`,
+            15000,
+            'o Trocar não mudou o caminho',
+          );
+        });
+        confere(
+          (await avaliar(
+            `document.getElementById('menu-pasta-caminho').textContent`,
+          )) === outraPasta,
+          'o menu do Salvar não acompanhou a pasta nova',
+        );
+      } finally {
+        await comPastaEscolhida(destino, async () => {
+          await avaliar(
+            `document.getElementById('btn-trocar-destino').click()`,
+          );
+          await aguardar(
+            `document.getElementById('inicio-destino-caminho').textContent === ${JSON.stringify(destino)}`,
+            15000,
+            'a pasta de destino não voltou',
+          );
+        });
+      }
+    },
+  );
+
+  await caso(
+    'Cartão da ferramenta ST: pastilhas da Planilha de ST e da TIPI, que abrem os Documentos de referência',
+    async () => {
+      await abrirNota(outra);
+      await irParaConferencia();
+      await avaliar(
+        `document.querySelector('.conferencia__expandir, [aria-label="Expandir o painel"]')?.click(); true`,
+      );
+      await aguardar(
+        `!!document.querySelector('.conferencia__ferramenta .conferencia__documentos .pastilha')`,
+        15000,
+        'sem pastilhas no cartão da ferramenta ST',
+      );
+      const pastilhas = await avaliar(
+        `[...document.querySelectorAll('.conferencia__ferramenta .conferencia__documentos .pastilha')].map((p) => ({ texto: p.textContent.trim(), classe: p.className }))`,
+      );
+      confere(
+        pastilhas.map((p) => p.texto).join('|') === 'Planilha de ST|TIPI',
+        `pastilhas: ${JSON.stringify(pastilhas)}`,
+      );
+      confere(
+        pastilhas.every((p) => /pastilha--(ok|faltando|aviso)/.test(p.classe)),
+        `estado: ${JSON.stringify(pastilhas)}`,
+      );
+      await avaliar(
+        `document.querySelector('.conferencia__documentos .pastilha').click()`,
+      );
+      await aguardar(
+        configAberta,
+        15000,
+        'a pastilha não abriu os Documentos de referência',
+      );
+      teclaEsc();
+      await aguardar(`!${configNaPagina}`, 15000, 'o Esc não fechou');
+      await fecharAvisosDaNota();
+      await inicio();
+    },
+  );
+
+  // Parte 4: abas PSXML e XML, painel Leitura (DANFE, Formato original,
+  // .XML, Folhas, Arquivo), .XML dentro da aba, "Ao imprimir e no PDF".
+  const leitura = (js) =>
+    avaliar(
+      `(() => { const p = document.getElementById('painel-leitura'); ${js} })()`,
+    );
+
+  await caso(
+    'Abas PSXML e XML: o XML abre na aba XML (DANFE); PSXML é a Conferência; miniaturas dos ícones',
+    async () => {
+      await abrirNota(outra);
+      const abas =
+        await avaliar(`(() => [...document.querySelectorAll('#barra .aba')].map((b) => ({
+        id: b.id, texto: b.textContent.trim(), selecionada: b.getAttribute('aria-selected'),
+        icone: b.querySelector('img')?.getAttribute('src') ?? '', carregou: (b.querySelector('img')?.naturalWidth ?? 0) > 0,
+      })))()`);
+      confere(
+        abas.map((a) => `${a.texto}:${a.selecionada}`).join('|') ===
+          'PSXML:false|XML:true',
+        `abas: ${JSON.stringify(abas)}`,
+      );
+      confere(
+        /icone-psxml.*\.svg$/.test(abas[0].icone) &&
+          /icone-xml.*\.svg$/.test(abas[1].icone) &&
+          abas.every((a) => a.carregou),
+        `ícones: ${JSON.stringify(abas)}`,
+      );
+      confere(
+        await avaliar(visivel('painel-leitura')),
+        'sem o painel Leitura na aba XML',
+      );
+      await irParaConferencia();
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-aba-psxml').getAttribute('aria-selected')`,
+        )) === 'true',
+        'a aba PSXML não ficou selecionada',
+      );
+      confere(
+        !(await avaliar(visivel('painel-leitura'))),
+        'o painel Leitura ficou na Conferência',
+      );
+      await avaliar(`document.getElementById('btn-aba-xml').click()`);
+      await aguardar(visivel('danfe'), 15000, 'a aba XML não voltou ao DANFE');
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Painel Leitura: DANFE, Formato original e .XML; Folhas só no DANFE; Arquivo; recolhe e expande',
+    async () => {
+      await abrirNota(outra);
+      const p1 = await leitura(`return {
+        modos: [...p.querySelectorAll('[aria-label="Modo de leitura"] button')].map((b) => b.textContent.trim() + ':' + b.getAttribute('aria-pressed')),
+        folhas: [...p.querySelectorAll('[aria-label="Folhas"] button')].map((b) => b.textContent.trim()),
+        orientacao: p.textContent.includes('Orientação'),
+        arquivo: p.querySelector('.leitura__arquivo')?.innerText ?? '',
+        titulo: p.querySelector('.conferencia__titulo')?.textContent,
+      };`);
+      confere(
+        p1.modos.join('|') === 'DANFE:true|Formato original:false|.XML:false',
+        `modos: ${p1.modos.join(', ')}`,
+      );
+      confere(
+        p1.folhas.join('|') === 'Uma de cada vez|Lado a lado|Ajustar à largura',
+        `folhas: ${p1.folhas.join(', ')}`,
+      );
+      confere(!p1.orientacao, 'a Orientação apareceu no painel Leitura');
+      confere(p1.titulo === 'Leitura', `título: ${p1.titulo}`);
+      confere(
+        p1.arquivo.includes(path.basename(outra)) &&
+          /NF-e versão 4\.00/.test(p1.arquivo) &&
+          /Emitida em \d\d\/\d\d\/\d{4}/.test(p1.arquivo) &&
+          /1 folha/.test(p1.arquivo),
+        `arquivo: ${p1.arquivo}`,
+      );
+      // .XML: o leitor dentro da aba; Folhas somem; Imprimir e Salvar apagados.
+      await avaliar(`document.getElementById('btn-modo-xml').click()`);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && /nfeProc|<NFe/.test(l.querySelector('.leitor-xml__vista--arvore')?.innerText ?? ''); })()`,
+        30000,
+        'o .XML não abriu na aba',
+      );
+      const p2 = await leitura(`return {
+        folhas: !!p.querySelector('[aria-label="Folhas"]'),
+        xml: document.getElementById('btn-modo-xml').getAttribute('aria-pressed'),
+        arvore: document.querySelector('.leitor-xml__vista--arvore').innerText.includes('nfeProc'),
+        saida: ['btn-imprimir', 'btn-salvar', 'btn-salvar-mais'].map((id) => document.getElementById(id).disabled),
+        danfe: !document.getElementById('danfe').hidden,
+      };`);
+      confere(!p2.folhas, 'as Folhas ficaram no .XML');
+      confere(p2.xml === 'true', '.XML não ficou marcado');
+      confere(p2.arvore, 'a árvore do .XML não mostra a NF-e');
+      confere(
+        p2.saida.every(Boolean),
+        `Imprimir e Salvar no .XML: ${p2.saida}`,
+      );
+      confere(!p2.danfe, 'o DANFE continuou à mostra');
+      // Recolhe: a seta para abrir e o ícone do modo atual.
+      await avaliar(
+        `document.querySelector('#painel-leitura .conferencia__recolher').click()`,
+      );
+      const rec = await leitura(`return {
+        estado: p.dataset.estado,
+        botoes: [...p.querySelectorAll('.conferencia__trilho button')].map((b) => b.getAttribute('aria-label') || b.textContent.trim()),
+        corpo: !p.querySelector('.conferencia__corpo').hidden,
+      };`);
+      confere(
+        rec.estado === 'recolhido' && !rec.corpo,
+        `recolhido: ${JSON.stringify(rec)}`,
+      );
+      confere(
+        rec.botoes.length === 2 && rec.botoes[1] === 'Modo de leitura: .XML',
+        `trilho: ${JSON.stringify(rec.botoes)}`,
+      );
+      await avaliar(
+        `document.querySelector('#painel-leitura .conferencia__expandir').click()`,
+      );
+      confere(
+        (await leitura(`return p.dataset.estado;`)) === 'aberto',
+        'o painel não abriu de novo',
+      );
+      await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+      await aguardar(visivel('danfe'), 15000, 'o DANFE não voltou');
+      confere(
+        await avaliar(
+          `['btn-imprimir', 'btn-salvar'].every((id) => !document.getElementById(id).disabled)`,
+        ),
+        'Imprimir e Salvar continuam apagados no DANFE',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Folhas do DANFE: Lado a lado e Ajustar à largura só na tela; zoom à mão volta para Uma',
     async () => {
       apagarPdfs();
-      await abrirNota(outra);
-      confere(await avaliar(visivel('faixa-folhas')), 'sem Folhas no DANFE');
-      confere(
-        !(await avaliar(visivel('faixa-orientacao'))),
-        'a orientação apareceu no DANFE',
-      );
-      confere(
-        (await marcados('seletor-folhas')) === 'Uma',
-        'Uma não vem marcada',
-      );
-      confere(
-        await clicarOpcao('seletor-folhas', 'Lado a lado'),
-        'sem Lado a lado',
-      );
+      await abrirNota(variasFolhas);
+      await avaliar(`document.getElementById('btn-folhas-lado').click()`);
       await espera(300);
-      confere(!(await avaliar(dialogoAberto)), 'Folhas pediu o aviso');
       const lado = await avaliar(`(() => {
         const d = document.getElementById('danfe');
         const s = getComputedStyle(d);
-        return { dir: s.flexDirection, wrap: s.flexWrap, folhas: d.dataset.folhas };
+        return { dir: s.flexDirection, wrap: s.flexWrap, folhas: d.dataset.folhas, marcado: document.getElementById('btn-folhas-lado').getAttribute('aria-pressed') };
       })()`);
       confere(
-        lado.dir === 'row' && lado.wrap === 'wrap' && lado.folhas === 'lado',
+        lado.dir === 'row' &&
+          lado.wrap === 'wrap' &&
+          lado.folhas === 'lado' &&
+          lado.marcado === 'true',
         `lado a lado: ${JSON.stringify(lado)}`,
-      );
-      confere(
-        (await marcados('seletor-folhas')) === 'Lado a lado',
-        'Lado a lado não ficou marcado',
       );
       // O PDF não segue o arranjo da tela: uma folha A4 retrato por página.
       const folhas = await avaliar(
@@ -914,138 +1231,865 @@ async function principal() {
       await avaliar(`document.getElementById('btn-salvar').click()`);
       const pdf = paginasDoPdf(await pdfNoDestino('_DANFE.pdf'));
       confere(
-        pdf.paginas === folhas,
+        folhas > 1 && pdf.paginas === folhas,
         `PDF com ${pdf.paginas} páginas para ${folhas} folhas`,
       );
       confere(pdf.altura > pdf.largura, `PDF do DANFE: ${JSON.stringify(pdf)}`);
-      // Ajustar à largura: uma folha ocupando a largura da janela.
-      confere(
-        await clicarOpcao('seletor-folhas', 'Ajustar à largura'),
-        'sem Ajustar à largura',
-      );
+      await avaliar(`document.getElementById('btn-folhas-largura').click()`);
       await espera(400);
       const aj = await avaliar(`(() => {
         const d = document.getElementById('danfe');
         const f = d.querySelector('.folha').getBoundingClientRect();
-        return {
-          folha: f.width,
-          janela: document.documentElement.clientWidth,
-          zoom: d.style.zoom,
-          dir: getComputedStyle(d).flexDirection,
-        };
+        const p = document.getElementById('painel-leitura').getBoundingClientRect();
+        return { folha: f.width, area: document.documentElement.clientWidth - p.right, zoom: d.style.zoom };
       })()`);
-      confere(aj.dir === 'column', `ajustar: ${JSON.stringify(aj)}`);
       confere(
-        aj.folha <= aj.janela + 1 && aj.folha >= aj.janela * 0.85,
-        `a folha não ocupa a largura: ${JSON.stringify(aj)}`,
+        aj.folha <= aj.area + 1 && aj.folha >= aj.area * 0.8,
+        `a folha não ocupa a largura da área: ${JSON.stringify(aj)}`,
       );
-      // Zoom à mão sai do Ajustar à largura e volta para Uma.
-      await atalhoZoom('=');
+      await avaliar(
+        `window.dispatchEvent(new KeyboardEvent('keydown', { key: '=', ctrlKey: true })); true`,
+      );
       await espera(300);
       confere(
-        (await marcados('seletor-folhas')) === 'Uma',
-        'o zoom à mão não voltou para Uma',
+        (await avaliar(
+          `document.getElementById('btn-folhas-uma').getAttribute('aria-pressed')`,
+        )) === 'true',
+        'o zoom à mão não voltou para Uma de cada vez',
       );
-      await atalhoZoom('0');
-      await espera(300);
-      confere(
-        (await avaliar(`document.getElementById('danfe').style.zoom`)) === '1',
-        'Ctrl+0 não voltou a 100%',
+      await avaliar(
+        `window.dispatchEvent(new KeyboardEvent('keydown', { key: '0', ctrlKey: true })); true`,
       );
-    },
-  );
-
-  await caso(
-    '2D: na Conferência da leitura, Retrato ou Paisagem vale para o PDF e não grava no perfil',
-    async () => {
-      apagarPdfs();
-      await abrirNota(outra);
-      // Lado a lado agora, para conferir que sair da leitura volta a Uma.
-      confere(
-        await clicarOpcao('seletor-folhas', 'Lado a lado'),
-        'sem Lado a lado',
-      );
-      const perfisAntes = JSON.stringify(
-        await avaliar(`window.psApi.perfis()`),
-      );
-      await irParaConferencia();
-      confere(
-        await avaliar(visivel('faixa-orientacao')),
-        'sem a orientação na Conferência',
-      );
-      confere(
-        !(await avaliar(visivel('faixa-folhas'))),
-        'Folhas apareceu na Conferência',
-      );
-      const inicial = await marcados('seletor-orientacao-leitura');
-      confere(
-        inicial === 'Retrato' || inicial === 'Paisagem',
-        `orientação marcada: "${inicial}"`,
-      );
-      for (const [rotulo, deitada] of [
-        ['Paisagem', true],
-        ['Retrato', false],
-      ]) {
-        confere(
-          await clicarOpcao('seletor-orientacao-leitura', rotulo),
-          `sem ${rotulo}`,
-        );
-        await espera(200);
-        confere(!(await avaliar(dialogoAberto)), `${rotulo} pediu o aviso`);
-        confere(
-          (await marcados('seletor-orientacao-leitura')) === rotulo,
-          `${rotulo} não ficou marcada`,
-        );
-        apagarPdfs();
-        await avaliar(`document.getElementById('btn-salvar').click()`);
-        const pdf = paginasDoPdf(await pdfNoDestino('_Conferencia.pdf'));
-        confere(
-          deitada ? pdf.largura > pdf.altura : pdf.altura > pdf.largura,
-          `PDF em ${rotulo}: ${JSON.stringify(pdf)}`,
-        );
-      }
-      confere(
-        JSON.stringify(await avaliar(`window.psApi.perfis()`)) === perfisAntes,
-        'a orientação foi gravada no perfil',
-      );
-      // Sair da leitura: a faixa some e o DANFE volta a uma folha embaixo
-      // da outra.
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(dialogoAberto, 15000, 'o aviso não abriu');
-      await clicarNoDialogo('Continuar');
-      await aguardar(
-        `!${visivel('faixa-leitura')}`,
-        15000,
-        'a faixa não sumiu',
-      );
-      confere(
-        (await avaliar(`document.getElementById('danfe').dataset.folhas`)) ===
-          'uma',
-        'o DANFE continuou lado a lado fora da leitura',
-      );
-      // Editar colunas (só em edição): sem dica nativa.
-      await avaliar(`document.getElementById('btn-editar-colunas').click()`);
-      await aguardar(
-        `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
-        15000,
-        'o Editar colunas não abriu',
-      );
-      await espera(300);
-      const noEditor = await avaliar(comTitle);
-      confere(noEditor.length === 0, `title no Editar colunas: ${noEditor}`);
-      await avaliar(`(() => {
-        const d = document.getElementById('painel-colunas-titulo').closest('dialog[open]');
-        d.dispatchEvent(new Event('cancel', { cancelable: true }));
-        return true;
-      })()`);
-      await espera(500);
-      await fecharAvisosDaNota();
       await inicio();
     },
   );
 
   await caso(
-    '2D: sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
+    'Folhas do DANFE: com uma folha só, Lado a lado fica apagado e o clique mostra o motivo',
+    async () => {
+      // Lado a lado escolhido numa nota de várias folhas...
+      await abrirNota(variasFolhas);
+      await avaliar(`document.getElementById('btn-folhas-lado').click()`);
+      await aguardar(
+        `document.getElementById('btn-folhas-lado').getAttribute('aria-pressed') === 'true'`,
+        5000,
+        'Lado a lado não ficou marcado na nota de várias folhas',
+      );
+      await inicio();
+      // ...e a nota seguinte tem uma folha: a tela volta para Uma.
+      await abrirNota(outra);
+      const antes = await avaliar(`(() => {
+        const b = document.getElementById('btn-folhas-lado');
+        return {
+          folhas: document.querySelectorAll('#danfe .folha').length,
+          apagado: b.getAttribute('aria-disabled'),
+          title: b.hasAttribute('title'),
+          descrito: b.getAttribute('aria-describedby'),
+          uma: document.getElementById('btn-folhas-uma').getAttribute('aria-pressed'),
+          arranjo: document.getElementById('danfe').dataset.folhas,
+          outros: ['uma', 'largura'].map((a) => document.getElementById('btn-folhas-' + a).getAttribute('aria-disabled')),
+        };
+      })()`);
+      confere(
+        antes.folhas === 1 &&
+          antes.apagado === 'true' &&
+          !antes.title &&
+          antes.descrito === null &&
+          antes.uma === 'true' &&
+          antes.arranjo === 'uma' &&
+          antes.outros.every((x) => x === null),
+        `nota de uma folha: ${JSON.stringify(antes)}`,
+      );
+      await avaliar(`document.getElementById('btn-folhas-lado').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog[open]')`,
+        15000,
+        'clicar em Lado a lado não abriu o diálogo',
+      );
+      const d = await avaliar(`(() => {
+        const d = document.querySelector('dialog[open]');
+        return { titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent, texto: d.innerText, botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()) };
+      })()`);
+      confere(
+        d.titulo === 'Lado a lado indisponível' &&
+          d.texto.includes('A nota tem só uma folha.') &&
+          d.botoes.join() === 'OK',
+        `diálogo: ${JSON.stringify(d)}`,
+      );
+      await fecharDialogos();
+      confere(
+        (await avaliar(`document.getElementById('danfe').dataset.folhas`)) ===
+          'uma',
+        'o clique em Lado a lado apagado mudou o arranjo',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'XML que não é NF-e: aba XML no Formato original, PSXML apagada com o motivo, DANFE apagado com o aviso',
+    async () => {
+      const xml = path.join(notas, 'pedido-abas.xml');
+      fs.writeFileSync(
+        xml,
+        '<?xml version="1.0" encoding="UTF-8"?>\n<pedidoCompra numero="PED-1"><item><codigo>A-1</codigo></item></pedidoCompra>\n',
+      );
+      abrir(xml);
+      await aguardar(
+        `document.querySelector('#titulo-janela-textos .titulo-janela__forte')?.textContent === 'pedido-abas.xml'`,
+        30000,
+        'o XML não abriu na aba XML',
+      );
+      const g = await avaliar(`(() => ({
+        titulo: [...document.querySelectorAll('#titulo-janela-textos > :not(.titulo-janela__sep)')].map((e) => e.textContent),
+        psxml: document.getElementById('btn-aba-psxml').getAttribute('aria-disabled'),
+        xml: document.getElementById('btn-aba-xml').getAttribute('aria-selected'),
+        danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
+        aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
+        modo: document.getElementById('btn-modo-formato').getAttribute('aria-pressed'),
+      }))()`);
+      confere(
+        g.titulo.join('|') ===
+          'pedido-abas.xml|XML que não é NF-e (raiz pedidoCompra)',
+        `título: ${g.titulo.join(' | ')}`,
+      );
+      confere(
+        g.psxml === 'true' && g.xml === 'true' && g.modo === 'true',
+        `abas: ${JSON.stringify(g)}`,
+      );
+      confere(
+        g.danfe === 'true' &&
+          g.aviso === 'XML incompatível com a visualização em DANFE',
+        `DANFE: ${JSON.stringify(g)}`,
+      );
+      await avaliar(`document.getElementById('btn-aba-psxml').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog[open]')`,
+        15000,
+        'a aba PSXML apagada não explicou',
+      );
+      const d = await avaliar(`(() => {
+        const d = document.querySelector('dialog[open]');
+        return { titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent, botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()) };
+      })()`);
+      confere(
+        d.titulo === 'PSXML indisponível' && d.botoes.join() === 'OK',
+        `diálogo: ${JSON.stringify(d)}`,
+      );
+      await fecharDialogos();
+      confere(
+        !(await avaliar(visivel('nota'))),
+        'a Conferência abriu para um XML que não é nota',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    '.psxml: a aba XML mostra o XML original guardado na cópia, com o DANFE indisponível',
+    async () => {
+      const copiaEditada = path.join(notas, 't4-copia-original.psxml');
+      fs.copyFileSync(
+        path.join(FIXTURES, 't12-anotacao-html.psxml'),
+        copiaEditada,
+      );
+      await abrirNota(copiaEditada, 'nota');
+      await avaliar(`document.getElementById('btn-aba-xml').click()`);
+      await aguardar(
+        `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && f.innerText.includes('Itens'); })()`,
+        30000,
+        'a aba XML do .psxml não abriu no Formato original',
+      );
+      await avaliar(`document.getElementById('btn-modo-xml').click()`);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && /nfeProc|<NFe/.test(l.querySelector('.leitor-xml__vista--arvore')?.innerText ?? ''); })()`,
+        30000,
+        'o .XML do .psxml não abriu',
+      );
+      const v = await avaliar(`(() => ({
+        texto: document.querySelector('.leitor-xml__vista--arvore').innerText,
+        danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
+        aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
+      }))()`);
+      confere(/nfeProc|<NFe/.test(v.texto), 'o original não aparece');
+      confere(
+        !v.texto.includes('psCopiaEditada'),
+        'apareceu a cópia inteira, e não o original',
+      );
+      confere(
+        v.danfe === 'true' &&
+          v.aviso === 'O DANFE só é gerado a partir do XML original da nota.',
+        `DANFE: ${JSON.stringify(v)}`,
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Arrastar na aba XML (modo .XML) e na PSXML: o arquivo abre numa janela nova',
+    async () => {
+      const { BrowserWindow } = require('electron');
+      const solto = path.join(notas, 'catalogo-solto-abas.xml');
+      fs.writeFileSync(
+        solto,
+        '<?xml version="1.0" encoding="UTF-8"?>\n<catalogo><item>INVENTADO</item></catalogo>\n',
+      );
+      /** Arrasta `arquivo` para a janela, como do Explorer. */
+      const arrastar = async (arquivo) => {
+        const wc = janela.webContents;
+        wc.debugger.attach('1.3');
+        try {
+          const dados = { items: [], files: [arquivo], dragOperationsMask: 1 };
+          for (const type of ['dragEnter', 'dragOver', 'drop'])
+            await wc.debugger.sendCommand('Input.dispatchDragEvent', {
+              type,
+              x: 700,
+              y: 400,
+              data: dados,
+            });
+        } finally {
+          wc.debugger.detach();
+        }
+      };
+      /** A janela nova que aparecer depois de `antes`, já fechada. */
+      const novaJanela = async (antes) => {
+        const limite = Date.now() + 30000;
+        while (Date.now() < limite) {
+          const nova = BrowserWindow.getAllWindows().find((w) => !antes.has(w));
+          if (nova) {
+            nova.destroy();
+            return true;
+          }
+          await espera(100);
+        }
+        return false;
+      };
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-modo-xml').click()`);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+        15000,
+        'o .XML não abriu',
+      );
+      let antes = new Set(BrowserWindow.getAllWindows());
+      await arrastar(solto);
+      confere(
+        await novaJanela(antes),
+        'arrastar no .XML não abriu janela nova',
+      );
+      await irParaConferencia();
+      antes = new Set(BrowserWindow.getAllWindows());
+      await arrastar(solto);
+      confere(
+        await novaJanela(antes),
+        'arrastar na PSXML não abriu janela nova',
+      );
+      confere(await avaliar(visivel('nota')), 'a nota desta janela saiu');
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Ao imprimir e no PDF (Conferência): miniatura da folha, e Retrato ou Paisagem vale para o PDF e a impressão, sem gravar no perfil',
+    async () => {
+      await abrirNota(outra);
+      await irParaConferencia();
+      await avaliar(
+        `document.querySelector('#painel-conferencia .conferencia__expandir')?.click(); true`,
+      );
+      await aguardar(
+        `!!document.getElementById('btn-folha-paisagem')`,
+        15000,
+        'sem a seção Ao imprimir e no PDF no painel',
+      );
+      const titulos = await avaliar(
+        `[...document.querySelectorAll('#painel-conferencia .conferencia__subtitulo')].map((e) => e.textContent)`,
+      );
+      confere(
+        titulos[titulos.length - 1] === 'Ao imprimir e no PDF',
+        `seções: ${titulos.join(', ')}`,
+      );
+      const perfisAntes = JSON.stringify(
+        await avaliar(`window.psApi.perfis()`),
+      );
+      for (const [id, deitada] of [
+        ['btn-folha-paisagem', true],
+        ['btn-folha-retrato', false],
+      ]) {
+        await avaliar(`document.getElementById('${id}').click()`);
+        await aguardar(
+          `document.getElementById('${id}')?.getAttribute('aria-pressed') === 'true'`,
+          5000,
+          `${id} não ficou marcado`,
+        );
+        const mini = await avaliar(`(() => {
+          const m = document.getElementById('miniatura-folha-pdf');
+          const caixa = m?.getBoundingClientRect();
+          const painel = document.querySelector('#painel-conferencia .conferencia__corpo')?.getBoundingClientRect();
+          return {
+            orientacao: m?.dataset.orientacao,
+            legenda: m?.querySelector('.miniatura__legenda')?.textContent,
+            colunas: m ? m.querySelectorAll('.miniatura__tabela thead th').length : 0,
+            cabe: !!caixa && !!painel && caixa.right <= painel.right + 0.5,
+          };
+        })()`);
+        const nome = deitada ? 'paisagem' : 'retrato';
+        confere(
+          mini.orientacao === nome &&
+            mini.legenda?.includes(`Folha A4 em ${nome}`) &&
+            mini.colunas > 0 &&
+            mini.cabe,
+          `miniatura com ${id}: ${JSON.stringify(mini)}`,
+        );
+        apagarPdfs();
+        await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+        await aguardar(visivel('menu-salvar'));
+        await avaliar(`document.getElementById('btn-salvar-pdf').click()`);
+        const pdf = paginasDoPdf(await pdfNoDestino('_Conferencia.pdf'));
+        confere(
+          deitada ? pdf.largura > pdf.altura : pdf.altura > pdf.largura,
+          `PDF com ${id}: ${JSON.stringify(pdf)}`,
+        );
+        // Imprimir: o diálogo do Windows não dá para conduzir; o teste fica
+        // no lugar dele e gera o PDF da página que iria para a impressora,
+        // com as opções que o app pediu (e o aviso de impressora de cupom,
+        // se a padrão for uma, respondido com Continuar).
+        const { dialog } = require('electron');
+        const proto = Object.getPrototypeOf(janela.webContents);
+        const printOriginal = proto.print;
+        const avisoOriginal = dialog.showMessageBox;
+        const arquivo = path.join(tmp, `impressao-${nome}.pdf`);
+        let impressao = null;
+        dialog.showMessageBox = async () => ({
+          response: 0,
+          checkboxChecked: false,
+        });
+        proto.print = function (opcoes, fim) {
+          impressao = (async () => {
+            const pagina = await this.executeJavaScript(
+              `[...document.querySelectorAll('style')].map((s) => s.textContent).filter((t) => t.includes('@page')).join(' ')`,
+            );
+            fs.writeFileSync(
+              arquivo,
+              await this.printToPDF({
+                landscape: opcoes.landscape === true,
+                printBackground: true,
+                preferCSSPageSize: true,
+              }),
+            );
+            fim(true, '');
+            return {
+              landscape: opcoes.landscape === true,
+              pagina,
+              pdf: paginasDoPdf(arquivo),
+            };
+          })();
+        };
+        try {
+          await avaliar(`document.getElementById('btn-imprimir').click()`);
+          const limite = Date.now() + 30000;
+          while (!impressao && Date.now() < limite) await espera(100);
+          confere(impressao, `Imprimir com ${id} não chegou à impressão`);
+          const r = await impressao;
+          await aguardar(
+            `!document.getElementById('btn-imprimir').disabled`,
+            10000,
+            'Imprimir não voltou',
+          );
+          confere(
+            r.landscape === deitada &&
+              r.pagina.includes(deitada ? 'landscape' : 'portrait') &&
+              (deitada
+                ? r.pdf.largura > r.pdf.altura
+                : r.pdf.altura > r.pdf.largura),
+            `impressão com ${id}: ${JSON.stringify(r)}`,
+          );
+        } finally {
+          proto.print = printOriginal;
+          dialog.showMessageBox = avisoOriginal;
+        }
+      }
+      confere(
+        JSON.stringify(await avaliar(`window.psApi.perfis()`)) === perfisAntes,
+        'a orientação de Ao imprimir e no PDF foi gravada no perfil',
+      );
+      await fecharAvisosDaNota();
+      await inicio();
+    },
+  );
+
+  // Parte 5: modo Formato original (montado do próprio XML).
+  const formatoVisivel = `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && !!f.querySelector('.formato-original__secao'); })()`;
+
+  await caso(
+    'Formato original da NF-e: seções com rótulo e tag, valores formatados, códigos, itens com impostos, recolher e busca',
+    async () => {
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-modo-formato').click()`);
+      await aguardar(formatoVisivel, 30000, 'o Formato original não abriu');
+      const f = await avaliar(`(() => {
+        const r = document.getElementById('formato-original');
+        const campo = (tag) => [...r.querySelectorAll('.formato-original__campo-par')].find((c) => c.querySelector('.formato-original__tag')?.textContent === tag);
+        const dh = campo('dhEmi'), tp = campo('tpNF');
+        return {
+          secoes: [...r.querySelectorAll('.formato-original__secao > .formato-original__cabecalho .formato-original__titulo')].map((t) => t.textContent),
+          dhRotulo: dh?.querySelector('.formato-original__rotulo-texto')?.textContent,
+          dhValor: dh?.querySelector('.formato-original__valor')?.firstChild?.textContent,
+          tpSentido: tp?.querySelector('.formato-original__sentido')?.textContent,
+          itens: r.querySelectorAll('[data-tag="det"] tbody tr.formato-original__linha').length,
+          seleciona: { valor: getComputedStyle(dh.querySelector('.formato-original__valor')).userSelect, rotulo: getComputedStyle(dh.querySelector('.formato-original__rotulo-campo')).userSelect },
+          saida: ['btn-imprimir', 'btn-salvar'].map((id) => document.getElementById(id).disabled),
+          formatoMarcado: document.getElementById('btn-modo-formato').getAttribute('aria-pressed'),
+        };
+      })()`);
+      for (const t of ['Identificação', 'Emitente', 'Itens'])
+        confere(
+          f.secoes.includes(t),
+          `sem a seção ${t}: ${f.secoes.join(', ')}`,
+        );
+      confere(f.dhRotulo === 'Data e hora de emissão', `rótulo: ${f.dhRotulo}`);
+      confere(
+        /^\d\d\/\d\d\/\d{4} \d\d:\d\d$/.test(f.dhValor ?? ''),
+        `data: ${f.dhValor}`,
+      );
+      confere(f.tpSentido === 'Saída', `tpNF: ${f.tpSentido}`);
+      confere(f.itens >= 1, 'sem as linhas dos itens');
+      confere(
+        f.seleciona.valor === 'text' && f.seleciona.rotulo === 'none',
+        `seleção: ${JSON.stringify(f.seleciona)}`,
+      );
+      confere(f.saida.every(Boolean), 'Imprimir e Salvar no Formato original');
+      confere(
+        f.formatoMarcado === 'true',
+        'o Formato original não ficou marcado',
+      );
+      // Detalhe do item: os impostos.
+      await avaliar(
+        `document.querySelector('#formato-original [data-tag="det"] .formato-original__abrir').click()`,
+      );
+      confere(
+        await avaliar(
+          `(() => { const d = document.querySelector('#formato-original [data-tag="det"] tr.formato-original__detalhe'); return !d.hidden && d.innerText.includes('Impostos do item'); })()`,
+        ),
+        'o detalhe do item não mostrou os impostos',
+      );
+      // Recolher tudo e Expandir tudo.
+      await avaliar(
+        `[...document.querySelectorAll('#formato-original button')].find((b) => b.textContent === 'Recolher tudo').click()`,
+      );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('#formato-original .formato-original__corpo')].every((c) => c.hidden)`,
+        ),
+        'Recolher tudo deixou seção aberta',
+      );
+      await avaliar(
+        `[...document.querySelectorAll('#formato-original button')].find((b) => b.textContent === 'Expandir tudo').click()`,
+      );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('#formato-original .formato-original__corpo')].every((c) => !c.hidden)`,
+        ),
+        'Expandir tudo deixou seção fechada',
+      );
+      // Busca: acha, conta e abre o que estiver recolhido.
+      await avaliar(
+        `[...document.querySelectorAll('#formato-original button')].find((b) => b.textContent === 'Recolher tudo').click()`,
+      );
+      await avaliar(
+        `(() => { const c = document.getElementById('formato-busca'); c.value = 'Venda de teste'; c.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`,
+      );
+      await aguardar(
+        `/^1 de \\d+$/.test(document.querySelector('.formato-original__contador').textContent)`,
+        5000,
+        'a busca não achou',
+      );
+      confere(
+        await avaliar(
+          `(() => { const a = document.querySelector('.formato-original__achado--atual'); return !!a && !a.closest('.formato-original__corpo[hidden]'); })()`,
+        ),
+        'o achado ficou dentro de uma seção recolhida',
+      );
+      confere(rede.length === 0, `pedidos de rede: ${rede.join(' ')}`);
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Formato original de um XML que não é nota: tags como título, atributos e repetidos em tabela',
+    async () => {
+      const xml = path.join(notas, 'pedido-formato.xml');
+      fs.writeFileSync(
+        xml,
+        '<?xml version="1.0" encoding="UTF-8"?>\n<pedidoCompra numero="PED-7781"><cabecalho><emissao>2026-11-05</emissao></cabecalho><itens><item linha="1"><codigo>A-1</codigo><quantidade>20</quantidade><precoUnitario>18.5</precoUnitario></item><item linha="2"><codigo>A-2</codigo><quantidade>10</quantidade><precoUnitario>6.20</precoUnitario></item></itens></pedidoCompra>\n',
+      );
+      abrir(xml);
+      await aguardar(formatoVisivel, 30000, 'o Formato original não abriu');
+      const f = await avaliar(`(() => {
+        const r = document.getElementById('formato-original');
+        const tabela = r.querySelector('[data-tag="itens"] table');
+        return {
+          raiz: r.querySelector('.formato-original__titulo--tag')?.textContent,
+          atributo: r.querySelector('.formato-original__atributo')?.textContent,
+          emissao: [...r.querySelectorAll('.formato-original__campo-par')].find((c) => c.querySelector('.formato-original__tag')?.textContent === 'emissao')?.querySelector('.formato-original__valor')?.textContent,
+          cabecalhos: tabela ? [...tabela.querySelectorAll('th .formato-original__tag')].map((t) => t.textContent) : [],
+          linha: tabela ? [...tabela.querySelectorAll('tbody tr')][0]?.innerText.split('\t').map((x) => x.trim()) : [],
+        };
+      })()`);
+      confere(f.raiz === 'pedidoCompra', `raiz: ${f.raiz}`);
+      confere(f.atributo === 'numero = PED-7781', `atributo: ${f.atributo}`);
+      confere(f.emissao === '05/11/2026', `emissão: ${f.emissao}`);
+      confere(
+        f.cabecalhos.join('|') === '@linha|codigo|quantidade|precoUnitario',
+        `cabeçalhos: ${f.cabecalhos.join(', ')}`,
+      );
+      confere(
+        f.linha.join('|') === '1|A-1|20|18,50',
+        `linha: ${f.linha.join(' | ')}`,
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Busca do Formato original acha nas linhas além das 300 mostradas e desenha até o achado',
+    async () => {
+      const xml = path.join(notas, 'pedido-longo-formato.xml');
+      const linhas = [];
+      for (let i = 1; i <= 1000; i++)
+        linhas.push(
+          `<item linha="${i}"><codigo>${i === 420 ? 'ALVO-INVENTADO' : `A-${i}`}</codigo><quantidade>${i}</quantidade></item>`,
+        );
+      fs.writeFileSync(
+        xml,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<pedidoCompra><itens>${linhas.join('')}</itens></pedidoCompra>\n`,
+      );
+      abrir(xml);
+      await aguardar(formatoVisivel, 30000, 'o Formato original não abriu');
+      const antes = await avaliar(
+        `document.querySelectorAll('#formato-original .formato-original__rolagem-tabela tbody tr').length`,
+      );
+      confere(antes === 300, `linhas desenhadas antes da busca: ${antes}`);
+      await avaliar(`(() => {
+        const c = document.getElementById('formato-busca');
+        c.value = 'alvo-inventado';
+        c.dispatchEvent(new Event('input'));
+        return true;
+      })()`);
+      await aguardar(
+        `/de/.test(document.querySelector('.formato-original__contador').textContent)`,
+        5000,
+        'a busca não respondeu',
+      );
+      const r = await avaliar(`(() => {
+        const t = document.querySelector('#formato-original .formato-original__rolagem-tabela');
+        const atual = document.querySelector('.formato-original__achado--atual');
+        const caixa = atual?.getBoundingClientRect();
+        const area = document.getElementById('formato-original').getBoundingClientRect();
+        return {
+          contador: document.querySelector('.formato-original__contador').textContent,
+          achado: atual?.textContent,
+          linhaDoAchado: atual?.closest('tr')?.firstElementChild?.textContent,
+          desenhadas: t.querySelectorAll('tbody tr').length,
+          mais: t.querySelector('.formato-original__mais')?.hidden === false,
+          visivel: !!caixa && caixa.top >= area.top && caixa.bottom <= area.bottom,
+        };
+      })()`);
+      confere(r.contador === '1 de 1', `contador: ${r.contador}`);
+      confere(r.achado === 'ALVO-INVENTADO', `achado: ${r.achado}`);
+      confere(r.linhaDoAchado === '420', `linha do achado: ${r.linhaDoAchado}`);
+      confere(
+        r.desenhadas >= 420 && r.desenhadas < 1000 && r.mais,
+        `linhas desenhadas: ${r.desenhadas}, Mostrar mais: ${r.mais}`,
+      );
+      confere(r.visivel, 'o achado não ficou à vista');
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Formato original acima do limite do modo leve: aviso e Ver no .XML',
+    async () => {
+      const grande = path.join(notas, 'lote-grande-formato.xml');
+      const pedaco =
+        '<item><codigo>ITEM-INVENTADO</codigo><descricao>PECA INVENTADA PARA O TESTE DE TAMANHO</descricao></item>\n';
+      const vezes = Math.ceil((21 * 1024 * 1024) / pedaco.length);
+      fs.writeFileSync(
+        grande,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<lote>\n${pedaco.repeat(vezes)}</lote>\n`,
+      );
+      try {
+        abrir(grande);
+        await aguardar(
+          `!!document.getElementById('btn-formato-ver-xml')`,
+          120000,
+          'o Formato original não avisou o arquivo grande',
+        );
+        const aviso = await avaliar(
+          `document.querySelector('.formato-original__estado').innerText`,
+        );
+        confere(
+          /Arquivo grande/.test(aviso) && /\.XML/.test(aviso),
+          `aviso: ${aviso}`,
+        );
+        await avaliar(`document.getElementById('btn-formato-ver-xml').click()`);
+        await aguardar(
+          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+          15000,
+          'o Ver no .XML não mudou de modo',
+        );
+        confere(
+          (await avaliar(
+            `document.getElementById('btn-modo-xml').getAttribute('aria-pressed')`,
+          )) === 'true',
+          '.XML não ficou marcado',
+        );
+        await inicio();
+      } finally {
+        fs.rmSync(grande, { force: true });
+      }
+    },
+  );
+
+  await caso(
+    'Ícones dos arquivos no pacote: icone-xml.ico e icone-psxml.ico em resources, iguais aos de assets',
+    async () => {
+      const saida = path.join(RAIZ, 'out');
+      const pacotes = fs.existsSync(saida)
+        ? fs
+            .readdirSync(saida)
+            .map((d) => path.join(saida, d, 'resources'))
+            .filter((d) => fs.existsSync(d))
+        : [];
+      confere(pacotes.length > 0, `sem o pacote em ${saida}`);
+      for (const nome of ['icone-xml.ico', 'icone-psxml.ico']) {
+        const noPacote = path.join(pacotes[0], nome);
+        confere(fs.existsSync(noPacote), `${nome} não está no pacote`);
+        confere(
+          fs
+            .readFileSync(noPacote)
+            .equals(fs.readFileSync(path.join(RAIZ, 'assets', nome))),
+          `${nome} do pacote difere do de assets`,
+        );
+      }
+    },
+  );
+
+  // Borda direita: nada passa da largura visível (sem contar o que rola
+  // dentro de uma área própria, como a tabela de itens), em 1366 e 1920 e na
+  // área de um 1366 a 125% (1093 px), na tela inicial, no DANFE, na
+  // Conferência, no Formato original e no .XML. A página não reserva o
+  // corredor da barra de rolagem (a barra é só o polegar, por cima).
+  const FORA_DA_LARGURA = `(() => {
+    const d = document.documentElement;
+    const largura = d.clientWidth + 0.5;
+    const cortado = (e) => {
+      for (let p = e.parentElement; p && p !== d; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox !== 'visible' && p.getBoundingClientRect().right <= largura) return true;
+      }
+      return false;
+    };
+    const fora = [...document.querySelectorAll('body *')].filter((e) => {
+      if (!e.getClientRects().length || e.closest('[hidden], dialog:not([open])')) return false;
+      const r = e.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.right > largura && !cortado(e);
+    }).slice(0, 5).map((e) => (e.id || String(e.className) || e.tagName).slice(0, 40) + ':' + Math.round(e.getBoundingClientRect().right));
+    return { fora, rolaDeLado: d.scrollWidth > d.clientWidth, largura: d.clientWidth, corredor: innerWidth - d.clientWidth };
+  })()`;
+
+  await caso(
+    'Borda direita: nenhum elemento passa da largura visível (1366, 1920 e 1366 a 125%)',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of [
+          [1366, 728],
+          [1093, 614],
+          [1920, 1040],
+        ]) {
+          janela.setContentSize(w, h);
+          await avaliar(DOIS_QUADROS);
+          const conferir = async (tela) => {
+            await espera(300);
+            await avaliar(DOIS_QUADROS);
+            const m = await avaliar(FORA_DA_LARGURA);
+            confere(
+              m.fora.length === 0 && !m.rolaDeLado && m.corredor === 0,
+              `${w}px, ${tela}: ${JSON.stringify(m)}`,
+            );
+          };
+          await conferir('tela inicial');
+          await abrirNota(outra);
+          await conferir('DANFE');
+          await irParaConferencia();
+          await conferir('Conferência');
+          await avaliar(`document.getElementById('btn-aba-xml').click()`);
+          await avaliar(`document.getElementById('btn-modo-formato').click()`);
+          await aguardar(
+            `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && !!f.querySelector('.formato-original__secao'); })()`,
+            30000,
+            'o Formato original não abriu',
+          );
+          await conferir('Formato original');
+          await avaliar(`document.getElementById('btn-modo-xml').click()`);
+          await conferir('.XML');
+          await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+          await inicio();
+        }
+        // Janela estreita: o painel Leitura abre por cima do DANFE e começa
+        // recolhido; na larga, fica ao lado.
+        janela.setContentSize(1093, 614);
+        await abrirNota(outra);
+        const estreita = await avaliar(
+          `(() => { const p = document.getElementById('painel-leitura'); return p.dataset.layout + '/' + p.dataset.estado; })()`,
+        );
+        confere(
+          estreita === 'sobre/recolhido',
+          `painel Leitura na janela estreita: ${estreita}`,
+        );
+        await inicio();
+        janela.setContentSize(1920, 1040);
+        await abrirNota(outra);
+        const larga = await avaliar(
+          `(() => { const p = document.getElementById('painel-leitura'); return p.dataset.layout + '/' + p.dataset.estado; })()`,
+        );
+        confere(
+          larga === 'lado/aberto',
+          `painel Leitura na janela larga: ${larga}`,
+        );
+        await inicio();
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
+  await caso(
+    'Abas PSXML e XML: a ativa inclinada não corta nem cobre a barra (1366 e 1920), entrada uma vez, teclado e sem movimento com animações desligadas',
+    async () => {
+      const MEDIR_ABAS = `(() => {
+        const r = (e) => e.getBoundingClientRect();
+        const barra = r(document.getElementById('barra'));
+        const titulo = r(document.getElementById('titulo-janela'));
+        const acoes = [...document.querySelectorAll('.barra__acoes > *')].filter((e) => e.getClientRects().length).map(r);
+        const abas = [...document.querySelectorAll('.aba')].map((a) => {
+          const c = r(a), i = r(a.querySelector('.aba__icone'));
+          const cruza = (b) => !(c.right <= b.left || b.right <= c.left || c.bottom <= b.top || b.bottom <= c.top);
+          return {
+            id: a.id,
+            ativa: a.getAttribute('aria-selected'),
+            esquerda: Math.round(c.left), topo: Math.round(Math.min(c.top, i.top)), baixo: Math.round(c.bottom),
+            sobreAcoes: acoes.some(cruza),
+            icone: getComputedStyle(a.querySelector('.aba__icone')).width,
+            altura: getComputedStyle(a).height,
+          };
+        });
+        return { abas, barra: { topo: barra.top, baixo: barra.bottom }, tituloBaixo: titulo.bottom, cortada: getComputedStyle(document.getElementById('barra')).overflow };
+      })()`;
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of [
+          [1366, 728],
+          [1920, 1040],
+        ]) {
+          janela.setContentSize(w, h);
+          await abrirNota(outra);
+          for (const id of ['btn-aba-xml', 'btn-aba-psxml']) {
+            if (id === 'btn-aba-psxml') await irParaConferencia();
+            await espera(900);
+            const m = await avaliar(MEDIR_ABAS);
+            for (const a of m.abas)
+              confere(
+                a.icone === '36px' &&
+                  a.altura === '48px' &&
+                  a.esquerda >= 0 &&
+                  a.topo >= m.tituloBaixo &&
+                  a.baixo <= m.barra.baixo + 0.5 &&
+                  !a.sobreAcoes &&
+                  m.cortada === 'visible',
+                `${w}px, ${id}: ${JSON.stringify(m)}`,
+              );
+            const ativa = await avaliar(
+              `(() => { const a = document.querySelector('.aba[aria-selected="true"]'); return { id: a?.id, transformada: getComputedStyle(a).transform !== 'none', entrando: a.classList.contains('aba--entrando') }; })()`,
+            );
+            confere(
+              ativa.id === id && ativa.transformada && !ativa.entrando,
+              `aba ativa ${w}px: ${JSON.stringify(ativa)}`,
+            );
+          }
+          await fecharAvisosDaNota();
+          await inicio();
+        }
+        // A troca toca a entrada (popA) uma vez.
+        await abrirNota(outra);
+        await avaliar(`document.getElementById('btn-aba-psxml').click()`);
+        const entrada = await avaliar(
+          `(() => { const a = document.getElementById('btn-aba-psxml'); return { classe: a.classList.contains('aba--entrando'), animacao: getComputedStyle(a).animationName }; })()`,
+        );
+        confere(
+          entrada.classe && entrada.animacao === 'popA',
+          `entrada: ${JSON.stringify(entrada)}`,
+        );
+        await espera(900);
+        await fecharAvisosDaNota();
+        // Teclado: Tab chega na aba XML, com o foco visível, e Enter troca.
+        await avaliar(`document.getElementById('btn-aba-psxml').focus(); true`);
+        janela.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+        janela.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+        await espera(200);
+        const foco = await avaliar(
+          `(() => { const a = document.activeElement; return { id: a?.id, visivel: a?.matches(':focus-visible'), contorno: getComputedStyle(a).outlineStyle }; })()`,
+        );
+        confere(
+          foco.id === 'btn-aba-xml' && foco.visivel && foco.contorno !== 'none',
+          `foco: ${JSON.stringify(foco)}`,
+        );
+        janela.webContents.sendInputEvent({
+          type: 'keyDown',
+          keyCode: 'Enter',
+        });
+        janela.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
+        janela.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+        await aguardar(
+          `document.getElementById('btn-aba-xml').getAttribute('aria-selected') === 'true'`,
+          5000,
+          'Enter na aba XML não trocou de aba',
+        );
+        // Animações desligadas (prefers-reduced-motion): sem movimento.
+        const wc = janela.webContents;
+        wc.debugger.attach('1.3');
+        try {
+          await wc.debugger.sendCommand('Emulation.setEmulatedMedia', {
+            features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+          });
+          await avaliar(`document.getElementById('btn-aba-psxml').click()`);
+          const parada = await avaliar(
+            `(() => { const a = document.getElementById('btn-aba-psxml'); const s = getComputedStyle(a), i = getComputedStyle(a.querySelector('.aba__icone')); return { animacao: s.animationName, transicao: s.transitionDuration, icone: i.transitionDuration, ativa: a.getAttribute('aria-selected') }; })()`,
+          );
+          confere(
+            parada.animacao === 'none' &&
+              /^0s(, 0s)*$/.test(parada.transicao) &&
+              /^0s(, 0s)*$/.test(parada.icone) &&
+              parada.ativa === 'true',
+            `animações desligadas: ${JSON.stringify(parada)}`,
+          );
+          await wc.debugger.sendCommand('Emulation.setEmulatedMedia', {
+            features: [],
+          });
+        } finally {
+          wc.debugger.detach();
+        }
+        await fecharAvisosDaNota();
+        await inicio();
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
+  await caso(
+    'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {
       const semDica = async (onde) => {
         const lista = await avaliar(comTitle);
@@ -1065,8 +2109,6 @@ async function principal() {
           interface: {
             salvar: us('#btn-salvar'),
             modo: us('#btn-modo-danfe'),
-            faixa: us('#faixa-leitura-texto'),
-            orientacao: us('#seletor-orientacao-leitura button'),
             cabecalho: us('#nota th'),
           },
           dados: {
@@ -1084,7 +2126,7 @@ async function principal() {
         );
       await inicio();
       // Configurações, aba por aba.
-      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await abrirConfiguracoes();
       await aguardar(`!!document.getElementById('config-titulo')`);
       const abas = await avaliar(
         `[...document.querySelectorAll('dialog[open] .config__aba')].map((b) => b.textContent.trim())`,
@@ -1101,7 +2143,7 @@ async function principal() {
   );
 
   await caso(
-    '2D: DANFE com .psxml aberto mostra o diálogo do app, só com OK, e não há caixa preta',
+    'DANFE com .psxml aberto mostra o diálogo do app, só com OK, e não há caixa preta',
     async () => {
       const copiaEditada = path.join(notas, 't2d-copia-editada.psxml');
       fs.copyFileSync(
@@ -1180,14 +2222,12 @@ async function principal() {
     t0 = Date.now();
     abrir(profundo);
     await aguardar(
-      `(document.querySelector('.leitor-xml__avisos')?.innerText ?? '').includes('mais de 1.000 níveis')`,
+      `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); return (document.querySelector('.leitor-xml__avisos')?.innerText ?? '').includes('mais de 1.000 níveis'); })()`,
       30000,
       'o leitor não avisou a profundidade',
     );
     confere(Date.now() - t0 < 5000, `leitor demorou ${Date.now() - t0} ms`);
-    await avaliar(
-      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
-    );
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
   });
 
   await caso('T9: HTML e javascript: em xProd ficam literais', async () => {
@@ -1289,11 +2329,7 @@ async function principal() {
         !texto.includes('não deve aparecer'),
         'coluna com id estranho apareceu',
       );
-      // .psxml é a cópia de trabalho: abre em edição, sem a faixa da leitura.
-      confere(
-        !(await avaliar(visivel('faixa-leitura'))),
-        'o .psxml abriu em leitura protegida',
-      );
+      // .psxml é a cópia de trabalho: abre com as anotações livres.
       confere(
         await avaliar(
           `[...document.querySelectorAll('input.anotacao__campo')].every((c) => !c.readOnly)`,
@@ -1471,7 +2507,7 @@ async function casosJanelasPorCima() {
   await caso(
     'Configurações: X no cabeçalho (só ícone, aria-label Fechar) e Esc fecham; sem Fechar no rodapé',
     async () => {
-      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await abrirConfiguracoes();
       await aguardar(configAberta, 15000, 'as Configurações não abriram');
       const x = await avaliar(`(() => {
         const d = document.querySelector('dialog.painel--config[open]');
@@ -1501,7 +2537,7 @@ async function casosJanelasPorCima() {
       );
       await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
       // De novo, agora pelo Esc.
-      await avaliar(`document.getElementById('btn-config-inicio').click()`);
+      await abrirConfiguracoes();
       await aguardar(
         configAberta,
         15000,
@@ -1529,7 +2565,7 @@ async function casosJanelasPorCima() {
           'a tela inicial rola numa janela de 1000 px',
         );
         const semBarra = await avaliar(LARGURA_UTIL);
-        await avaliar(`document.getElementById('btn-config-inicio').click()`);
+        await abrirConfiguracoes();
         await aguardar(configAberta, 15000, 'as Configurações não abriram');
         await avaliar(DOIS_QUADROS);
         const semBarraAberta = await avaliar(LARGURA_UTIL);
@@ -1543,19 +2579,7 @@ async function casosJanelasPorCima() {
         await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
         janela.setContentSize(1100, 600);
         await abrirNota(copia('t09-xprod-html.xml'));
-        await avaliar(
-          `document.getElementById('btn-usar-conferencia').click()`,
-        );
-        await aguardar(
-          `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
-          15000,
-          'o aviso para sair da leitura não abriu',
-        );
-        await avaliar(`[...document.querySelectorAll('dialog[open] button')]
-          .find((b) => b.textContent.trim() === 'Continuar').click()`);
-        await aguardar(`document.getElementById('faixa-leitura').hidden`);
-        await aguardar(visivel('nota'));
-        await fecharAvisosDaNota();
+        await irParaConferencia();
         // Página mais alta que a janela, rolada um pouco para baixo.
         const sobra = await avaliar(
           `document.documentElement.scrollHeight - document.documentElement.clientHeight`,
@@ -1567,7 +2591,7 @@ async function casosJanelasPorCima() {
         // Rodar a ferramenta ST pelo painel.
         await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
           .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
-          .querySelector('button:not(:disabled)').click()`);
+          .querySelector('.botao--ferramenta:not(:disabled)').click()`);
         await aguardar(
           `!!document.querySelector('dialog.painel--st[open]')`,
           30000,
@@ -1632,11 +2656,10 @@ async function casosJanelasPorCima() {
     },
   );
 
-  // Leitor de XML genérico: camada fixa sobre a janela, com rolagem própria.
-  // Ocupa a largura toda (sem o espaço reservado da barra) e a página de baixo
-  // não rola enquanto ele está aberto.
+  // Modo .XML da aba XML: com rolagem própria, ao lado do painel Leitura,
+  // até a borda da janela; a página de baixo não rola.
   await caso(
-    'Leitor de XML: ocupa a janela toda e a página de baixo não rola',
+    '.XML na aba XML: ao lado do painel Leitura, até a borda, e a página não rola',
     async () => {
       const xml = path.join(notas, 'catalogo-largura.xml');
       fs.writeFileSync(
@@ -1649,33 +2672,32 @@ async function casosJanelasPorCima() {
       );
       abrir(xml);
       await aguardar(
-        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+        `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
         30000,
-        'o leitor não abriu',
+        'o .XML não abriu',
       );
       await avaliar(DOIS_QUADROS);
-      const m = await avaliar(`(() => ({
-        leitor: Math.round(document.querySelector('.leitor-xml').getBoundingClientRect().width),
-        janela: innerWidth,
-        rolagem: getComputedStyle(document.documentElement).overflowY,
-      }))()`);
+      const m = await avaliar(`(() => {
+        const l = document.querySelector('.leitor-xml').getBoundingClientRect();
+        const p = document.getElementById('painel-leitura').getBoundingClientRect();
+        const b = document.getElementById('barra').getBoundingClientRect();
+        const h = document.documentElement;
+        return {
+          esquerda: Math.round(l.left), direita: Math.round(l.right), topo: Math.round(l.top),
+          painel: Math.round(p.right), barra: Math.round(b.bottom), janela: innerWidth,
+          rola: getComputedStyle(h).overflowY !== 'hidden' && h.scrollHeight > h.clientHeight,
+        };
+      })()`);
       confere(
-        m.leitor === m.janela,
-        `o leitor não ocupa a janela toda: ${JSON.stringify(m)}`,
+        m.esquerda >= m.painel && m.direita === m.janela && m.topo === m.barra,
+        `o .XML não ocupa a área ao lado do painel: ${JSON.stringify(m)}`,
       );
-      confere(m.rolagem === 'hidden', 'a página de baixo continua rolável');
-      await avaliar(`[...document.querySelectorAll('.leitor-xml button')]
-        .find((b) => b.textContent.trim() === 'Fechar').click()`);
+      confere(!m.rola, 'a página de baixo rola');
+      await avaliar(`document.getElementById('btn-inicio').click(); true`);
       await aguardar(
         `document.querySelector('.leitor-xml').hidden`,
         15000,
-        'o Fechar não fechou o leitor',
-      );
-      confere(
-        (await avaliar(
-          `getComputedStyle(document.documentElement).overflowY`,
-        )) !== 'hidden',
-        'a página não voltou a rolar depois de fechar o leitor',
+        'o Início não tirou o XML',
       );
     },
   );
@@ -1700,12 +2722,11 @@ async function casosJanelasPorCima() {
       for (let i = 1; i <= 12; i++) {
         abrir(xml);
         await aguardar(
-          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && l.querySelector('.leitor-xml__nome')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
+          `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && document.querySelector('#titulo-janela-textos .titulo-janela__forte')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
           30000,
           `a leitura ${i} não terminou`,
         );
-        await avaliar(`[...document.querySelectorAll('.leitor-xml button')]
-          .find((b) => b.textContent.trim() === 'Fechar').click()`);
+        await avaliar(`document.getElementById('btn-inicio').click(); true`);
         await aguardar(
           `document.querySelector('.leitor-xml').hidden && ${visivel('vazio')}`,
           15000,
@@ -1732,20 +2753,10 @@ async function casosJanelasPorCima() {
     async () => {
       await carregarPlanilhaST();
       await abrirNota(copia('t13-st-autopecas.xml'));
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(
-        `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
-        15000,
-        'o aviso para sair da leitura não abriu',
-      );
-      await avaliar(`[...document.querySelectorAll('dialog[open] button')]
-        .find((b) => b.textContent.trim() === 'Continuar').click()`);
-      await aguardar(`document.getElementById('faixa-leitura').hidden`);
-      await aguardar(visivel('nota'));
-      await fecharAvisosDaNota();
+      await irParaConferencia();
       await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
         .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
-        .querySelector('button:not(:disabled)').click()`);
+        .querySelector('.botao--ferramenta:not(:disabled)').click()`);
       await aguardar(
         `!!document.querySelector('dialog.painel--st[open]')`,
         30000,
@@ -1818,17 +2829,7 @@ async function casosJanelasPorCima() {
     async () => {
       await carregarPlanilhaST();
       await abrirNota(copia('t14-devolucao-cliente.xml'));
-      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
-      await aguardar(
-        `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
-        15000,
-        'o aviso para sair da leitura não abriu',
-      );
-      await avaliar(`[...document.querySelectorAll('dialog[open] button')]
-        .find((b) => b.textContent.trim() === 'Continuar').click()`);
-      await aguardar(`document.getElementById('faixa-leitura').hidden`);
-      await aguardar(visivel('nota'));
-      await fecharAvisosDaNota();
+      await irParaConferencia();
       const linhaPainel = await avaliar(`(() => {
         const t = [...document.querySelectorAll('.conferencia__linha-titulo')]
           .map((x) => x.textContent.trim())
@@ -1839,9 +2840,20 @@ async function casosJanelasPorCima() {
         linhaPainel?.includes('Nota de devolução: NF 1234, série 2'),
         `linha do painel: ${JSON.stringify(linhaPainel)}`,
       );
+      // Painel aberto: a linha fica à mostra (na janela estreita ele começa
+      // recolhido).
+      await avaliar(
+        `document.querySelector('.conferencia__expandir')?.click(); true`,
+      );
+      await aguardar(
+        `[...document.querySelectorAll('.conferencia__linha-titulo')].some((x) => x.textContent.includes('Nota de devolução') && x.getClientRects().length > 0)`,
+        15000,
+        'a linha "Nota de devolução" não ficou à mostra no painel aberto',
+      );
+      await capturar('painel-devolucao.png');
       await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
         .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
-        .querySelector('button:not(:disabled)').click()`);
+        .querySelector('.botao--ferramenta:not(:disabled)').click()`);
       await aguardar(
         `!!document.querySelector('dialog.painel--st[open]')`,
         30000,
@@ -1899,10 +2911,13 @@ app.whenReady().then(async () => {
     `\ntest:janela: ${resultados.length - falhas.length} de ${resultados.length} passaram`,
   );
   for (const f of falhas) console.log(`\n${f.nome}\n${f.erro}`);
-  try {
-    fs.rmSync(tmp, { recursive: true, force: true });
-  } catch {
-    // Arquivo ainda preso pelo app: o Windows limpa a pasta temporária.
+  // Rodando por rodar.cjs, ele apaga a pasta depois que o Electron sair.
+  if (!process.env.PS_JANELA_TMP) {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      // Arquivo ainda preso pelo app: use npm run test:janela, que apaga.
+    }
   }
   app.exit(codigo);
 });

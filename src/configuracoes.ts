@@ -769,14 +769,12 @@ function abaFerramentas({ area, status }: Hospede): void {
   function opcoesAbrirEm(f: FerramentasPerfil): HTMLElement[] {
     const opcoes: { valor: AbrirNotasEm; ajuda: string }[] = [
       {
-        valor: 'leitura',
-        ajuda:
-          'Só para ver: DANFE, Conferência, imprimir e salvar PDF. Para anotar, a faixa da leitura oferece Usar a Conferência.',
+        valor: 'xml',
+        ajuda: 'O arquivo original, no DANFE.',
       },
       {
-        valor: 'conferencia',
-        ajuda:
-          'Direto na Conferência, com as anotações liberadas, como antes da leitura protegida.',
+        valor: 'psxml',
+        ajuda: 'Direto na Conferência, para anotar.',
       },
     ];
     const grupo = el(
@@ -794,7 +792,7 @@ function abaFerramentas({ area, status }: Hospede): void {
           if (!radio.checked) return;
           void gravar(
             { ...f, ordem: f.ordem.map((x) => ({ ...x })), abrirEm: valor },
-            `Neste perfil, as notas abrem em: ${ROTULO_ABRIR_EM[valor]}.`,
+            `Neste perfil, a NF-e abre em: ${ROTULO_ABRIR_EM[valor]}.`,
             `abrir-em-${valor}`,
           );
         });
@@ -813,7 +811,7 @@ function abaFerramentas({ area, status }: Hospede): void {
       }),
     );
     grupo.setAttribute('role', 'radiogroup');
-    grupo.setAttribute('aria-label', 'Abrir notas em');
+    grupo.setAttribute('aria-label', 'NF-e abre em');
     return [grupo];
   }
 
@@ -835,11 +833,11 @@ function abaFerramentas({ area, status }: Hospede): void {
       erro,
     ),
     cartao(
-      'Abrir notas em',
+      'NF-e abre em',
       el(
         'p',
         'documento__nota',
-        'Por perfil (o escolhido acima): como um XML de NF-e abre, pelo botão Abrir, ao arrastar, pela nota recente e no duplo clique no Explorer. A cópia editada (.psxml) abre na Conferência, a não ser que tenha vindo da internet: aí abre em leitura protegida.',
+        'Por perfil (o escolhido acima): onde um XML de NF-e abre, pelo botão Abrir, ao arrastar, pela nota recente e no duplo clique no Explorer. A cópia editada (.psxml) abre sempre na Conferência.',
       ),
       abrirEm,
     ),

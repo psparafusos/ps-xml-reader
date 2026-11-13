@@ -17,17 +17,15 @@ interface ArquivoConferido {
   modificado: string;
 }
 
-/** Como a nota abre: só para ver (NF-e) ou para editar (.psxml). */
-type LeituraNota = 'protegida' | 'edicao';
-
 interface ArquivoAberto {
   /** Nome do arquivo, com extensão. */
   nome: string;
   texto: string;
-  /** Decidido pelo processo principal (src/nfe/leituraProtegida.ts). */
-  leitura: LeituraNota;
-  /** Cópia editada com a marca de baixado da internet (abriu protegida). */
-  daInternet?: boolean;
+  /**
+   * Onde a nota abre, decidido pelo processo principal: a cópia editada
+   * (.psxml) na Conferência; o XML da NF-e pelo "NF-e abre em" do perfil.
+   */
+  modoInicial: ModoImpressao;
 }
 
 /**
@@ -348,11 +346,6 @@ interface PsApi {
   abrirSolto(arquivo: File): Promise<ResultadoAbrir>;
   /** A janela voltou para a tela inicial (sem nota aberta). */
   informarSemNota(): void;
-  /**
-   * A pessoa escolheu Continuar no aviso: a nota desta janela sai da leitura
-   * protegida e passa a ser editada. false se não há nota aberta.
-   */
-  sairDaLeitura(): Promise<boolean>;
   /** Os perfis (ou o perfil ativo, ou a configuração dele) mudaram em outra janela. */
   aoMudarPerfis(callback: (estado: EstadoPerfis) => void): void;
   /** A pasta de destino salva mudou em outra janela. */
