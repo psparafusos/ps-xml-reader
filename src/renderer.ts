@@ -122,10 +122,16 @@ import {
   aoLerXml,
   arquivoXml,
   esconderXml,
+  lerXml,
   mostrarXml,
   novoDocumentoXml,
 } from './leitorXml/tela';
 import { formatarTamanho } from './leitorXml/formato';
+import {
+  esconderFormato,
+  mostrarFormato,
+  novoDocumentoFormato,
+} from './formatoOriginal/tela';
 import {
   abrirConfiguracoes,
   atualizarConfiguracoes,
@@ -1550,6 +1556,8 @@ function mostrarTela(tela: Tela): void {
   painelLeituraEl.hidden = !naAbaXml;
   if (tela === 'xml') mostrarXml();
   else esconderXml();
+  if (tela === 'formato') mostrarFormato(() => escolherModoXml('xml'));
+  else esconderFormato();
   if (naAbaXml) modoXml = tela;
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
@@ -1586,8 +1594,7 @@ function atualizarLeitura(): void {
   painelLeitura.atualizar({
     modo: modoXml,
     semDanfe,
-    // O Formato original chega na Parte 5.
-    semFormato: true,
+    semFormato: false,
     folhas: arranjoFolhas,
     arquivo: cartaoArquivo(),
   });
@@ -1631,6 +1638,7 @@ function cartaoArquivo(): { nome: string; linhas: string[] } | null {
 function novoDocumento(): void {
   generico = null;
   novoDocumentoXml();
+  novoDocumentoFormato();
   folhasDanfe = 0;
   orientacaoNota = null;
   modoXml = 'danfe';
@@ -1639,17 +1647,18 @@ function novoDocumento(): void {
 
 /**
  * XML que não é NF-e aberto nesta janela (o processo principal manda
- * mostrar): a aba XML no .XML, a aba PSXML apagada, o DANFE apagado com o
- * aviso. O nome e a raiz chegam com a leitura (aoLerXml).
+ * mostrar): a aba XML no Formato original, a aba PSXML apagada, o DANFE
+ * apagado com o aviso. O nome e a raiz chegam com a leitura (aoLerXml).
  */
 function abrirGenerico(): void {
   esconderMensagem();
   limparNota();
   generico = { nome: '', raiz: null };
   semDanfe = AVISO_INCOMPATIVEL;
-  modoXml = 'xml';
+  modoXml = 'formato';
   atualizarTituloJanela({ forte: 'Lendo o arquivo…', resto: [] });
-  mostrarTela('xml');
+  lerXml();
+  mostrarTela('formato');
 }
 
 aoLerXml((dados) => {
@@ -1733,13 +1742,12 @@ function escolherModoXml(modo: ModoLeitura): void {
     mostrarDanfe();
     return;
   }
-  if (modo === 'formato') return;
-  if (telaAtual !== 'xml') mostrarTela('xml');
+  if (telaAtual !== modo) mostrarTela(modo);
 }
 
 /** Aba XML: o modo em que ela estava (ou o primeiro que dá). */
 function mostrarAbaXml(): void {
-  const modo = modoXml === 'danfe' && semDanfe !== null ? 'xml' : modoXml;
+  const modo = modoXml === 'danfe' && semDanfe !== null ? 'formato' : modoXml;
   if (telaAtual === modo) return;
   if (modo === 'danfe') mostrarDanfe();
   else mostrarTela(modo);

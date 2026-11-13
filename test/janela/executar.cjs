@@ -1176,13 +1176,6 @@ async function principal() {
         (await leitura(`return p.dataset.estado;`)) === 'aberto',
         'o painel não abriu de novo',
       );
-      // Formato original ainda apagado (Parte 5).
-      confere(
-        (await avaliar(
-          `document.getElementById('btn-modo-formato').getAttribute('aria-disabled')`,
-        )) === 'true',
-        'o Formato original não está apagado',
-      );
       await avaliar(`document.getElementById('btn-modo-danfe').click()`);
       await aguardar(visivel('danfe'), 15000, 'o DANFE não voltou');
       confere(
@@ -1255,7 +1248,7 @@ async function principal() {
   );
 
   await caso(
-    'XML que não é NF-e: aba XML no .XML, PSXML apagada com o motivo, DANFE apagado com o aviso',
+    'XML que não é NF-e: aba XML no Formato original, PSXML apagada com o motivo, DANFE apagado com o aviso',
     async () => {
       const xml = path.join(notas, 'pedido-abas.xml');
       fs.writeFileSync(
@@ -1274,7 +1267,7 @@ async function principal() {
         xml: document.getElementById('btn-aba-xml').getAttribute('aria-selected'),
         danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
         aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
-        modo: document.getElementById('btn-modo-xml').getAttribute('aria-pressed'),
+        modo: document.getElementById('btn-modo-formato').getAttribute('aria-pressed'),
       }))()`);
       confere(
         g.titulo.join('|') ===
@@ -1323,6 +1316,12 @@ async function principal() {
       );
       await abrirNota(copiaEditada, 'nota');
       await avaliar(`document.getElementById('btn-aba-xml').click()`);
+      await aguardar(
+        `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && f.innerText.includes('Itens'); })()`,
+        30000,
+        'a aba XML do .psxml não abriu no Formato original',
+      );
+      await avaliar(`document.getElementById('btn-modo-xml').click()`);
       await aguardar(
         `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && /nfeProc|<NFe/.test(l.querySelector('.leitor-xml__vista--arvore')?.innerText ?? ''); })()`,
         30000,
@@ -1463,6 +1462,183 @@ async function principal() {
     },
   );
 
+  // Parte 5: modo Formato original (montado do próprio XML).
+  const formatoVisivel = `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && !!f.querySelector('.formato-original__secao'); })()`;
+
+  await caso(
+    'Formato original da NF-e: seções com rótulo e tag, valores formatados, códigos, itens com impostos, recolher e busca',
+    async () => {
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-modo-formato').click()`);
+      await aguardar(formatoVisivel, 30000, 'o Formato original não abriu');
+      const f = await avaliar(`(() => {
+        const r = document.getElementById('formato-original');
+        const campo = (tag) => [...r.querySelectorAll('.formato-original__campo-par')].find((c) => c.querySelector('.formato-original__tag')?.textContent === tag);
+        const dh = campo('dhEmi'), tp = campo('tpNF');
+        return {
+          secoes: [...r.querySelectorAll('.formato-original__secao > .formato-original__cabecalho .formato-original__titulo')].map((t) => t.textContent),
+          dhRotulo: dh?.querySelector('.formato-original__rotulo-texto')?.textContent,
+          dhValor: dh?.querySelector('.formato-original__valor')?.firstChild?.textContent,
+          tpSentido: tp?.querySelector('.formato-original__sentido')?.textContent,
+          itens: r.querySelectorAll('[data-tag="det"] tbody tr.formato-original__linha').length,
+          seleciona: { valor: getComputedStyle(dh.querySelector('.formato-original__valor')).userSelect, rotulo: getComputedStyle(dh.querySelector('.formato-original__rotulo-campo')).userSelect },
+          saida: ['btn-imprimir', 'btn-salvar'].map((id) => document.getElementById(id).disabled),
+          formatoMarcado: document.getElementById('btn-modo-formato').getAttribute('aria-pressed'),
+        };
+      })()`);
+      for (const t of ['Identificação', 'Emitente', 'Itens'])
+        confere(
+          f.secoes.includes(t),
+          `sem a seção ${t}: ${f.secoes.join(', ')}`,
+        );
+      confere(f.dhRotulo === 'Data e hora de emissão', `rótulo: ${f.dhRotulo}`);
+      confere(
+        /^\d\d\/\d\d\/\d{4} \d\d:\d\d$/.test(f.dhValor ?? ''),
+        `data: ${f.dhValor}`,
+      );
+      confere(f.tpSentido === 'Saída', `tpNF: ${f.tpSentido}`);
+      confere(f.itens >= 1, 'sem as linhas dos itens');
+      confere(
+        f.seleciona.valor === 'text' && f.seleciona.rotulo === 'none',
+        `seleção: ${JSON.stringify(f.seleciona)}`,
+      );
+      confere(f.saida.every(Boolean), 'Imprimir e Salvar no Formato original');
+      confere(
+        f.formatoMarcado === 'true',
+        'o Formato original não ficou marcado',
+      );
+      // Detalhe do item: os impostos.
+      await avaliar(
+        `document.querySelector('#formato-original [data-tag="det"] .formato-original__abrir').click()`,
+      );
+      confere(
+        await avaliar(
+          `(() => { const d = document.querySelector('#formato-original [data-tag="det"] tr.formato-original__detalhe'); return !d.hidden && d.innerText.includes('Impostos do item'); })()`,
+        ),
+        'o detalhe do item não mostrou os impostos',
+      );
+      // Recolher tudo e Expandir tudo.
+      await avaliar(
+        `[...document.querySelectorAll('#formato-original button')].find((b) => b.textContent === 'Recolher tudo').click()`,
+      );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('#formato-original .formato-original__corpo')].every((c) => c.hidden)`,
+        ),
+        'Recolher tudo deixou seção aberta',
+      );
+      await avaliar(
+        `[...document.querySelectorAll('#formato-original button')].find((b) => b.textContent === 'Expandir tudo').click()`,
+      );
+      confere(
+        await avaliar(
+          `[...document.querySelectorAll('#formato-original .formato-original__corpo')].every((c) => !c.hidden)`,
+        ),
+        'Expandir tudo deixou seção fechada',
+      );
+      // Busca: acha, conta e abre o que estiver recolhido.
+      await avaliar(
+        `[...document.querySelectorAll('#formato-original button')].find((b) => b.textContent === 'Recolher tudo').click()`,
+      );
+      await avaliar(
+        `(() => { const c = document.getElementById('formato-busca'); c.value = 'Venda de teste'; c.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`,
+      );
+      await aguardar(
+        `/^1 de \\d+$/.test(document.querySelector('.formato-original__contador').textContent)`,
+        5000,
+        'a busca não achou',
+      );
+      confere(
+        await avaliar(
+          `(() => { const a = document.querySelector('.formato-original__achado--atual'); return !!a && !a.closest('.formato-original__corpo[hidden]'); })()`,
+        ),
+        'o achado ficou dentro de uma seção recolhida',
+      );
+      confere(rede.length === 0, `pedidos de rede: ${rede.join(' ')}`);
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Formato original de um XML que não é nota: tags como título, atributos e repetidos em tabela',
+    async () => {
+      const xml = path.join(notas, 'pedido-formato.xml');
+      fs.writeFileSync(
+        xml,
+        '<?xml version="1.0" encoding="UTF-8"?>\n<pedidoCompra numero="PED-7781"><cabecalho><emissao>2026-11-05</emissao></cabecalho><itens><item linha="1"><codigo>A-1</codigo><quantidade>20</quantidade><precoUnitario>18.5</precoUnitario></item><item linha="2"><codigo>A-2</codigo><quantidade>10</quantidade><precoUnitario>6.20</precoUnitario></item></itens></pedidoCompra>\n',
+      );
+      abrir(xml);
+      await aguardar(formatoVisivel, 30000, 'o Formato original não abriu');
+      const f = await avaliar(`(() => {
+        const r = document.getElementById('formato-original');
+        const tabela = r.querySelector('[data-tag="itens"] table');
+        return {
+          raiz: r.querySelector('.formato-original__titulo--tag')?.textContent,
+          atributo: r.querySelector('.formato-original__atributo')?.textContent,
+          emissao: [...r.querySelectorAll('.formato-original__campo-par')].find((c) => c.querySelector('.formato-original__tag')?.textContent === 'emissao')?.querySelector('.formato-original__valor')?.textContent,
+          cabecalhos: tabela ? [...tabela.querySelectorAll('th .formato-original__tag')].map((t) => t.textContent) : [],
+          linha: tabela ? [...tabela.querySelectorAll('tbody tr')][0]?.innerText.split('\t').map((x) => x.trim()) : [],
+        };
+      })()`);
+      confere(f.raiz === 'pedidoCompra', `raiz: ${f.raiz}`);
+      confere(f.atributo === 'numero = PED-7781', `atributo: ${f.atributo}`);
+      confere(f.emissao === '05/11/2026', `emissão: ${f.emissao}`);
+      confere(
+        f.cabecalhos.join('|') === '@linha|codigo|quantidade|precoUnitario',
+        `cabeçalhos: ${f.cabecalhos.join(', ')}`,
+      );
+      confere(
+        f.linha.join('|') === '1|A-1|20|18,50',
+        `linha: ${f.linha.join(' | ')}`,
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Formato original acima do limite do modo leve: aviso e Ver no .XML',
+    async () => {
+      const grande = path.join(notas, 'lote-grande-formato.xml');
+      const pedaco =
+        '<item><codigo>ITEM-INVENTADO</codigo><descricao>PECA INVENTADA PARA O TESTE DE TAMANHO</descricao></item>\n';
+      const vezes = Math.ceil((21 * 1024 * 1024) / pedaco.length);
+      fs.writeFileSync(
+        grande,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<lote>\n${pedaco.repeat(vezes)}</lote>\n`,
+      );
+      try {
+        abrir(grande);
+        await aguardar(
+          `!!document.getElementById('btn-formato-ver-xml')`,
+          120000,
+          'o Formato original não avisou o arquivo grande',
+        );
+        const aviso = await avaliar(
+          `document.querySelector('.formato-original__estado').innerText`,
+        );
+        confere(
+          /Arquivo grande/.test(aviso) && /\.XML/.test(aviso),
+          `aviso: ${aviso}`,
+        );
+        await avaliar(`document.getElementById('btn-formato-ver-xml').click()`);
+        await aguardar(
+          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+          15000,
+          'o Ver no .XML não mudou de modo',
+        );
+        confere(
+          (await avaliar(
+            `document.getElementById('btn-modo-xml').getAttribute('aria-pressed')`,
+          )) === 'true',
+          '.XML não ficou marcado',
+        );
+        await inicio();
+      } finally {
+        fs.rmSync(grande, { force: true });
+      }
+    },
+  );
+
   await caso(
     'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {
@@ -1597,7 +1773,7 @@ async function principal() {
     t0 = Date.now();
     abrir(profundo);
     await aguardar(
-      `(document.querySelector('.leitor-xml__avisos')?.innerText ?? '').includes('mais de 1.000 níveis')`,
+      `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); return (document.querySelector('.leitor-xml__avisos')?.innerText ?? '').includes('mais de 1.000 níveis'); })()`,
       30000,
       'o leitor não avisou a profundidade',
     );
@@ -2029,9 +2205,9 @@ async function casosJanelasPorCima() {
       );
       abrir(xml);
       await aguardar(
-        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+        `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
         30000,
-        'o leitor não abriu',
+        'o .XML não abriu',
       );
       await avaliar(DOIS_QUADROS);
       const m = await avaliar(`(() => {
@@ -2079,7 +2255,7 @@ async function casosJanelasPorCima() {
       for (let i = 1; i <= 12; i++) {
         abrir(xml);
         await aguardar(
-          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && document.querySelector('#titulo-janela-textos .titulo-janela__forte')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
+          `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && document.querySelector('#titulo-janela-textos .titulo-janela__forte')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
           30000,
           `a leitura ${i} não terminou`,
         );

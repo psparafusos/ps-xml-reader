@@ -51,7 +51,8 @@ async function casosNavegacao(c) {
     fs.writeFileSync(alvo, conteudo);
     return alvo;
   };
-  const leitorAberto = `(() => { const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
+  // XML que não é nota abre no Formato original: passa para o .XML.
+  const leitorAberto = `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
   const arvoreCom = (trecho) =>
     `(document.querySelector('.leitor-xml__vista--arvore')?.innerText ?? '').includes(${JSON.stringify(trecho)})`;
   const cartaoVisivel = `(() => { const e = document.querySelector('.servico-progresso'); return !!e && !e.hidden; })()`;

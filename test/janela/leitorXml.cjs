@@ -74,7 +74,8 @@ async function casosLeitorXml(c) {
     avaliar(
       `document.querySelector(${JSON.stringify(seletor)})?.innerText ?? ''`,
     );
-  const leitorAberto = `(() => { const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
+  // XML que não é nota abre no Formato original: passa para o .XML.
+  const leitorAberto = `(() => { const f = document.getElementById('formato-original'); if (f && !f.hidden) document.getElementById('btn-modo-xml')?.click(); const s = document.querySelector('.leitor-xml'); return !!s && !s.hidden; })()`;
   /** Botão da tela do leitor pelo texto (nunca um "Copiar"). */
   const clicarBotao = async (rotulo) => {
     confere(!/copiar/i.test(rotulo), 'teste tentou acionar Copiar');

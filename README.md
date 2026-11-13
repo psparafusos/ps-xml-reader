@@ -262,7 +262,8 @@ Um XML da NF-e abre direto na aba **XML**, no **DANFE** (ou na aba **PSXML**,
 a Conferência, se o perfil estiver com **NF-e abre em: PSXML**); um `.psxml`
 abre direto na aba **PSXML**. Se a nota não tem DANFE no PS Reader
 (contingência ou outro modelo), ela abre na Conferência com o motivo numa
-mensagem. Um XML que não é NF-e abre na aba **XML**, no modo **.XML**.
+mensagem. Um XML que não é NF-e abre na aba **XML**, no **Formato
+original**.
 
 ### Abas PSXML e XML
 
@@ -277,6 +278,26 @@ com a miniatura do ícone dela:
   recolhido, fica a seta para abrir e o ícone do modo de leitura atual):
   - **Modo de leitura**: **DANFE**, **Formato original** e **.XML** (o
     leitor de XML de antes: Árvore e Texto, busca, Abrir no Bloco de Notas).
+    O **Formato original** é montado pelo app a partir do próprio XML, sem
+    executar nada do arquivo e sem folha de estilo (`xml-stylesheet` é só
+    texto): grupos viram seções com título, que recolhem; elementos
+    repetidos viram tabelas (o que não cabe nas colunas fica no detalhe de
+    cada linha, que abre pela setinha); valores simples viram pares rótulo e
+    valor; atributos aparecem junto do elemento. Na NF-e, todos os blocos
+    (identificação, emitente, destinatário, itens com impostos, totais,
+    transporte, cobrança, pagamento, informações adicionais, protocolo),
+    inclusive campos que o DANFE não mostra, com o rótulo em português e a
+    tag ao lado (`vProd` vira "Valor dos produtos"). Os valores saem
+    formatados para leitura: datas em dd/mm/aaaa (com a hora quando houver),
+    CNPJ, CPF, CEP e telefone, números no formato brasileiro sem zeros
+    sobrando (valores com 2 casas, alíquotas com %), e o significado ao lado
+    dos códigos comuns da NF-e (CRT 3: Regime normal; modFrete 0: Por conta
+    do emitente; CST de ICMS, IPI, PIS e COFINS). O valor exato fica no .XML.
+    No alto, **Buscar** (com Anterior e Próximo; abre o que estiver
+    recolhido em volta do achado), **Expandir tudo** e **Recolher tudo**.
+    Usa a mesma leitura do .XML, no serviço de leitura pesada; acima do
+    limite do modo leve (20 MB, sem árvore) ou com mais de 200 mil
+    elementos, mostra o aviso e o botão **Ver no .XML**.
     O DANFE fica apagado, com o motivo embaixo, num XML que não é nota ("XML
     incompatível com a visualização em DANFE"), no `.psxml` ("O DANFE só é
     gerado a partir do XML original da nota.") e numa NF-e sem DANFE no PS
@@ -1218,6 +1239,9 @@ src/
   styles/janela.css  barra de título própria, barra preta, abas, menus, painel Leitura
   painelLeitura.ts   painel Leitura da aba XML: modo de leitura, Folhas, Arquivo
   nfe/folhasDanfe.ts Folhas do DANFE na tela e a orientação da Folha do PDF
+  formatoOriginal/montar.ts  Formato original: blocos, tabelas e valores formatados (puro)
+  formatoOriginal/rotulos.ts rótulos da NF-e e o significado dos códigos
+  formatoOriginal/tela.ts    tela do Formato original: seções, tabelas, busca
   styles/print.css   @media print (usado pelo PDF)
   danfe/dados.ts     XML -> campos do DANFE (separado do Nota da conferência)
   danfe/danfe.ts     montagem dos quadros e paginação do DANFE

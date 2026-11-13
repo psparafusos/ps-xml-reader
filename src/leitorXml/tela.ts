@@ -549,6 +549,7 @@ btnBloco.addEventListener('click', async () => {
 
 function limpar(): void {
   leitura = null;
+  falha = null;
   texto = '';
   linhas = null;
   modelo = null;
@@ -584,6 +585,10 @@ function mostrarRecusa(
   aoLer(arquivoLido);
   if (r.arquivo.tamanho !== null)
     mostrarInfo([formatarTamanho(r.arquivo.tamanho)]);
+  falha =
+    r.motivo === 'cancelado'
+      ? 'Leitura cancelada. Para ver o arquivo, abra de novo.'
+      : r.mensagem;
   if (r.motivo === 'cancelado') {
     mostrarEstado('Leitura cancelada', 'Para ver o arquivo, abra de novo.');
     return;
@@ -662,6 +667,10 @@ function mostrarLeitura(
 let abertura = 0;
 /** A leitura do documento atual já foi pedida. */
 let pedida = false;
+/** A leitura pedida (termina sem lançar). */
+let promessa: Promise<void> = Promise.resolve();
+/** Por que o documento atual não foi lido, ou null. */
+let falha: string | null = null;
 
 /** Lê o arquivo que o principal guardou para esta janela. */
 async function ler(): Promise<void> {
@@ -677,6 +686,7 @@ async function ler(): Promise<void> {
         'Não foi possível mostrar este arquivo',
         'O arquivo não está mais aberto nesta janela.',
       );
+      falha = 'O arquivo não está mais aberto nesta janela.';
       return;
     }
     if (r.status === 'recusado') {
@@ -690,6 +700,7 @@ async function ler(): Promise<void> {
         'Não foi possível mostrar este arquivo',
         'O arquivo mudou enquanto era lido. Tente de novo.',
       );
+      falha = 'O arquivo mudou enquanto era lido. Tente de novo.';
       return;
     }
     mostrarLeitura(r, textoLido);
@@ -699,6 +710,7 @@ async function ler(): Promise<void> {
       'Não foi possível mostrar este arquivo',
       'Aconteceu um erro ao ler o arquivo.',
     );
+    falha = 'Aconteceu um erro ao ler o arquivo.';
   }
 }
 
@@ -718,12 +730,34 @@ function nomeDaRaiz(l: LeituraSemTexto): string | null {
 export function mostrarXml(): void {
   raiz.hidden = false;
   if (!pedida) {
-    pedida = true;
-    void ler();
+    void carregarXml();
     return;
   }
   rolagemArvore.redesenhar();
   rolagemTexto.redesenhar();
+}
+
+/**
+ * Lê o arquivo (uma vez por documento) e devolve quando a leitura acabar.
+ * O Formato original usa a mesma leitura.
+ */
+export function carregarXml(): Promise<void> {
+  if (!pedida) {
+    pedida = true;
+    promessa = ler();
+  }
+  return promessa;
+}
+
+/**
+ * A leitura do documento atual: a árvore e os dados dela, ou o motivo de
+ * não ter lido (recusado, cancelado, erro). Antes de terminar: os dois null.
+ */
+export function leituraXml(): {
+  leitura: LeituraSemTexto | null;
+  falha: string | null;
+} {
+  return { leitura, falha };
 }
 
 /** Esconde o modo .XML (a leitura feita fica guardada). */
@@ -738,6 +772,7 @@ export function esconderXml(): void {
 export function novoDocumentoXml(): void {
   abertura++;
   pedida = false;
+  promessa = Promise.resolve();
   raiz.hidden = true;
   limpar();
 }
@@ -747,9 +782,7 @@ export function novoDocumentoXml(): void {
  * do nome do arquivo e da raiz).
  */
 export function lerXml(): void {
-  if (pedida) return;
-  pedida = true;
-  void ler();
+  void carregarXml();
 }
 
 /** Avisa a cada leitura terminada: o arquivo e a raiz (ou null). */

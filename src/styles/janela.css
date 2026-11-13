@@ -21,6 +21,11 @@
     --menu-marca: #1f7a3a;
   }
 
+  /* Fundo da janela inteira (abaixo do conteúdo também), no bege do app. */
+  html {
+    background: var(--bancada-fundo);
+  }
+
   /* O conteúdo começa abaixo da barra de título (fixa no alto). A altura
      mínima desconta a faixa, para a tela inicial não rolar. */
   body {
