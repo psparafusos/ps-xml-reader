@@ -55,11 +55,9 @@ async function casosNavegacao(c) {
   const arvoreCom = (trecho) =>
     `(document.querySelector('.leitor-xml__vista--arvore')?.innerText ?? '').includes(${JSON.stringify(trecho)})`;
   const cartaoVisivel = `(() => { const e = document.querySelector('.servico-progresso'); return !!e && !e.hidden; })()`;
-  /** Botão Fechar do leitor (nunca um "Copiar"). */
+  /** Início: tira o XML desta janela (o Fechar do leitor saiu). */
   const fecharLeitor = async () => {
-    await avaliar(
-      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
-    );
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
     await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
   };
   /** A janela nova que aparecer depois de `antes`. */
@@ -141,7 +139,7 @@ async function casosNavegacao(c) {
       );
       confere(
         (await avaliar(
-          `document.querySelector('.leitor-xml__nome').textContent`,
+          `document.querySelector('#titulo-janela-textos .titulo-janela__forte').textContent`,
         )) === 'catalogo-arrastado.xml',
         'nome do arquivo na barra do leitor',
       );
@@ -217,7 +215,7 @@ async function casosNavegacao(c) {
         );
         confere(
           (await avaliar(
-            `document.querySelector('.leitor-xml__nome').textContent`,
+            `document.querySelector('#titulo-janela-textos .titulo-janela__forte').textContent`,
           )) === 'catalogo-depois.xml',
           'a leitura cancelada apareceu por cima da nova',
         );

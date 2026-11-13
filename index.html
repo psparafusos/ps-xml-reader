@@ -17,10 +17,9 @@
     <link rel="stylesheet" href="/src/danfe/danfe.css" />
     <link rel="stylesheet" href="/src/styles/janela.css" />
     <script type="module" src="/src/renderer.ts"></script>
-    <!-- Leitor de XML genérico: módulo separado, que monta a própria seção
-         e abre os XML que não são NF-e (src/leitorXml/tela.ts). -->
+    <!-- Modo .XML da aba XML (src/leitorXml/tela.ts, importado pelo
+         renderer.ts). -->
     <link rel="stylesheet" href="/src/leitorXml/leitorXml.css" />
-    <script type="module" src="/src/leitorXml/tela.ts"></script>
     <!-- Serviço de leitura pesada (parte 2): cartão de andamento com Cancelar
          (src/servico/progresso.ts). -->
     <link rel="stylesheet" href="/src/servico/progresso.css" />
@@ -40,25 +39,30 @@
          à direita, Início e Abrir outro XML, Imprimir e Salvar, e o botão de
          perfil (que leva também às Configurações). -->
     <header id="barra" class="barra" hidden>
-      <div class="barra__vistas">
-        <div class="seletor barra__modo" role="group" aria-label="Modo">
-          <button
-            id="btn-modo-conferencia"
-            type="button"
-            class="seletor__opcao"
-            aria-pressed="true"
-          >
-            Conferência
-          </button>
-          <button
-            id="btn-modo-danfe"
-            type="button"
-            class="seletor__opcao"
-            aria-pressed="false"
-          >
-            DANFE
-          </button>
-        </div>
+      <!-- Abas da nota: PSXML (a Conferência) e XML (o arquivo original, só
+           leitura, com o painel Leitura). Presas no canto de baixo da barra,
+           com a miniatura do ícone de cada uma (renderer.ts, mostrarTela). -->
+      <div class="barra__vistas abas" role="tablist" aria-label="Abas da nota">
+        <button
+          id="btn-aba-psxml"
+          type="button"
+          class="aba"
+          role="tab"
+          aria-selected="false"
+        >
+          <img class="aba__icone" src="/assets/icone-psxml.svg" alt="" />
+          <span>PSXML</span>
+        </button>
+        <button
+          id="btn-aba-xml"
+          type="button"
+          class="aba"
+          role="tab"
+          aria-selected="false"
+        >
+          <img class="aba__icone" src="/assets/icone-xml.svg" alt="" />
+          <span>XML</span>
+        </button>
       </div>
       <nav class="barra__acoes" aria-label="Ações da nota">
         <button id="btn-inicio" type="button" class="botao botao--barra">
@@ -253,6 +257,11 @@
     <!-- Painel de conferência, à esquerda da nota (só na Conferência e só
          na tela): montado no renderer.ts (painelConferencia.ts). -->
     <aside id="painel-conferencia" class="conferencia" hidden></aside>
+
+    <!-- Painel Leitura da aba XML, à esquerda: Modo de leitura, Folhas (só
+         no DANFE) e Arquivo (painelLeitura.ts). Mesmo visual do painel da
+         Conferência. -->
+    <aside id="painel-leitura" class="conferencia leitura" hidden></aside>
 
     <!-- Erro: fica visível em qualquer posição de rolagem até a pessoa fechar. -->
     <div id="mensagem" class="mensagem" role="alert" hidden>

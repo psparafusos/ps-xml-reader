@@ -12,6 +12,8 @@ import {
   mensagemSemResposta,
 } from '../seguranca/arquivo';
 import { avaliarTamanho, LIMITE_TEXTO_BYTES } from '../xml/limites';
+import { filhosDe, nomeDe, NENHUM, TIPOS } from '../xml/arvore';
+import type { LeituraXml } from '../xml/leitor';
 import { prepararLeitura, type EtapaPreparo } from '../xml/preparar';
 import type { InfoArquivo, MotivoRecusa, ResultadoLeitorXml } from './tipos';
 
@@ -54,12 +56,43 @@ function erroDeDisco(erro: unknown): {
   return { motivo: 'erro', mensagem: MENSAGEM_ERRO_LEITURA };
 }
 
-/** Lê e prepara o arquivo; nunca lança por causa do arquivo. */
+const ELEMENTO = TIPOS.indexOf('elemento');
+
+/**
+ * Trecho do texto com o XML original guardado numa cópia editada (.psxml):
+ * o primeiro elemento dentro de <original>, na raiz <psCopiaEditada>. null se
+ * o texto não tem esse formato (ou a árvore não foi montada).
+ */
+export function trechoDoOriginal(
+  texto: string,
+  arvore: LeituraXml | null,
+): string | null {
+  if (!arvore) return null;
+  const elementos = (no: number) =>
+    filhosDe(arvore, no).filter((f) => arvore.tipo[f] === ELEMENTO);
+  const raiz = elementos(NENHUM)[0];
+  if (raiz === undefined || nomeDe(arvore, raiz) !== 'psCopiaEditada')
+    return null;
+  const original = elementos(raiz).find(
+    (f) => nomeDe(arvore, f) === 'original',
+  );
+  if (original === undefined) return null;
+  const nota = elementos(original)[0];
+  if (nota === undefined) return null;
+  return texto.slice(arvore.inicio[nota], arvore.fim[nota]);
+}
+
+/**
+ * Lê e prepara o arquivo; nunca lança por causa do arquivo. `original`: o
+ * arquivo é uma cópia editada (.psxml) e a tela quer o XML original de
+ * dentro dela (se não achar, mostra o arquivo inteiro).
+ */
 export async function lerParaLeitor(
   caminho: string,
   disco: DiscoLeitor = discoReal,
   prazo = ESPERA_CAMINHO_MS,
   aoEtapa: (etapa: EtapaPreparo | 'lendo') => void = () => {},
+  original = false,
 ): Promise<LeituraParaTela> {
   const arquivo: InfoArquivo = {
     nome: path.basename(caminho),
@@ -101,8 +134,17 @@ export async function lerParaLeitor(
     return recusa('grande', avaliarTamanho(bytes.byteLength).mensagem ?? '');
   }
 
-  const preparo = prepararLeitura(bytes, aoEtapa);
+  let preparo = prepararLeitura(bytes, aoEtapa);
   if (!preparo.ok) return recusa(preparo.motivo, preparo.mensagem);
+  const trecho = original
+    ? trechoDoOriginal(preparo.texto, preparo.arvore)
+    : null;
+  if (trecho !== null) {
+    const doOriginal = new TextEncoder().encode(trecho);
+    arquivo.tamanho = doOriginal.byteLength;
+    preparo = prepararLeitura(doOriginal, aoEtapa);
+    if (!preparo.ok) return recusa(preparo.motivo, preparo.mensagem);
+  }
   const { texto, ok: _ok, ...leitura } = preparo;
   return { resultado: { status: 'ok', arquivo, leitura }, texto };
 }

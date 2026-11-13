@@ -45,6 +45,11 @@ export interface AcoesPainel {
    * de sempre.
    */
   ordemFerramentas?(): readonly string[];
+  /**
+   * Conteúdo da seção "Folha do PDF" (Retrato e Paisagem), a última do
+   * painel. Sem a função: sem a seção.
+   */
+  folhaPdf?(): HTMLElement;
 }
 
 export interface PainelConferencia {
@@ -316,6 +321,7 @@ export function criarPainel(
       ),
       secao('Precisa de você', pendencias),
       ...(ferramentas.length > 0 ? [secao('Ferramentas', ...ferramentas)] : []),
+      ...(acoes.folhaPdf ? [secao('Folha do PDF', acoes.folhaPdf())] : []),
     );
   }
 

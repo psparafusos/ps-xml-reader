@@ -131,3 +131,50 @@ describe('comandoBlocoDeNotas', () => {
     assert.equal(comandoBlocoDeNotas('\\nota.xml', 'C:\\Windows'), null);
   });
 });
+
+describe('cópia editada (.psxml): a aba XML mostra o original de dentro dela', () => {
+  const PSXML = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<psCopiaEditada xmlns="urn:ps" versao="2">',
+    '<aviso>Cópia de uso interno.</aviso>',
+    '<original><nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe><infNFe Id="NFe1"/></NFe></nfeProc></original>',
+    '<anotacoes><anotacao nItem="1">INVENTADA</anotacao></anotacoes>',
+    '</psCopiaEditada>',
+  ].join('\n');
+
+  it('com original: só o nfeProc, sem a cópia e as anotações', async () => {
+    const r = await lerParaLeitor(
+      'C:\Notas\copia inventada.psxml',
+      disco(PSXML.length, PSXML),
+      50,
+      () => {},
+      true,
+    );
+    assert.equal(r.resultado.status, 'ok');
+    assert.ok(r.texto?.startsWith('<nfeProc'));
+    assert.ok(!r.texto?.includes('psCopiaEditada'));
+    assert.ok(!r.texto?.includes('INVENTADA'));
+    if (r.resultado.status === 'ok')
+      assert.equal(
+        r.resultado.arquivo.tamanho,
+        new TextEncoder().encode(r.texto ?? '').length,
+      );
+  });
+
+  it('sem pedir o original, ou num XML qualquer: o arquivo inteiro', async () => {
+    const inteiro = await lerParaLeitor(
+      'C:\Notas\c.psxml',
+      disco(PSXML.length, PSXML),
+      50,
+    );
+    assert.ok(inteiro.texto?.includes('psCopiaEditada'));
+    const outro = await lerParaLeitor(
+      CAMINHO,
+      disco(4, '<a/>'),
+      50,
+      () => {},
+      true,
+    );
+    assert.equal(outro.texto, '<a/>');
+  });
+});

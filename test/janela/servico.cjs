@@ -60,9 +60,7 @@ async function casosServico(c) {
   // Como num duplo clique (XML que não é NF-e vai para o leitor).
   const abrir = (caminho) => c.abrir(caminho);
   const fechar = async () => {
-    await avaliar(
-      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
-    );
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
     await aguardar(`!${leitorAberto}`, 5000, 'o leitor não fechou');
   };
   const aguardarEstado = async (trecho, prazo = 60000) => {

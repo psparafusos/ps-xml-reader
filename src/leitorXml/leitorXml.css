@@ -28,9 +28,13 @@
     );
     --lx-erro: var(--cor-alerta-suave);
 
+    /* Na aba XML: abaixo da barra, ao lado do painel Leitura. */
     position: fixed;
-    inset: 0;
-    z-index: 1000;
+    top: var(--altura-barra, 0px);
+    right: 0;
+    bottom: 0;
+    left: calc(var(--leitura-largura, 0px) + var(--folga-leitura, 0px));
+    z-index: 8;
     display: flex;
     flex-direction: column;
     background: var(--ps-branco);
@@ -44,75 +48,43 @@
     outline: none;
   }
 
-  /* ---------- barra ---------- */
+  /* ---------- ferramentas: Árvore | Texto, busca e Bloco de Notas ---------- */
 
-  .leitor-xml__barra {
+  .leitor-xml__ferramentas {
     display: flex;
     flex: none;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--esp-3);
-    min-height: var(--bancada-faixa-altura);
-    padding: var(--esp-3) var(--esp-5);
-    border-bottom: var(--bancada-faixa-linha) solid var(--ps-amarelo);
-    background: var(--bancada-faixa);
-    color: var(--ps-branco);
+    padding: var(--esp-2) var(--esp-5);
+    border-bottom: var(--borda) solid var(--cartao-borda);
+    background: var(--bancada-fundo);
   }
 
-  .leitor-xml__logo {
-    flex: none;
-    width: 36px;
-    height: 36px;
-    object-fit: contain;
+  .leitor-xml__ferramentas .leitor-xml__busca {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    padding: 0;
+    border: none;
   }
 
-  .leitor-xml__titulo {
-    display: flex;
-    flex: 1 1 var(--largura-minima-titulo);
-    flex-direction: column;
-    justify-content: center;
-    gap: 2px;
-    min-width: var(--largura-minima-titulo);
+  .leitor-xml__ferramentas .leitor-xml__campo {
+    width: min(320px, 100%);
+    min-width: 120px;
   }
 
-  .leitor-xml__nome {
-    overflow: hidden;
-    color: var(--ps-branco);
-    font-size: var(--fs-lg);
-    font-weight: var(--peso-forte);
-    line-height: var(--altura-linha-titulo);
-    text-overflow: ellipsis;
+  .leitor-xml__ferramentas .leitor-xml__contador {
+    min-width: 0;
     white-space: nowrap;
   }
 
-  .leitor-xml__caminho {
-    overflow: hidden;
-    color: color-mix(in srgb, var(--ps-branco) 65%, transparent);
-    font-size: var(--fs-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .leitor-xml__acoes {
-    display: flex;
-    flex: none;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--esp-2);
+  .leitor-xml__bloco {
+    margin-left: auto;
   }
 
   .leitor-xml__vistas {
     display: inline-flex;
-  }
-
-  .leitor-xml__barra .botao:focus-visible {
-    outline: var(--botao-foco-espessura) solid var(--ps-branco);
-    outline-offset: var(--botao-foco-afastamento);
-  }
-
-  .leitor-xml__barra .seletor__opcao:focus-visible {
-    outline: var(--botao-foco-espessura) solid var(--ps-preto);
-    outline-offset: calc(-1 * var(--botao-foco-espessura));
   }
 
   .leitor-xml__vistas .seletor__opcao:disabled {
@@ -374,9 +346,8 @@
     user-select: text;
   }
 
-  /* Dados que selecionam (nome e caminho do arquivo, avisos, erro). */
-  .leitor-xml__nome,
-  .leitor-xml__caminho,
+  /* Dados que selecionam (tamanho, codificação e linhas, avisos, erro). */
+  .leitor-xml__dado,
   .leitor-xml__aviso,
   .leitor-xml__erro-texto {
     user-select: text;

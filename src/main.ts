@@ -79,7 +79,12 @@ import {
 // XML que não é NF-e abre no leitor genérico (parte 3); NF-e acima de 5 MB é
 // lida no serviço de leitura pesada (parte 2).
 import { destinoDoArquivo } from './leitorXml/destino';
-import { abrirNoLeitor, caminhoNoLeitor } from './leitorXml/principal';
+import {
+  abrirNoLeitor,
+  caminhoNoLeitor,
+  esquecerLeitor,
+  guardarNoLeitor,
+} from './leitorXml/principal';
 import { lerNfeNoServico } from './servico/principal';
 import { problemaNomeArquivo } from './nfe/nome';
 import {
@@ -692,6 +697,9 @@ async function lerArquivoNaJanela(
   j.arquivoAberto = caminho;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
+  // A aba XML lê o mesmo arquivo quando a pessoa pedir (do .psxml, o
+  // original guardado dentro da cópia).
+  guardarNoLeitor(j.janela.webContents, caminho, j.abertoEhCopia);
   // A cópia editada (.psxml) abre na Conferência; o XML da NF-e segue o
   // "NF-e abre em" do perfil ativo (XML: no DANFE; PSXML: na Conferência).
   const modoInicial: ModoImpressao =
@@ -831,6 +839,7 @@ ouvir('sem-nota', (event) => {
   if (!j) return;
   j.arquivoAberto = null;
   j.abertoEhCopia = false;
+  esquecerLeitor(event.sender.id);
 });
 
 // Arquivo pedido de fora para esta janela (duplo clique, linha de comando,

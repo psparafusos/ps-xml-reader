@@ -258,11 +258,42 @@ reabrir o app. A mesma pasta aparece na aba Geral das Configurações.
 Em 1366 a 125% (ou janela estreita), a grade passa de três para duas colunas,
 com as notas recentes embaixo.
 
-Um XML da NF-e abre direto no **DANFE** (ou na **Conferência**, se o perfil
-estiver com **NF-e abre em: PSXML**); um `.psxml` abre direto na
-**Conferência**. Os botões **Conferência** e **DANFE** da barra trocam de
-modo. Se a nota não tem DANFE no PS Reader (contingência ou outro modelo),
-ela abre na **Conferência** com o motivo numa mensagem.
+Um XML da NF-e abre direto na aba **XML**, no **DANFE** (ou na aba **PSXML**,
+a Conferência, se o perfil estiver com **NF-e abre em: PSXML**); um `.psxml`
+abre direto na aba **PSXML**. Se a nota não tem DANFE no PS Reader
+(contingência ou outro modelo), ela abre na Conferência com o motivo numa
+mensagem. Um XML que não é NF-e abre na aba **XML**, no modo **.XML**.
+
+### Abas PSXML e XML
+
+As abas ficam presas no canto de baixo, à esquerda, da barra preta, cada uma
+com a miniatura do ícone dela:
+
+- **PSXML**: o trabalho da loja, a **Conferência** (tabela de itens,
+  anotações e o painel da conferência). Num XML que não é NF-e ela fica
+  apagada; clicar nela mostra "PSXML indisponível" (só OK).
+- **XML**: o arquivo original, só leitura, com o painel **Leitura** à
+  esquerda (mesmo visual e mesmo jeito de recolher do painel da Conferência;
+  recolhido, fica a seta para abrir e o ícone do modo de leitura atual):
+  - **Modo de leitura**: **DANFE**, **Formato original** e **.XML** (o
+    leitor de XML de antes: Árvore e Texto, busca, Abrir no Bloco de Notas).
+    O DANFE fica apagado, com o motivo embaixo, num XML que não é nota ("XML
+    incompatível com a visualização em DANFE"), no `.psxml` ("O DANFE só é
+    gerado a partir do XML original da nota.") e numa NF-e sem DANFE no PS
+    Reader; clicar nele mostra o motivo num diálogo (só OK).
+  - **Folhas** (só no DANFE): **Uma de cada vez**, **Lado a lado** (quantas
+    couberem na largura) e **Ajustar à largura** (uma folha ocupando a
+    largura da área, acompanhando a janela). Mudar o zoom à mão volta para
+    Uma de cada vez. Só a tela: o papel e o PDF saem uma folha A4 retrato por
+    página. O arranjo fica para a próxima nota desta janela.
+  - **Arquivo**: nome, tipo e versão, tamanho, data de emissão e número de
+    folhas do DANFE.
+- Num `.psxml`, a aba XML mostra o XML original guardado dentro da cópia
+  (não a cópia inteira).
+- **Imprimir** e **Salvar** valem no DANFE e na Conferência; no Formato
+  original e no .XML ficam apagados.
+- Arrastar um arquivo para a janela funciona em qualquer aba e modo, com as
+  regras de sempre (ver Várias janelas).
 
 ### Onde a nota abre
 
@@ -394,7 +425,13 @@ inteira, quebrando dentro da coluna.
 
 ### Orientação e folha (modo Conferência)
 
-No painel, acima da prévia, **Orientação da folha**, em botões lado a lado:
+No painel da Conferência, a última seção é **Folha do PDF**: **Retrato** ou
+**Paisagem**, só para a nota aberta nesta janela (vale para o Imprimir e o
+Salvar PDF; não grava no perfil). Vem marcada a do perfil (na Automática, a
+que a tabela pede). Outra nota volta à do perfil.
+
+No painel do Editar colunas, acima da prévia, **Orientação da folha**, em
+botões lado a lado:
 **Automática** (padrão), **Retrato** ou **Paisagem**. Ao lado, um indicador
 mostra como a tabela vai para a folha com as colunas do painel: "Cabe em
 retrato", "Cabe em paisagem" ou "Não cabe numa folha" (o texto de ajuda diz a
@@ -604,10 +641,8 @@ espaço, as ações descem para uma segunda linha:
 
 - Navegação: **Início** (volta para a tela inicial; com anotação não salva, faz a
   pergunta de sempre) e **Abrir outro XML** (ver Várias janelas).
-- Modo: o seletor **Conferência | DANFE**, que alterna sem reabrir o arquivo.
-  Com um `.psxml` aberto, a opção DANFE fica indisponível: clicar nela mostra
-  o diálogo do app "DANFE indisponível", com "O DANFE só é gerado a partir do
-  XML original da nota." e só o botão OK.
+- Abas: **PSXML** e **XML** (ver Abas PSXML e XML), que trocam sem reabrir
+  o arquivo.
 - Saída:
   - **Imprimir**: abre o diálogo de impressão do Windows com a tela atual (na
     Conferência, já na orientação calculada para a tabela). Se a
@@ -1180,7 +1215,9 @@ src/
   styles/tokens.css  variáveis de cor, tipografia e medidas (inclui as do visual Bancada)
   styles/app.css     tela
   styles/bancada.css visual Bancada, só na tela: tela inicial, cartões, pastilhas, botões das janelas
-  styles/janela.css  barra de título própria, barra preta, botão e menu do perfil, menu do Salvar
+  styles/janela.css  barra de título própria, barra preta, abas, menus, painel Leitura
+  painelLeitura.ts   painel Leitura da aba XML: modo de leitura, Folhas, Arquivo
+  nfe/folhasDanfe.ts Folhas do DANFE na tela e a orientação da Folha do PDF
   styles/print.css   @media print (usado pelo PDF)
   danfe/dados.ts     XML -> campos do DANFE (separado do Nota da conferência)
   danfe/danfe.ts     montagem dos quadros e paginação do DANFE

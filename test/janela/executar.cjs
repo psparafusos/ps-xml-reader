@@ -205,9 +205,9 @@ async function abrirNota(caminho, tela = 'danfe') {
   await fecharAvisosDaNota();
 }
 
-/** Passa para a Conferência pelo botão da barra. */
+/** Passa para a Conferência pela aba PSXML. */
 async function irParaConferencia() {
-  await avaliar(`document.getElementById('btn-modo-conferencia').click()`);
+  await avaliar(`document.getElementById('btn-aba-psxml').click()`);
   await aguardar(visivel('nota'), 30000, 'a Conferência não apareceu');
   await fecharAvisosDaNota();
 }
@@ -1054,6 +1054,415 @@ async function principal() {
     },
   );
 
+  // Parte 4: abas PSXML e XML, painel Leitura (DANFE, Formato original,
+  // .XML, Folhas, Arquivo), .XML dentro da aba, Folha do PDF.
+  const leitura = (js) =>
+    avaliar(
+      `(() => { const p = document.getElementById('painel-leitura'); ${js} })()`,
+    );
+
+  await caso(
+    'Abas PSXML e XML: o XML abre na aba XML (DANFE); PSXML é a Conferência; miniaturas dos ícones',
+    async () => {
+      await abrirNota(outra);
+      const abas =
+        await avaliar(`(() => [...document.querySelectorAll('#barra .aba')].map((b) => ({
+        id: b.id, texto: b.textContent.trim(), selecionada: b.getAttribute('aria-selected'),
+        icone: b.querySelector('img')?.getAttribute('src') ?? '', carregou: (b.querySelector('img')?.naturalWidth ?? 0) > 0,
+      })))()`);
+      confere(
+        abas.map((a) => `${a.texto}:${a.selecionada}`).join('|') ===
+          'PSXML:false|XML:true',
+        `abas: ${JSON.stringify(abas)}`,
+      );
+      confere(
+        /icone-psxml.*\.svg$/.test(abas[0].icone) &&
+          /icone-xml.*\.svg$/.test(abas[1].icone) &&
+          abas.every((a) => a.carregou),
+        `ícones: ${JSON.stringify(abas)}`,
+      );
+      confere(
+        await avaliar(visivel('painel-leitura')),
+        'sem o painel Leitura na aba XML',
+      );
+      await irParaConferencia();
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-aba-psxml').getAttribute('aria-selected')`,
+        )) === 'true',
+        'a aba PSXML não ficou selecionada',
+      );
+      confere(
+        !(await avaliar(visivel('painel-leitura'))),
+        'o painel Leitura ficou na Conferência',
+      );
+      await avaliar(`document.getElementById('btn-aba-xml').click()`);
+      await aguardar(visivel('danfe'), 15000, 'a aba XML não voltou ao DANFE');
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Painel Leitura: DANFE, Formato original e .XML; Folhas só no DANFE; Arquivo; recolhe e expande',
+    async () => {
+      await abrirNota(outra);
+      const p1 = await leitura(`return {
+        modos: [...p.querySelectorAll('[aria-label="Modo de leitura"] button')].map((b) => b.textContent.trim() + ':' + b.getAttribute('aria-pressed')),
+        folhas: [...p.querySelectorAll('[aria-label="Folhas"] button')].map((b) => b.textContent.trim()),
+        orientacao: p.textContent.includes('Orientação'),
+        arquivo: p.querySelector('.leitura__arquivo')?.innerText ?? '',
+        titulo: p.querySelector('.conferencia__titulo')?.textContent,
+      };`);
+      confere(
+        p1.modos.join('|') === 'DANFE:true|Formato original:false|.XML:false',
+        `modos: ${p1.modos.join(', ')}`,
+      );
+      confere(
+        p1.folhas.join('|') === 'Uma de cada vez|Lado a lado|Ajustar à largura',
+        `folhas: ${p1.folhas.join(', ')}`,
+      );
+      confere(!p1.orientacao, 'a Orientação apareceu no painel Leitura');
+      confere(p1.titulo === 'Leitura', `título: ${p1.titulo}`);
+      confere(
+        p1.arquivo.includes(path.basename(outra)) &&
+          /NF-e versão 4\.00/.test(p1.arquivo) &&
+          /Emitida em \d\d\/\d\d\/\d{4}/.test(p1.arquivo) &&
+          /1 folha/.test(p1.arquivo),
+        `arquivo: ${p1.arquivo}`,
+      );
+      // .XML: o leitor dentro da aba; Folhas somem; Imprimir e Salvar apagados.
+      await avaliar(`document.getElementById('btn-modo-xml').click()`);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && /nfeProc|<NFe/.test(l.querySelector('.leitor-xml__vista--arvore')?.innerText ?? ''); })()`,
+        30000,
+        'o .XML não abriu na aba',
+      );
+      const p2 = await leitura(`return {
+        folhas: !!p.querySelector('[aria-label="Folhas"]'),
+        xml: document.getElementById('btn-modo-xml').getAttribute('aria-pressed'),
+        arvore: document.querySelector('.leitor-xml__vista--arvore').innerText.includes('nfeProc'),
+        saida: ['btn-imprimir', 'btn-salvar', 'btn-salvar-mais'].map((id) => document.getElementById(id).disabled),
+        danfe: !document.getElementById('danfe').hidden,
+      };`);
+      confere(!p2.folhas, 'as Folhas ficaram no .XML');
+      confere(p2.xml === 'true', '.XML não ficou marcado');
+      confere(p2.arvore, 'a árvore do .XML não mostra a NF-e');
+      confere(
+        p2.saida.every(Boolean),
+        `Imprimir e Salvar no .XML: ${p2.saida}`,
+      );
+      confere(!p2.danfe, 'o DANFE continuou à mostra');
+      // Recolhe: a seta para abrir e o ícone do modo atual.
+      await avaliar(
+        `document.querySelector('#painel-leitura .conferencia__recolher').click()`,
+      );
+      const rec = await leitura(`return {
+        estado: p.dataset.estado,
+        botoes: [...p.querySelectorAll('.conferencia__trilho button')].map((b) => b.getAttribute('aria-label') || b.textContent.trim()),
+        corpo: !p.querySelector('.conferencia__corpo').hidden,
+      };`);
+      confere(
+        rec.estado === 'recolhido' && !rec.corpo,
+        `recolhido: ${JSON.stringify(rec)}`,
+      );
+      confere(
+        rec.botoes.length === 2 && rec.botoes[1] === 'Modo de leitura: .XML',
+        `trilho: ${JSON.stringify(rec.botoes)}`,
+      );
+      await avaliar(
+        `document.querySelector('#painel-leitura .conferencia__expandir').click()`,
+      );
+      confere(
+        (await leitura(`return p.dataset.estado;`)) === 'aberto',
+        'o painel não abriu de novo',
+      );
+      // Formato original ainda apagado (Parte 5).
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-modo-formato').getAttribute('aria-disabled')`,
+        )) === 'true',
+        'o Formato original não está apagado',
+      );
+      await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+      await aguardar(visivel('danfe'), 15000, 'o DANFE não voltou');
+      confere(
+        await avaliar(
+          `['btn-imprimir', 'btn-salvar'].every((id) => !document.getElementById(id).disabled)`,
+        ),
+        'Imprimir e Salvar continuam apagados no DANFE',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Folhas do DANFE: Lado a lado e Ajustar à largura só na tela; zoom à mão volta para Uma',
+    async () => {
+      apagarPdfs();
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-folhas-lado').click()`);
+      await espera(300);
+      const lado = await avaliar(`(() => {
+        const d = document.getElementById('danfe');
+        const s = getComputedStyle(d);
+        return { dir: s.flexDirection, wrap: s.flexWrap, folhas: d.dataset.folhas, marcado: document.getElementById('btn-folhas-lado').getAttribute('aria-pressed') };
+      })()`);
+      confere(
+        lado.dir === 'row' &&
+          lado.wrap === 'wrap' &&
+          lado.folhas === 'lado' &&
+          lado.marcado === 'true',
+        `lado a lado: ${JSON.stringify(lado)}`,
+      );
+      // O PDF não segue o arranjo da tela: uma folha A4 retrato por página.
+      const folhas = await avaliar(
+        `document.querySelectorAll('#danfe .folha').length`,
+      );
+      await avaliar(`document.getElementById('btn-salvar').click()`);
+      const pdf = paginasDoPdf(await pdfNoDestino('_DANFE.pdf'));
+      confere(
+        pdf.paginas === folhas,
+        `PDF com ${pdf.paginas} páginas para ${folhas} folhas`,
+      );
+      confere(pdf.altura > pdf.largura, `PDF do DANFE: ${JSON.stringify(pdf)}`);
+      await avaliar(`document.getElementById('btn-folhas-largura').click()`);
+      await espera(400);
+      const aj = await avaliar(`(() => {
+        const d = document.getElementById('danfe');
+        const f = d.querySelector('.folha').getBoundingClientRect();
+        const p = document.getElementById('painel-leitura').getBoundingClientRect();
+        return { folha: f.width, area: document.documentElement.clientWidth - p.right, zoom: d.style.zoom };
+      })()`);
+      confere(
+        aj.folha <= aj.area + 1 && aj.folha >= aj.area * 0.8,
+        `a folha não ocupa a largura da área: ${JSON.stringify(aj)}`,
+      );
+      await avaliar(
+        `window.dispatchEvent(new KeyboardEvent('keydown', { key: '=', ctrlKey: true })); true`,
+      );
+      await espera(300);
+      confere(
+        (await avaliar(
+          `document.getElementById('btn-folhas-uma').getAttribute('aria-pressed')`,
+        )) === 'true',
+        'o zoom à mão não voltou para Uma de cada vez',
+      );
+      await avaliar(
+        `window.dispatchEvent(new KeyboardEvent('keydown', { key: '0', ctrlKey: true })); true`,
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'XML que não é NF-e: aba XML no .XML, PSXML apagada com o motivo, DANFE apagado com o aviso',
+    async () => {
+      const xml = path.join(notas, 'pedido-abas.xml');
+      fs.writeFileSync(
+        xml,
+        '<?xml version="1.0" encoding="UTF-8"?>\n<pedidoCompra numero="PED-1"><item><codigo>A-1</codigo></item></pedidoCompra>\n',
+      );
+      abrir(xml);
+      await aguardar(
+        `document.querySelector('#titulo-janela-textos .titulo-janela__forte')?.textContent === 'pedido-abas.xml'`,
+        30000,
+        'o XML não abriu na aba XML',
+      );
+      const g = await avaliar(`(() => ({
+        titulo: [...document.querySelectorAll('#titulo-janela-textos > :not(.titulo-janela__sep)')].map((e) => e.textContent),
+        psxml: document.getElementById('btn-aba-psxml').getAttribute('aria-disabled'),
+        xml: document.getElementById('btn-aba-xml').getAttribute('aria-selected'),
+        danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
+        aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
+        modo: document.getElementById('btn-modo-xml').getAttribute('aria-pressed'),
+      }))()`);
+      confere(
+        g.titulo.join('|') ===
+          'pedido-abas.xml|XML que não é NF-e (raiz pedidoCompra)',
+        `título: ${g.titulo.join(' | ')}`,
+      );
+      confere(
+        g.psxml === 'true' && g.xml === 'true' && g.modo === 'true',
+        `abas: ${JSON.stringify(g)}`,
+      );
+      confere(
+        g.danfe === 'true' &&
+          g.aviso === 'XML incompatível com a visualização em DANFE',
+        `DANFE: ${JSON.stringify(g)}`,
+      );
+      await avaliar(`document.getElementById('btn-aba-psxml').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog[open]')`,
+        15000,
+        'a aba PSXML apagada não explicou',
+      );
+      const d = await avaliar(`(() => {
+        const d = document.querySelector('dialog[open]');
+        return { titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent, botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()) };
+      })()`);
+      confere(
+        d.titulo === 'PSXML indisponível' && d.botoes.join() === 'OK',
+        `diálogo: ${JSON.stringify(d)}`,
+      );
+      await fecharDialogos();
+      confere(
+        !(await avaliar(visivel('nota'))),
+        'a Conferência abriu para um XML que não é nota',
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    '.psxml: a aba XML mostra o XML original guardado na cópia, com o DANFE indisponível',
+    async () => {
+      const copiaEditada = path.join(notas, 't4-copia-original.psxml');
+      fs.copyFileSync(
+        path.join(FIXTURES, 't12-anotacao-html.psxml'),
+        copiaEditada,
+      );
+      await abrirNota(copiaEditada, 'nota');
+      await avaliar(`document.getElementById('btn-aba-xml').click()`);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && /nfeProc|<NFe/.test(l.querySelector('.leitor-xml__vista--arvore')?.innerText ?? ''); })()`,
+        30000,
+        'o .XML do .psxml não abriu',
+      );
+      const v = await avaliar(`(() => ({
+        texto: document.querySelector('.leitor-xml__vista--arvore').innerText,
+        danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
+        aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
+      }))()`);
+      confere(/nfeProc|<NFe/.test(v.texto), 'o original não aparece');
+      confere(
+        !v.texto.includes('psCopiaEditada'),
+        'apareceu a cópia inteira, e não o original',
+      );
+      confere(
+        v.danfe === 'true' &&
+          v.aviso === 'O DANFE só é gerado a partir do XML original da nota.',
+        `DANFE: ${JSON.stringify(v)}`,
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Arrastar na aba XML (modo .XML) e na PSXML: o arquivo abre numa janela nova',
+    async () => {
+      const { BrowserWindow } = require('electron');
+      const solto = path.join(notas, 'catalogo-solto-abas.xml');
+      fs.writeFileSync(
+        solto,
+        '<?xml version="1.0" encoding="UTF-8"?>\n<catalogo><item>INVENTADO</item></catalogo>\n',
+      );
+      /** Arrasta `arquivo` para a janela, como do Explorer. */
+      const arrastar = async (arquivo) => {
+        const wc = janela.webContents;
+        wc.debugger.attach('1.3');
+        try {
+          const dados = { items: [], files: [arquivo], dragOperationsMask: 1 };
+          for (const type of ['dragEnter', 'dragOver', 'drop'])
+            await wc.debugger.sendCommand('Input.dispatchDragEvent', {
+              type,
+              x: 700,
+              y: 400,
+              data: dados,
+            });
+        } finally {
+          wc.debugger.detach();
+        }
+      };
+      /** A janela nova que aparecer depois de `antes`, já fechada. */
+      const novaJanela = async (antes) => {
+        const limite = Date.now() + 30000;
+        while (Date.now() < limite) {
+          const nova = BrowserWindow.getAllWindows().find((w) => !antes.has(w));
+          if (nova) {
+            nova.destroy();
+            return true;
+          }
+          await espera(100);
+        }
+        return false;
+      };
+      await abrirNota(outra);
+      await avaliar(`document.getElementById('btn-modo-xml').click()`);
+      await aguardar(
+        `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden; })()`,
+        15000,
+        'o .XML não abriu',
+      );
+      let antes = new Set(BrowserWindow.getAllWindows());
+      await arrastar(solto);
+      confere(
+        await novaJanela(antes),
+        'arrastar no .XML não abriu janela nova',
+      );
+      await irParaConferencia();
+      antes = new Set(BrowserWindow.getAllWindows());
+      await arrastar(solto);
+      confere(
+        await novaJanela(antes),
+        'arrastar na PSXML não abriu janela nova',
+      );
+      confere(await avaliar(visivel('nota')), 'a nota desta janela saiu');
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Folha do PDF na Conferência: Retrato ou Paisagem vale para o PDF e não grava no perfil',
+    async () => {
+      await abrirNota(outra);
+      await irParaConferencia();
+      await avaliar(
+        `document.querySelector('#painel-conferencia .conferencia__expandir')?.click(); true`,
+      );
+      await aguardar(
+        `!!document.getElementById('btn-folha-paisagem')`,
+        15000,
+        'sem a Folha do PDF no painel',
+      );
+      const titulos = await avaliar(
+        `[...document.querySelectorAll('#painel-conferencia .conferencia__subtitulo')].map((e) => e.textContent)`,
+      );
+      confere(
+        titulos[titulos.length - 1] === 'Folha do PDF',
+        `seções: ${titulos.join(', ')}`,
+      );
+      const perfisAntes = JSON.stringify(
+        await avaliar(`window.psApi.perfis()`),
+      );
+      for (const [id, deitada] of [
+        ['btn-folha-paisagem', true],
+        ['btn-folha-retrato', false],
+      ]) {
+        await avaliar(`document.getElementById('${id}').click()`);
+        await aguardar(
+          `document.getElementById('${id}')?.getAttribute('aria-pressed') === 'true'`,
+          5000,
+          `${id} não ficou marcado`,
+        );
+        apagarPdfs();
+        await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+        await aguardar(visivel('menu-salvar'));
+        await avaliar(`document.getElementById('btn-salvar-pdf').click()`);
+        const pdf = paginasDoPdf(await pdfNoDestino('_Conferencia.pdf'));
+        confere(
+          deitada ? pdf.largura > pdf.altura : pdf.altura > pdf.largura,
+          `PDF com ${id}: ${JSON.stringify(pdf)}`,
+        );
+      }
+      confere(
+        JSON.stringify(await avaliar(`window.psApi.perfis()`)) === perfisAntes,
+        'a Folha do PDF foi gravada no perfil',
+      );
+      await fecharAvisosDaNota();
+      await inicio();
+    },
+  );
+
   await caso(
     'Sem dica nativa (title) fora da ferramenta ST; seleção só nos dados',
     async () => {
@@ -1193,9 +1602,7 @@ async function principal() {
       'o leitor não avisou a profundidade',
     );
     confere(Date.now() - t0 < 5000, `leitor demorou ${Date.now() - t0} ms`);
-    await avaliar(
-      `[...document.querySelectorAll('.leitor-xml button')].find((b) => b.textContent === 'Fechar')?.click(); true`,
-    );
+    await avaliar(`document.getElementById('btn-inicio').click(); true`);
   });
 
   await caso('T9: HTML e javascript: em xProd ficam literais', async () => {
@@ -1606,11 +2013,10 @@ async function casosJanelasPorCima() {
     },
   );
 
-  // Leitor de XML genérico: camada fixa sobre a janela, com rolagem própria.
-  // Ocupa a largura toda (sem o espaço reservado da barra) e a página de baixo
-  // não rola enquanto ele está aberto.
+  // Modo .XML da aba XML: com rolagem própria, ao lado do painel Leitura,
+  // até a borda da janela; a página de baixo não rola.
   await caso(
-    'Leitor de XML: ocupa a janela toda e a página de baixo não rola',
+    '.XML na aba XML: ao lado do painel Leitura, até a borda, e a página não rola',
     async () => {
       const xml = path.join(notas, 'catalogo-largura.xml');
       fs.writeFileSync(
@@ -1628,28 +2034,27 @@ async function casosJanelasPorCima() {
         'o leitor não abriu',
       );
       await avaliar(DOIS_QUADROS);
-      const m = await avaliar(`(() => ({
-        leitor: Math.round(document.querySelector('.leitor-xml').getBoundingClientRect().width),
-        janela: innerWidth,
-        rolagem: getComputedStyle(document.documentElement).overflowY,
-      }))()`);
+      const m = await avaliar(`(() => {
+        const l = document.querySelector('.leitor-xml').getBoundingClientRect();
+        const p = document.getElementById('painel-leitura').getBoundingClientRect();
+        const b = document.getElementById('barra').getBoundingClientRect();
+        const h = document.documentElement;
+        return {
+          esquerda: Math.round(l.left), direita: Math.round(l.right), topo: Math.round(l.top),
+          painel: Math.round(p.right), barra: Math.round(b.bottom), janela: innerWidth,
+          rola: getComputedStyle(h).overflowY !== 'hidden' && h.scrollHeight > h.clientHeight,
+        };
+      })()`);
       confere(
-        m.leitor === m.janela,
-        `o leitor não ocupa a janela toda: ${JSON.stringify(m)}`,
+        m.esquerda >= m.painel && m.direita === m.janela && m.topo === m.barra,
+        `o .XML não ocupa a área ao lado do painel: ${JSON.stringify(m)}`,
       );
-      confere(m.rolagem === 'hidden', 'a página de baixo continua rolável');
-      await avaliar(`[...document.querySelectorAll('.leitor-xml button')]
-        .find((b) => b.textContent.trim() === 'Fechar').click()`);
+      confere(!m.rola, 'a página de baixo rola');
+      await avaliar(`document.getElementById('btn-inicio').click(); true`);
       await aguardar(
         `document.querySelector('.leitor-xml').hidden`,
         15000,
-        'o Fechar não fechou o leitor',
-      );
-      confere(
-        (await avaliar(
-          `getComputedStyle(document.documentElement).overflowY`,
-        )) !== 'hidden',
-        'a página não voltou a rolar depois de fechar o leitor',
+        'o Início não tirou o XML',
       );
     },
   );
@@ -1674,12 +2079,11 @@ async function casosJanelasPorCima() {
       for (let i = 1; i <= 12; i++) {
         abrir(xml);
         await aguardar(
-          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && l.querySelector('.leitor-xml__nome')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
+          `(() => { const l = document.querySelector('.leitor-xml'); return !!l && !l.hidden && document.querySelector('#titulo-janela-textos .titulo-janela__forte')?.textContent === 'catalogo-ouvintes.xml' && !!l.querySelector('.leitor-xml__vista--arvore')?.childElementCount; })()`,
           30000,
           `a leitura ${i} não terminou`,
         );
-        await avaliar(`[...document.querySelectorAll('.leitor-xml button')]
-          .find((b) => b.textContent.trim() === 'Fechar').click()`);
+        await avaliar(`document.getElementById('btn-inicio').click(); true`);
         await aguardar(
           `document.querySelector('.leitor-xml').hidden && ${visivel('vazio')}`,
           15000,

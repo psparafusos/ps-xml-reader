@@ -15,7 +15,13 @@ export async function executarTarefa(
   aoEtapa: (etapa: EtapaProgresso) => void = () => {},
 ): Promise<unknown> {
   if (tarefa.tipo === 'xml') {
-    return lerParaLeitor(tarefa.caminho, undefined, undefined, aoEtapa);
+    return lerParaLeitor(
+      tarefa.caminho,
+      undefined,
+      undefined,
+      aoEtapa,
+      tarefa.original === true,
+    );
   }
   if (tarefa.tipo === 'nfe') {
     aoEtapa('lendo');

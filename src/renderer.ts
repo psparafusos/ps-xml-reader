@@ -107,6 +107,25 @@ import {
   planoDaTabela,
 } from './folhaTabela';
 import { ICONES } from './icones';
+import { A4, mmParaPx } from './nfe/folha';
+import {
+  orientacaoDaFolha,
+  zoomParaLargura,
+  type ArranjoFolhas,
+} from './nfe/folhasDanfe';
+import {
+  criarPainelLeitura,
+  ROTULO_MODO,
+  type ModoLeitura,
+} from './painelLeitura';
+import {
+  aoLerXml,
+  arquivoXml,
+  esconderXml,
+  mostrarXml,
+  novoDocumentoXml,
+} from './leitorXml/tela';
+import { formatarTamanho } from './leitorXml/formato';
 import {
   abrirConfiguracoes,
   atualizarConfiguracoes,
@@ -1089,7 +1108,10 @@ async function prepararFolha(
     'table.tabela--itens',
   );
   if (!secaoItens || !tabela) return 'retrato';
-  const plano = planoDaTabela(tabela, configAtual.orientacao);
+  const plano = planoDaTabela(
+    tabela,
+    orientacaoDaFolha(orientacaoNota, configAtual.orientacao),
+  );
   if (plano.partes.length > 1) {
     const nome = ROTULO_ORIENTACAO[plano.orientacao].toLowerCase();
     const r = await perguntar({
@@ -1278,6 +1300,7 @@ const painel = criarPainel(painelEl, notaEl, {
     atualizarPendentes();
   },
   ferramentasJanela: () => [ferramentaST],
+  folhaPdf: () => seletorFolhaPdf(),
   ordemFerramentas: () => ferramentasVisiveis(ferramentasAtivas()),
   resumoCfop: () => {
     const coluna = idColunaCfop();
@@ -1365,8 +1388,9 @@ const rodapeCopia = $('rodape-copia');
 const btnAbrir = $('btn-abrir') as HTMLButtonElement;
 const btnAbrirOutro = $('btn-abrir-outro') as HTMLButtonElement;
 const btnInicio = $('btn-inicio') as HTMLButtonElement;
-const btnModoConferencia = $('btn-modo-conferencia') as HTMLButtonElement;
-const btnModoDanfe = $('btn-modo-danfe') as HTMLButtonElement;
+const btnAbaPsxml = $('btn-aba-psxml') as HTMLButtonElement;
+const btnAbaXml = $('btn-aba-xml') as HTMLButtonElement;
+const painelLeituraEl = $('painel-leitura');
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
@@ -1477,8 +1501,38 @@ let conferenciaMontada = false;
 /** O DANFE já foi montado para o arquivo aberto. */
 let danfeMontado = false;
 
-/** Mostra só uma das telas: inicial, conferência ou DANFE. */
-function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
+/**
+ * As telas: a inicial, a aba PSXML (Conferência) e a aba XML em cada modo de
+ * leitura (DANFE, Formato original, .XML).
+ */
+type Tela = 'vazio' | 'nota' | ModoLeitura;
+
+/** A tela à mostra. */
+let telaAtual: Tela = 'vazio';
+/** Modo da aba XML deste documento (volta a ele ao trocar de aba). */
+let modoXml: ModoLeitura = 'danfe';
+/**
+ * XML que não é NF-e aberto nesta janela (o nome e a raiz chegam com a
+ * leitura), ou null.
+ */
+let generico: { nome: string; raiz: string | null } | null = null;
+/** Por que o DANFE não sai deste documento, ou null (sai). */
+let semDanfe: string | null = null;
+/** Folhas do DANFE na tela; ficam para a próxima nota desta janela. */
+let arranjoFolhas: ArranjoFolhas = 'uma';
+/**
+ * Folha do PDF da Conferência escolhida no painel: vale só para a nota
+ * aberta nesta janela (tela, Imprimir e Salvar PDF); null: a do perfil.
+ */
+let orientacaoNota: Orientacao | null = null;
+/** Folhas do DANFE montado (para o cartão Arquivo), ou 0. */
+let folhasDanfe = 0;
+
+const AVISO_INCOMPATIVEL = 'XML incompatível com a visualização em DANFE';
+
+/** Mostra só uma das telas: inicial, aba PSXML ou aba XML num modo. */
+function mostrarTela(tela: Tela): void {
+  telaAtual = tela;
   vazio.hidden = tela !== 'vazio';
   fecharMenuSalvar();
   if (tela === 'vazio') {
@@ -1488,26 +1542,269 @@ function mostrarTela(tela: 'vazio' | 'nota' | 'danfe'): void {
   } else if (perfilRapido.parentElement !== barraPerfil) {
     barraPerfil.append(perfilRapido);
   }
-  barra.hidden = tela !== 'nota' && tela !== 'danfe';
+  const naAbaXml = tela === 'danfe' || tela === 'formato' || tela === 'xml';
+  barra.hidden = tela === 'vazio';
   notaEl.hidden = tela !== 'nota';
   danfeEl.hidden = tela !== 'danfe';
   painelEl.hidden = tela !== 'nota';
+  painelLeituraEl.hidden = !naAbaXml;
+  if (tela === 'xml') mostrarXml();
+  else esconderXml();
+  if (naAbaXml) modoXml = tela;
   if (tela === 'nota' || tela === 'danfe') {
     modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
     document.body.dataset.modo = modoAtual;
-    // Seletor de duas posições: aria-pressed marca a opção ativa.
-    btnModoConferencia.setAttribute(
-      'aria-pressed',
-      String(modoAtual === 'conferencia'),
-    );
-    btnModoDanfe.setAttribute('aria-pressed', String(modoAtual === 'danfe'));
     atualizarMenuSalvar();
   }
+  // Abas: PSXML na Conferência; XML nos modos de leitura.
+  btnAbaPsxml.setAttribute('aria-selected', String(tela === 'nota'));
+  btnAbaXml.setAttribute('aria-selected', String(naAbaXml));
+  if (generico) btnAbaPsxml.setAttribute('aria-disabled', 'true');
+  else btnAbaPsxml.removeAttribute('aria-disabled');
+  atualizarAcoesSaida();
+  atualizarLeitura();
   window.scrollTo(0, 0);
+  aplicarFolhas();
   aplicarZoom();
   painel.ajustarLayout();
   if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
 }
+
+/**
+ * Imprimir e Salvar (com a seta) só no DANFE e na Conferência; no Formato
+ * original e no .XML ficam apagados. Respeita o bloqueio de salvar e
+ * imprimir em andamento.
+ */
+function atualizarAcoesSaida(): void {
+  const comSaida = telaAtual === 'nota' || telaAtual === 'danfe';
+  for (const b of [btnImprimir, btnSalvar, btnSalvarMais])
+    b.disabled = acoesBloqueadas || !comSaida;
+}
+
+/** O painel Leitura com o estado de agora. */
+function atualizarLeitura(): void {
+  painelLeitura.atualizar({
+    modo: modoXml,
+    semDanfe,
+    // O Formato original chega na Parte 5.
+    semFormato: true,
+    folhas: arranjoFolhas,
+    arquivo: cartaoArquivo(),
+  });
+}
+
+/** O cartão Arquivo do painel Leitura: nome, tipo e versão, tamanho, emissão. */
+function cartaoArquivo(): { nome: string; linhas: string[] } | null {
+  if (generico) {
+    const lido = arquivoXml();
+    const linhas = [
+      `XML${generico.raiz ? `, raiz ${generico.raiz}` : ''}${lido?.arquivo.tamanho != null ? ` · ${formatarTamanho(lido.arquivo.tamanho)}` : ''}`,
+    ];
+    return { nome: generico.nome || lido?.arquivo.nome || '', linhas };
+  }
+  if (!aberto) return null;
+  const versao = /<infNFe\b[^>]*\bversao="([^"]+)"/.exec(aberto.texto)?.[1];
+  const tipo = `${aberto.lido.copiaEditada ? 'Cópia editada (.psxml), ' : ''}NF-e${versao ? ` versão ${versao}` : ''}`;
+  const tamanho = formatarTamanho(
+    new TextEncoder().encode(aberto.texto).length,
+  );
+  const emissao = aberto.lido.nota.ide.dhEmi
+    ? `Emitida em ${f.data(aberto.lido.nota.ide.dhEmi)}`
+    : '';
+  const folhas =
+    folhasDanfe > 0
+      ? `${folhasDanfe} ${folhasDanfe === 1 ? 'folha' : 'folhas'}`
+      : '';
+  return {
+    nome: aberto.nome,
+    linhas: [
+      `${tipo} · ${tamanho}`,
+      [emissao, folhas].filter(Boolean).join(' · '),
+    ].filter(Boolean),
+  };
+}
+
+/**
+ * Documento novo na janela (ou a volta para a tela inicial): a aba XML lê de
+ * novo, sem DANFE montado, e a Folha do PDF volta à do perfil.
+ */
+function novoDocumento(): void {
+  generico = null;
+  novoDocumentoXml();
+  folhasDanfe = 0;
+  orientacaoNota = null;
+  modoXml = 'danfe';
+  semDanfe = null;
+}
+
+/**
+ * XML que não é NF-e aberto nesta janela (o processo principal manda
+ * mostrar): a aba XML no .XML, a aba PSXML apagada, o DANFE apagado com o
+ * aviso. O nome e a raiz chegam com a leitura (aoLerXml).
+ */
+function abrirGenerico(): void {
+  esconderMensagem();
+  limparNota();
+  generico = { nome: '', raiz: null };
+  semDanfe = AVISO_INCOMPATIVEL;
+  modoXml = 'xml';
+  atualizarTituloJanela({ forte: 'Lendo o arquivo…', resto: [] });
+  mostrarTela('xml');
+}
+
+aoLerXml((dados) => {
+  if (!generico) {
+    if (telaAtual !== 'vazio') atualizarLeitura();
+    return;
+  }
+  generico = {
+    nome: dados?.arquivo.nome ?? generico.nome,
+    raiz: dados?.raiz ?? null,
+  };
+  atualizarTituloJanela({
+    forte: generico.nome,
+    resto: [
+      generico.raiz
+        ? `XML que não é NF-e (raiz ${generico.raiz})`
+        : 'XML que não é NF-e',
+    ],
+  });
+  document.title = generico.nome || 'PS Reader';
+  atualizarLeitura();
+});
+window.psLeitorXml.aoMostrar(() => abrirGenerico());
+
+/** Retrato e Paisagem da Folha do PDF (painel da Conferência). */
+function seletorFolhaPdf(): HTMLElement {
+  const atual =
+    orientacaoNota ??
+    (configAtual.orientacao !== 'automatica'
+      ? configAtual.orientacao
+      : orientacaoDaTela());
+  const grupo = el(
+    'div',
+    'seletor folha-pdf',
+    ...(['retrato', 'paisagem'] as const).map((o) => {
+      const b = el('button', 'seletor__opcao', ROTULO_ORIENTACAO[o]);
+      b.type = 'button';
+      b.id = `btn-folha-${o}`;
+      b.setAttribute('aria-pressed', String(o === atual));
+      b.addEventListener('click', () => {
+        orientacaoNota = o;
+        painel.atualizarFerramentas();
+      });
+      return b;
+    }),
+  );
+  grupo.setAttribute('role', 'group');
+  grupo.setAttribute('aria-label', 'Folha do PDF');
+  return grupo;
+}
+
+/** Orientação que a tabela da tela pede (perfil em Automática). */
+function orientacaoDaTela(): Orientacao {
+  const tabela = notaEl.querySelector<HTMLTableElement>(
+    '.secao--itens table.tabela--itens',
+  );
+  if (!tabela || notaEl.hidden) return 'retrato';
+  return planoDaTabela(tabela, 'automatica').orientacao;
+}
+
+/** Diálogo do modo apagado (DANFE ou PSXML): o motivo e só OK. */
+async function avisarIndisponivel(
+  titulo: string,
+  texto: string,
+): Promise<void> {
+  await perguntar({
+    titulo,
+    texto,
+    botoes: [{ rotulo: 'OK', valor: 'ok', principal: true }],
+    cancelar: 'ok',
+  });
+}
+
+/** Troca o modo de leitura da aba XML (botões do painel Leitura). */
+function escolherModoXml(modo: ModoLeitura): void {
+  if (modo === 'danfe') {
+    if (semDanfe !== null) {
+      void avisarIndisponivel(AVISO_SEM_DANFE.titulo, semDanfe);
+      return;
+    }
+    mostrarDanfe();
+    return;
+  }
+  if (modo === 'formato') return;
+  if (telaAtual !== 'xml') mostrarTela('xml');
+}
+
+/** Aba XML: o modo em que ela estava (ou o primeiro que dá). */
+function mostrarAbaXml(): void {
+  const modo = modoXml === 'danfe' && semDanfe !== null ? 'xml' : modoXml;
+  if (telaAtual === modo) return;
+  if (modo === 'danfe') mostrarDanfe();
+  else mostrarTela(modo);
+}
+
+// ---------- painel Leitura e Folhas do DANFE ----------
+
+const painelLeitura = criarPainelLeitura(painelLeituraEl, {
+  escolherModo: escolherModoXml,
+  escolherFolhas,
+  mudouLargura: (aberto) => {
+    document.documentElement.style.setProperty(
+      '--leitura-largura',
+      aberto
+        ? 'var(--largura-painel-conferencia)'
+        : 'var(--largura-trilho-conferencia)',
+    );
+    if (telaAtual === 'danfe' && arranjoFolhas === 'largura') {
+      calcularZoomLargura();
+      aplicarZoom();
+    }
+  },
+});
+
+/** Arruma as folhas do DANFE na tela (só a tela; o papel é uma por página). */
+function aplicarFolhas(): void {
+  danfeEl.dataset.folhas = arranjoFolhas;
+  if (arranjoFolhas === 'largura' && telaAtual === 'danfe')
+    calcularZoomLargura();
+}
+
+/**
+ * "Ajustar à largura": o zoom do DANFE que faz uma folha ocupar a largura da
+ * área ao lado do painel Leitura. Só guarda o valor; quem chama aplica.
+ */
+function calcularZoomLargura(): void {
+  const estilo = getComputedStyle(danfeEl);
+  const recuo =
+    (parseFloat(estilo.paddingLeft) || 0) +
+    (parseFloat(estilo.paddingRight) || 0);
+  zoomPorModo.danfe = zoomParaLargura(
+    document.documentElement.clientWidth,
+    mmParaPx(A4.largura),
+    recuo,
+  );
+}
+
+/** Troca o arranjo das folhas do DANFE (só a tela). */
+function escolherFolhas(a: ArranjoFolhas): void {
+  if (a === arranjoFolhas) return;
+  // Saindo do "Ajustar à largura", a folha volta ao tamanho normal.
+  if (arranjoFolhas === 'largura') zoomPorModo.danfe = 1;
+  arranjoFolhas = a;
+  aplicarFolhas();
+  atualizarLeitura();
+  aplicarZoom();
+}
+
+// A janela mudou de largura: o "Ajustar à largura" acompanha.
+window.addEventListener('resize', () => {
+  if (telaAtual === 'danfe' && arranjoFolhas === 'largura') {
+    calcularZoomLargura();
+    aplicarZoom();
+  }
+});
 
 // ---------- zoom da área de visualização ----------
 
@@ -1546,6 +1843,12 @@ function aplicarZoom(): void {
 /** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
 function mudarZoom(passo: -1 | 0 | 1): void {
   if (!areaZoom()) return;
+  // Zoom à mão no "Ajustar à largura": volta para Uma de cada vez.
+  if (modoAtual === 'danfe' && arranjoFolhas === 'largura') {
+    arranjoFolhas = 'uma';
+    aplicarFolhas();
+    atualizarLeitura();
+  }
   const atual = zoomPorModo[modoAtual];
   let novo = 1;
   if (passo === 1) novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9) ?? atual;
@@ -1627,14 +1930,18 @@ function preencherBarra(n: Nota): void {
 }
 
 /**
- * Cópia editada: o DANFE só sai do XML original. A opção continua visível e
- * focável (aria-disabled, não disabled); clicar nela mostra o motivo num
- * diálogo do app (avisarSemDanfe), sem dica ao passar o mouse.
+ * O DANFE só sai do XML original da NF-e: na cópia editada, numa NF-e sem
+ * DANFE no PS Reader (contingência, outro modelo) e num XML que não é nota,
+ * o botão do painel Leitura fica apagado (aria-disabled, não disabled),
+ * com o motivo embaixo; clicar nele mostra o motivo num diálogo do app, sem
+ * dica ao passar o mouse.
  */
 function atualizarSeletorDanfe(): void {
-  if (aberto?.lido.copiaEditada)
-    btnModoDanfe.setAttribute('aria-disabled', 'true');
-  else btnModoDanfe.removeAttribute('aria-disabled');
+  if (generico) semDanfe = AVISO_INCOMPATIVEL;
+  else if (!aberto) semDanfe = null;
+  else if (aberto.lido.copiaEditada) semDanfe = AVISO_SEM_DANFE.texto;
+  else semDanfe = lerDadosDanfe(aberto.texto).motivo;
+  atualizarLeitura();
 }
 
 /** Diálogo do DANFE indisponível (cópia editada aberta): só OK. */
@@ -1642,15 +1949,6 @@ const AVISO_SEM_DANFE = {
   titulo: 'DANFE indisponível',
   texto: 'O DANFE só é gerado a partir do XML original da nota.',
 } as const;
-
-async function avisarSemDanfe(): Promise<void> {
-  await perguntar({
-    titulo: AVISO_SEM_DANFE.titulo,
-    texto: AVISO_SEM_DANFE.texto,
-    botoes: [{ rotulo: 'OK', valor: 'ok', principal: true }],
-    cancelar: 'ok',
-  });
-}
 
 /**
  * Mostra o DANFE. Usa a nota do XML original. Cópia editada não gera DANFE.
@@ -1677,8 +1975,11 @@ function mostrarDanfe(): void {
     // Paginado sempre em 100%: as medidas não dependem do zoom da tela.
     danfeEl.style.zoom = '1';
     montarDanfe(danfeEl, dados);
-    aplicarZoom();
+    folhasDanfe = danfeEl.querySelectorAll('.folha').length;
     danfeMontado = true;
+    aplicarFolhas();
+    atualizarLeitura();
+    aplicarZoom();
   } catch (erro) {
     danfeEl.replaceChildren();
     mostrarMensagem('Não foi possível montar o DANFE.', 'erro');
@@ -1912,7 +2213,7 @@ function tratarAbertura(r: ResultadoAbrir): void {
   }
   if (r.status === 'leitor') esconderMensagem();
   // nova-janela, outra-janela, cancelado: nada muda nesta janela. leitor: o
-  // leitor genérico de XML (src/leitorXml/tela.ts) abre por cima desta tela.
+  // processo principal manda mostrar o XML que não é NF-e (abrirGenerico).
 }
 
 /**
@@ -1940,6 +2241,7 @@ function carregar(
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
     aberto = { nome: arquivo.nome, texto: arquivo.texto, lido };
+    novoDocumento();
     salvoAgora = null;
     ultimoRecente = '';
     conferenciaMontada = false;
@@ -2238,8 +2540,8 @@ function bloquearAcoes(bloquear: boolean, salvando = false): void {
     btnSalvar,
     btnSalvarMais,
     btnImprimir,
-    btnModoConferencia,
-    btnModoDanfe,
+    btnAbaPsxml,
+    btnAbaXml,
     btnInicio,
     btnAbrirOutro,
   ]) {
@@ -2701,6 +3003,7 @@ async function irParaInicio(): Promise<void> {
 /** Tira a nota desta janela e volta para a tela inicial (sem perguntar). */
 function limparNota(): void {
   aberto = null;
+  novoDocumento();
   // Respostas atrasadas da busca de avisos não valem mais.
   geracaoAvisos++;
   avisosProntos = false;
@@ -2849,16 +3152,17 @@ window.addEventListener('keydown', (e) => {
 
 btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
-btnModoConferencia.addEventListener('click', () => {
-  if (modoAtual !== 'conferencia') mostrarConferencia();
-});
-btnModoDanfe.addEventListener('click', () => {
-  if (btnModoDanfe.getAttribute('aria-disabled') === 'true') {
-    void avisarSemDanfe();
+btnAbaPsxml.addEventListener('click', () => {
+  if (generico) {
+    void avisarIndisponivel(
+      'PSXML indisponível',
+      'Este XML não é uma NF-e. A Conferência (PSXML) só existe para NF-e; use a aba XML.',
+    );
     return;
   }
-  if (modoAtual !== 'danfe') mostrarDanfe();
+  if (telaAtual !== 'nota') mostrarConferencia();
 });
+btnAbaXml.addEventListener('click', () => mostrarAbaXml());
 btnInicio.addEventListener('click', () => void irParaInicio());
 // Menu Ordenar: fecha ao clicar fora dele.
 document.addEventListener('mousedown', (e) => {

@@ -24,6 +24,15 @@ async function leitura(texto: string) {
 describe('pedidoValido', () => {
   it('aceita caminho absoluto e planilha em bytes', () => {
     assert.equal(pedidoValido({ id: 1, tarefa: XML }), true);
+    // .psxml: o original de dentro da cópia (booleano, se vier).
+    assert.equal(
+      pedidoValido({ id: 1, tarefa: { ...XML, original: true } }),
+      true,
+    );
+    assert.equal(
+      pedidoValido({ id: 1, tarefa: { ...XML, original: 'sim' } }),
+      false,
+    );
     assert.equal(
       pedidoValido({
         id: 2,
