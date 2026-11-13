@@ -11,8 +11,9 @@
 // de segurança; a tela do leitor genérico de XML (leitorXml.cjs) e o serviço
 // de leitura pesada (servico.cjs), com XML inventado gerado no teste; as
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
-// ferramenta ST) e os dois avisos novos da ferramenta ST (t13, com a
-// planilha inventada de planilhaST.mts).
+// ferramenta ST), os dois avisos novos da ferramenta ST (t13, com a
+// planilha inventada de planilhaST.mts) e a nota de devolução (t14). Com
+// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14.
 'use strict';
 
 const { app, session } = require('electron');
@@ -1418,6 +1419,24 @@ async function rodaDoMouse(x, y, deltaY = -360) {
   );
 }
 
+/**
+ * Com PS_JANELA_CAPTURAS (uma pasta), grava a janela do app em PNG. A janela
+ * nunca aparece: stayHidden pede um quadro novo sem mostrá-la.
+ */
+async function capturar(nome) {
+  const pasta = process.env.PS_JANELA_CAPTURAS;
+  if (!pasta) return;
+  await avaliar(
+    `new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`,
+  );
+  janela.webContents.invalidate();
+  await espera(300);
+  const img = await janela.webContents.capturePage(undefined, {
+    stayHidden: true,
+  });
+  fs.writeFileSync(path.join(pasta, nome), img.toPNG());
+}
+
 /** Gera a planilha de ST inventada e carrega pelo Carregar dos Documentos. */
 async function carregarPlanilhaST() {
   const { dialog } = require('electron');
@@ -1780,6 +1799,80 @@ async function casosJanelasPorCima() {
       // Duas linhas candidatas, Sem ST e Outro: as outras linhas não viram opção.
       confere(outras.opcoes === 4, `opções no quadro: ${outras.opcoes}`);
       confere(!outras.frase, 'a frase da nota apareceu no quadro do pneu');
+      await avaliar(
+        `document.querySelector('dialog.painel--st .painel__fechar').click()`,
+      );
+      await aguardar(
+        `!document.querySelector('dialog.painel--st')`,
+        15000,
+        'o X não fechou a ferramenta',
+      );
+    },
+  );
+
+  // Nota de devolução (finNFe 4), t14: cliente de Sergipe, um item sem ST
+  // com 5556 na nota. A Conferência mostra a nota referenciada; a
+  // ferramenta abre com o item em "Devolução de cliente" e CFOP 1202.
+  await caso(
+    'Ferramenta ST: nota de devolução abre em Devolução de cliente, CFOP 1202, e o painel mostra a nota referenciada',
+    async () => {
+      await carregarPlanilhaST();
+      await abrirNota(copia('t14-devolucao-cliente.xml'));
+      await avaliar(`document.getElementById('btn-usar-conferencia').click()`);
+      await aguardar(
+        `[...document.querySelectorAll('dialog[open] button')].some((b) => b.textContent.trim() === 'Continuar')`,
+        15000,
+        'o aviso para sair da leitura não abriu',
+      );
+      await avaliar(`[...document.querySelectorAll('dialog[open] button')]
+        .find((b) => b.textContent.trim() === 'Continuar').click()`);
+      await aguardar(`document.getElementById('faixa-leitura').hidden`);
+      await aguardar(visivel('nota'));
+      await fecharAvisosDaNota();
+      const linhaPainel = await avaliar(`(() => {
+        const t = [...document.querySelectorAll('.conferencia__linha-titulo')]
+          .map((x) => x.textContent.trim())
+          .find((x) => x.includes('Nota de devolução'));
+        return t ?? null;
+      })()`);
+      confere(
+        linhaPainel?.includes('Nota de devolução: NF 1234, série 2'),
+        `linha do painel: ${JSON.stringify(linhaPainel)}`,
+      );
+      await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
+        .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
+        .querySelector('button:not(:disabled)').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog.painel--st[open]')`,
+        30000,
+        'a ferramenta ST não abriu',
+      );
+      const r = await avaliar(`(() => {
+        const d = document.querySelector('dialog.painel--st');
+        const tr = d.querySelector('tr.st__linha');
+        const tds = [...tr.children];
+        return {
+          resumo: d.querySelector('.painel__cabecalho .painel__dica').textContent,
+          st: tr.querySelector('.st__situacao').textContent.trim(),
+          mva: tr.querySelector('.st__mva').textContent.trim(),
+          cfop: tr.querySelector('.st__cfop').textContent.trim(),
+          finalidade: tds[9].textContent.trim(),
+          lembrado: !!tr.querySelector('.st__lembrado'),
+          pendente: tr.classList.contains('st__linha--pendente'),
+        };
+      })()`);
+      confere(r.resumo.includes('nota de devolução'), `resumo: ${r.resumo}`);
+      confere(r.st === 'Não', `ST: ${r.st}`);
+      confere(r.cfop === '1202', `CFOP: ${r.cfop}`);
+      confere(r.mva === '-', `MVA: ${r.mva}`);
+      confere(
+        r.finalidade === 'Devolução de cliente',
+        `finalidade: ${r.finalidade}`,
+      );
+      confere(!r.lembrado, 'a decisão da devolução apareceu como lembrada');
+      confere(!r.pendente, 'o item da devolução ficou pendente');
+      // Captura opcional (só a janela do app), para relatório.
+      await capturar('ferramenta-st-devolucao.png');
       await avaliar(
         `document.querySelector('dialog.painel--st .painel__fechar').click()`,
       );

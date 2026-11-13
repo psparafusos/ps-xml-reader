@@ -81,6 +81,10 @@ function lerIde(el: Element | null): Ide {
     dhEmi: texto(el, 'dhEmi'),
     natOp: texto(el, 'natOp'),
     tpNF: texto(el, 'tpNF'),
+    finNFe: texto(el, 'finNFe'),
+    refNFe: filhos(el, 'NFref')
+      .map((r) => texto(r, 'refNFe'))
+      .filter(Boolean),
   };
 }
 

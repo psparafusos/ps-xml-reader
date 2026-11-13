@@ -33,6 +33,10 @@ export interface Ide {
   dhEmi: string;
   natOp: string;
   tpNF: string;
+  /** Finalidade da NF-e (finNFe): 1 normal, 2 complementar, 3 ajuste, 4 devolução. */
+  finNFe: string;
+  /** Chaves das NF-e referenciadas (NFref/refNFe), na ordem da nota. */
+  refNFe: string[];
 }
 
 export interface Item {

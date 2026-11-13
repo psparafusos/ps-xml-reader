@@ -9,12 +9,15 @@
 //   bonificação      1910/2910
 //   ativo imobilizado 1551/2551
 //   outras entradas  1949/2949
+//   devolução de cliente sem ST 1202/2202, com ST 1411/2411
 // A MVA só é calculada para revenda; nas outras finalidades com ST, fica
-// "confirmar com a contabilidade".
+// "confirmar com a contabilidade", menos na devolução de cliente, que não
+// tem MVA ("-": a tabela da devolução já está confirmada).
 //
 // Decisões lembradas: por raiz do CNPJ do fornecedor (8 dígitos) + código do
 // produto. Valem na próxima nota do mesmo produto se o NCM for o mesmo (e,
-// para a linha escolhida, se ela ainda estiver entre os candidatos).
+// para a linha escolhida, se ela ainda estiver entre os candidatos). Decisão
+// na devolução de cliente não é lembrada (o emitente é o cliente).
 
 import type { AnaliseItem, CandidatoAnalise, MvaJogo } from './analise';
 
@@ -62,6 +65,7 @@ export const FINALIDADES = [
   'bonificacao',
   'ativo',
   'outras',
+  'devolucao',
 ] as const;
 export type Finalidade = (typeof FINALIDADES)[number];
 
@@ -71,9 +75,30 @@ export const ROTULO_FINALIDADE: Record<Finalidade, string> = {
   bonificacao: 'Bonificação',
   ativo: 'Ativo imobilizado',
   outras: 'Outras entradas',
+  devolucao: 'Devolução de cliente',
 };
 
 export const FINALIDADE_PADRAO: Finalidade = 'revenda';
+
+/** Devolução de cliente: a nota é do cliente, não de um fornecedor. */
+export const FINALIDADE_DEVOLUCAO: Finalidade = 'devolucao';
+
+/**
+ * A decisão com esta finalidade pode ser lembrada? A da devolução de cliente
+ * não: não é gravada, não volta do arquivo e não entra no histórico.
+ */
+export const finalidadeLembravel = (f: Finalidade) =>
+  f !== FINALIDADE_DEVOLUCAO;
+
+/** finNFe da nota: 4 é devolução. */
+export const FIN_NFE_DEVOLUCAO = '4';
+
+/** Finalidade com que os itens abrem: devolução na nota de devolução. */
+export function finalidadeInicial(finNFe: string | undefined): Finalidade {
+  return finNFe?.trim() === FIN_NFE_DEVOLUCAO
+    ? FINALIDADE_DEVOLUCAO
+    : FINALIDADE_PADRAO;
+}
 
 /** Sufixo do CFOP por finalidade: [sem ST, com ST]. */
 const CFOP_FINALIDADE: Record<Finalidade, [string, string]> = {
@@ -82,6 +107,7 @@ const CFOP_FINALIDADE: Record<Finalidade, [string, string]> = {
   bonificacao: ['910', '910'],
   ativo: ['551', '551'],
   outras: ['949', '949'],
+  devolucao: ['202', '411'],
 };
 
 /** CFOP de entrada. `deSergipe`: fornecedor de SE (1xxx); senão, de fora (2xxx). */
@@ -281,7 +307,9 @@ export function resolverItem(
   let mvaTexto = '-';
   let mvaPendente = false;
   if (st === 'sim' && candidato) {
-    if (finalidade !== 'revenda') {
+    if (finalidade === FINALIDADE_DEVOLUCAO) {
+      // Devolução de cliente: sem MVA, e nada a confirmar.
+    } else if (finalidade !== 'revenda') {
       mvaTexto = 'confirmar com a contabilidade';
     } else if (candidato.lubrificante) {
       // Apêndice XIV: a coluna já foi escolhida pela análise (interna ou
@@ -348,6 +376,7 @@ export function lerDecisoes(v: unknown): Record<string, DecisaoLembrada> {
   return r;
 }
 
+/** Decisão bem formada e de finalidade lembrável (a devolução fica de fora). */
 export function decisaoValida(d: unknown): d is DecisaoLembrada {
   if (typeof d !== 'object' || d === null) return false;
   const x = d as Partial<DecisaoLembrada>;
@@ -386,6 +415,7 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
   return (
     escolhaOk &&
     FINALIDADES.includes(x.finalidade as Finalidade) &&
+    finalidadeLembravel(x.finalidade as Finalidade) &&
     /^\d{8}$/.test(x.raizCnpj ?? '') &&
     texto(x.cProd) &&
     x.cProd!.trim() !== '' &&

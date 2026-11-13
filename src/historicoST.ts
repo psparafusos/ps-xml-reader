@@ -6,6 +6,7 @@
 import type { AnaliseItem } from './fiscal/analise';
 import {
   decisaoAplicavel,
+  finalidadeLembravel,
   ROTULO_LUBRIFICANTE,
   textoMva,
   type DecisaoLembrada,
@@ -70,7 +71,7 @@ export type SugestaoHistorico =
  * Sugestão pelo histórico para um item sem decisão própria. `chaveItem`
  * (raiz do CNPJ + "|" + código) fica de fora da contagem; se ele já tem
  * decisão com escolha que serve, nada a sugerir. Só conta decisão
- * com escolha no mesmo NCM de 8 dígitos. Com 2 ou mais e 80% ou mais na
+ * com escolha no mesmo NCM de 8 dígitos (a da devolução de cliente, não). Com 2 ou mais e 80% ou mais na
  * mesma escolha: sugere (se a escolha serve para este item); abaixo de 80%:
  * "dividido". Menos de 2: nada.
  */
@@ -92,6 +93,8 @@ export function sugestaoHistorico(
   let total = 0;
   for (const d of historico) {
     if (d.ncm !== a.ncm || d.escolha === null) continue;
+    // Devolução de cliente não é lembrada; se aparecer, não conta.
+    if (!finalidadeLembravel(d.finalidade)) continue;
     if (`${d.raizCnpj}|${d.cProd.trim()}` === chaveItem) continue;
     total++;
     const k = chaveEscolha(d.escolha);

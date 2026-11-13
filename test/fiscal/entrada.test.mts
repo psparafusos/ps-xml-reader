@@ -70,7 +70,15 @@ describe('entrada: CFOP pela tabela da loja', () => {
       ['bonificacao', '1910', '1910', '2910', '2910'],
       ['ativo', '1551', '1551', '2551', '2551'],
       ['outras', '1949', '1949', '2949', '2949'],
+      ['devolucao', '1202', '1411', '2202', '2411'],
     ]);
+  });
+
+  it('devolução de cliente: 1202 e 1411 (de Sergipe), 2202 e 2411 (de fora)', () => {
+    assert.equal(cfopEntrada('devolucao', true, false), '1202');
+    assert.equal(cfopEntrada('devolucao', true, true), '1411');
+    assert.equal(cfopEntrada('devolucao', false, false), '2202');
+    assert.equal(cfopEntrada('devolucao', false, true), '2411');
   });
 });
 
@@ -141,6 +149,39 @@ describe('entrada: item a item', () => {
       }).cfop,
       '2910',
     );
+  });
+
+  it('devolução de cliente: ST pela planilha, sem MVA e sem "confirmar com a contabilidade"', () => {
+    const devolucao = { escolha: null, finalidade: 'devolucao' as Finalidade };
+    // Verniz (com ST pela planilha), cliente de fora: 2411.
+    const comSt = resolverItem(analise({}), 'SP', devolucao);
+    assert.equal(comSt.st, 'sim');
+    assert.equal(comSt.cfop, '2411');
+    assert.equal(comSt.mva, null);
+    assert.equal(comSt.mvaTexto, '-');
+    assert.equal(comSt.precisaDeMim, false);
+    // Parafuso (sem ST), cliente de Sergipe: 1202.
+    const semSt = resolverItem(
+      analise({ NCM: '73181500' }, 'SE'),
+      'SE',
+      devolucao,
+    );
+    assert.equal(semSt.st, 'nao');
+    assert.equal(semSt.cfop, '1202');
+    assert.equal(semSt.mvaTexto, '-');
+    // O CFOP do emitente não decide nada: com 5556 na nota, segue 1202.
+    assert.equal(
+      resolverItem(
+        analise({ NCM: '73181500', CFOP: '5556' }, 'SE'),
+        'SE',
+        devolucao,
+      ).cfop,
+      '1202',
+    );
+    // Dois candidatos: segue pedindo a linha, como nas outras finalidades.
+    const duas = resolverItem(analise({ NCM: '32141010' }), 'SP', devolucao);
+    assert.equal(duas.st, 'confirmar');
+    assert.equal(duas.cfop, null);
   });
 
   it('TIPI é observação, não pendência', () => {

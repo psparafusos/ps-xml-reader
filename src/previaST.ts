@@ -8,7 +8,10 @@
 
 import type { AliquotaInternaItem, AnaliseItem } from './fiscal/analise';
 import {
+  decisaoAplicavel,
   FINALIDADE_PADRAO,
+  finalidadeInicial,
+  finalidadeLembravel,
   jogosAutopecas,
   resolverItem,
   textoMva,
@@ -38,7 +41,31 @@ export const MOTIVO_SEM_FIDELIZACAO =
  */
 export function decisaoDaLembrada(l: DecisaoLembradaST): DecisaoST | null {
   if (l.escolha === null && l.finalidade === FINALIDADE_PADRAO) return null;
+  if (!finalidadeLembravel(l.finalidade)) return null;
   return { escolha: l.escolha, finalidade: l.finalidade };
+}
+
+/**
+ * Decisão com que o item abre na ferramenta. Na nota de devolução (finNFe
+ * 4), todos os itens em "Devolução de cliente", sem decisão lembrada (o
+ * emitente é o cliente). Nas outras, a lembrada que ainda serve ou o
+ * automático na finalidade padrão. `lembrada`: veio do arquivo.
+ */
+export function decisaoInicial(
+  finNFe: string | undefined,
+  a: AnaliseItem,
+  lembrada: DecisaoLembradaST | null,
+): { decisao: DecisaoST; lembrada: boolean } {
+  const finalidade = finalidadeInicial(finNFe);
+  if (
+    finalidade === FINALIDADE_PADRAO &&
+    lembrada &&
+    decisaoAplicavel(a, lembrada)
+  ) {
+    const d = decisaoDaLembrada(lembrada);
+    if (d) return { decisao: d, lembrada: true };
+  }
+  return { decisao: { escolha: null, finalidade }, lembrada: false };
 }
 
 export interface LinhaPrevia extends ItemResolvido {

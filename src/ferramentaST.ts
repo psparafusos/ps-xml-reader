@@ -16,10 +16,12 @@ import { botao, botaoFecharPainel, el } from './dom';
 import { criarMenuEscolha, type OpcaoMenu, type Seletor } from './menuEscolha';
 import {
   chaveDecisao,
-  decisaoAplicavel,
   executarPlano,
+  FINALIDADE_DEVOLUCAO,
   FINALIDADE_PADRAO,
   FINALIDADES,
+  finalidadeInicial,
+  finalidadeLembravel,
   lerCfopManual,
   raizCnpj,
   RESSALVA_APENDICE_XIV,
@@ -29,7 +31,7 @@ import {
   type Finalidade,
 } from './fiscal/entrada';
 import {
-  decisaoDaLembrada,
+  decisaoInicial,
   previaItem,
   type DecisaoST,
   type LinhaPrevia,
@@ -94,14 +96,14 @@ interface Linha {
 const DICAS = {
   filtro:
     'Mostra só os itens em que o app não decidiu sozinho e precisa da sua escolha.',
-  lote: 'Marque as caixas dos itens e escolha aqui uma finalidade para todos de uma vez (revenda, uso e consumo, bonificação...). O CFOP muda junto.',
+  lote: 'Marque as caixas dos itens e escolha aqui uma finalidade para todos de uma vez (revenda, uso e consumo, bonificação, devolução de cliente...). O CFOP muda junto.',
   st: 'Se o produto tem substituição tributária em Sergipe, pela planilha de ST carregada.',
   segmento: 'A linha da planilha de ST que vale para o item.',
   mva: 'Margem de valor agregado da planilha, na coluna da alíquota de ICMS da nota.',
   aliq: 'Alíquota de ICMS de Sergipe para o produto, da linha da planilha (com FECOEP quando houver).',
   cfop: 'CFOP de entrada pela tabela da loja: origem do fornecedor, ST e finalidade.',
   finalidade:
-    'Para que a loja comprou: revenda, uso e consumo, bonificação, ativo. Muda o CFOP.',
+    'Para que a mercadoria entrou: revenda, uso e consumo, bonificação, ativo, devolução de cliente. Muda o CFOP.',
   motivo: 'Por que o app chegou a esse resultado, e o que conferir.',
   gravarCfop:
     'Em qual coluna de anotação da nota o CFOP vai ser escrito ao clicar em Aplicar. Se a coluna ainda não existe, o app cria.',
@@ -129,6 +131,9 @@ export function abrirFerramentaST(c: ContextoST): void {
   const uf = nota.emitente.endereco.UF;
   const cnpj = nota.emitente.CNPJ;
   const porItem = new Map(nota.itens.map((i) => [i.nItem, i]));
+  // Nota de devolução (finNFe 4): os itens abrem em "Devolução de cliente".
+  const inicial = finalidadeInicial(nota.ide.finNFe);
+  const devolucao = inicial === FINALIDADE_DEVOLUCAO;
   const linhas: Linha[] = [];
   const analises = new Map<
     string,
@@ -140,17 +145,14 @@ export function abrirFerramentaST(c: ContextoST): void {
     analises.set(analise.nItem, analise);
     // Decisão antiga que só guardava a MVA-ST 2 não vale mais (a loja não
     // tem índice de fidelização): o item fica no automático, com a MVA-ST 1.
-    const lembradaDecisao =
-      lembrada !== null && decisaoAplicavel(analise, lembrada)
-        ? decisaoDaLembrada(lembrada)
-        : null;
-    const vale = lembradaDecisao !== null;
+    const { decisao, lembrada: vale } = decisaoInicial(
+      nota.ide.finNFe,
+      analise,
+      lembrada,
+    );
     linhas.push({
       item,
-      decisao: lembradaDecisao ?? {
-        escolha: null,
-        finalidade: FINALIDADE_PADRAO,
-      },
+      decisao,
       lembrada: vale,
       guardada: false,
       origem: vale ? lembrada?.origem : undefined,
@@ -425,7 +427,12 @@ export function abrirFerramentaST(c: ContextoST): void {
     l.lembrada = false;
     const a = analises.get(l.item.nItem)!;
     const chave = chaveDecisao(cnpj, l.item.cProd);
-    if (!l.item.cProd.trim() || raizCnpj(cnpj).length !== 8) {
+    if (
+      !l.item.cProd.trim() ||
+      raizCnpj(cnpj).length !== 8 ||
+      // Devolução de cliente não é lembrada (nem apaga o que já estava).
+      !finalidadeLembravel(decisao.finalidade)
+    ) {
       l.guardada = false;
     } else if (
       decisao.escolha === null &&
@@ -455,7 +462,7 @@ export function abrirFerramentaST(c: ContextoST): void {
     await window.psApi.esquecerDecisao(chaveDecisao(cnpj, l.item.cProd));
     historico.delete(chaveDecisao(cnpj, l.item.cProd));
     l.origem = undefined;
-    l.decisao = { escolha: null, finalidade: FINALIDADE_PADRAO };
+    l.decisao = { escolha: null, finalidade: inicial };
     l.lembrada = false;
     l.guardada = false;
   }
@@ -991,7 +998,7 @@ export function abrirFerramentaST(c: ContextoST): void {
   function desenhar(): void {
     const resolvidos = linhas.map((l) => ({ l, r: resolver(l) }));
     const pendentes = resolvidos.filter((x) => x.r.precisaDeMim).length;
-    resumo.textContent = `${nota.emitente.xNome} (${uf || 'UF ausente'}) · ${linhas.length} ${linhas.length === 1 ? 'item' : 'itens'} · ${pendentes} ${pendentes === 1 ? 'precisa' : 'precisam'} de você`;
+    resumo.textContent = `${nota.emitente.xNome} (${uf || 'UF ausente'})${devolucao ? ' · nota de devolução' : ''} · ${linhas.length} ${linhas.length === 1 ? 'item' : 'itens'} · ${pendentes} ${pendentes === 1 ? 'precisa' : 'precisam'} de você`;
     textoFiltro.textContent = `Só os que precisam de mim (${pendentes})`;
     filtro.checked = soPendentes;
     const visiveis = resolvidos.filter(

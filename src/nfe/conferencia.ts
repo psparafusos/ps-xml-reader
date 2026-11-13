@@ -19,6 +19,7 @@ import * as f from './formato';
 import type { Anotacoes, Nota } from './tipos';
 
 export type IdVerificacao =
+  | 'devolucao'
   | 'idade'
   | 'totais-itens'
   | 'duplicatas'
@@ -86,6 +87,10 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
   const dif = (qual: 'itens' | 'duplicatas') =>
     diferencas.find((x) => x.qual === qual);
   const verificacoes: Verificacao[] = [];
+
+  // Nota de devolução (finNFe 4): só informa, com a nota devolvida.
+  if (nota.ide.finNFe?.trim() === '4')
+    verificacoes.push(verificacaoDevolucao(nota.ide.refNFe ?? []));
 
   const idade = idadeNota(nota, d.hoje, d.diasNotaAntiga);
   verificacoes.push({
@@ -232,6 +237,49 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
       pontos === 0
         ? `Tudo certo · ${plural(verificacoes.length, 'verificação', 'verificações')}`
         : plural(pontos, 'ponto para olhar', 'pontos para olhar'),
+  };
+}
+
+/**
+ * Número e série da NF-e pela chave de 44 dígitos (série nas posições 23 a
+ * 25, número nas 26 a 34), sem os zeros à esquerda. null se a chave não
+ * tiver 44 dígitos.
+ */
+export function numeroSerieDaChave(
+  chave: string,
+): { numero: string; serie: string } | null {
+  const c = chave.trim();
+  if (!/^\d{44}$/.test(c)) return null;
+  const semZeros = (s: string) => s.replace(/^0+(?=\d)/, '');
+  return {
+    numero: semZeros(c.slice(25, 34)),
+    serie: semZeros(c.slice(22, 25)),
+  };
+}
+
+/** Linha "Nota de devolução", com a nota (ou as notas) referenciada. */
+function verificacaoDevolucao(refs: readonly string[]): Verificacao {
+  const lidas = refs.map((chave) => ({ chave, ns: numeroSerieDaChave(chave) }));
+  const nomes = lidas
+    .filter((x) => x.ns !== null)
+    .map((x) => `NF ${x.ns!.numero}, série ${x.ns!.serie}`);
+  return {
+    id: 'devolucao',
+    ok: true,
+    nivel: 'info',
+    titulo: nomes.length
+      ? `Nota de devolução: ${nomes.join('; ')}`
+      : 'Nota de devolução',
+    detalhe:
+      refs.length === 0
+        ? 'A nota é de devolução (finalidade 4), mas não traz a chave da nota devolvida.'
+        : `A nota é de devolução (finalidade 4). ${refs.length === 1 ? 'Nota referenciada' : 'Notas referenciadas'}: ${lidas
+            .map((x) =>
+              x.ns
+                ? `NF ${x.ns.numero}, série ${x.ns.serie} (chave ${f.chaveAcesso(x.chave)})`
+                : `chave ${x.chave} (fora do formato de 44 dígitos)`,
+            )
+            .join('; ')}.`,
   };
 }
 

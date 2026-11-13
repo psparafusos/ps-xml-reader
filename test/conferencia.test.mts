@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 import { CNPJ_EMPRESA_PADRAO, ID_QTD_RECEBIDA } from '../src/nfe/avisos.ts';
 import {
+  numeroSerieDaChave,
   painelCabeAoLado,
   resumoConferencia,
   type DadosConferencia,
@@ -64,6 +65,8 @@ function nota(): Nota {
       dhEmi: `${aDias(-3)}T10:00:00-03:00`,
       natOp: '',
       tpNF: '1',
+      finNFe: '1',
+      refNFe: [],
     },
     emitente: { CNPJ: '', xNome: '', xFant: '', IE: '', endereco },
     destinatario: {
@@ -220,6 +223,59 @@ describe('resumoConferencia', () => {
       }),
     );
     assert.deepEqual(r.pendencias, []);
+  });
+});
+
+// Chave inventada: SE, 10/2026, CNPJ zerado, modelo 55, série 2, NF 1234.
+const CHAVE_REF = `282610${'0'.repeat(14)}55002000001234100001234` + '5';
+
+describe('nota de devolução no resumo', () => {
+  it('número e série pela chave', () => {
+    assert.equal(CHAVE_REF.length, 44);
+    assert.deepEqual(numeroSerieDaChave(CHAVE_REF), {
+      numero: '1234',
+      serie: '2',
+    });
+    assert.equal(numeroSerieDaChave('123'), null);
+  });
+
+  it('finNFe 4: linha informativa "Nota de devolução" com a nota referenciada, primeira da lista', () => {
+    const n = nota();
+    n.ide.finNFe = '4';
+    n.ide.refNFe = [CHAVE_REF];
+    const r = resumoConferencia(dados({ nota: n }));
+    const v = r.verificacoes[0];
+    assert.equal(v.id, 'devolucao');
+    assert.equal(v.nivel, 'info');
+    assert.equal(v.ok, true);
+    assert.equal(v.titulo, 'Nota de devolução: NF 1234, série 2');
+    assert.match(v.detalhe, /finalidade 4/);
+    assert.match(v.detalhe, /2826 1000/);
+    // Só informa: não vira ponto para olhar.
+    assert.equal(r.pontos, 0);
+  });
+
+  it('finNFe 4 sem refNFe: a linha fica, dizendo que falta a chave', () => {
+    const n = nota();
+    n.ide.finNFe = '4';
+    const v = ver(resumoConferencia(dados({ nota: n })), 'devolucao');
+    assert.equal(v.titulo, 'Nota de devolução');
+    assert.match(v.detalhe, /não traz a chave/);
+  });
+
+  it('nota normal (finNFe 1) ou sem finNFe: sem a linha', () => {
+    assert.ok(
+      !resumoConferencia(dados()).verificacoes.some(
+        (v) => v.id === 'devolucao',
+      ),
+    );
+    const antiga = nota() as Nota & { ide: { finNFe?: string } };
+    delete antiga.ide.finNFe;
+    assert.ok(
+      !resumoConferencia(dados({ nota: antiga })).verificacoes.some(
+        (v) => v.id === 'devolucao',
+      ),
+    );
   });
 });
 

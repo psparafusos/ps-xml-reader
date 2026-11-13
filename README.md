@@ -961,19 +961,31 @@ observação, não como erro.
   app, que abre depois de 400 ms com o mouse ou com o foco do teclado (o
   foco vale mais que o mouse) e fecha com Esc.
 - **Finalidade** por item (padrão revenda), de um item ou de vários marcados
-  de uma vez. CFOP pela tabela da loja (1 = fornecedor de Sergipe, 2 = de
+  de uma vez. CFOP pela tabela da loja (1 = emitente de Sergipe, 2 = de
   fora):
 
-  | Finalidade        | Sem ST    | Com ST    |
-  | ----------------- | --------- | --------- |
-  | Revenda           | 1102/2102 | 1403/2403 |
-  | Uso e consumo     | 1556/2556 | 1407/2407 |
-  | Bonificação       | 1910/2910 | 1910/2910 |
-  | Ativo imobilizado | 1551/2551 | 1551/2551 |
-  | Outras entradas   | 1949/2949 | 1949/2949 |
+  | Finalidade           | Sem ST    | Com ST    |
+  | -------------------- | --------- | --------- |
+  | Revenda              | 1102/2102 | 1403/2403 |
+  | Uso e consumo        | 1556/2556 | 1407/2407 |
+  | Bonificação          | 1910/2910 | 1910/2910 |
+  | Ativo imobilizado    | 1551/2551 | 1551/2551 |
+  | Outras entradas      | 1949/2949 | 1949/2949 |
+  | Devolução de cliente | 1202/2202 | 1411/2411 |
 
   A MVA só é calculada na revenda; nas outras finalidades com ST aparece
-  "confirmar com a contabilidade".
+  "confirmar com a contabilidade", menos na devolução de cliente, que não
+  tem MVA (a coluna fica "-").
+
+- **Nota de devolução**: o app lê a finalidade da NF-e (`finNFe`) e as
+  notas referenciadas (`NFref/refNFe`). Com `finNFe` 4, a ferramenta abre
+  com todos os itens em **Devolução de cliente** (dá para trocar por item ou
+  nos marcados), e o painel de conferência mostra a linha informativa
+  "Nota de devolução" com o número e a série da nota referenciada, tirados
+  da chave. "Com ST" continua vindo da planilha; o CFOP que o cliente usou
+  na nota não decide nada (ele pode devolver com 5556 e a entrada ser 1202).
+  Decisão com a finalidade Devolução de cliente não é lembrada nem entra no
+  histórico.
 
 - **Decisões lembradas**: cada escolha (linha da planilha, sem ST, Apêndice
   XIV, CFOP manual, finalidade) fica guardada por raiz do CNPJ do fornecedor
