@@ -35,6 +35,11 @@ export interface EstadoLeitura {
   /** O Formato original ainda não pode ser mostrado (botão apagado). */
   semFormato: boolean;
   folhas: ArranjoFolhas;
+  /**
+   * Arranjos das Folhas que não mudam nada na nota aberta, com o motivo: o
+   * botão fica apagado e o clique mostra o motivo num diálogo do app.
+   */
+  folhasSemEfeito: Partial<Record<ArranjoFolhas, string>>;
   /** Nome (em negrito) e as linhas do cartão Arquivo; null: sem cartão. */
   arquivo: { nome: string; linhas: string[] } | null;
 }
@@ -234,7 +239,7 @@ export function criarPainelLeitura(
                   ROTULO_FOLHAS[a],
                   ICONE_FOLHAS[a],
                   e.folhas === a,
-                  false,
+                  e.folhasSemEfeito[a] !== undefined,
                   () => acoes.escolherFolhas(a),
                 ),
               ),

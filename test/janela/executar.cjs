@@ -467,6 +467,22 @@ async function principal() {
 
   // Parte 2A: a tela "Como deseja abrir a nota?" não existe mais.
   const outra = path.join(notas, 't2a-outra-nota.xml');
+  // Nota de várias folhas no DANFE: o item da primeira repetido 60 vezes,
+  // com outra chave de acesso.
+  const variasFolhas = path.join(notas, 't4-varias-folhas.xml');
+  {
+    const base = fs
+      .readFileSync(primeiro, 'utf8')
+      .replaceAll(
+        '35261100000000000000550010000000011000000010',
+        '35261100000000000000550010000000031000000030',
+      );
+    const det = /<det nItem="1">[\s\S]*?<\/det>/.exec(base)[0];
+    const itens = Array.from({ length: 60 }, (_, i) =>
+      det.replace('nItem="1"', `nItem="${i + 1}"`),
+    ).join('');
+    fs.writeFileSync(variasFolhas, base.replace(det, itens));
+  }
   // Outra chave de acesso: a lista de recentes guarda uma entrada por chave.
   fs.writeFileSync(
     outra,
@@ -1192,7 +1208,7 @@ async function principal() {
     'Folhas do DANFE: Lado a lado e Ajustar à largura só na tela; zoom à mão volta para Uma',
     async () => {
       apagarPdfs();
-      await abrirNota(outra);
+      await abrirNota(variasFolhas);
       await avaliar(`document.getElementById('btn-folhas-lado').click()`);
       await espera(300);
       const lado = await avaliar(`(() => {
@@ -1214,7 +1230,7 @@ async function principal() {
       await avaliar(`document.getElementById('btn-salvar').click()`);
       const pdf = paginasDoPdf(await pdfNoDestino('_DANFE.pdf'));
       confere(
-        pdf.paginas === folhas,
+        folhas > 1 && pdf.paginas === folhas,
         `PDF com ${pdf.paginas} páginas para ${folhas} folhas`,
       );
       confere(pdf.altura > pdf.largura, `PDF do DANFE: ${JSON.stringify(pdf)}`);
@@ -1242,6 +1258,68 @@ async function principal() {
       );
       await avaliar(
         `window.dispatchEvent(new KeyboardEvent('keydown', { key: '0', ctrlKey: true })); true`,
+      );
+      await inicio();
+    },
+  );
+
+  await caso(
+    'Folhas do DANFE: com uma folha só, Lado a lado fica apagado e o clique mostra o motivo',
+    async () => {
+      // Lado a lado escolhido numa nota de várias folhas...
+      await abrirNota(variasFolhas);
+      await avaliar(`document.getElementById('btn-folhas-lado').click()`);
+      await aguardar(
+        `document.getElementById('btn-folhas-lado').getAttribute('aria-pressed') === 'true'`,
+        5000,
+        'Lado a lado não ficou marcado na nota de várias folhas',
+      );
+      await inicio();
+      // ...e a nota seguinte tem uma folha: a tela volta para Uma.
+      await abrirNota(outra);
+      const antes = await avaliar(`(() => {
+        const b = document.getElementById('btn-folhas-lado');
+        return {
+          folhas: document.querySelectorAll('#danfe .folha').length,
+          apagado: b.getAttribute('aria-disabled'),
+          title: b.hasAttribute('title'),
+          descrito: b.getAttribute('aria-describedby'),
+          uma: document.getElementById('btn-folhas-uma').getAttribute('aria-pressed'),
+          arranjo: document.getElementById('danfe').dataset.folhas,
+          outros: ['uma', 'largura'].map((a) => document.getElementById('btn-folhas-' + a).getAttribute('aria-disabled')),
+        };
+      })()`);
+      confere(
+        antes.folhas === 1 &&
+          antes.apagado === 'true' &&
+          !antes.title &&
+          antes.descrito === null &&
+          antes.uma === 'true' &&
+          antes.arranjo === 'uma' &&
+          antes.outros.every((x) => x === null),
+        `nota de uma folha: ${JSON.stringify(antes)}`,
+      );
+      await avaliar(`document.getElementById('btn-folhas-lado').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog[open]')`,
+        15000,
+        'clicar em Lado a lado não abriu o diálogo',
+      );
+      const d = await avaliar(`(() => {
+        const d = document.querySelector('dialog[open]');
+        return { titulo: d.querySelector('.caixa-dialogo__titulo')?.textContent, texto: d.innerText, botoes: [...d.querySelectorAll('button')].map((b) => b.textContent.trim()) };
+      })()`);
+      confere(
+        d.titulo === 'Lado a lado indisponível' &&
+          d.texto.includes('A nota tem só uma folha.') &&
+          d.botoes.join() === 'OK',
+        `diálogo: ${JSON.stringify(d)}`,
+      );
+      await fecharDialogos();
+      confere(
+        (await avaliar(`document.getElementById('danfe').dataset.folhas`)) ===
+          'uma',
+        'o clique em Lado a lado apagado mudou o arranjo',
       );
       await inicio();
     },

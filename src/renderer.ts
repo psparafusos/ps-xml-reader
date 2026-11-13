@@ -109,6 +109,7 @@ import {
 import { ICONES } from './icones';
 import { A4, mmParaPx } from './nfe/folha';
 import {
+  ROTULO_FOLHAS,
   orientacaoDaFolha,
   zoomParaLargura,
   type ArranjoFolhas,
@@ -1604,6 +1605,7 @@ function atualizarLeitura(): void {
     semDanfe,
     semFormato: false,
     folhas: arranjoFolhas,
+    folhasSemEfeito: folhasSemEfeito(),
     arquivo: cartaoArquivo(),
   });
 }
@@ -1833,8 +1835,21 @@ function calcularZoomLargura(): void {
   );
 }
 
+/**
+ * Arranjos das Folhas que não mudam nada no DANFE montado, com o motivo:
+ * com uma folha só, Lado a lado fica igual a Uma de cada vez.
+ */
+function folhasSemEfeito(): Partial<Record<ArranjoFolhas, string>> {
+  return folhasDanfe === 1 ? { lado: 'A nota tem só uma folha.' } : {};
+}
+
 /** Troca o arranjo das folhas do DANFE (só a tela). */
 function escolherFolhas(a: ArranjoFolhas): void {
+  const motivo = folhasSemEfeito()[a];
+  if (motivo) {
+    void avisarIndisponivel(`${ROTULO_FOLHAS[a]} indisponível`, motivo);
+    return;
+  }
   if (a === arranjoFolhas) return;
   // Saindo do "Ajustar à largura", a folha volta ao tamanho normal.
   if (arranjoFolhas === 'largura') zoomPorModo.danfe = 1;
@@ -2042,6 +2057,8 @@ function mostrarDanfe(): void {
     danfeEl.style.zoom = '1';
     montarDanfe(danfeEl, dados);
     folhasDanfe = danfeEl.querySelectorAll('.folha').length;
+    // Uma folha só: Lado a lado fica apagado e a tela volta para Uma.
+    if (folhasSemEfeito()[arranjoFolhas]) arranjoFolhas = 'uma';
     danfeMontado = true;
     aplicarFolhas();
     atualizarLeitura();
