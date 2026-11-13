@@ -1596,6 +1596,62 @@ async function principal() {
   );
 
   await caso(
+    'Busca do Formato original acha nas linhas além das 300 mostradas e desenha até o achado',
+    async () => {
+      const xml = path.join(notas, 'pedido-longo-formato.xml');
+      const linhas = [];
+      for (let i = 1; i <= 1000; i++)
+        linhas.push(
+          `<item linha="${i}"><codigo>${i === 420 ? 'ALVO-INVENTADO' : `A-${i}`}</codigo><quantidade>${i}</quantidade></item>`,
+        );
+      fs.writeFileSync(
+        xml,
+        `<?xml version="1.0" encoding="UTF-8"?>\n<pedidoCompra><itens>${linhas.join('')}</itens></pedidoCompra>\n`,
+      );
+      abrir(xml);
+      await aguardar(formatoVisivel, 30000, 'o Formato original não abriu');
+      const antes = await avaliar(
+        `document.querySelectorAll('#formato-original .formato-original__rolagem-tabela tbody tr').length`,
+      );
+      confere(antes === 300, `linhas desenhadas antes da busca: ${antes}`);
+      await avaliar(`(() => {
+        const c = document.getElementById('formato-busca');
+        c.value = 'alvo-inventado';
+        c.dispatchEvent(new Event('input'));
+        return true;
+      })()`);
+      await aguardar(
+        `/de/.test(document.querySelector('.formato-original__contador').textContent)`,
+        5000,
+        'a busca não respondeu',
+      );
+      const r = await avaliar(`(() => {
+        const t = document.querySelector('#formato-original .formato-original__rolagem-tabela');
+        const atual = document.querySelector('.formato-original__achado--atual');
+        const caixa = atual?.getBoundingClientRect();
+        const area = document.getElementById('formato-original').getBoundingClientRect();
+        return {
+          contador: document.querySelector('.formato-original__contador').textContent,
+          achado: atual?.textContent,
+          linhaDoAchado: atual?.closest('tr')?.firstElementChild?.textContent,
+          desenhadas: t.querySelectorAll('tbody tr').length,
+          mais: t.querySelector('.formato-original__mais')?.hidden === false,
+          visivel: !!caixa && caixa.top >= area.top && caixa.bottom <= area.bottom,
+        };
+      })()`);
+      confere(r.contador === '1 de 1', `contador: ${r.contador}`);
+      confere(r.achado === 'ALVO-INVENTADO', `achado: ${r.achado}`);
+      confere(r.linhaDoAchado === '420', `linha do achado: ${r.linhaDoAchado}`);
+      confere(
+        r.desenhadas >= 420 && r.desenhadas < 1000 && r.mais,
+        `linhas desenhadas: ${r.desenhadas}, Mostrar mais: ${r.mais}`,
+      );
+      confere(r.visivel, 'o achado não ficou à vista');
+      await inicio();
+    },
+  );
+
+  await caso(
     'Formato original acima do limite do modo leve: aviso e Ver no .XML',
     async () => {
       const grande = path.join(notas, 'lote-grande-formato.xml');

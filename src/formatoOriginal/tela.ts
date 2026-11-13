@@ -84,6 +84,15 @@ let documento = 0;
 let montado = false;
 let aoVerXml: () => void = () => {};
 let achados: HTMLElement[] = [];
+/**
+ * As tabelas desenhadas: a busca olha os dados de todas as linhas e desenha
+ * até a última linha com achado (as tabelas mostram 300 linhas por vez).
+ */
+let tabelas: {
+  linhas: Linha[];
+  desenhadas: () => number;
+  desenharAte: (n: number) => void;
+}[] = [];
 let atual = -1;
 let relogioBusca: ReturnType<typeof setTimeout> | undefined;
 
@@ -234,8 +243,12 @@ function tabelaEl(
     'botao botao--claro botao--pequeno formato-original__mais',
     '',
   );
-  const desenharMais = () => {
-    const ate = Math.min(linhas.length, feitas + LINHAS_POR_VEZ);
+  /** Desenha as linhas até `limite` (ou mais uma página, sem limite). */
+  const desenharMais = (limite?: number) => {
+    const ate = Math.min(
+      linhas.length,
+      Math.max(limite ?? 0, feitas + LINHAS_POR_VEZ),
+    );
     for (; feitas < ate; feitas++) {
       const l = linhas[feitas];
       const tr = el('tr', 'formato-original__linha');
@@ -275,6 +288,12 @@ function tabelaEl(
     if (campoBusca.value) buscar();
   });
   desenharMais();
+  // A busca procura nos dados de todas as linhas, desenhadas ou não.
+  tabelas.push({
+    linhas,
+    desenhadas: () => feitas,
+    desenharAte: (n) => desenharMais(n),
+  });
   return el('div', 'formato-original__rolagem-tabela', tabela, mais);
 }
 
@@ -337,6 +356,7 @@ async function montar(): Promise<void> {
       ? `NF-e (${f.raiz}${f.versao ? `, versão ${f.versao}` : ''}). Campos com rótulo em português e a tag ao lado; datas, números e códigos formatados para leitura. O valor exato fica no modo .XML.`
       : `XML (raiz ${f.raiz}). Os campos aparecem com o nome da tag; datas e números formatados para leitura. O valor exato fica no modo .XML.`,
   );
+  tabelas = [];
   conteudo.replaceChildren(resumo, ...blocosEl(f.blocos, 0));
   ferramentas.hidden = false;
   montado = true;
@@ -358,6 +378,47 @@ function limparAchados(): void {
   atual = -1;
 }
 
+/** Todo o texto de uma linha de tabela: as células e o detalhe dela. */
+function textoDosBlocos(blocos: Bloco[]): string {
+  const partes: string[] = [];
+  const campos = (cs: Campo[]) => {
+    for (const c of cs)
+      partes.push(c.rotulo ?? '', c.tag, c.valor, c.sentido ?? '');
+  };
+  for (const b of blocos) {
+    if (b.tipo === 'campos') campos(b.campos);
+    else if (b.tipo === 'secao') {
+      partes.push(b.titulo ?? '', ...b.tags);
+      campos(b.atributos);
+      partes.push(textoDosBlocos(b.blocos));
+    } else {
+      partes.push(b.titulo ?? '', ...b.tags);
+      for (const c of b.colunas) partes.push(c.rotulo ?? '', c.tag);
+      for (const l of b.linhas) partes.push(textoDaLinha(l));
+    }
+  }
+  return partes.join('\n');
+}
+
+const textoDaLinha = (l: Linha) =>
+  `${l.celulas.join('\n')}\n${textoDosBlocos(l.detalhe)}`;
+
+/**
+ * Desenha as linhas que faltam até a última com o termo, em cada tabela
+ * (as de dentro do detalhe também entram, quando o detalhe é desenhado).
+ */
+function desenharAteOsAchados(termo: string): void {
+  for (let i = 0; i < tabelas.length; i++) {
+    const t = tabelas[i];
+    for (let n = t.linhas.length - 1; n >= t.desenhadas(); n--) {
+      if (normalizar(textoDaLinha(t.linhas[n])).includes(termo)) {
+        t.desenharAte(n + 1);
+        break;
+      }
+    }
+  }
+}
+
 function buscar(): void {
   limparAchados();
   const termo = normalizar(campoBusca.value.trim());
@@ -365,6 +426,7 @@ function buscar(): void {
     contador.textContent = '';
     return;
   }
+  desenharAteOsAchados(termo);
   for (const e of conteudo.querySelectorAll<HTMLElement>(
     '.formato-original__valor, .formato-original__rotulo-texto, .formato-original__tag, .formato-original__titulo, td:not(.formato-original__abrir-col)',
   ))
@@ -477,4 +539,5 @@ export function novoDocumentoFormato(): void {
   campoBusca.value = '';
   contador.textContent = '';
   conteudo.replaceChildren();
+  tabelas = [];
 }
