@@ -217,3 +217,16 @@ contextBridge.exposeInMainWorld('psServico', {
   cancelar: (id: number) => ipcRenderer.invoke('servico-cancelar', id),
 } satisfies PsServicoApi);
 // ---------- serviço de leitura pesada (parte 2): fim do bloco ----------
+
+// ---------- config.json seguro: início do bloco ----------
+// Aviso de configuração recuperada (src/avisoConfig.ts). Nenhum dado vai
+// da janela para o processo principal.
+import type { PsConfigSeguroApi } from './configSeguro';
+
+contextBridge.exposeInMainWorld('psConfigSeguro', {
+  avisos: () => ipcRenderer.invoke('config-recuperacoes'),
+  aoRecuperar: (callback: () => void): void => {
+    ipcRenderer.on('config-recuperada', () => callback());
+  },
+} satisfies PsConfigSeguroApi);
+// ---------- config.json seguro: fim do bloco ----------
