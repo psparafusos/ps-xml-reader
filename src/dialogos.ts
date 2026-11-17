@@ -59,20 +59,26 @@ function novaCaixa<T>(
   return { d, corpo, fim };
 }
 
-/** Pergunta com botões. Devolve o valor do botão escolhido (Esc: `cancelar`). */
+/**
+ * Pergunta com botões. Devolve o valor do botão escolhido (Esc: `cancelar`).
+ * `caminho`: um caminho de arquivo embaixo do texto, inteiro e selecionável.
+ */
 export function perguntar<T extends string>(opcoes: {
   titulo: string;
   texto: string;
+  caminho?: string;
   botoes: BotaoDialogo<T>[];
   cancelar: T;
 }): Promise<T> {
   return new Promise((resolve) => {
-    const { d, fim } = novaCaixa(
+    const { d, corpo, fim } = novaCaixa(
       opcoes.titulo,
       opcoes.texto,
       opcoes.cancelar,
       resolve,
     );
+    if (opcoes.caminho)
+      corpo.append(el('p', 'caixa-dialogo__pasta', opcoes.caminho));
     const botoes = opcoes.botoes.map((b) => {
       const e = botao(
         b.perigo

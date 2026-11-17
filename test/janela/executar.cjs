@@ -2410,7 +2410,8 @@ async function principal() {
   // Janelas por cima da nota (Configurações, ferramenta ST) e a rolagem.
   await casosJanelasPorCima();
 
-  // Perfis: renomear no Gerenciar perfis.
+  // Perfis: renomear, cópia antes de excluir ou substituir, importar e
+  // exportar (perfis.cjs).
   await casosPerfis({ ...contexto, dados, tmp });
 
   // config.json cortado e perfis inválidos (por último: muda os perfis).

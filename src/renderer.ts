@@ -101,6 +101,10 @@ import {
 } from './dom';
 import { perguntar, pedirNomeCopia } from './dialogos';
 import {
+  textoImportarRepetido,
+  textoRestaurarPadrao,
+} from './nfe/textosPerfis';
+import {
   copiaParaFolha,
   desmontarFolha,
   montarFolha,
@@ -377,7 +381,7 @@ function aoGravar<R extends { status: string }>(r: R): R {
  * substitui o perfil com esse nome ou mantém os dois ("<nome> (2)").
  */
 async function importarPerfil(): Promise<
-  | { status: 'ok'; estado: EstadoPerfis; nome: string }
+  | { status: 'ok'; estado: EstadoPerfis; nome: string; copia?: string }
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string }
 > {
@@ -385,18 +389,14 @@ async function importarPerfil(): Promise<
   if (lido.status !== 'lido') return lido;
   let modo: 'substituir' | 'manter' = 'manter';
   if (lido.existe) {
+    // O foco começa no Importar como cópia, que não muda nada que já existe.
     const r = await perguntar({
       titulo: 'Perfil com o mesmo nome',
-      texto: `Já existe um perfil ${lido.perfil.nome}. Substituir o conteúdo dele pelo do arquivo, ou manter os dois (o importado fica com um número no nome)?`,
+      texto: textoImportarRepetido(lido.perfil.nome, lido.nomeCopia),
       botoes: [
         { rotulo: 'Cancelar', valor: 'cancelar' },
-        { rotulo: 'Manter os dois', valor: 'manter' },
-        {
-          rotulo: 'Substituir',
-          valor: 'substituir',
-          principal: true,
-          perigo: true,
-        },
+        { rotulo: 'Substituir', valor: 'substituir', perigo: true },
+        { rotulo: 'Importar como cópia', valor: 'manter', principal: true },
       ],
       cancelar: 'cancelar',
     });
@@ -412,7 +412,29 @@ async function importarPerfil(): Promise<
     status: 'ok',
     estado: r.estado,
     nome: novo?.nome ?? lido.perfil.nome,
+    copia: r.copia,
   };
+}
+
+/**
+ * Restaurar padrão: confirma no visual do app (o foco começa no Cancelar) e
+ * volta o perfil ativo ao padrão, com a cópia em perfis-excluidos antes.
+ */
+async function restaurarPadrao(): Promise<
+  ResultadoPerfis | { status: 'cancelado' }
+> {
+  const nome = (perfisAtual ?? (await window.psApi.perfis())).nomeAtivo;
+  const r = await perguntar({
+    titulo: 'Restaurar padrão',
+    texto: textoRestaurarPadrao(nome),
+    botoes: [
+      { rotulo: 'Cancelar', valor: 'cancelar' },
+      { rotulo: 'Restaurar', valor: 'restaurar', perigo: true },
+    ],
+    cancelar: 'cancelar',
+  });
+  if (r !== 'restaurar') return { status: 'cancelado' };
+  return aoGravar(await window.psApi.restaurarConfig());
 }
 
 /**
@@ -436,8 +458,9 @@ async function editarColunas(nosPerfis = false): Promise<void> {
         aoGravar(await window.psApi.renomearPerfil(id, nome)),
       excluir: async (id) => aoGravar(await window.psApi.excluirPerfil(id)),
       exportar: () => window.psApi.exportarPerfil(),
+      mostrarExportado: () => window.psApi.mostrarPerfilExportado(),
       importar: importarPerfil,
-      restaurar: async () => aoGravar(await window.psApi.restaurarConfig()),
+      restaurar: restaurarPadrao,
       plano: planoComConfig,
       tabelaFolha: (config, itens, exemplo) =>
         copiaParaFolha(

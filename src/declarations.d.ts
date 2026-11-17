@@ -164,14 +164,29 @@ interface EstadoPerfis {
 }
 
 type ResultadoPerfis =
-  | { status: 'ok'; estado: EstadoPerfis }
+  | {
+      status: 'ok';
+      estado: EstadoPerfis;
+      /**
+       * Caminho da cópia em perfis-excluidos, quando a ação guardou uma
+       * (excluir, substituir por um importado, voltar ao padrão).
+       */
+      copia?: string;
+    }
   | { status: 'erro'; mensagem: string };
 
 /** Perfil lido de um arquivo, ainda não acrescentado à lista. */
 type PerfilImportado = import('./nfe/perfis').PerfilImportado;
 
 type ResultadoImportarPerfil =
-  | { status: 'lido'; perfil: PerfilImportado; existe: boolean }
+  | {
+      status: 'lido';
+      perfil: PerfilImportado;
+      /** Já há um perfil com esse nome (a tela pergunta o que fazer). */
+      existe: boolean;
+      /** O nome que ele recebe no Importar como cópia ("<nome> (2)"). */
+      nomeCopia: string;
+    }
   | { status: 'cancelado' }
   | { status: 'erro'; mensagem: string };
 
@@ -436,6 +451,8 @@ interface PsApi {
   excluirPerfil(id: string): Promise<ResultadoPerfis>;
   /** Grava o perfil ativo em "PS Reader - perfil <nome>.json". */
   exportarPerfil(): Promise<ResultadoExportarConfig>;
+  /** O Explorer na pasta do perfil que esta janela acabou de exportar. */
+  mostrarPerfilExportado(): Promise<ResultadoAbrirPasta>;
   /** Lê e valida um perfil (ou configuração da Parte A), sem gravar. */
   importarPerfil(): Promise<ResultadoImportarPerfil>;
   /** Acrescenta o perfil importado; nome repetido: substituir ou manter os dois. */
@@ -443,8 +460,8 @@ interface PsApi {
     perfil: PerfilImportado,
     modo: 'substituir' | 'manter',
   ): Promise<ResultadoPerfis>;
-  /** Pergunta e volta o perfil ativo ao padrão. */
-  restaurarConfig(): Promise<ResultadoPerfis | { status: 'cancelado' }>;
+  /** Volta o perfil ativo ao padrão (a tela confirma antes). */
+  restaurarConfig(): Promise<ResultadoPerfis>;
   /** Copia um texto ou mostra o menu do botão direito (Recortar, Copiar...). */
   areaTransferencia(
     pedido: PedidoAreaTransferencia,

@@ -139,6 +139,8 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('excluir-perfil', id),
   exportarPerfil: (): Promise<ResultadoExportarConfig> =>
     ipcRenderer.invoke('exportar-perfil'),
+  mostrarPerfilExportado: (): Promise<ResultadoAbrirPasta> =>
+    ipcRenderer.invoke('mostrar-perfil-exportado'),
   importarPerfil: (): Promise<ResultadoImportarPerfil> =>
     ipcRenderer.invoke('importar-perfil'),
   adicionarPerfil: (
@@ -146,7 +148,7 @@ contextBridge.exposeInMainWorld('psApi', {
     modo: 'substituir' | 'manter',
   ): Promise<ResultadoPerfis> =>
     ipcRenderer.invoke('adicionar-perfil', perfil, modo),
-  restaurarConfig: (): Promise<ResultadoPerfis | { status: 'cancelado' }> =>
+  restaurarConfig: (): Promise<ResultadoPerfis> =>
     ipcRenderer.invoke('restaurar-config'),
   areaTransferencia: (
     pedido: PedidoAreaTransferencia,

@@ -36,6 +36,7 @@ import {
 import { desenharMiniatura } from './miniaturaFolha';
 import { perguntar, pedirTexto } from './dialogos';
 import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
+import { textoExcluirPerfil, textoPerfilExportado } from './nfe/textosPerfis';
 import { ICONES } from './icones';
 
 /**
@@ -52,9 +53,14 @@ export interface AcoesEditor {
   excluir(id: string): Promise<ResultadoPerfis>;
   /** Exporta o perfil ativo. */
   exportar(): Promise<ResultadoExportarConfig>;
-  /** Importa um perfil (pergunta se o nome já existe); devolve o nome dado. */
+  /** O Explorer na pasta do perfil que acabou de ser exportado. */
+  mostrarExportado(): Promise<ResultadoAbrirPasta>;
+  /**
+   * Importa um perfil (pergunta se o nome já existe); devolve o nome dado
+   * e, se substituiu um perfil, o caminho da cópia dele.
+   */
   importar(): Promise<
-    | { status: 'ok'; estado: EstadoPerfis; nome: string }
+    | { status: 'ok'; estado: EstadoPerfis; nome: string; copia?: string }
     | { status: 'cancelado' }
     | { status: 'erro'; mensagem: string }
   >;
@@ -1147,13 +1153,20 @@ export function abrirEditorColunas(
     else if (id) focarLapis(id);
   }
 
-  /** Lixeira: confirma e exclui. Excluir o ativo ativa o primeiro da lista. */
+  /**
+   * Lixeira: confirma no visual do app e exclui (antes, o processo principal
+   * guarda a cópia em perfis-excluidos). Excluir o ativo ativa o primeiro
+   * que sobra na lista.
+   */
   async function excluirPerfil(p: { id: string; nome: string }): Promise<void> {
     if (ocupado || estado.lista.length <= 1) return;
     const ativo = p.id === estado.ativo;
+    const proximo = ativo
+      ? (estado.lista.find((x) => x.id !== p.id)?.nome ?? null)
+      : null;
     const r = await perguntar({
       titulo: 'Excluir perfil',
-      texto: `Excluir o perfil ${p.nome}? As colunas, anotações extras e orientação dele se perdem; o texto já salvo nos arquivos .psxml não.`,
+      texto: textoExcluirPerfil(p.nome, proximo),
       botoes: [
         { rotulo: 'Cancelar', valor: 'cancelar' },
         { rotulo: 'Excluir', valor: 'excluir', principal: true, perigo: true },
@@ -1164,12 +1177,13 @@ export function abrirEditorColunas(
     await comBloqueio(async () => {
       const x = await acoes.excluir(p.id);
       if (x.status === 'erro') return mostrarErro(x.mensagem);
+      const feito = `Perfil "${p.nome}" excluído; a cópia ficou em perfis-excluidos.`;
       if (ativo) {
-        recarregar(x.estado, `Perfil "${p.nome}" excluído.`);
+        recarregar(x.estado, feito);
         mostrarAviso(`Perfil ${x.estado.nomeAtivo} ativo`);
       } else {
         estado = { ...x.estado, config: estado.config };
-        status.textContent = `Perfil "${p.nome}" excluído.`;
+        status.textContent = feito;
       }
     });
   }
@@ -1386,9 +1400,23 @@ export function abrirEditorColunas(
     void comBloqueio(async () => {
       mostrarErro(null);
       const r = await acoes.exportar();
-      if (r.status === 'exportado')
-        status.textContent = `Perfil ${estado.nomeAtivo} exportado em ${r.caminho}`;
-      else if (r.status === 'erro') mostrarErro(r.mensagem);
+      if (r.status === 'erro') return mostrarErro(r.mensagem);
+      if (r.status !== 'exportado') return;
+      status.textContent = `Perfil ${estado.nomeAtivo} exportado.`;
+      // O caminho inteiro, selecionável, e o Abrir pasta.
+      const escolha = await perguntar({
+        titulo: 'Perfil exportado',
+        texto: textoPerfilExportado(estado.nomeAtivo),
+        caminho: r.caminho,
+        botoes: [
+          { rotulo: 'Fechar', valor: 'fechar' },
+          { rotulo: 'Abrir pasta', valor: 'abrir', principal: true },
+        ],
+        cancelar: 'fechar',
+      });
+      if (escolha !== 'abrir') return;
+      const a = await acoes.mostrarExportado();
+      if (a.status === 'erro') mostrarErro(a.mensagem);
     });
   });
   btnImportar.addEventListener('click', () => {
@@ -1397,6 +1425,9 @@ export function abrirEditorColunas(
       mostrarErro(null);
       const r = await acoes.importar();
       if (r.status === 'ok') {
+        const feito = r.copia
+          ? `Perfil "${r.nome}" substituído; a cópia do anterior ficou em perfis-excluidos.`
+          : `Importado como perfil "${r.nome}".`;
         // O perfil importado entra na lista; o ativo continua o mesmo (se
         // foi ele o substituído, o painel mostra o conteúdo novo).
         if (
@@ -1406,8 +1437,8 @@ export function abrirEditorColunas(
         ) {
           estado = { ...r.estado, config: estado.config };
           desenharPerfis();
-          status.textContent = `Importado como perfil "${r.nome}".`;
-        } else recarregar(r.estado, `Importado como perfil "${r.nome}".`);
+          status.textContent = feito;
+        } else recarregar(r.estado, feito);
       } else if (r.status === 'erro') mostrarErro(r.mensagem);
     });
   });
