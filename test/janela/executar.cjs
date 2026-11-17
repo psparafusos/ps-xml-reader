@@ -25,6 +25,7 @@ const { casosLeitorXml, limparLeitorXml } = require('./leitorXml.cjs');
 const { casosNavegacao } = require('./navegacao.cjs');
 const { casosServico } = require('./servico.cjs');
 const { casosConfigSeguro } = require('./configSeguro.cjs');
+const { casosPerfis } = require('./perfis.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -2408,6 +2409,9 @@ async function principal() {
 
   // Janelas por cima da nota (Configurações, ferramenta ST) e a rolagem.
   await casosJanelasPorCima();
+
+  // Perfis: renomear no Gerenciar perfis.
+  await casosPerfis({ ...contexto, dados, tmp });
 
   // config.json cortado e perfis inválidos (por último: muda os perfis).
   await casosConfigSeguro({ ...contexto, dados });
