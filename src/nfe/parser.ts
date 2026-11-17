@@ -184,6 +184,7 @@ function lerTransporte(el: Element | null): Transporte {
     modFrete: texto(el, 'modFrete'),
     transportadoraNome: texto(transporta, 'xNome'),
     transportadoraCNPJ: texto(transporta, 'CNPJ'),
+    transportadoraCPF: texto(transporta, 'CPF'),
     volumes,
   };
 }

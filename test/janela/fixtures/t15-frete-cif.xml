@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T15: painel da Conferência, frete do remetente (modFrete 0) sem valor de frete.
+     NF-e INVENTADA para o test:janela (dados fictícios, sem valor fiscal). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe28261100000000000000550010000000151000000150" versao="4.00">
+      <ide><cUF>28</cUF><cNF>00000015</cNF><natOp>Venda de teste</natOp><mod>55</mod><serie>1</serie><nNF>15</nNF><dhEmi>2026-11-10T10:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb><finNFe>1</finNFe></ide>
+      <emit><CNPJ>00000000000000</CNPJ><xNome>Fornecedor Inventado de Teste</xNome><xFant>INVENTADO</xFant><enderEmit><xLgr>Rua de Teste</xLgr><nro>1</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>00000000</CEP></enderEmit><IE>000000000</IE></emit>
+      <dest><CNPJ>09076777000104</CNPJ><xNome>Destinatario Inventado</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>00000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>T15A</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAFUSO INVENTADO DE TESTE</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>100.00</vUnCom><vProd>100.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>1.0000</qTrib><vUnTrib>100.00</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>100.00</vBC><pICMS>19.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>100.00</vBC><vICMS>0.00</vICMS><vST>0.00</vST><vProd>100.00</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>100.00</vNF></ICMSTot></total>
+      <transp><modFrete>0</modFrete></transp>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><chNFe>28261100000000000000550010000000151000000150</chNFe><dhRecbto>2026-11-10T10:01:00-03:00</dhRecbto><nProt>000000000000015</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>

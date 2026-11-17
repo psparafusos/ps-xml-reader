@@ -16,10 +16,12 @@ import {
   type SituacaoParcela,
 } from './avisos';
 import * as f from './formato';
+import { linhaFrete } from './frete';
 import type { Anotacoes, Nota } from './tipos';
 
 export type IdVerificacao =
   | 'devolucao'
+  | 'frete'
   | 'idade'
   | 'totais-itens'
   | 'duplicatas'
@@ -91,6 +93,11 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
   // Nota de devolução (finNFe 4): só informa, com a nota devolvida.
   if (nota.ide.finNFe?.trim() === '4')
     verificacoes.push(verificacaoDevolucao(nota.ide.refNFe ?? []));
+
+  // Frete: como a nota entra no Saef (Emitente CIF ou Destinatário FOB).
+  const frete = linhaFrete(nota);
+  if (frete)
+    verificacoes.push({ id: 'frete', ok: frete.nivel === 'info', ...frete });
 
   const idade = idadeNota(nota, d.hoje, d.diasNotaAntiga);
   verificacoes.push({

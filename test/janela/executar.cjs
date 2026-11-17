@@ -13,8 +13,10 @@
 // de leitura pesada (servico.cjs), com XML inventado gerado no teste; as
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
 // ferramenta ST), os dois avisos novos da ferramenta ST (t13, com a
-// planilha inventada de planilhaST.mts) e a nota de devolução (t14). Com
-// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14.
+// planilha inventada de planilhaST.mts), a nota de devolução (t14) e as
+// linhas informativas do painel da Conferência (frete, t15 a t18). Com
+// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e as
+// do painel.
 'use strict';
 
 const { app, session } = require('electron');
@@ -2397,6 +2399,10 @@ async function principal() {
 
   // Janelas por cima da nota (Configurações, ferramenta ST) e a rolagem.
   await casosJanelasPorCima();
+
+  // Linhas informativas do painel da Conferência (frete, vencimentos no
+  // texto, devolução), em 1366 e em 1920.
+  await casosPainelAvisos();
 }
 
 // ---------- janelas por cima: X, Esc e rolagem travada ----------
@@ -2893,6 +2899,120 @@ async function casosJanelasPorCima() {
         15000,
         'o X não fechou a ferramenta',
       );
+    },
+  );
+}
+
+// ---------- painel da Conferência: frete, vencimentos e devolução ----------
+
+/** Tamanhos das capturas do painel: tela de 1366 e de 1920. */
+const TAMANHOS_PAINEL = [
+  [1366, 728],
+  [1920, 1040],
+];
+
+/**
+ * Abre a nota na Conferência com a janela em `largura` x `altura`, deixa o
+ * painel aberto (na janela estreita ele começa recolhido) e devolve as
+ * linhas das verificações, na ordem: id, nível e título (com espaço comum no
+ * lugar do espaço sem quebra do "R$").
+ */
+async function linhasDoPainel(arquivo, largura, altura) {
+  janela.setContentSize(largura, altura);
+  await abrirNota(copia(arquivo));
+  await irParaConferencia();
+  await aguardar(
+    `!!document.querySelector('.conferencia__verificacao')`,
+    15000,
+    'o painel não mostrou as verificações',
+  );
+  await avaliar(
+    `document.querySelector('.conferencia__expandir')?.click(); true`,
+  );
+  await aguardar(
+    `[...document.querySelectorAll('.conferencia__linha-titulo')].some((x) => x.getClientRects().length > 0)`,
+    15000,
+    'o painel não ficou aberto',
+  );
+  return avaliar(`[...document.querySelectorAll('.conferencia__verificacao')].map((li) => {
+    const b = li.querySelector('.conferencia__linha');
+    return {
+      id: b.getAttribute('aria-controls').replace('conferencia-detalhe-', ''),
+      nivel: [...li.classList].find((c) => c.startsWith('conferencia__verificacao--')).split('--')[1],
+      titulo: b.querySelector('.conferencia__linha-titulo').textContent.replace(/\u00a0/g, ' '),
+    };
+  })`);
+}
+
+/** Abre o detalhe da verificação `id` e devolve o texto dele. */
+async function abrirDetalhe(id) {
+  await avaliar(
+    `document.querySelector('[aria-controls="conferencia-detalhe-${id}"]').click(); true`,
+  );
+  await aguardar(
+    `!document.getElementById('conferencia-detalhe-${id}').hidden`,
+    15000,
+    `o detalhe de ${id} não abriu`,
+  );
+  return avaliar(
+    `document.getElementById('conferencia-detalhe-${id}').textContent.replace(/\u00a0/g, ' ')`,
+  );
+}
+
+async function casosPainelAvisos() {
+  const FRETES = [
+    {
+      arquivo: 't15-frete-cif.xml',
+      nivel: 'info',
+      titulo:
+        'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança.',
+    },
+    {
+      arquivo: 't16-frete-fob.xml',
+      nivel: 'leve',
+      titulo:
+        'Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora Transportes Inventados de Teste. Se o conhecimento não veio, pedir a segunda via.',
+    },
+    {
+      arquivo: 't17-frete-cif-com-valor.xml',
+      nivel: 'leve',
+      titulo:
+        'A nota diz frete do remetente, mas traz frete de R$ 35,50: lançar como Destinatário FOB, sem digitar valor de conhecimento (o frete vem da nota).',
+    },
+    {
+      arquivo: 't18-frete-terceiros.xml',
+      nivel: 'info',
+      titulo:
+        'Frete por conta de terceiros (modalidade 2). As informações complementares dizem CIF.',
+    },
+  ];
+  await caso(
+    'Painel da Conferência: linha do frete em cada modalidade (t15 a t18), em 1366 e em 1920',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of TAMANHOS_PAINEL) {
+          for (const fr of FRETES) {
+            const linhas = await linhasDoPainel(fr.arquivo, w, h);
+            const frete = linhas.find((l) => l.id === 'frete');
+            confere(
+              frete?.titulo === fr.titulo && frete.nivel === fr.nivel,
+              `${fr.arquivo} em ${w}: ${JSON.stringify(frete)}`,
+            );
+            // Primeira linha (a nota não é de devolução).
+            confere(
+              linhas[0].id === 'frete',
+              `${fr.arquivo}: o frete não é a primeira linha (${linhas.map((l) => l.id).join(', ')})`,
+            );
+            await capturar(
+              `painel-${fr.arquivo.replace(/\.xml$/, '')}-${w}.png`,
+            );
+            await inicio();
+          }
+        }
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
     },
   );
 }

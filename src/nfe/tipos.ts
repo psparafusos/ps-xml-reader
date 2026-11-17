@@ -107,6 +107,7 @@ export interface Transporte {
   modFrete: string;
   transportadoraNome: string;
   transportadoraCNPJ: string;
+  transportadoraCPF: string;
   volumes: Volume[];
 }
 

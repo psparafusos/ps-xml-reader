@@ -88,6 +88,7 @@ function nota(extra: Partial<Nota> = {}): Nota {
       modFrete: '',
       transportadoraNome: '',
       transportadoraCNPJ: '',
+      transportadoraCPF: '',
       volumes: [],
     },
     duplicatas: [],

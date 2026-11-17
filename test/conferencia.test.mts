@@ -9,6 +9,7 @@ import {
   expansaoLateral,
 } from '../src/nfe/conferencia.ts';
 import { FERRAMENTAS } from '../src/nfe/ferramentas.ts';
+import { freteContraditoNoTexto } from '../src/nfe/frete.ts';
 import { criarIndicador } from '../src/indicador.ts';
 import type { Item, Nota } from '../src/nfe/tipos.ts';
 
@@ -92,6 +93,7 @@ function nota(): Nota {
       modFrete: '',
       transportadoraNome: '',
       transportadoraCNPJ: '',
+      transportadoraCPF: '',
       volumes: [],
     },
     duplicatas: [],
@@ -275,6 +277,178 @@ describe('nota de devolução no resumo', () => {
       !resumoConferencia(dados({ nota: antiga })).verificacoes.some(
         (v) => v.id === 'devolucao',
       ),
+    );
+  });
+});
+
+/** Troca o espaço sem quebra do Intl ("R$ 1,00") por espaço comum. */
+const plano = (t: string) => t.replace(/\u00a0/g, ' ');
+
+describe('frete no resumo', () => {
+  /** Nota com a modalidade e o valor do frete dados. */
+  function comFrete(modFrete: string, vFrete = '0.00'): Nota {
+    const n = nota();
+    n.transporte.modFrete = modFrete;
+    n.totais.vFrete = vFrete;
+    return n;
+  }
+  const frete = (n: Nota) =>
+    ver(resumoConferencia(dados({ nota: n })), 'frete');
+
+  it('modFrete 0 sem valor de frete: informação, Emitente CIF', () => {
+    const r = resumoConferencia(dados({ nota: comFrete('0') }));
+    const v = ver(r, 'frete');
+    assert.equal(v.nivel, 'info');
+    assert.equal(v.ok, true);
+    assert.equal(
+      v.titulo,
+      'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança.',
+    );
+    assert.match(
+      v.detalhe,
+      /Modalidade do frete na nota: 0, por conta do remetente \(CIF\)\./,
+    );
+    assert.match(v.detalhe, /Emitente CIF, sem valor de conhecimento/);
+    assert.match(v.detalhe, /A nota não traz transportadora\./);
+    // Só informa: não vira ponto para olhar.
+    assert.equal(r.pontos, 0);
+    assert.equal(r.titulo, 'Tudo certo · 7 verificações');
+  });
+
+  it('modFrete 0 com vFrete vazio também é CIF sem valor', () => {
+    assert.equal(frete(comFrete('0', '')).nivel, 'info');
+  });
+
+  it('modFrete 1 com transportadora: aviso com o nome, Destinatário FOB', () => {
+    const n = comFrete('1');
+    n.transporte.transportadoraNome = 'TRANSPORTES INVENTADOS LTDA';
+    n.transporte.transportadoraCNPJ = '11222333000181';
+    const r = resumoConferencia(dados({ nota: n }));
+    const v = ver(r, 'frete');
+    assert.equal(v.nivel, 'leve');
+    assert.equal(v.ok, false);
+    assert.equal(
+      v.titulo,
+      'Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora TRANSPORTES INVENTADOS LTDA. Se o conhecimento não veio, pedir a segunda via.',
+    );
+    assert.match(
+      v.detalhe,
+      /Transportadora na nota: TRANSPORTES INVENTADOS LTDA \(CNPJ 11\.222\.333\/0001-81\)\./,
+    );
+    assert.match(
+      v.detalhe,
+      /Destinatário FOB, com o valor do conhecimento digitado/,
+    );
+    assert.equal(r.pontos, 1);
+  });
+
+  it('modFrete 1 sem transportadora no XML: sem o nome', () => {
+    const v = frete(comFrete('1'));
+    assert.equal(
+      v.titulo,
+      'Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora. Se o conhecimento não veio, pedir a segunda via.',
+    );
+  });
+
+  it('transportadora com CPF: o CPF vai para o detalhe', () => {
+    const n = comFrete('1');
+    n.transporte.transportadoraNome = 'MOTORISTA INVENTADO';
+    n.transporte.transportadoraCPF = '12345678909';
+    assert.match(
+      frete(n).detalhe,
+      /Transportadora na nota: MOTORISTA INVENTADO \(CPF 123\.456\.789-09\)\./,
+    );
+  });
+
+  it('modFrete 0 com valor de frete: aviso para lançar como Destinatário FOB', () => {
+    const n = comFrete('0', '35.5');
+    n.totais.vNF = '87.50';
+    const r = resumoConferencia(dados({ nota: n }));
+    const v = ver(r, 'frete');
+    assert.equal(v.nivel, 'leve');
+    assert.equal(
+      plano(v.titulo),
+      'A nota diz frete do remetente, mas traz frete de R$ 35,50: lançar como Destinatário FOB, sem digitar valor de conhecimento (o frete vem da nota).',
+    );
+    assert.match(plano(v.detalhe), /Valor do frete na nota: R\$ 35,50\./);
+    assert.equal(r.pontos, 1);
+  });
+
+  it('outras modalidades: informação com o significado do código', () => {
+    const titulos = ['2', '3', '4', '9', '7'].map((m) => {
+      const v = frete(comFrete(m));
+      assert.equal(v.nivel, 'info', m);
+      return v.titulo;
+    });
+    assert.deepEqual(titulos, [
+      'Frete por conta de terceiros (modalidade 2)',
+      'Transporte próprio do remetente (modalidade 3)',
+      'Transporte próprio do destinatário (modalidade 4)',
+      'Sem frete (modalidade 9)',
+      'Modalidade de frete 7, fora da tabela da NF-e',
+    ]);
+    assert.match(
+      frete(comFrete('9')).detalhe,
+      /^Modalidade do frete na nota: 9, sem frete\./,
+    );
+  });
+
+  it('sem modFrete no XML: sem a linha', () => {
+    assert.ok(
+      !resumoConferencia(dados()).verificacoes.some((v) => v.id === 'frete'),
+    );
+  });
+
+  it('informações complementares que contradizem o modFrete', () => {
+    const n = comFrete('0');
+    n.infAdic.infCpl = 'Pedido 123. Frete fob, entrega na loja.';
+    assert.equal(
+      frete(n).titulo,
+      'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança. As informações complementares dizem FOB.',
+    );
+    const m = comFrete('1');
+    m.infAdic.infCpl = 'TIPO DE FRETE: CIF';
+    assert.match(
+      frete(m).titulo,
+      /segunda via\. As informações complementares dizem CIF\.$/,
+    );
+    const s = comFrete('9');
+    s.infAdic.infCpl = 'FRETE FOB';
+    assert.equal(
+      frete(s).titulo,
+      'Sem frete (modalidade 9). As informações complementares dizem FOB.',
+    );
+    // Não muda o nível.
+    assert.equal(frete(n).nivel, 'info');
+  });
+
+  it('CIF e FOB só como palavra inteira, e só quando contradizem', () => {
+    assert.deepEqual(freteContraditoNoTexto('0', 'FRETE CIF'), []);
+    assert.deepEqual(freteContraditoNoTexto('0', 'frete: fob'), ['FOB']);
+    assert.deepEqual(freteContraditoNoTexto('1', '(CIF)'), ['CIF']);
+    assert.deepEqual(freteContraditoNoTexto('0', 'FOBOS CIFRA SCIF FOB1'), []);
+    // As duas palavras: o texto também diz a que combina, não contradiz.
+    assert.deepEqual(freteContraditoNoTexto('0', 'CIF OU FOB'), []);
+    assert.deepEqual(freteContraditoNoTexto('2', 'CIF OU FOB'), ['CIF', 'FOB']);
+    assert.deepEqual(freteContraditoNoTexto('1', ''), []);
+  });
+
+  it('ordem: devolução, frete e depois as outras verificações', () => {
+    const n = comFrete('1');
+    n.ide.finNFe = '4';
+    n.ide.refNFe = [CHAVE_REF];
+    assert.deepEqual(
+      resumoConferencia(dados({ nota: n })).verificacoes.map((v) => v.id),
+      [
+        'devolucao',
+        'frete',
+        'idade',
+        'totais-itens',
+        'duplicatas',
+        'vencimentos',
+        'destinatario',
+        'conferida',
+      ],
     );
   });
 });
