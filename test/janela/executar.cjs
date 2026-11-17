@@ -690,10 +690,20 @@ async function principal() {
         const limite = Date.now() + 30000;
         while ((await abrirEmAtivo()) !== 'psxml' && Date.now() < limite)
           await espera(200);
-        confere(
-          (await abrirEmAtivo()) === 'psxml',
-          'a opção PSXML não foi gravada',
-        );
+        if ((await abrirEmAtivo()) !== 'psxml') {
+          // O que a tela disse (erro da gravação, status), para a falha.
+          const tela = await avaliar(`(() => {
+            const d = document.querySelector('dialog[open]');
+            return {
+              erros: [...(d?.querySelectorAll('.config__erro:not([hidden])') ?? [])].map((e) => e.textContent),
+              marcado: document.getElementById('config-abrir-em-psxml')?.checked,
+            };
+          })()`).catch((e) => String(e));
+          confere(
+            false,
+            `a opção PSXML não foi gravada; tela: ${JSON.stringify(tela)}`,
+          );
+        }
         await fecharDialogos();
       } finally {
         await gravarAbrirEm('xml');

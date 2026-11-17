@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -128,6 +130,31 @@ describe('gravação', () => {
       Array.from({ length: 30 }, (_, i) => `k${i}`),
     );
   });
+
+  it(
+    'config.json aberto por outro programa (o Windows recusa o rename): grava por cima, com o .bak',
+    { skip: process.platform !== 'win32' && 'só o Windows recusa o rename' },
+    async () => {
+      const c = novo();
+      await c.gravar({ a: 1 });
+      // Um leitor com o arquivo aberto durante a gravação inteira.
+      const fd = openSync(arquivo(ARQ_CONFIG), 'r');
+      try {
+        await c.gravar({ b: 2 });
+      } finally {
+        closeSync(fd);
+      }
+      assert.deepEqual(lerJson(ARQ_CONFIG), { a: 1, b: 2 });
+      assert.deepEqual(lerJson(ARQ_BAK), { a: 1 });
+      assert.deepEqual(temporarios(), []);
+      assert.match(
+        ler(ARQ_LOG),
+        /config\.json estava aberto por outro programa/,
+      );
+      // Nada de aviso na tela: não houve perda nem recuperação.
+      assert.deepEqual(c.tirarAvisos(), []);
+    },
+  );
 
   it('gravação síncrona e assíncrona juntas não se perdem', async () => {
     const c = novo();

@@ -178,19 +178,41 @@ function lerArquivo(caminho: string): Leitura {
 let sequencia = 0;
 const SUFIXO_TEMPORARIO = /\.\d+\.\d+\.tmp$/;
 
-/** Grava num temporário ao lado (com fsync) e troca pelo rename. */
-export function gravarAtomico(caminho: string, texto: string): void {
+/** Grava `texto` em `caminho` (criando ou zerando o arquivo) com fsync. */
+function gravarComFsync(caminho: string, texto: string): void {
+  const fd = openSync(caminho, 'w');
+  try {
+    writeFileSync(fd, texto, 'utf8');
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Grava num temporário ao lado (com fsync) e troca pelo rename. O Windows
+ * não troca um arquivo que alguém está com aberto (uma leitura do próprio
+ * app, o antivírus, a indexação): se a troca continuar recusada depois das
+ * tentativas, grava o conteúdo por cima, no próprio arquivo, e devolve
+ * 'por-cima'. Quem chama já guardou a versão anterior (o .bak).
+ */
+export function gravarAtomico(
+  caminho: string,
+  texto: string,
+): 'trocado' | 'por-cima' {
   mkdirSync(path.dirname(caminho), { recursive: true });
   const temporario = `${caminho}.${process.pid}.${++sequencia}.tmp`;
   try {
-    const fd = openSync(temporario, 'w');
+    gravarComFsync(temporario, texto);
     try {
-      writeFileSync(fd, texto, 'utf8');
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
+      comTentativas(() => renameSync(temporario, caminho));
+      return 'trocado';
+    } catch (erro) {
+      if (!PASSAGEIROS.has(codigo(erro))) throw erro;
+      comTentativas(() => gravarComFsync(caminho, texto));
+      rmSync(temporario, { force: true });
+      return 'por-cima';
     }
-    comTentativas(() => renameSync(temporario, caminho));
   } catch (erro) {
     rmSync(temporario, { force: true });
     throw erro;
@@ -389,8 +411,14 @@ export function criarConfigSeguro<C extends object = Objeto>(
     const { config, texto } = carregar(true);
     const novo = textoJson({ ...config, ...parcial });
     if (novo === texto) return;
-    if (texto !== null) gravarAtomico(caminho(ARQ_BAK), texto);
-    gravarAtomico(caminho(ARQ_CONFIG), novo);
+    if (texto !== null && gravarAtomico(caminho(ARQ_BAK), texto) === 'por-cima')
+      registrar(
+        'config.json.bak estava aberto por outro programa: gravado por cima, no lugar.',
+      );
+    if (gravarAtomico(caminho(ARQ_CONFIG), novo) === 'por-cima')
+      registrar(
+        'config.json estava aberto por outro programa: gravado por cima, no lugar (a versão anterior ficou no config.json.bak).',
+      );
   }
 
   function naFila<T>(fn: () => T | Promise<T>): Promise<T> {
