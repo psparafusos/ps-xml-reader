@@ -231,3 +231,20 @@ contextBridge.exposeInMainWorld('psConfigSeguro', {
   },
 } satisfies PsConfigSeguroApi);
 // ---------- config.json seguro: fim do bloco ----------
+
+// ---------- rascunhos das anotações: início do bloco ----------
+// Rascunho contínuo da nota (src/rascunhos.ts) e o aviso de recuperar na
+// abertura do app. Nenhum caminho vai da janela: o processo principal sabe o
+// arquivo de cada janela; o aviso só devolve ids.
+contextBridge.exposeInMainWorld('psRascunhos', {
+  gravar: (dados: DadosRascunhoJanela): void =>
+    ipcRenderer.send('rascunho-gravar', dados),
+  apagar: (): void => ipcRenderer.send('rascunho-apagar'),
+  descartar: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('rascunho-descartar', id),
+  avisoAbertura: (): Promise<ResumoRascunho[]> =>
+    ipcRenderer.invoke('rascunhos-aviso'),
+  recuperar: (id: string): Promise<ResultadoRecuperarRascunho> =>
+    ipcRenderer.invoke('rascunho-recuperar', id),
+} satisfies PsRascunhosApi);
+// ---------- rascunhos das anotações: fim do bloco ----------

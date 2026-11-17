@@ -16,8 +16,9 @@
 // planilha inventada de planilhaST.mts), a nota de devolução (t14) e as
 // linhas informativas do painel da Conferência (frete, t15 a t18, e
 // vencimentos escritos nas informações complementares, t19, e a devolução,
-// t14), e a janela na largura mínima (680: não aceita menos, e as telas
-// principais cabem sem rolar de lado). Com
+// t14), a janela na largura mínima (680: não aceita menos, e as telas
+// principais cabem sem rolar de lado) e o rascunho das anotações
+// (rascunhos.cjs: fechamento à força e recuperar). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
 // do painel e as das telas na largura mínima.
 'use strict';
@@ -31,6 +32,7 @@ const { casosNavegacao } = require('./navegacao.cjs');
 const { casosServico } = require('./servico.cjs');
 const { casosConfigSeguro } = require('./configSeguro.cjs');
 const { casosPerfis } = require('./perfis.cjs');
+const { casosRascunhos } = require('./rascunhos.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -228,6 +230,9 @@ async function irParaConferencia() {
 async function estadoLimpo() {
   const { BrowserWindow } = require('electron');
   for (const w of BrowserWindow.getAllWindows()) if (w !== janela) w.destroy();
+  // Rascunhos de anotação de casos anteriores (janelas destruídas sem a
+  // pergunta de sair): a mesma nota aberta de novo não pergunta por eles.
+  fs.rmSync(path.join(dados, 'rascunhos'), { recursive: true, force: true });
   // Leitor de XML (parte 1) fechado e nenhuma leitura no serviço (parte 2).
   await limparLeitorXml(avaliar, espera);
   await fecharDialogos();
@@ -2428,6 +2433,11 @@ async function principal() {
   // Perfis: renomear, cópia antes de excluir ou substituir, importar e
   // exportar (perfis.cjs).
   await casosPerfis({ ...contexto, dados, tmp });
+
+  // Rascunho das anotações: fechamento à força, recuperar, salvar,
+  // descartar, Decidir depois e duplo clique (rascunhos.cjs, cada abertura
+  // num processo à parte, com pasta de dados própria).
+  await casosRascunhos({ ...contexto, tmp });
 
   // config.json cortado e perfis inválidos (por último: muda os perfis).
   await casosConfigSeguro({ ...contexto, dados });

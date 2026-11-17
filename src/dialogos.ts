@@ -18,7 +18,7 @@ export interface BotaoDialogo<T extends string> {
  * resposta na hora (sem esperar o evento close do <dialog>, que o Chromium
  * pode atrasar numa janela coberta por outras). Esc vale `aoCancelar`.
  */
-function novaCaixa<T>(
+export function novaCaixa<T>(
   titulo: string,
   texto: string,
   aoCancelar: T,

@@ -99,6 +99,7 @@ import { problemaNomeArquivo } from './nfe/nome';
 import {
   ESPERA_CAMINHO_MS,
   comLimite,
+  ehCaminhoDeDispositivo,
   escolherCandidato,
   existeOuSemResposta,
   mensagemSemResposta,
@@ -307,6 +308,11 @@ interface PedidoArquivo {
   /** Duplo clique: um .psxml faz da pasta dele a pasta desta janela. */
   sessao: boolean;
   /**
+   * Recuperar este rascunho ao abrir (aviso da abertura do app).
+   * `semOriginal`: `caminho` é a cópia .recuperado.psxml do rascunho.
+   */
+  rascunho?: { id: string; semOriginal: boolean };
+  /**
    * O arquivo já foi recusado antes de chegar à janela (pasta de rede que
    * não respondeu): a janela só mostra esta mensagem, sem ler nada.
    */
@@ -344,6 +350,16 @@ interface Janela {
   conferidos: Set<string>;
   /** Último .psxml salvo por esta janela (vai para as notas recentes). */
   ultimoSalvo: string | null;
+  /**
+   * Rascunho da nota desta janela (src/rascunhos.ts): o que ela gravou por
+   * último ou o que veio com o arquivo aberto. null sem nota.
+   */
+  rascunhoId: string | null;
+  /**
+   * Nota recuperada sem o original (a janela abriu a cópia de dentro do
+   * rascunho): o rascunho continua apontando para o arquivo de antes.
+   */
+  origemRascunho: { caminho: string; tipo: 'xml' | 'psxml' } | null;
 }
 
 const janelas = new Map<number, Janela>();
@@ -460,6 +476,8 @@ function criarJanela(pedido: PedidoArquivo | null): Janela {
     pedido,
     conferidos: new Set(),
     ultimoSalvo: null,
+    rascunhoId: null,
+    origemRascunho: null,
   };
   const id = janela.webContents.id;
   janelas.set(id, j);
@@ -654,12 +672,25 @@ async function lerArquivoNaJanela(
   j: Janela,
   caminho: string,
   texto?: string,
+  recuperar?: { id: string; semOriginal: boolean },
 ): Promise<ArquivoAberto> {
   const conteudo =
     texto ?? (await lerNfeNoServico(caminho, j.janela.webContents));
   j.arquivoAberto = caminho;
   const raiz = nomeRaiz(conteudo);
   j.abertoEhCopia = raiz === 'psCopiaEditada';
+  const rascunho = rascunhoDaAbertura(j, caminho, conteudo, recuperar);
+  // Nota recuperada de dentro do rascunho: o nome e a pasta são os do
+  // arquivo de antes, nunca os da pasta dos rascunhos.
+  if (rascunho?.semOriginal) {
+    guardarNoLeitor(j.janela.webContents, caminho, j.abertoEhCopia);
+    return {
+      nome: path.basename(rascunho.caminho),
+      texto: conteudo,
+      modoInicial: 'conferencia',
+      rascunho,
+    };
+  }
   // A aba XML lê o mesmo arquivo quando a pessoa pedir (do .psxml, o
   // original guardado dentro da cópia).
   guardarNoLeitor(j.janela.webContents, caminho, j.abertoEhCopia);
@@ -680,6 +711,7 @@ async function lerArquivoNaJanela(
     nome: path.basename(caminho),
     texto: conteudo,
     modoInicial,
+    ...(rascunho ? { rascunho } : {}),
   };
 }
 
@@ -801,6 +833,8 @@ ouvir('sem-nota', (event) => {
   const j = janelas.get(event.sender.id);
   if (!j) return;
   j.arquivoAberto = null;
+  j.rascunhoId = null;
+  j.origemRascunho = null;
   j.abertoEhCopia = false;
   esquecerLeitor(event.sender.id);
 });
@@ -824,7 +858,12 @@ tratar(
     }
     let arquivo: ArquivoAberto;
     try {
-      arquivo = await lerArquivoNaJanela(j, pedido.caminho);
+      arquivo = await lerArquivoNaJanela(
+        j,
+        pedido.caminho,
+        undefined,
+        pedido.rascunho,
+      );
     } catch (erro) {
       if (erro instanceof ArquivoRecusadoError)
         return { status: 'recusado', mensagem: erro.message };
@@ -837,7 +876,8 @@ tratar(
     if (copia) j.pastaSessao = path.dirname(pedido.caminho);
     return {
       ...arquivo,
-      pastaSessao: copia ? j.pastaSessao : null,
+      // Nota recuperada: a pasta desta sessão volta se o rascunho a tinha.
+      pastaSessao: copia || pedido.rascunho ? j.pastaSessao : null,
       modo: pedido.modo,
     };
   },
@@ -884,6 +924,254 @@ const configSeguro = criarConfigSeguro<Config>({
 
 tratar('config-recuperacoes', () => configSeguro.tirarAvisos());
 // ---------- config.json seguro: fim do bloco ----------
+
+// ---------- rascunhos das anotações: início do bloco ----------
+// Rascunho contínuo de cada nota com anotações não salvas, na pasta de dados
+// (src/rascunhos.ts), e o aviso de recuperar na abertura do app. A janela
+// manda só o .psxml montado e os dados de exibição; arquivo, pasta de
+// destino e id vêm do estado da janela aqui. Os canais rodam inteiros, sem
+// await, na ordem de chegada: um "apagar" nunca passa na frente do "gravar"
+// que veio antes.
+import {
+  criarRascunhos,
+  idDoRascunho,
+  idValido,
+  type Rascunho,
+} from './rascunhos';
+
+const rascunhos = criarRascunhos({ pasta: () => app.getPath('userData') });
+
+/**
+ * O aviso já foi entregue nesta execução. --squirrel-firstrun (o app que o
+ * instalador abre) não mostra: o aviso fica para a primeira abertura normal.
+ */
+let avisoRascunhosFeito = process.argv.includes('--squirrel-firstrun');
+
+/** Chave de acesso no texto da NF-e ou do .psxml, sem montar o DOM. */
+function chaveDoTexto(texto: string): string | null {
+  const m = /<(?:[\w.-]+:)?infNFe\b[^>]*?\bId\s*=\s*["']NFe(\d{44})["']/.exec(
+    texto,
+  );
+  return m ? m[1] : null;
+}
+
+/** Outra janela (fora `j`) está com a nota deste rascunho. */
+function rascunhoEmUso(id: string, j?: Janela): boolean {
+  return abertas().some(
+    (o) => o !== j && (o.rascunhoId === id || o.pedido?.rascunho?.id === id),
+  );
+}
+
+function resumoRascunho(r: Rascunho): ResumoRascunho {
+  return {
+    id: r.id,
+    fornecedor: r.fornecedor,
+    numero: r.numero,
+    serie: r.serie,
+    alteradoEm: r.alteradoEm,
+  };
+}
+
+/**
+ * Rascunho do arquivo que a janela acabou de abrir. `recuperar`: veio do
+ * aviso da abertura, e a nota abre recuperada. Senão, o rascunho da mesma
+ * nota (pela chave; sem chave, pelo caminho), se outra janela não está com
+ * ele, vai junto para a janela perguntar. Guarda o id na janela: o próximo
+ * gravar e apagar dela usam este.
+ */
+function rascunhoDaAbertura(
+  j: Janela,
+  caminho: string,
+  texto: string,
+  recuperar?: { id: string; semOriginal: boolean },
+): RascunhoNaAbertura | null {
+  j.origemRascunho = null;
+  const deRecuperar = recuperar ? rascunhos.ler(recuperar.id) : null;
+  if (recuperar && deRecuperar) {
+    const r = deRecuperar;
+    j.rascunhoId = r.id;
+    if (recuperar.semOriginal)
+      j.origemRascunho = { caminho: r.caminho, tipo: r.tipo };
+    else if (
+      r.tipo === 'psxml' &&
+      r.pastaDestino &&
+      mesmoCaminho(r.caminho, caminho) &&
+      mesmaPasta(r.pastaDestino, path.dirname(r.caminho))
+    )
+      // O .psxml estava aberto com a pasta dele como pasta desta sessão.
+      j.pastaSessao = r.pastaDestino;
+    return {
+      ...resumoRascunho(r),
+      psxml: r.psxml,
+      recuperar: true,
+      semOriginal: recuperar.semOriginal,
+      caminho: r.caminho,
+    };
+  }
+  j.rascunhoId = idDoRascunho(chaveDoTexto(texto), caminho);
+  const r = rascunhos.ler(j.rascunhoId);
+  if (!r || rascunhoEmUso(r.id, j)) return null;
+  return {
+    ...resumoRascunho(r),
+    psxml: r.psxml,
+    recuperar: false,
+    semOriginal: false,
+    caminho: r.caminho,
+  };
+}
+
+const textoCurto = (v: unknown) =>
+  typeof v === 'string' ? v.slice(0, 200) : '';
+
+ouvir('rascunho-gravar', (event, dados: unknown) => {
+  const j = janelas.get(event.sender.id);
+  if (!j || !j.arquivoAberto || !j.rascunhoId) return;
+  const d = (typeof dados === 'object' && dados !== null ? dados : {}) as {
+    [k: string]: unknown;
+  };
+  if (typeof d.psxml !== 'string' || d.psxml === '') return;
+  const origem = j.origemRascunho ?? {
+    caminho: j.arquivoAberto,
+    tipo: j.abertoEhCopia ? ('psxml' as const) : ('xml' as const),
+  };
+  const { pastaDestino } = lerConfigSync();
+  const r = rascunhos.gravar({
+    // A chave é a do arquivo aberto (lida aqui), não a que a janela manda.
+    chave: j.rascunhoId.startsWith('nfe-') ? j.rascunhoId.slice(4) : null,
+    caminho: origem.caminho,
+    tipo: origem.tipo,
+    pastaDestino:
+      j.pastaSessao ??
+      (typeof pastaDestino === 'string' && pastaDestino !== ''
+        ? pastaDestino
+        : null),
+    fornecedor: textoCurto(d.fornecedor),
+    numero: textoCurto(d.numero),
+    serie: textoCurto(d.serie),
+    versaoApp: app.getVersion(),
+    psxml: d.psxml,
+  });
+  // Nota sem chave que passou a trabalhar numa cópia: o id segue o arquivo.
+  j.rascunhoId = r.id;
+});
+
+ouvir('rascunho-apagar', (event) => {
+  const j = janelas.get(event.sender.id);
+  if (j?.rascunhoId) rascunhos.apagar(j.rascunhoId);
+});
+
+// Descartar do aviso e "Abrir sem elas": nunca o rascunho de outra janela.
+tratar(
+  'rascunho-descartar',
+  (event, id: unknown): boolean =>
+    idValido(id) &&
+    !rascunhoEmUso(id, estadoDe(event.sender)) &&
+    rascunhos.apagar(id),
+);
+
+// Uma vez por execução, para a primeira janela que pedir (depois de abrir o
+// arquivo do duplo clique, se havia). Fora os que já estão em alguma janela.
+tratar('rascunhos-aviso', (): ResumoRascunho[] => {
+  if (avisoRascunhosFeito) return [];
+  avisoRascunhosFeito = true;
+  return rascunhos
+    .listar()
+    .filter(
+      (r) =>
+        !rascunhoEmUso(r.id) &&
+        !abertas().some(
+          (o) =>
+            (o.arquivoAberto && mesmoCaminho(o.arquivoAberto, r.caminho)) ||
+            (o.pedido && mesmoCaminho(o.pedido.caminho, r.caminho)),
+        ),
+    )
+    .map(resumoRascunho);
+});
+
+/**
+ * O original ainda está no caminho gravado e é a mesma nota? Devolve o
+ * texto; null se sumiu, não responde em 2 s, foi recusado ou é outra nota.
+ */
+async function originalDoRascunho(
+  r: Rascunho,
+  wc: Electron.WebContents,
+): Promise<string | null> {
+  if (ehCaminhoDeDispositivo(r.caminho)) return null;
+  const existe = await comLimite(
+    stat(r.caminho).then(
+      (s) => s.isFile(),
+      () => false,
+    ),
+    ESPERA_CAMINHO_MS,
+    false,
+  );
+  if (!existe) return null;
+  try {
+    const texto = await lerNfeNoServico(r.caminho, wc);
+    return r.chave === null || chaveDoTexto(texto) === r.chave ? texto : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recuperar do aviso: a janela que já está com a nota vem para a frente;
+ * esta janela, se está na tela inicial, abre a nota; senão, uma janela nova.
+ * Sempre na Conferência. Sem o original, abre a cópia de dentro do rascunho.
+ */
+tratar(
+  'rascunho-recuperar',
+  async (event, id: unknown): Promise<ResultadoRecuperarRascunho> => {
+    const j = estadoDe(event.sender);
+    const r = idValido(id) ? rascunhos.ler(id) : null;
+    if (!r)
+      return {
+        status: 'recusado',
+        mensagem: 'Estas anotações não estão mais guardadas.',
+      };
+    const dona = abertas().find(
+      (o) => o.rascunhoId === r.id || o.pedido?.rascunho?.id === r.id,
+    );
+    if (dona) {
+      trazerParaFrente(dona);
+      return { status: 'outra-janela' };
+    }
+    const original = await originalDoRascunho(r, j.janela.webContents);
+    const semOriginal = original === null;
+    let caminho = r.caminho;
+    try {
+      if (semOriginal) caminho = rascunhos.gravarRecuperado(r);
+    } catch {
+      return {
+        status: 'recusado',
+        mensagem: 'Não foi possível abrir as anotações guardadas.',
+      };
+    }
+    const ja = janelaComArquivo(caminho);
+    if (ja) {
+      trazerParaFrente(ja);
+      return { status: 'outra-janela' };
+    }
+    const pedido = { id: r.id, semOriginal };
+    if (!janelaVazia(j)) {
+      criarJanela({
+        caminho,
+        modo: 'conferencia',
+        sessao: false,
+        rascunho: pedido,
+      });
+      return { status: 'nova-janela' };
+    }
+    const arquivo = await lerArquivoNaJanela(
+      j,
+      caminho,
+      original ?? r.psxml,
+      pedido,
+    );
+    return { status: 'aqui', arquivo, pastaSessao: j.pastaSessao };
+  },
+);
+// ---------- rascunhos das anotações: fim do bloco ----------
 
 /** Versão síncrona de lerConfig, para abrir e fechar a janela. */
 function lerConfigSync(): Config {
@@ -947,7 +1235,9 @@ tratar('registrar-recente', async (event, dados: unknown) => {
       ? j.ultimoSalvo
       : null;
   const caminho = salvo ?? j.arquivoAberto;
-  if (!caminho) return;
+  // A cópia de dentro de um rascunho (nota recuperada sem o original) não
+  // vai para as recentes: só o .psxml que a pessoa salvar.
+  if (!caminho || rascunhos.dentroDaPasta(caminho)) return;
   const [nota] = lerRecentes([
     {
       caminho,
@@ -2379,6 +2669,9 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   negarPermissoes();
   if (!MAIN_WINDOW_VITE_DEV_SERVER_URL) servirEsquemaApp();
+  // Rascunhos com mais de 30 dias e sobras da execução anterior saem antes
+  // da primeira janela (src/rascunhos.ts).
+  rascunhos.limparNaAbertura();
   criarJanela(await pedidoDosCandidatos(candidatosIniciais));
   // Só se a pessoa ligou a verificação online e o "verificar ao abrir".
   void verificarAoAbrir();

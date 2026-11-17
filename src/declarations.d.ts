@@ -26,6 +26,67 @@ interface ArquivoAberto {
    * (.psxml) na Conferência; o XML da NF-e pelo "NF-e abre em" do perfil.
    */
   modoInicial: ModoImpressao;
+  /** Rascunho de anotações não salvas desta nota (src/rascunhos.ts). */
+  rascunho?: RascunhoNaAbertura;
+}
+
+/** Uma nota com rascunho, para o aviso da abertura do app. */
+interface ResumoRascunho {
+  id: string;
+  fornecedor: string;
+  numero: string;
+  serie: string;
+  /** Data e hora da última alteração (ISO). */
+  alteradoEm: string;
+}
+
+/**
+ * Rascunho que acompanha o arquivo aberto. `recuperar`: a pessoa já escolheu
+ * recuperar (aviso da abertura do app); senão a janela pergunta antes de
+ * mostrar a nota.
+ */
+interface RascunhoNaAbertura extends ResumoRascunho {
+  /** O .psxml que a nota teria: anotações, títulos e ordem. */
+  psxml: string;
+  recuperar: boolean;
+  /**
+   * O arquivo não estava mais no caminho gravado (ou era outra nota): a
+   * janela abriu a nota guardada dentro do rascunho.
+   */
+  semOriginal: boolean;
+  /** Caminho do arquivo gravado no rascunho. */
+  caminho: string;
+}
+
+/** Estado da nota que a janela manda para o rascunho. */
+interface DadosRascunhoJanela {
+  psxml: string;
+  chave: string;
+  fornecedor: string;
+  numero: string;
+  serie: string;
+}
+
+type ResultadoRecuperarRascunho =
+  | { status: 'aqui'; arquivo: ArquivoAberto; pastaSessao: string | null }
+  | { status: 'nova-janela' | 'outra-janela' }
+  | ArquivoRecusado;
+
+/** Ponte dos rascunhos (window.psRascunhos, bloco em src/preload.ts). */
+interface PsRascunhosApi {
+  /** Grava o rascunho da nota desta janela (sem resposta). */
+  gravar(dados: DadosRascunhoJanela): void;
+  /** Apaga o rascunho da nota desta janela (salvou, descartou, desfez). */
+  apagar(): void;
+  /** Apaga um rascunho pelo id (Descartar do aviso, Abrir sem elas). */
+  descartar(id: string): Promise<boolean>;
+  /**
+   * Rascunhos para o aviso da abertura: só a primeira janela que pede, uma
+   * vez por execução, leva a lista; depois vem vazia.
+   */
+  avisoAbertura(): Promise<ResumoRascunho[]>;
+  /** Abre a nota do rascunho, recuperada (aqui ou numa janela nova). */
+  recuperar(id: string): Promise<ResultadoRecuperarRascunho>;
 }
 
 /**
@@ -528,4 +589,5 @@ type ResultadoImportarBackup =
 
 interface Window {
   psApi: PsApi;
+  psRascunhos: PsRascunhosApi;
 }

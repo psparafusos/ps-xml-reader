@@ -200,6 +200,8 @@
   --largura-menu-salvar: 180px;
   --largura-menu-perfis: 340px;
   --largura-caixa-dialogo: 520px;
+  /* Aviso de recuperar anotações: cabe a linha com os dados e dois botões. */
+  --largura-caixa-rascunhos: 640px;
   /* Painel Editar colunas */
   --largura-painel: 1280px;
   /* Área Documentos de referência. */

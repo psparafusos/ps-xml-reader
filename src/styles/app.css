@@ -65,6 +65,7 @@ ul {
   .caixa-dialogo__texto,
   .caixa-dialogo__pasta,
   .caixa-dialogo__erro,
+  .rascunhos__nota,
   .painel__erro,
   .painel__aviso,
   .perfis-menu__erro,
@@ -2106,6 +2107,64 @@ ul {
 
 .caixa-dialogo__botoes .botao--principal {
   min-width: 0;
+}
+
+/* Recuperar anotações (src/avisoRascunhos.ts): uma linha por nota, com os
+   dados à esquerda e os botões à direita; na janela estreita os botões
+   descem para baixo dos dados. */
+.caixa-dialogo--rascunhos {
+  width: min(var(--largura-caixa-rascunhos), calc(100vw - 2 * var(--esp-5)));
+}
+
+.rascunhos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  max-height: 50vh;
+  margin: var(--esp-4) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.rascunhos__linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--esp-3);
+  padding: var(--esp-3);
+  border: var(--borda) solid var(--cartao-borda);
+  border-radius: var(--raio);
+}
+
+.rascunhos__linha--so {
+  margin-top: var(--esp-3);
+}
+
+.rascunhos__nota {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: var(--esp-1);
+  min-width: 0;
+}
+
+.rascunhos__fornecedor {
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-forte);
+  overflow-wrap: anywhere;
+}
+
+.rascunhos__nf,
+.rascunhos__quando {
+  font-size: var(--fs-sm);
+}
+
+.rascunhos__acoes {
+  display: flex;
+  flex: none;
+  gap: var(--esp-2);
 }
 
 /* Orientação da folha e indicador de que a tabela cabe, acima da prévia. */

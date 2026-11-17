@@ -101,6 +101,10 @@ import {
 } from './dom';
 import { perguntar, pedirNomeCopia } from './dialogos';
 import {
+  mostrarAvisoRascunhos,
+  perguntarRascunhoDaNota,
+} from './avisoRascunhos';
+import {
   textoImportarRepetido,
   textoRestaurarPadrao,
 } from './nfe/textosPerfis';
@@ -626,10 +630,86 @@ function titulosParaCopia(): Map<string, string> {
 /** Repassa ao processo principal (que barra o fechamento) só quando muda. */
 function atualizarPendentes(): void {
   const pendentes = haAlteracoes();
+  rascunhoMudou(pendentes);
   if (pendentes === pendentesInformado) return;
   pendentesInformado = pendentes;
   window.psApi.informarPendentes(pendentes);
 }
+
+// ---------- rascunho das anotações não salvas (src/rascunhos.ts) ----------
+// Com anotação não salva, a nota vai para um rascunho na pasta de dados 2 s
+// depois da última alteração e quando a janela perde o foco (nunca a cada
+// tecla). Sem alterações de novo (salvou, desfez), o rascunho sai. O mesmo
+// sinal da pergunta de fechar: haAlteracoes.
+
+/** Espera depois da última alteração antes de gravar o rascunho. */
+const ESPERA_RASCUNHO_MS = 2000;
+let temporizadorRascunho: number | null = null;
+/** Mudou algo desde a última gravação do rascunho. */
+let rascunhoAtrasado = false;
+/** Há rascunho desta nota no disco (gravado aqui ou recuperado). */
+let rascunhoNoDisco = false;
+
+function pararTemporizadorRascunho(): void {
+  if (temporizadorRascunho !== null) window.clearTimeout(temporizadorRascunho);
+  temporizadorRascunho = null;
+}
+
+/** Alteração nas anotações ou na ordem: agenda ou apaga o rascunho. */
+function rascunhoMudou(pendentes = haAlteracoes()): void {
+  if (!pendentes) {
+    pararTemporizadorRascunho();
+    rascunhoAtrasado = false;
+    if (rascunhoNoDisco) {
+      rascunhoNoDisco = false;
+      window.psRascunhos.apagar();
+    }
+    return;
+  }
+  if (!aberto) return;
+  rascunhoAtrasado = true;
+  pararTemporizadorRascunho();
+  temporizadorRascunho = window.setTimeout(gravarRascunho, ESPERA_RASCUNHO_MS);
+}
+
+/** Grava agora o rascunho, se mudou algo desde a última vez. */
+function gravarRascunho(): void {
+  pararTemporizadorRascunho();
+  if (!rascunhoAtrasado || !aberto || !haAlteracoes()) return;
+  const n = aberto.lido.nota;
+  let psxml: string;
+  try {
+    psxml = montarCopia(
+      aberto.texto,
+      anotacoes,
+      titulosParaCopia(),
+      ordemAtual,
+    );
+  } catch (erro) {
+    // Sem rascunho desta vez; a próxima alteração tenta de novo.
+    console.error(erro);
+    return;
+  }
+  window.psRascunhos.gravar({
+    psxml,
+    chave: n.chave,
+    fornecedor: n.emitente.xFant || n.emitente.xNome,
+    numero: n.ide.nNF,
+    serie: n.ide.serie,
+  });
+  rascunhoAtrasado = false;
+  rascunhoNoDisco = true;
+}
+
+/** Descartar (na pergunta de sair): o rascunho sai junto. */
+function descartarRascunho(): void {
+  pararTemporizadorRascunho();
+  rascunhoAtrasado = false;
+  rascunhoNoDisco = false;
+  window.psRascunhos.apagar();
+}
+
+window.addEventListener('blur', gravarRascunho);
 
 /** O estado atual passa a ser o gravado (depois de abrir ou salvar). */
 function marcarGravadas(): void {
@@ -823,6 +903,8 @@ function ordenarPelaColuna(id: string): void {
     ordemAtual = { criterio, direcao: 'desc' };
   else ordemAtual = ORDEM_NOTA;
   aplicarOrdem();
+  // A ordem vai no rascunho junto com as anotações (se há alteração).
+  rascunhoMudou();
 }
 
 function fecharMenuOrdenar(focarBotao = false): void {
@@ -880,6 +962,7 @@ function controleOrdenar(): HTMLElement {
   limpar.addEventListener('click', () => {
     ordemAtual = ORDEM_NOTA;
     aplicarOrdem();
+    rascunhoMudou();
     // O × some: o foco vai para a escolha, que continua ali.
     botaoOrdenar?.focus();
   });
@@ -903,6 +986,7 @@ function controleOrdenar(): HTMLElement {
     b.addEventListener('click', () => {
       ordemAtual = op.ordem;
       aplicarOrdem();
+      rascunhoMudou();
       fecharMenuOrdenar(true);
     });
     itens.push(b);
@@ -2350,7 +2434,7 @@ function tratarAbertura(r: ResultadoAbrir): void {
     return;
   }
   if (r.status === 'aqui') {
-    carregar(r.arquivo);
+    void carregarArquivo(r.arquivo);
     return;
   }
   if (r.status === 'ja-aberto') {
@@ -2372,6 +2456,66 @@ function erroParaPessoa(
 }
 
 /**
+ * Põe na nota recém-lida as anotações, os títulos e a ordem do rascunho. O
+ * que veio do arquivo continua como o salvo: a nota fica com alteração não
+ * salva, para a pessoa conferir e salvar. Sem o original, nada conta como
+ * salvo. false se o rascunho não deu para ler (a nota fica como veio).
+ */
+function aplicarRascunho(r: RascunhoNaAbertura): boolean {
+  let lido: ReturnType<typeof lerArquivo>;
+  try {
+    lido = lerArquivo(r.psxml);
+  } catch (erro) {
+    console.error(erro);
+    return false;
+  }
+  copiarAnotacoes(lido.anotacoes, anotacoes);
+  for (const [id, t] of lido.titulosAnotacoes) titulosLidos.set(id, t);
+  if (r.semOriginal) anotacoesGravadas.clear();
+  if (lido.ordem && criterioValido(lido.ordem.criterio, colunasAtuais()))
+    ordemAtual = lido.ordem;
+  rascunhoNoDisco = true;
+  atualizarPendentes();
+  // O rascunho no disco já é este: só a próxima alteração grava de novo.
+  pararTemporizadorRascunho();
+  rascunhoAtrasado = false;
+  return true;
+}
+
+/**
+ * Abre o arquivo que o processo principal leu. Com rascunho de anotações não
+ * salvas: recuperado direto, se a pessoa já escolheu no aviso da abertura;
+ * senão a pergunta só desta nota, antes de mostrá-la (Recuperar as
+ * anotações ou Abrir sem elas, que apaga o rascunho; Esc abre sem elas e o
+ * rascunho fica guardado).
+ */
+async function carregarArquivo(
+  arquivo: ArquivoAberto,
+  modo: ModoImpressao | null = null,
+): Promise<void> {
+  const r = arquivo.rascunho;
+  if (!r) {
+    carregar(arquivo, modo);
+    return;
+  }
+  if (r.recuperar) {
+    carregar(arquivo, 'conferencia', r);
+    return;
+  }
+  const escolha = await perguntarRascunhoDaNota(r);
+  if (escolha === 'recuperar') {
+    carregar(arquivo, 'conferencia', r);
+    return;
+  }
+  if (escolha === 'sem')
+    await window.psRascunhos.descartar(r.id).catch((erro: unknown) => {
+      console.error(erro);
+      return false;
+    });
+  carregar(arquivo, modo);
+}
+
+/**
  * Lê o arquivo e abre direto no modo que o processo principal decidiu
  * (`arquivo.modoInicial`: XML da NF-e pelo "NF-e abre em" do perfil, cópia
  * editada na Conferência) ou em `modo`, como a nota já conferida que abre na
@@ -2381,7 +2525,13 @@ function erroParaPessoa(
 function carregar(
   arquivo: ArquivoAberto,
   modo: ModoImpressao | null = null,
+  recuperado: RascunhoNaAbertura | null = null,
 ): void {
+  // O rascunho de antes (se havia) já foi resolvido na pergunta de sair; o
+  // da nota nova fica como está até a pessoa alterar ou decidir.
+  pararTemporizadorRascunho();
+  rascunhoAtrasado = false;
+  rascunhoNoDisco = false;
   try {
     const lido = lerArquivo(arquivo.texto);
     esconderMensagem();
@@ -2403,11 +2553,26 @@ function carregar(
       lido.ordem && criterioValido(lido.ordem.criterio, colunasAtuais())
         ? lido.ordem
         : ORDEM_NOTA;
+    const recuperou = recuperado !== null && aplicarRascunho(recuperado);
     document.title = 'PS Reader';
-    // Cópia editada, nota já conferida ou perfil com "NF-e abre em: PSXML":
-    // direto na Conferência.
-    if (lido.copiaEditada || (modo ?? arquivo.modoInicial) === 'conferencia') {
+    // Cópia editada, nota já conferida, perfil com "NF-e abre em: PSXML" ou
+    // anotações recuperadas: direto na Conferência.
+    if (
+      recuperou ||
+      lido.copiaEditada ||
+      (modo ?? arquivo.modoInicial) === 'conferencia'
+    ) {
       mostrarConferencia();
+      if (recuperado?.semOriginal)
+        mostrarMensagem(
+          `O arquivo desta nota não está mais em ${recuperado.caminho}. A nota foi aberta com a cópia guardada junto das anotações; salve para não perder.`,
+          'info',
+        );
+      else if (recuperado && !recuperou)
+        mostrarMensagem(
+          'Não foi possível recuperar as anotações. A nota abriu sem elas.',
+          'erro',
+        );
       return;
     }
     const { motivo } = lerDadosDanfe(arquivo.texto);
@@ -3054,7 +3219,7 @@ async function abrirExterno(): Promise<void> {
       mostrarMensagem(arquivo.mensagem, 'erro');
       return;
     }
-    carregar(arquivo, arquivo.modo);
+    await carregarArquivo(arquivo, arquivo.modo);
     // .psxml por duplo clique: a pasta dele vale como pasta de destino só nesta
     // janela, até fechá-la. O botão mostra a marca e o aviso explica (depois de
     // carregar, que esconde as mensagens).
@@ -3073,6 +3238,39 @@ async function abrirExterno(): Promise<void> {
     abrindoExterno = false;
     retomarExterno();
   }
+}
+
+/**
+ * Aviso da abertura do app: as notas que ficaram com anotações não salvas
+ * quando o app fechou sem passar pela pergunta de sair (instalador, queda
+ * de energia). Só a primeira janela da execução recebe a lista. Recuperar
+ * abre a nota aqui (se esta janela está na tela inicial) ou numa janela
+ * nova, na Conferência, com a alteração não salva.
+ */
+async function avisarRascunhos(): Promise<void> {
+  let lista: ResumoRascunho[];
+  try {
+    lista = await window.psRascunhos.avisoAbertura();
+  } catch (erro) {
+    console.error(erro);
+    return;
+  }
+  if (lista.length === 0) return;
+  await mostrarAvisoRascunhos(lista, {
+    recuperar: async (r) => {
+      const res = await window.psRascunhos.recuperar(r.id);
+      if (res.status === 'recusado') {
+        mostrarMensagem(res.mensagem, 'erro');
+        return true;
+      }
+      if (res.status === 'aqui') {
+        await carregarArquivo(res.arquivo, 'conferencia');
+        if (res.pastaSessao && aberto) atualizarPasta(res.pastaSessao, true);
+      }
+      return true;
+    },
+    descartar: (r) => window.psRascunhos.descartar(r.id),
+  });
 }
 
 /** Abre o arquivo de fora que chegou enquanto não dava. */
@@ -3101,7 +3299,10 @@ async function podeSair(): Promise<boolean> {
     ],
     cancelar: 'cancelar',
   });
-  if (resposta === 'descartar') return true;
+  if (resposta === 'descartar') {
+    descartarRascunho();
+    return true;
+  }
   // Salvar grava só o .psxml (não depende da tela), então vale também no
   // DANFE. Salvar cópia abre o pedido de nome; concluída, a ação segue.
   if (resposta === 'salvar') return salvarConferencia();
@@ -3822,7 +4023,11 @@ window.psApi
     console.error(erro);
   })
   .then(() => configCarregada)
-  .finally(() => void abrirExterno());
+  .finally(() => {
+    // O aviso de recuperar anotações vem depois do arquivo do duplo clique
+    // (que já pergunta pelo rascunho dele, se tiver).
+    void abrirExterno().finally(() => void avisarRascunhos());
+  });
 
 // Arrastar e soltar: aceito na janela toda. Sem preventDefault o Electron
 // tentaria abrir o arquivo como página.
