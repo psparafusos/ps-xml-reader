@@ -1,12 +1,31 @@
 # PS Reader
 
-Aplicativo Windows de uso interno da PS Parafusos e Segurança LTDA. Lê o XML de
-uma NF-e (layout 4.00), mostra a nota em tela e salva em PDF, em dois modos:
-**Conferência** (itens, totais e anotações) e **DANFE** (A4 retrato, conforme o
-Manual de Orientação do Contribuinte). Funciona offline: a única chamada de
-rede é a verificação online dos documentos de referência (e o **Atualizar**
-que baixa a versão nova), que vem desligada e só roda quando a pessoa liga e
-pede (veja Documentos de referência).
+O PS Reader é um aplicativo para Windows que confere a NF-e antes do
+lançamento no sistema de gestão. Serve a qualquer loja que recebe notas de
+fornecedores: abre o XML, mostra a nota, compara a quantidade recebida com a
+da nota e aponta totais que não fecham, parcelas vencidas, nota de outra
+empresa e nota já conferida. Funciona offline. A ferramenta de ST, MVA e CFOP
+segue a legislação de Sergipe. O projeto é aberto (licença MIT) e não depende
+de nenhum sistema de gestão; a PS Parafusos e Segurança LTDA é a primeira
+loja que usa.
+
+**In English.** PS Reader is an offline Windows desktop app (Electron and
+TypeScript) for Brazilian stores that receive NF-e electronic invoices and
+check them before entering them into their management system. It reads the
+invoice XML, shows it as a checklist and as a DANFE, flags quantity and total
+mismatches, overdue installments and invoices addressed to another company,
+and saves the check as a PDF. Its ST, MVA and CFOP tool follows the tax rules
+of the state of Sergipe. Open source under the MIT license; PS Parafusos e
+Segurança LTDA is the first store using it.
+
+## O que faz
+
+Lê o XML de uma NF-e (layout 4.00), mostra a nota em tela e salva em PDF, em
+dois modos: **Conferência** (itens, totais e anotações) e **DANFE** (A4
+retrato, conforme o Manual de Orientação do Contribuinte). Funciona offline: a
+única chamada de rede é a verificação online dos documentos de referência (e
+o **Atualizar** que baixa a versão nova), que vem desligada e só roda quando
+a pessoa liga e pede (veja Documentos de referência).
 
 O PDF do modo Conferência é um documento de conferência interna e não substitui
 o DANFE.
@@ -832,7 +851,7 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
   mostra o detalhe. O título diz o
   resultado, não a pergunta: "Totais conferem" ou "Total dos itens difere em
   R$ 2,10"; "Parcelas em dia" ou "Parcela 001 vencida há 20 dias";
-  "Destinatário: P S Parafusos"; "Primeira conferência desta nota" ou "Já
+  "Destinatário: Ferragens Exemplo Ltda"; "Primeira conferência desta nota" ou "Já
   conferida em 28/10". Aviso leve e alerta
   forte contam como pontos para olhar. A "já conferida" tem **Abrir em nova
   janela**.
@@ -1319,6 +1338,12 @@ assets/              ícone do app (ps-reader.ico) e logo da PS
 forge.config.mts     configuração do Electron Forge (instalador Squirrel)
 samples/             XMLs de teste locais (fora do git, nunca versionar)
 ```
+
+## Licença e contribuição
+
+Código aberto sob a licença MIT (arquivo `LICENSE`). Para contribuir, veja
+`CONTRIBUTING.md`: o app é genérico, sem nenhum sistema de gestão específico
+no código, e os testes usam só dados inventados.
 
 ## Regras do projeto
 
