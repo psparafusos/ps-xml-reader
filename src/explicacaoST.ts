@@ -183,6 +183,8 @@ const RE_FORA_AUTOMOTIVA = [
   /\bNAO\b.{0,30}\bENQUADRAD[OA]S?\b.{0,30}\bLINHA AUTOMOTIVA\b/,
   /\bNAO\b.{0,30}\b(FAZ(EM)? PARTE|SUJEIT[OA]S?|ENQUADRAD[OA]S?|CONTEMPLAD[OA]S?|ABRANGID[OA]S?)\b.{0,40}\bPROT(OCOLO)?\b\.? ?(ICMS )?(N[.ºO°]* ?)?41 ?\/ ?(20)?08\b/,
   /\bNAO\b.{0,20}\b(E|SAO|PERTENCEM?|SE DESTINAM?)\b.{0,20}\b(LINHA AUTOMOTIVA|AUTOPECAS?)\b/,
+  // "PRODUTOS NAO DESTINADOS AO USO AUTOMOTIVO" (Makita), no singular também.
+  /\bNAO DESTINAD[OA]S?\b.{0,20}\bAUTOMOTIV[OA]S?\b/,
 ];
 
 /** Tamanho máximo da frase mostrada (texto longo corta com reticências). */
@@ -191,8 +193,9 @@ const MAX_FRASE = 240;
 /**
  * Trechos das informações complementares da nota que dizem que o produto
  * não é da linha automotiva ("NAO ENQUADRADO NA LINHA AUTOMOTIVA", "NAO FAZ
- * PARTE DO PROTOCOLO 41/2008"), como estão na nota. Só informação: não muda
- * a decisão nem a sugestão. Lista vazia quando não há.
+ * PARTE DO PROTOCOLO 41/2008", "NAO DESTINADOS AO USO AUTOMOTIVO"), como
+ * estão na nota. Só informação: não muda a decisão nem a sugestão. Lista
+ * vazia quando não há.
  */
 export function frasesForaLinhaAutomotiva(texto: string): string[] {
   const frases: string[] = [];

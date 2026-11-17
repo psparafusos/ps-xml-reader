@@ -158,6 +158,29 @@ describe('"não é da linha automotiva" nas informações da nota', () => {
     );
   });
 
+  it('"não destinados ao uso automotivo", com e sem acento, singular e plural', () => {
+    for (const frase of [
+      'PRODUTOS NAO DESTINADOS AO USO AUTOMOTIVO',
+      'PRODUTOS NÃO DESTINADOS AO USO AUTOMOTIVO',
+      'produto não destinado ao uso automotivo',
+      'Produto nao destinado ao uso automotivo',
+    ])
+      assert.deepEqual(
+        frasesForaLinhaAutomotiva(`PEDIDO INVENTADO 9; ${frase}; OBRIGADO`),
+        [frase],
+        frase,
+      );
+    // Sem a negação, ou destinado a outra coisa: não conta.
+    assert.deepEqual(
+      frasesForaLinhaAutomotiva('PRODUTOS DESTINADOS AO USO AUTOMOTIVO'),
+      [],
+    );
+    assert.deepEqual(
+      frasesForaLinhaAutomotiva('PRODUTO NAO DESTINADO A REVENDA'),
+      [],
+    );
+  });
+
   it('texto sem a negação não conta', () => {
     assert.deepEqual(
       frasesForaLinhaAutomotiva(
