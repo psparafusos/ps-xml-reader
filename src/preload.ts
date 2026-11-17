@@ -139,6 +139,8 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('excluir-perfil', id),
   exportarPerfil: (): Promise<ResultadoExportarConfig> =>
     ipcRenderer.invoke('exportar-perfil'),
+  mostrarPerfilExportado: (): Promise<ResultadoAbrirPasta> =>
+    ipcRenderer.invoke('mostrar-perfil-exportado'),
   importarPerfil: (): Promise<ResultadoImportarPerfil> =>
     ipcRenderer.invoke('importar-perfil'),
   adicionarPerfil: (
@@ -146,7 +148,7 @@ contextBridge.exposeInMainWorld('psApi', {
     modo: 'substituir' | 'manter',
   ): Promise<ResultadoPerfis> =>
     ipcRenderer.invoke('adicionar-perfil', perfil, modo),
-  restaurarConfig: (): Promise<ResultadoPerfis | { status: 'cancelado' }> =>
+  restaurarConfig: (): Promise<ResultadoPerfis> =>
     ipcRenderer.invoke('restaurar-config'),
   areaTransferencia: (
     pedido: PedidoAreaTransferencia,
@@ -216,3 +218,16 @@ contextBridge.exposeInMainWorld('psServico', {
   cancelar: (id: number) => ipcRenderer.invoke('servico-cancelar', id),
 } satisfies PsServicoApi);
 // ---------- serviço de leitura pesada (parte 2): fim do bloco ----------
+
+// ---------- config.json seguro: início do bloco ----------
+// Aviso de configuração recuperada (src/avisoConfig.ts). Nenhum dado vai
+// da janela para o processo principal.
+import type { PsConfigSeguroApi } from './configSeguro';
+
+contextBridge.exposeInMainWorld('psConfigSeguro', {
+  avisos: () => ipcRenderer.invoke('config-recuperacoes'),
+  aoRecuperar: (callback: () => void): void => {
+    ipcRenderer.on('config-recuperada', () => callback());
+  },
+} satisfies PsConfigSeguroApi);
+// ---------- config.json seguro: fim do bloco ----------

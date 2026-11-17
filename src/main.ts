@@ -12,7 +12,6 @@ import { ouvir, tratar } from './ipcSeguro';
 import { registrarEsquemaApp, servirEsquemaApp } from './protocoloApp';
 import { PAGINA_INICIAL } from './seguranca/protocolo';
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   access,
   constants,
@@ -36,7 +35,6 @@ import { ehImpressoraCupom } from './impressoras';
 import { configPadrao, validarConfig } from './nfe/config';
 import {
   lerArquivoPerfil,
-  migrarParaPerfis,
   nomeArquivoPerfil,
   nomeLivre,
   novoIdPerfil,
@@ -45,9 +43,11 @@ import {
   perfisParaGravar,
   problemaNomePerfil,
   textoArquivoPerfil,
-  validarPerfis,
+  PASTA_PERFIS_EXCLUIDOS,
+  type Perfil,
   type Perfis,
 } from './nfe/perfis';
+import { guardarCopiaPerfil, type MotivoCopiaPerfil } from './perfisExcluidos';
 import { MARGEM_FOLHA_MM } from './nfe/folha';
 import {
   ferramentasDoPerfil,
@@ -908,43 +908,31 @@ interface Config {
   ferramentasPerfis?: unknown;
 }
 
-function caminhoConfig(): string {
-  return path.join(app.getPath('userData'), 'config.json');
-}
+// ---------- config.json seguro (src/configSeguro.ts): início do bloco ----------
+// Gravação atômica (temporário e rename) com config.json.bak, uma por vez;
+// arquivo ilegível e perfis inválidos guardados e recuperados. Houve
+// recuperação: a tela mostra o aviso uma vez (canal config-recuperacoes).
+import { criarConfigSeguro } from './configSeguro';
 
-function interpretarConfig(texto: string): Config {
-  const config: unknown = JSON.parse(texto);
-  return typeof config === 'object' && config !== null
-    ? (config as Config)
-    : {};
-}
+const configSeguro = criarConfigSeguro<Config>({
+  pasta: () => app.getPath('userData'),
+  aoRecuperar: () => avisarTodas('config-recuperada'),
+});
+
+tratar('config-recuperacoes', () => configSeguro.tirarAvisos());
+// ---------- config.json seguro: fim do bloco ----------
 
 /** Versão síncrona de lerConfig, para abrir e fechar a janela. */
 function lerConfigSync(): Config {
-  try {
-    return interpretarConfig(readFileSync(caminhoConfig(), 'utf8'));
-  } catch {
-    return {};
-  }
+  return configSeguro.lerSync();
 }
 
 function gravarConfigSync(parcial: Config): void {
-  const config = { ...lerConfigSync(), ...parcial };
-  mkdirSync(app.getPath('userData'), { recursive: true });
-  writeFileSync(
-    caminhoConfig(),
-    `${JSON.stringify(config, null, 2)}\n`,
-    'utf8',
-  );
+  configSeguro.gravarSync(parcial);
 }
 
 async function lerConfig(): Promise<Config> {
-  try {
-    return interpretarConfig(await readFile(caminhoConfig(), 'utf8'));
-  } catch {
-    // Sem config (primeira execução) ou arquivo ilegível: config vazia.
-    return {};
-  }
+  return configSeguro.ler();
 }
 
 tratar('versao', (): string => app.getVersion());
@@ -1044,15 +1032,9 @@ tratar('config-avisos', async (): Promise<ConfigAvisos> => {
   };
 });
 
-/** Grava as chaves de `parcial` mantendo as demais. */
+/** Grava as chaves de `parcial` mantendo as demais (src/configSeguro.ts). */
 async function gravarConfig(parcial: Config): Promise<void> {
-  const config = { ...(await lerConfig()), ...parcial };
-  await mkdir(app.getPath('userData'), { recursive: true });
-  await writeFile(
-    caminhoConfig(),
-    `${JSON.stringify(config, null, 2)}\n`,
-    'utf8',
-  );
+  return configSeguro.gravar(parcial);
 }
 
 async function lerPastaDestino(): Promise<string | null> {
@@ -1208,22 +1190,13 @@ function nomeUsuario(): string {
 }
 
 /**
- * Perfis salvos. Na primeira vez (ou com a chave inválida), a configuração da
+ * Perfis salvos. Na primeira vez (sem a chave perfis), a configuração da
  * Parte A vira o primeiro perfil, com o nome do usuário do Windows, e já fica
- * gravada.
+ * gravada. Chave inválida: cópia do original e recuperação perfil a perfil
+ * (src/configSeguro.ts).
  */
 async function lerPerfis(): Promise<Perfis> {
-  const config = await lerConfig();
-  if (config.perfis !== undefined) {
-    try {
-      return validarPerfis(config.perfis);
-    } catch {
-      // Inválido: refaz a partir da configuração da Parte A, abaixo.
-    }
-  }
-  const perfis = migrarParaPerfis(config.conferencia, nomeUsuario());
-  await gravarConfig({ perfis: perfisParaGravar(perfis) }).catch(() => {});
-  return perfis;
+  return configSeguro.lerPerfis(nomeUsuario());
 }
 
 /** O que o renderer precisa: a lista (id e nome), o ativo e a config dele. */
@@ -1275,6 +1248,32 @@ async function mudarPerfis(
 }
 
 const texto = (v: unknown) => (typeof v === 'string' ? v : '');
+
+/**
+ * Cópia do perfil como está, em perfis-excluidos na pasta de dados
+ * (src/perfisExcluidos.ts), antes de excluir, substituir por um importado ou
+ * voltar ao padrão. Devolve o caminho da cópia. Sem a cópia, lança (dentro
+ * de mudarPerfis vira a mensagem) e nada muda.
+ */
+function guardarAntes(
+  perfil: Perfil,
+  motivo: MotivoCopiaPerfil,
+  acao: string,
+): string {
+  try {
+    return guardarCopiaPerfil(
+      app.getPath('userData'),
+      perfil,
+      motivo,
+      new Date(),
+    );
+  } catch (erro) {
+    throw new Error(
+      `${acao}: a cópia de segurança do perfil não pôde ser gravada na pasta ${PASTA_PERFIS_EXCLUIDOS} (${mensagemDe(erro)}). Nada foi alterado.`,
+      { cause: erro },
+    );
+  }
+}
 
 tratar('perfis', async (): Promise<EstadoPerfis> =>
   estadoDosPerfis(await lerPerfis()),
@@ -1330,16 +1329,19 @@ tratar(
 );
 
 /**
- * Exclui um perfil (nunca o último). Excluir o ativo ativa o primeiro. As
- * ferramentas do perfil excluído saem da chave ferramentasPerfis.
+ * Exclui um perfil (nunca o último). Antes, a cópia dele em perfis-excluidos.
+ * Excluir o ativo ativa o primeiro. As ferramentas do perfil excluído saem
+ * da chave ferramentasPerfis.
  */
 tratar(
   'excluir-perfil',
   async (event, id: unknown): Promise<ResultadoPerfis> => {
+    let copia: string | undefined;
     const r = await mudarPerfis(event, (p) => {
       if (p.lista.length <= 1) return 'O último perfil não pode ser excluído.';
       const i = p.lista.findIndex((x) => x.id === id);
       if (i < 0) return 'Perfil não encontrado.';
+      copia = guardarAntes(p.lista[i], 'excluido', 'Perfil não excluído');
       p.lista.splice(i, 1);
       if (p.ativo === id) p.ativo = p.lista[0].id;
       return null;
@@ -1355,6 +1357,7 @@ tratar(
         }).catch(() => {});
         avisarTodas('ferramentas-mudou');
       }
+      return { ...r, copia };
     }
     return r;
   },
@@ -1379,6 +1382,7 @@ tratar('exportar-perfil', async (event): Promise<ResultadoExportarConfig> => {
   if (canceled || !filePath) return { status: 'cancelado' };
   try {
     await writeFile(filePath, textoArquivoPerfil(perfil), 'utf8');
+    perfisExportados.set(event.sender, filePath);
     return { status: 'exportado', caminho: filePath };
   } catch (erro) {
     return {
@@ -1387,6 +1391,32 @@ tratar('exportar-perfil', async (event): Promise<ResultadoExportarConfig> => {
     };
   }
 });
+
+/** O último perfil exportado de cada janela (o Abrir pasta do aviso). */
+const perfisExportados = new WeakMap<Electron.WebContents, string>();
+
+/**
+ * Abrir pasta do aviso de perfil exportado: o Explorer na pasta, com o
+ * arquivo selecionado. Só o arquivo que esta janela acabou de exportar.
+ */
+tratar(
+  'mostrar-perfil-exportado',
+  async (event): Promise<ResultadoAbrirPasta> => {
+    const caminho = perfisExportados.get(event.sender);
+    if (!caminho)
+      return { status: 'erro', mensagem: 'Nenhum perfil exportado agora.' };
+    try {
+      await access(caminho);
+    } catch {
+      return {
+        status: 'erro',
+        mensagem: `O arquivo exportado não está mais em ${caminho}.`,
+      };
+    }
+    shell.showItemInFolder(caminho);
+    return { status: 'aberta' };
+  },
+);
 
 /**
  * Importar: lê o arquivo escolhido e valida tudo, sem gravar. Aceita um
@@ -1397,14 +1427,21 @@ tratar('importar-perfil', async (event): Promise<ResultadoImportarPerfil> => {
   const j = estadoDe(event.sender);
   const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
     title: 'Importar perfil',
+    // Onde o Exportar sugere gravar.
+    defaultPath: app.getPath('documents'),
     filters: [{ name: 'Perfil do PS Reader', extensions: ['json'] }],
     properties: ['openFile'],
   });
   if (canceled || filePaths.length === 0) return { status: 'cancelado' };
   try {
     const perfil = lerArquivoPerfil(await readFile(filePaths[0], 'utf8'));
-    const existe = perfilComNome(perfil.nome, (await lerPerfis()).lista);
-    return { status: 'lido', perfil, existe: existe !== null };
+    const lista = (await lerPerfis()).lista;
+    return {
+      status: 'lido',
+      perfil,
+      existe: perfilComNome(perfil.nome, lista) !== null,
+      nomeCopia: nomeLivre(perfil.nome, lista),
+    };
   } catch (erro) {
     return {
       status: 'erro',
@@ -1415,18 +1452,22 @@ tratar('importar-perfil', async (event): Promise<ResultadoImportarPerfil> => {
 
 /**
  * Acrescenta o perfil lido no importar. Nome repetido: `substituir` troca o
- * conteúdo do perfil com esse nome; `manter` acrescenta como "<nome> (2)".
- * O perfil ativo continua o mesmo (se for o substituído, aplica o novo).
+ * conteúdo do perfil com esse nome, depois de guardar a cópia dele em
+ * perfis-excluidos; `manter` (Importar como cópia) acrescenta como
+ * "<nome> (2)". O perfil ativo continua o mesmo (se for o substituído,
+ * aplica o novo).
  */
 tratar(
   'adicionar-perfil',
-  (event, perfil: unknown, modo: unknown): Promise<ResultadoPerfis> =>
-    mudarPerfis(event, (p) => {
+  async (event, perfil: unknown, modo: unknown): Promise<ResultadoPerfis> => {
+    let copia: string | undefined;
+    const r = await mudarPerfis(event, (p) => {
       const o = perfil as { nome?: unknown; config?: unknown } | null;
       const nome = texto(o?.nome).trim();
       const config = validarConfig(o?.config);
       const igual = perfilComNome(nome, p.lista);
       if (igual && modo === 'substituir') {
+        copia = guardarAntes(igual, 'substituido', 'Perfil não substituído');
         igual.config = config;
         return null;
       }
@@ -1435,31 +1476,25 @@ tratar(
       if (problema) return problema;
       p.lista.push({ id: novoIdPerfil(p.lista), nome: livre, config });
       return null;
-    }),
-);
-
-/** Volta o perfil ativo ao padrão (o nome fica), depois de confirmar. */
-tratar(
-  'restaurar-config',
-  async (event): Promise<ResultadoPerfis | { status: 'cancelado' }> => {
-    const j = estadoDe(event.sender);
-    const nome = perfilAtivo(await lerPerfis()).nome;
-    const { response } = await dialog.showMessageBox(j.janela, {
-      type: 'question',
-      title: 'Restaurar padrão',
-      message: `Voltar as colunas, as anotações extras, a orientação e o layout do perfil ${nome} ao padrão? O texto já salvo nos arquivos .psxml não se perde.`,
-      buttons: ['Restaurar', 'Cancelar'],
-      defaultId: 1,
-      cancelId: 1,
-      noLink: true,
     });
-    if (response !== 0) return { status: 'cancelado' };
-    return mudarPerfis(event, (p) => {
-      perfilAtivo(p).config = configPadrao();
-      return null;
-    });
+    return r.status === 'ok' ? { ...r, copia } : r;
   },
 );
+
+/**
+ * Volta o perfil ativo ao padrão (o nome fica). A tela confirma antes, no
+ * visual do app; aqui, a cópia do perfil em perfis-excluidos e a mudança.
+ */
+tratar('restaurar-config', async (event): Promise<ResultadoPerfis> => {
+  let copia: string | undefined;
+  const r = await mudarPerfis(event, (p) => {
+    const ativo = perfilAtivo(p);
+    copia = guardarAntes(ativo, 'padrao', 'Perfil não voltou ao padrão');
+    ativo.config = configPadrao();
+    return null;
+  });
+  return r.status === 'ok' ? { ...r, copia } : r;
+});
 
 // ---------- Configurações: ferramentas por perfil, avisos, dados do app e backup ----------
 
@@ -1658,7 +1693,10 @@ tratar(
     backupsLidos.delete(token as string);
     let antes: string;
     try {
-      antes = await importarBackup(app.getPath('userData'), b, new Date());
+      // Na fila do config.json: nenhuma gravação entra no meio.
+      antes = await configSeguro.naFila(() =>
+        importarBackup(app.getPath('userData'), b, new Date()),
+      );
     } catch (erro) {
       return {
         status: 'erro',

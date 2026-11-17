@@ -28,6 +28,8 @@ const path = require('node:path');
 const { casosLeitorXml, limparLeitorXml } = require('./leitorXml.cjs');
 const { casosNavegacao } = require('./navegacao.cjs');
 const { casosServico } = require('./servico.cjs');
+const { casosConfigSeguro } = require('./configSeguro.cjs');
+const { casosPerfis } = require('./perfis.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -693,10 +695,20 @@ async function principal() {
         const limite = Date.now() + 30000;
         while ((await abrirEmAtivo()) !== 'psxml' && Date.now() < limite)
           await espera(200);
-        confere(
-          (await abrirEmAtivo()) === 'psxml',
-          'a opção PSXML não foi gravada',
-        );
+        if ((await abrirEmAtivo()) !== 'psxml') {
+          // O que a tela disse (erro da gravação, status), para a falha.
+          const tela = await avaliar(`(() => {
+            const d = document.querySelector('dialog[open]');
+            return {
+              erros: [...(d?.querySelectorAll('.config__erro:not([hidden])') ?? [])].map((e) => e.textContent),
+              marcado: document.getElementById('config-abrir-em-psxml')?.checked,
+            };
+          })()`).catch((e) => String(e));
+          confere(
+            false,
+            `a opção PSXML não foi gravada; tela: ${JSON.stringify(tela)}`,
+          );
+        }
         await fecharDialogos();
       } finally {
         await gravarAbrirEm('xml');
@@ -2405,6 +2417,13 @@ async function principal() {
   // Linhas informativas do painel da Conferência (frete, vencimentos no
   // texto, devolução), em 1366 e em 1920.
   await casosPainelAvisos();
+
+  // Perfis: renomear, cópia antes de excluir ou substituir, importar e
+  // exportar (perfis.cjs).
+  await casosPerfis({ ...contexto, dados, tmp });
+
+  // config.json cortado e perfis inválidos (por último: muda os perfis).
+  await casosConfigSeguro({ ...contexto, dados });
 }
 
 // ---------- janelas por cima: X, Esc e rolagem travada ----------

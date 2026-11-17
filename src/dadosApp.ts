@@ -30,7 +30,11 @@ import path from 'node:path';
 import { lerDecisoes } from './fiscal/entrada';
 import { cnpjDaConfig, diasDaConfig } from './nfe/avisos';
 import { validarFerramentasPorPerfil } from './nfe/ferramentasPerfil';
-import { validarPerfis } from './nfe/perfis';
+import {
+  LIMITE_PERFIS_EXCLUIDOS,
+  PASTA_PERFIS_EXCLUIDOS,
+  validarPerfis,
+} from './nfe/perfis';
 import { lerRecentes } from './nfe/recentes';
 
 export const FORMATO_BACKUP = 'ps-reader-backup';
@@ -231,6 +235,22 @@ export async function listarDadosApp(pasta: string): Promise<ItemDadosApp[]> {
       oQueEDocumento(n),
       n === 'preferencias.json' || n === 'decisoes.json',
     );
+  try {
+    const p = path.join(pasta, PASTA_PERFIS_EXCLUIDOS);
+    const n = (await readdir(p, { withFileTypes: true })).filter((e) =>
+      e.isFile(),
+    ).length;
+    const s = await tamanhoPasta(p);
+    itens.push({
+      nome: PASTA_PERFIS_EXCLUIDOS,
+      oQueE: `Cópias de perfis excluídos, substituídos por um importado ou voltados ao padrão (${n} ${n === 1 ? 'cópia' : 'cópias'}; ficam as ${LIMITE_PERFIS_EXCLUIDOS} mais recentes). Voltam pelo Importar do Gerenciar perfis.`,
+      tamanho: s.bytes,
+      modificadoEm: new Date(s.mtime).toISOString(),
+      noBackup: false,
+    });
+  } catch {
+    // Nenhum perfil excluído ainda.
+  }
   try {
     for (const e of await readdir(pasta, { withFileTypes: true })) {
       if (!e.isDirectory() || !e.name.startsWith(PREFIXO_ANTES)) continue;

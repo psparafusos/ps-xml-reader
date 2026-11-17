@@ -36,6 +36,7 @@ import {
 import { desenharMiniatura } from './miniaturaFolha';
 import { perguntar, pedirTexto } from './dialogos';
 import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
+import { textoExcluirPerfil, textoPerfilExportado } from './nfe/textosPerfis';
 import { ICONES } from './icones';
 
 /**
@@ -52,9 +53,14 @@ export interface AcoesEditor {
   excluir(id: string): Promise<ResultadoPerfis>;
   /** Exporta o perfil ativo. */
   exportar(): Promise<ResultadoExportarConfig>;
-  /** Importa um perfil (pergunta se o nome já existe); devolve o nome dado. */
+  /** O Explorer na pasta do perfil que acabou de ser exportado. */
+  mostrarExportado(): Promise<ResultadoAbrirPasta>;
+  /**
+   * Importa um perfil (pergunta se o nome já existe); devolve o nome dado
+   * e, se substituiu um perfil, o caminho da cópia dele.
+   */
   importar(): Promise<
-    | { status: 'ok'; estado: EstadoPerfis; nome: string }
+    | { status: 'ok'; estado: EstadoPerfis; nome: string; copia?: string }
     | { status: 'cancelado' }
     | { status: 'erro'; mensagem: string }
   >;
@@ -361,6 +367,17 @@ function anotacoesExemplo(c: ColunaItem[]): Anotacoes {
   );
 }
 
+/** Nome de perfil em edição na lista do Trocar perfil. */
+interface Edicao {
+  id: string;
+  /** O nome de antes (o X volta a ele). */
+  nome: string;
+  /** O texto do campo. */
+  valor: string;
+  /** O motivo de não valer, mostrado embaixo do campo. */
+  erro: string | null;
+}
+
 let dialogo: HTMLDialogElement | null = null;
 /** Atualiza o painel aberto com perfis que mudaram em outra janela. */
 let atualizarAberto: ((estado: EstadoPerfis) => void) | null = null;
@@ -388,6 +405,16 @@ export function abrirEditorColunas(
   let estado = estadoInicial;
   let rascunho: ConfigConferencia = structuredClone(estado.config);
   let ocupado = false;
+  /**
+   * Renomear em andamento (o perfil, o nome de antes, o texto do campo e o
+   * motivo do erro): sobrevive ao redesenho da lista e ao menu fechado.
+   */
+  let edicao: Edicao | null = null;
+  /** O campo e o erro da linha em edição, enquanto estão na tela. */
+  let campoEdicao: {
+    campo: HTMLInputElement;
+    erro: HTMLParagraphElement;
+  } | null = null;
   /** O rascunho tem mudanças ainda não aplicadas no perfil ativo. */
   const mudou = () =>
     JSON.stringify(rascunho) !== JSON.stringify(estado.config);
@@ -933,6 +960,9 @@ export function abrirEditorColunas(
 
   function desenharPerfis(): void {
     perfilAtivoEl.textContent = estado.nomeAtivo;
+    // O perfil em edição saiu da lista (excluído aqui ou em outra janela).
+    if (edicao && !estado.lista.some((p) => p.id === edicao?.id)) edicao = null;
+    campoEdicao = null;
     listaPerfis.replaceChildren(...estado.lista.map(linhaPerfil));
   }
 
@@ -941,6 +971,7 @@ export function abrirEditorColunas(
    * ativa), o lápis para renomear na própria linha e a lixeira para excluir.
    */
   function linhaPerfil(p: { id: string; nome: string }): HTMLLIElement {
+    if (edicao?.id === p.id) return linhaEdicao(p, edicao);
     const ativo = p.id === estado.ativo;
     const nome = botao(
       'perfis-menu__nome',
@@ -978,83 +1009,164 @@ export function abrirEditorColunas(
       lapis,
       lixeira,
     );
-    lapis.addEventListener('click', () => editarNome(li, p));
+    lapis.addEventListener('click', () => editarNome(p));
     lixeira.addEventListener('click', () => void excluirPerfil(p));
     return li;
   }
 
   /**
-   * Renomear na própria linha: Enter salva, Esc (ou sair do campo) cancela.
-   * Nome vazio ou repetido não vale e mostra o motivo embaixo.
+   * Renomear na própria linha: o campo com o check (Salvar nome) e o X
+   * (Cancelar) ao lado; Enter salva e Esc cancela. Sair do campo não
+   * cancela: a edição fica até salvar ou cancelar, mesmo com o menu fechado,
+   * e o Aplicar grava o nome junto. Nome vazio, longo ou repetido não vale e
+   * mostra o motivo embaixo do campo.
    */
-  function editarNome(
-    li: HTMLLIElement,
-    p: { id: string; nome: string },
-  ): void {
+  function editarNome(p: { id: string; nome: string }): void {
     if (ocupado) return;
+    edicao = { id: p.id, nome: p.nome, valor: p.nome, erro: null };
+    desenharPerfis();
+    campoEdicao?.campo.focus();
+    campoEdicao?.campo.select();
+  }
+
+  /** A linha do perfil em edição: campo, check, X e o erro embaixo. */
+  function linhaEdicao(
+    p: { id: string; nome: string },
+    e: Edicao,
+  ): HTMLLIElement {
     const campo = el('input', 'perfis-menu__campo');
     campo.type = 'text';
-    campo.value = p.nome;
+    campo.value = e.valor;
     campo.spellcheck = false;
     campo.setAttribute('aria-label', `Novo nome do perfil ${p.nome}`);
     const erroNome = el('p', 'perfis-menu__erro');
     erroNome.id = `erro-perfil-${p.id}`;
-    erroNome.hidden = true;
     campo.setAttribute('aria-describedby', erroNome.id);
-    const conferir = (): boolean => {
-      const problema = problemaNomePerfil(campo.value, estado.lista, p.id);
-      erroNome.textContent = problema ?? '';
-      erroNome.hidden = !problema;
-      campo.setAttribute('aria-invalid', String(Boolean(problema)));
-      return !problema;
-    };
-    let salvando = false;
-    const cancelar = () => {
-      if (salvando) return;
-      desenharPerfis();
-      listaPerfis
-        .querySelector<HTMLElement>(
-          `[aria-label="Renomear o perfil ${CSS.escape(p.nome)}"]`,
-        )
-        ?.focus();
-    };
-    campo.addEventListener('input', conferir);
-    campo.addEventListener('blur', cancelar);
-    campo.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
+    const salvar = botao('perfis-menu__icone', icone(...ICONES.marcado));
+    salvar.setAttribute('aria-label', 'Salvar nome');
+    const desistir = botao('perfis-menu__icone', icone(...ICONES.fechar));
+    desistir.setAttribute('aria-label', 'Cancelar');
+    campoEdicao = { campo, erro: erroNome };
+    mostrarErroNome(e.erro);
+    campo.addEventListener('input', () => {
+      e.valor = campo.value;
+      conferirEdicao();
+    });
+    campo.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') {
         // Só cancela a edição: o menu e o painel ficam abertos.
-        e.preventDefault();
-        e.stopPropagation();
-        cancelar();
+        ev.preventDefault();
+        ev.stopPropagation();
+        cancelarEdicao();
         return;
       }
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      if (!conferir()) return;
-      const novo = campo.value.trim();
-      if (novo === p.nome) return cancelar();
-      salvando = true;
-      void comBloqueio(async () => {
-        const r = await acoes.renomear(p.id, novo);
-        if (r.status === 'erro') return mostrarErro(r.mensagem);
-        // O rascunho fica: renomear não muda colunas nem anotações.
-        estado = { ...r.estado, config: estado.config };
-        status.textContent = `Perfil renomeado para ${novo}.`;
-      });
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      void salvarNome();
     });
-    li.classList.add('perfis-menu__linha--editando');
-    li.replaceChildren(campo, erroNome);
-    campo.focus();
-    campo.select();
+    salvar.addEventListener('click', () => void salvarNome());
+    desistir.addEventListener('click', () => cancelarEdicao());
+    return el(
+      'li',
+      'perfis-menu__linha perfis-menu__linha--editando',
+      campo,
+      salvar,
+      desistir,
+      erroNome,
+    );
   }
 
-  /** Lixeira: confirma e exclui. Excluir o ativo ativa o primeiro da lista. */
+  /** O motivo embaixo do campo (null: some). */
+  function mostrarErroNome(texto: string | null): void {
+    if (edicao) edicao.erro = texto;
+    if (!campoEdicao) return;
+    campoEdicao.erro.textContent = texto ?? '';
+    campoEdicao.erro.hidden = !texto;
+    campoEdicao.campo.setAttribute('aria-invalid', String(Boolean(texto)));
+  }
+
+  /** Confere o nome em edição e mostra o motivo. true = pode gravar. */
+  function conferirEdicao(): boolean {
+    if (!edicao) return true;
+    const problema = problemaNomePerfil(edicao.valor, estado.lista, edicao.id);
+    mostrarErroNome(problema);
+    return !problema;
+  }
+
+  /** Foco no lápis do perfil `id` (depois de salvar ou cancelar). */
+  function focarLapis(id: string): void {
+    const p = estado.lista.find((x) => x.id === id);
+    if (!p) return;
+    [...listaPerfis.querySelectorAll<HTMLElement>('.perfis-menu__icone')]
+      .find(
+        (b) => b.getAttribute('aria-label') === `Renomear o perfil ${p.nome}`,
+      )
+      ?.focus();
+  }
+
+  /** X ou Esc: volta ao nome de antes, sem gravar. */
+  function cancelarEdicao(): void {
+    const id = edicao?.id;
+    edicao = null;
+    desenharPerfis();
+    if (id) focarLapis(id);
+  }
+
+  /** Mostra o campo em edição (abre o menu se estiver fechado). */
+  function mostrarEdicao(): void {
+    if (menuPerfis.hidden) abrirMenu();
+    campoEdicao?.campo.focus();
+  }
+
+  /**
+   * Grava o nome em edição, se houver. Nome igual ao de antes só fecha o
+   * campo. Inválido, ou recusado pelo processo principal: o motivo fica no
+   * campo e devolve false.
+   */
+  async function gravarNome(): Promise<boolean> {
+    const e = edicao;
+    if (!e) return true;
+    if (!conferirEdicao()) return false;
+    const novo = e.valor.trim();
+    if (novo !== e.nome) {
+      const r = await acoes.renomear(e.id, novo);
+      if (r.status === 'erro') {
+        mostrarErroNome(r.mensagem);
+        return false;
+      }
+      // O rascunho fica: renomear não muda colunas nem anotações.
+      estado = { ...r.estado, config: estado.config };
+      status.textContent = `Perfil renomeado para ${novo}.`;
+    }
+    if (edicao === e) edicao = null;
+    return true;
+  }
+
+  /** Check ou Enter: grava o nome e volta o foco ao lápis (ou ao campo, com erro). */
+  async function salvarNome(): Promise<void> {
+    const id = edicao?.id;
+    let ok = false;
+    await comBloqueio(async () => {
+      ok = await gravarNome();
+    });
+    if (!ok && edicao) mostrarEdicao();
+    else if (id) focarLapis(id);
+  }
+
+  /**
+   * Lixeira: confirma no visual do app e exclui (antes, o processo principal
+   * guarda a cópia em perfis-excluidos). Excluir o ativo ativa o primeiro
+   * que sobra na lista.
+   */
   async function excluirPerfil(p: { id: string; nome: string }): Promise<void> {
     if (ocupado || estado.lista.length <= 1) return;
     const ativo = p.id === estado.ativo;
+    const proximo = ativo
+      ? (estado.lista.find((x) => x.id !== p.id)?.nome ?? null)
+      : null;
     const r = await perguntar({
       titulo: 'Excluir perfil',
-      texto: `Excluir o perfil ${p.nome}? As colunas, anotações extras e orientação dele se perdem; o texto já salvo nos arquivos .psxml não.`,
+      texto: textoExcluirPerfil(p.nome, proximo),
       botoes: [
         { rotulo: 'Cancelar', valor: 'cancelar' },
         { rotulo: 'Excluir', valor: 'excluir', principal: true, perigo: true },
@@ -1065,12 +1177,13 @@ export function abrirEditorColunas(
     await comBloqueio(async () => {
       const x = await acoes.excluir(p.id);
       if (x.status === 'erro') return mostrarErro(x.mensagem);
+      const feito = `Perfil "${p.nome}" excluído; a cópia ficou em perfis-excluidos.`;
       if (ativo) {
-        recarregar(x.estado, `Perfil "${p.nome}" excluído.`);
+        recarregar(x.estado, feito);
         mostrarAviso(`Perfil ${x.estado.nomeAtivo} ativo`);
       } else {
         estado = { ...x.estado, config: estado.config };
-        status.textContent = `Perfil "${p.nome}" excluído.`;
+        status.textContent = feito;
       }
     });
   }
@@ -1079,6 +1192,8 @@ export function abrirEditorColunas(
     desenharPerfis();
     menuPerfis.hidden = false;
     btnTrocar.setAttribute('aria-expanded', 'true');
+    // Com um nome em edição, o foco volta ao campo.
+    if (campoEdicao) return campoEdicao.campo.focus();
     // O foco começa no perfil ativo (as setas e o Tab seguem daí).
     (
       listaPerfis.querySelector<HTMLElement>(
@@ -1251,16 +1366,26 @@ export function abrirEditorColunas(
     } else recarregar(novo, 'Os perfis foram alterados em outra janela.');
   };
 
+  // Aplicar com um nome ainda em edição: grava o nome junto, se valer; se
+  // não valer, o motivo fica no campo e o painel não fecha.
   btnAplicar.addEventListener('click', () => {
-    void comBloqueio(async () => {
-      if (!rascunho.colunas.some((c) => c.visivel)) {
-        mostrarErro('Deixe pelo menos uma coluna marcada.');
-        return;
-      }
-      const r = await acoes.aplicar(rascunho);
-      if (r.status === 'erro') mostrarErro(r.mensagem);
-      else fechar();
-    });
+    void (async () => {
+      let nomeRecusado = false;
+      await comBloqueio(async () => {
+        if (!rascunho.colunas.some((c) => c.visivel)) {
+          mostrarErro('Deixe pelo menos uma coluna marcada.');
+          return;
+        }
+        if (!(await gravarNome())) {
+          nomeRecusado = true;
+          return;
+        }
+        const r = await acoes.aplicar(rascunho);
+        if (r.status === 'erro') mostrarErro(r.mensagem);
+        else fechar();
+      });
+      if (nomeRecusado && edicao) mostrarEdicao();
+    })();
   });
   btnCancelar.addEventListener('click', () => {
     if (!ocupado) fechar();
@@ -1275,9 +1400,23 @@ export function abrirEditorColunas(
     void comBloqueio(async () => {
       mostrarErro(null);
       const r = await acoes.exportar();
-      if (r.status === 'exportado')
-        status.textContent = `Perfil ${estado.nomeAtivo} exportado em ${r.caminho}`;
-      else if (r.status === 'erro') mostrarErro(r.mensagem);
+      if (r.status === 'erro') return mostrarErro(r.mensagem);
+      if (r.status !== 'exportado') return;
+      status.textContent = `Perfil ${estado.nomeAtivo} exportado.`;
+      // O caminho inteiro, selecionável, e o Abrir pasta.
+      const escolha = await perguntar({
+        titulo: 'Perfil exportado',
+        texto: textoPerfilExportado(estado.nomeAtivo),
+        caminho: r.caminho,
+        botoes: [
+          { rotulo: 'Fechar', valor: 'fechar' },
+          { rotulo: 'Abrir pasta', valor: 'abrir', principal: true },
+        ],
+        cancelar: 'fechar',
+      });
+      if (escolha !== 'abrir') return;
+      const a = await acoes.mostrarExportado();
+      if (a.status === 'erro') mostrarErro(a.mensagem);
     });
   });
   btnImportar.addEventListener('click', () => {
@@ -1286,6 +1425,9 @@ export function abrirEditorColunas(
       mostrarErro(null);
       const r = await acoes.importar();
       if (r.status === 'ok') {
+        const feito = r.copia
+          ? `Perfil "${r.nome}" substituído; a cópia do anterior ficou em perfis-excluidos.`
+          : `Importado como perfil "${r.nome}".`;
         // O perfil importado entra na lista; o ativo continua o mesmo (se
         // foi ele o substituído, o painel mostra o conteúdo novo).
         if (
@@ -1295,8 +1437,8 @@ export function abrirEditorColunas(
         ) {
           estado = { ...r.estado, config: estado.config };
           desenharPerfis();
-          status.textContent = `Importado como perfil "${r.nome}".`;
-        } else recarregar(r.estado, `Importado como perfil "${r.nome}".`);
+          status.textContent = feito;
+        } else recarregar(r.estado, feito);
       } else if (r.status === 'erro') mostrarErro(r.mensagem);
     });
   });

@@ -33,6 +33,13 @@ export const LIMITE_NOME_PERFIL = 40;
 export const NOME_IMPORTADO = 'Configuração importada';
 /** Nome quando o nome do usuário do Windows não está disponível. */
 export const NOME_PADRAO = 'Meu perfil';
+/**
+ * Pasta, dentro da pasta de dados do app, das cópias dos perfis excluídos,
+ * substituídos por um importado ou voltados ao padrão (src/perfisExcluidos.ts).
+ */
+export const PASTA_PERFIS_EXCLUIDOS = 'perfis-excluidos';
+/** Cópias guardadas em perfis-excluidos (as mais recentes). */
+export const LIMITE_PERFIS_EXCLUIDOS = 10;
 
 export interface Perfil {
   id: string;
