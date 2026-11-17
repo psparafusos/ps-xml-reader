@@ -1846,8 +1846,8 @@ const painelLeitura = criarPainelLeitura(painelLeituraEl, {
         ? 'var(--largura-painel-conferencia)'
         : 'var(--largura-trilho-conferencia)',
     );
-    if (telaAtual === 'danfe' && arranjoFolhas === 'largura') {
-      calcularZoomLargura();
+    if (telaAtual === 'danfe') {
+      if (arranjoFolhas === 'largura') calcularZoomLargura();
       aplicarZoom();
     }
   },
@@ -1860,20 +1860,36 @@ function aplicarFolhas(): void {
     calcularZoomLargura();
 }
 
-/**
- * "Ajustar à largura": o zoom do DANFE que faz uma folha ocupar a largura da
- * área ao lado do painel Leitura. Só guarda o valor; quem chama aplica.
- */
-function calcularZoomLargura(): void {
+/** O zoom que faz uma folha do DANFE ocupar a largura da área ao lado do painel Leitura. */
+function zoomQueCabe(): number {
   const estilo = getComputedStyle(danfeEl);
   const recuo =
     (parseFloat(estilo.paddingLeft) || 0) +
     (parseFloat(estilo.paddingRight) || 0);
-  zoomPorModo.danfe = zoomParaLargura(
+  return zoomParaLargura(
     document.documentElement.clientWidth,
     mmParaPx(A4.largura),
     recuo,
   );
+}
+
+/**
+ * "Ajustar à largura": guarda o zoom que cabe (zoomQueCabe); quem chama
+ * aplica.
+ */
+function calcularZoomLargura(): void {
+  zoomPorModo.danfe = zoomQueCabe();
+}
+
+/**
+ * Zoom do DANFE na tela. Em 100% (Uma de cada vez ou Lado a lado), a folha
+ * não passa da largura da área: na janela estreita, ela encolhe até caber,
+ * como no "Ajustar à largura", e a página não rola de lado. A partir de uns
+ * 880 px a folha cabe em 100% e nada muda. Com zoom à mão, vale o escolhido.
+ */
+function zoomDanfeNaTela(): number {
+  const z = zoomPorModo.danfe;
+  return z === 1 ? Math.min(1, zoomQueCabe()) : z;
 }
 
 /**
@@ -1918,12 +1934,12 @@ function ajustarLayoutLeitura(): void {
   );
 }
 
-// A janela mudou de largura: o painel Leitura e o "Ajustar à largura"
-// acompanham.
+// A janela mudou de largura: o painel Leitura, o "Ajustar à largura" e a
+// folha em 100% que não passa da área (zoomDanfeNaTela) acompanham.
 window.addEventListener('resize', () => {
   if (!painelLeituraEl.hidden) ajustarLayoutLeitura();
-  if (telaAtual === 'danfe' && arranjoFolhas === 'largura') {
-    calcularZoomLargura();
+  if (telaAtual === 'danfe') {
+    if (arranjoFolhas === 'largura') calcularZoomLargura();
     aplicarZoom();
   }
 });
@@ -1952,7 +1968,7 @@ function areaZoom(): HTMLElement | null {
 /** Aplica o zoom de cada modo e mostra o botão de restaurar fora de 100%. */
 function aplicarZoom(): void {
   notaEl.style.zoom = String(zoomPorModo.conferencia);
-  danfeEl.style.zoom = String(zoomPorModo.danfe);
+  danfeEl.style.zoom = String(zoomDanfeNaTela());
   const z = zoomPorModo[modoAtual];
   btnZoom.hidden = areaZoom() === null || z === 1;
   const pct = `${Math.round(z * 100)}%`;
@@ -1971,17 +1987,22 @@ function mudarZoom(passo: -1 | 0 | 1): void {
     aplicarFolhas();
     atualizarLeitura();
   }
-  const atual = zoomPorModo[modoAtual];
+  const guardado = zoomPorModo[modoAtual];
+  // O DANFE em 100% pode estar reduzido para caber na janela estreita
+  // (zoomDanfeNaTela): os passos partem do tamanho que se vê.
+  const atual = modoAtual === 'danfe' ? zoomDanfeNaTela() : guardado;
   let novo = 1;
-  if (passo === 1) novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9) ?? atual;
+  if (passo === 1)
+    novo = NIVEIS_ZOOM.find((n) => n > atual + 1e-9 && n !== guardado) ?? atual;
   else if (passo === -1)
     novo = [...NIVEIS_ZOOM].reverse().find((n) => n < atual - 1e-9) ?? atual;
-  if (novo === atual) return;
+  if (novo === guardado) return;
   // Mantém mais ou menos o mesmo trecho do documento no alto da tela.
   const y = window.scrollY;
   zoomPorModo[modoAtual] = novo;
   aplicarZoom();
-  window.scrollTo(window.scrollX, (y * novo) / atual);
+  const visto = modoAtual === 'danfe' ? zoomDanfeNaTela() : novo;
+  window.scrollTo(window.scrollX, (y * visto) / atual);
 }
 
 /** Roda do mouse (e pinça do touchpad) com Ctrl: um nível a cada "dente". */

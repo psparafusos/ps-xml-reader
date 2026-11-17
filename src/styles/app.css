@@ -2136,6 +2136,19 @@ ul {
   font-size: var(--fs-sm);
 }
 
+/* Janela estreita (abaixo de 760; o mínimo é 680): a lista das colunas cede
+   um pouco de largura à prévia e o seletor da orientação fica mais justo,
+   para Paisagem não ser cortada. */
+@media screen and (max-width: 759px) {
+  :root {
+    --largura-lista-colunas: 272px;
+  }
+
+  .painel__orientacao .seletor__opcao {
+    padding: var(--esp-1) var(--esp-2);
+  }
+}
+
 /* ---------- miniatura da folha A4 (editor de colunas) ---------- */
 
 /* A folha é desenhada em mm, no tamanho real, e reduzida por

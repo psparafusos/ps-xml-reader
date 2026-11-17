@@ -67,7 +67,14 @@
         </button>
       </div>
       <nav class="barra__acoes" aria-label="Ações da nota">
-        <button id="btn-inicio" type="button" class="botao botao--barra">
+        <!-- aria-label: na janela estreita estes três ficam só com o ícone
+             (janela.css). -->
+        <button
+          id="btn-inicio"
+          type="button"
+          class="botao botao--barra"
+          aria-label="Início"
+        >
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"
@@ -80,6 +87,7 @@
           type="button"
           class="botao botao--barra"
           aria-keyshortcuts="Control+O"
+          aria-label="Abrir outro XML"
         >
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -95,6 +103,7 @@
           type="button"
           class="botao botao--barra"
           aria-keyshortcuts="Control+P"
+          aria-label="Imprimir"
         >
           <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
             <path

@@ -16,9 +16,10 @@
 // planilha inventada de planilhaST.mts), a nota de devolução (t14) e as
 // linhas informativas do painel da Conferência (frete, t15 a t18, e
 // vencimentos escritos nas informações complementares, t19, e a devolução,
-// t14). Com
-// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e as
-// do painel.
+// t14), e a janela na largura mínima (680: não aceita menos, e as telas
+// principais cabem sem rolar de lado). Com
+// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
+// do painel e as das telas na largura mínima.
 'use strict';
 
 const { app, session } = require('electron');
@@ -1892,8 +1893,9 @@ async function principal() {
   );
 
   // Borda direita: nada passa da largura visível (sem contar o que rola
-  // dentro de uma área própria, como a tabela de itens), em 1366 e 1920 e na
-  // área de um 1366 a 125% (1093 px), na tela inicial, no DANFE, na
+  // dentro de uma área própria, como a tabela de itens), em 1366 e 1920, na
+  // área de um 1366 a 125% (1093 px) e na largura mínima da janela (680, a
+  // metade de um 1366 a 100%), na tela inicial, no DANFE, na
   // Conferência, no Formato original e no .XML. A página não reserva o
   // corredor da barra de rolagem (a barra é só o polegar, por cima).
   const FORA_DA_LARGURA = `(() => {
@@ -1915,7 +1917,7 @@ async function principal() {
   })()`;
 
   await caso(
-    'Borda direita: nenhum elemento passa da largura visível (1366, 1920 e 1366 a 125%)',
+    'Borda direita: nenhum elemento passa da largura visível (1366, 1920, 1366 a 125% e o mínimo, 680)',
     async () => {
       const [largura, altura] = janela.getContentSize();
       try {
@@ -1923,6 +1925,7 @@ async function principal() {
           [1366, 728],
           [1093, 614],
           [1920, 1040],
+          [LARGURA_MINIMA, 700],
         ]) {
           janela.setContentSize(w, h);
           await avaliar(DOIS_QUADROS);
@@ -2413,6 +2416,10 @@ async function principal() {
 
   // Janelas por cima da nota (Configurações, ferramenta ST) e a rolagem.
   await casosJanelasPorCima();
+
+  // Janela na largura mínima (680): não aceita menos, e as telas cabem.
+  // Depois da ferramenta ST, que já carregou a planilha inventada.
+  await casosLarguraMinima(variasFolhas);
 
   // Linhas informativas do painel da Conferência (frete, vencimentos no
   // texto, devolução), em 1366 e em 1920.
@@ -2920,6 +2927,265 @@ async function casosJanelasPorCima() {
         15000,
         'o X não fechou a ferramenta',
       );
+    },
+  );
+}
+
+// ---------- janela na largura mínima ----------
+
+/**
+ * Largura mínima da janela (src/tamanhoJanela.ts): a metade de uma tela de
+ * 1366 a 100%. Altura mínima: 560.
+ */
+const LARGURA_MINIMA = 680;
+const ALTURA_MINIMA = 560;
+
+/**
+ * Critérios 1 a 3 da janela estreita, medidos na página: a página não rola
+ * de lado; nenhum elemento passa da borda (sem contar o que rola dentro de
+ * uma área própria, como a tabela de itens); todo controle visível tem nome
+ * (texto ou aria-label); diálogos e menus abertos cabem na janela; a barra
+ * da nota fica numa linha só, com os botões dentro da janela, sem um cobrir
+ * o outro, e as abas não cobrem as ações.
+ */
+const CRITERIOS_ESTREITA = `(() => {
+  const d = document.documentElement;
+  const W = d.clientWidth, H = innerHeight;
+  const vis = (e) => e.getClientRects().length > 0 && !e.closest('[hidden], dialog:not([open])') && getComputedStyle(e).visibility !== 'hidden';
+  const cortado = (e) => {
+    for (let p = e.parentElement; p && p !== d; p = p.parentElement) {
+      const ox = getComputedStyle(p).overflowX;
+      if (ox !== 'visible' && p.getBoundingClientRect().right <= W + 0.5) return true;
+    }
+    return false;
+  };
+  const nome = (e) => ((e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/)[0] : '') || e.tagName).slice(0, 50);
+  const todos = [...document.querySelectorAll('body *')].filter(vis);
+  const fora = todos.filter((e) => {
+    const r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && (r.right > W + 0.5 || r.left < -0.5) && !cortado(e);
+  }).slice(0, 5).map((e) => nome(e) + ':' + Math.round(e.getBoundingClientRect().right));
+  const controles = todos.filter((e) => e.matches('button, [role=tab], [role=menuitem], a[href], select, input:not([type=hidden])'));
+  const semNome = controles.filter((e) => !(
+    e.textContent.trim() || e.getAttribute('aria-label') || e.getAttribute('aria-labelledby') ||
+    (e.labels && e.labels.length) || e.closest('label')
+  )).slice(0, 5).map(nome);
+  const dentro = (r) => r.left >= -0.5 && r.right <= W + 0.5 && r.top >= -0.5 && r.bottom <= H + 0.5;
+  const caixas = [...document.querySelectorAll('dialog[open], .menu-app:not([hidden])')].filter(vis)
+    .filter((e) => !dentro(e.getBoundingClientRect())).map(nome);
+  const barra = document.getElementById('barra');
+  let b = null;
+  if (vis(barra)) {
+    const r = (e) => e.getBoundingClientRect();
+    const ids = ['btn-aba-psxml', 'btn-aba-xml', 'btn-inicio', 'btn-abrir-outro', 'btn-imprimir', 'btn-salvar', 'btn-salvar-mais', 'btn-perfil'];
+    const bs = ids.map((id) => [id, document.getElementById(id)]).filter(([, e]) => vis(e)).map(([id, e]) => [id, r(e)]);
+    const cruzam = [];
+    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
+      const [ia, a] = bs[i], [ib, c] = bs[j];
+      if (ia.startsWith('btn-aba') && ib.startsWith('btn-aba')) continue;
+      const w = Math.min(a.right, c.right) - Math.max(a.left, c.left);
+      const h = Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top);
+      if (w > 1 && h > 1) cruzam.push(ia + ' x ' + ib);
+    }
+    const salvar = document.getElementById('btn-salvar-texto');
+    b = {
+      altura: Math.round(r(barra).height),
+      botoes: bs.length,
+      foraDaJanela: bs.filter(([, x]) => x.left < -0.5 || x.right > W + 0.5).map(([id]) => id),
+      cruzam,
+      soIconeSemNome: ['btn-inicio', 'btn-abrir-outro', 'btn-imprimir'].filter((id) => !document.getElementById(id).getAttribute('aria-label')),
+      salvarCortado: salvar.scrollWidth > salvar.clientWidth + 0.5,
+    };
+  }
+  return { largura: W, rolaDeLado: d.scrollWidth > d.clientWidth, fora, semNome, caixas, barra: b };
+})()`;
+
+async function casosLarguraMinima(variasFolhas) {
+  await caso(
+    `Largura mínima: a janela não fica mais estreita que ${LARGURA_MINIMA} nem mais baixa que ${ALTURA_MINIMA}`,
+    async () => {
+      const [largura, altura] = janela.getSize();
+      try {
+        const [minL, minA] = janela.getMinimumSize();
+        confere(
+          minL === LARGURA_MINIMA && minA === ALTURA_MINIMA,
+          `mínimo da janela: ${minL} x ${minA}`,
+        );
+        janela.setSize(500, 400);
+        await avaliar(DOIS_QUADROS);
+        const [l, a] = janela.getSize();
+        confere(
+          l === LARGURA_MINIMA && a === ALTURA_MINIMA,
+          `pedido 500 x 400, a janela ficou em ${l} x ${a}`,
+        );
+        janela.setSize(LARGURA_MINIMA - 1, 700);
+        confere(
+          janela.getSize()[0] === LARGURA_MINIMA,
+          `pedido ${LARGURA_MINIMA - 1}, a janela ficou com ${janela.getSize()[0]}`,
+        );
+        // No mínimo exato, a página tem a largura toda.
+        janela.setSize(LARGURA_MINIMA, 700);
+        await avaliar(DOIS_QUADROS);
+        const pagina = await avaliar(`document.documentElement.clientWidth`);
+        confere(
+          pagina === LARGURA_MINIMA,
+          `largura da página no mínimo: ${pagina}`,
+        );
+      } finally {
+        janela.setSize(largura, altura);
+      }
+    },
+  );
+
+  await caso(
+    `Largura mínima (${LARGURA_MINIMA} x ${ALTURA_MINIMA}): telas principais sem rolagem de lado, nada fora da janela, controles com nome e a barra numa linha`,
+    async () => {
+      const [largura, altura] = janela.getSize();
+      /** Mede a tela aberta e grava a captura (com PS_JANELA_CAPTURAS). */
+      const conferir = async (tela) => {
+        await espera(300);
+        await avaliar(DOIS_QUADROS);
+        const m = await avaliar(CRITERIOS_ESTREITA);
+        const b = m.barra;
+        confere(
+          m.largura === LARGURA_MINIMA &&
+            !m.rolaDeLado &&
+            m.fora.length === 0 &&
+            m.semNome.length === 0 &&
+            m.caixas.length === 0 &&
+            (!b ||
+              (b.altura === 76 &&
+                b.botoes === 8 &&
+                b.foraDaJanela.length === 0 &&
+                b.cruzam.length === 0 &&
+                b.soIconeSemNome.length === 0 &&
+                !b.salvarCortado)),
+          `${tela}: ${JSON.stringify(m)}`,
+        );
+        await capturar(`minima-${tela}.png`);
+      };
+      /** Clica no botão do menu e espera o menu abrir (ou fechar). */
+      const menu = async (botao, id, aberto) => {
+        await avaliar(`document.getElementById('${botao}').click()`);
+        await aguardar(
+          `!!document.querySelector('#${id}${aberto ? ':not([hidden])' : '[hidden]'}')`,
+          15000,
+          `o ${id} não ${aberto ? 'abriu' : 'fechou'}`,
+        );
+      };
+      try {
+        janela.setSize(LARGURA_MINIMA, ALTURA_MINIMA);
+        await avaliar(DOIS_QUADROS);
+        // Tela inicial e o menu do perfil.
+        await conferir('tela-inicial');
+        await menu('btn-perfil', 'menu-perfil', true);
+        await conferir('menu-perfil-inicio');
+        await menu('btn-perfil', 'menu-perfil', false);
+
+        // Aba XML: DANFE (Uma de cada vez e Ajustar à largura), o menu do
+        // Salvar e o Formato original.
+        await abrirNota(variasFolhas);
+        await avaliar(`document.getElementById('btn-folhas-uma').click()`);
+        await conferir('danfe-uma');
+        // Em 100%, a folha encolhe para caber, sem o botão de zoom.
+        const uma = await avaliar(
+          `({ zoom: Number(document.getElementById('danfe').style.zoom), botaoZoom: !document.getElementById('btn-zoom').hidden })`,
+        );
+        confere(
+          uma.zoom < 1 && uma.zoom > 0.7 && !uma.botaoZoom,
+          `DANFE em 100% na janela estreita: ${JSON.stringify(uma)}`,
+        );
+        await avaliar(`document.getElementById('btn-folhas-largura').click()`);
+        await conferir('danfe-ajustar');
+        await avaliar(`document.getElementById('btn-folhas-uma').click()`);
+        await menu('btn-salvar-mais', 'menu-salvar', true);
+        await conferir('menu-salvar-danfe');
+        await menu('btn-salvar-mais', 'menu-salvar', false);
+        await avaliar(`document.getElementById('btn-modo-formato').click()`);
+        await aguardar(
+          `(() => { const f = document.getElementById('formato-original'); return !!f && !f.hidden && !!f.querySelector('.formato-original__secao'); })()`,
+          30000,
+          'o Formato original não abriu',
+        );
+        await conferir('formato-original');
+        await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+        await inicio();
+
+        // Aba PSXML (Conferência): painel fechado e aberto, os menus, a
+        // ferramenta ST, o editor de colunas e as Configurações.
+        await abrirNota(copia('t13-st-autopecas.xml'));
+        await irParaConferencia();
+        await avaliar(
+          `document.querySelector('#painel-conferencia .conferencia__recolher')?.click(); true`,
+        );
+        await conferir('conferencia-painel-fechado');
+        await avaliar(
+          `document.querySelector('#painel-conferencia .conferencia__expandir')?.click(); true`,
+        );
+        await aguardar(
+          `document.getElementById('painel-conferencia').dataset.estado === 'aberto'`,
+          15000,
+          'o painel da Conferência não abriu',
+        );
+        await conferir('conferencia-painel-aberto');
+        await menu('btn-salvar-mais', 'menu-salvar', true);
+        await conferir('menu-salvar-conferencia');
+        await menu('btn-salvar-mais', 'menu-salvar', false);
+        await menu('btn-perfil', 'menu-perfil', true);
+        await conferir('menu-perfil-nota');
+        await menu('btn-perfil', 'menu-perfil', false);
+        await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
+          .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
+          .querySelector('.botao--ferramenta:not(:disabled)').click()`);
+        await aguardar(
+          `!!document.querySelector('dialog.painel--st[open]')`,
+          30000,
+          'a ferramenta ST não abriu',
+        );
+        await conferir('ferramenta-st');
+        await avaliar(
+          `document.querySelector('dialog.painel--st .painel__fechar').click()`,
+        );
+        await aguardar(
+          `!document.querySelector('dialog.painel--st')`,
+          15000,
+          'a ferramenta ST não fechou',
+        );
+        await avaliar(`document.getElementById('btn-editar-colunas').click()`);
+        await aguardar(
+          `!!document.getElementById('painel-colunas-titulo')?.closest('dialog[open]')`,
+          15000,
+          'o Editar colunas não abriu',
+        );
+        await conferir('editor-colunas');
+        // Automática | Retrato | Paisagem inteiro, dentro da prévia.
+        const orientacao = await avaliar(`(() => {
+          const s = document.querySelector('dialog[open] .painel__orientacao');
+          const p = s.closest('.painel__previa').getBoundingClientRect();
+          return { cortado: s.scrollWidth > s.clientWidth + 0.5, direita: Math.round(s.getBoundingClientRect().right), previa: Math.round(p.right) };
+        })()`);
+        confere(
+          !orientacao.cortado && orientacao.direita <= orientacao.previa,
+          `seletor da orientação: ${JSON.stringify(orientacao)}`,
+        );
+        await fecharDialogos();
+        await espera(300);
+        await abrirConfiguracoes();
+        await aguardar(configAberta, 15000, 'as Configurações não abriram');
+        const abas = await avaliar(
+          `[...document.querySelectorAll('dialog.painel--config [role=tab]')].map((t) => t.id)`,
+        );
+        confere(abas.length >= 6, `abas das Configurações: ${abas}`);
+        for (const id of abas) {
+          await avaliar(`document.getElementById('${id}').click()`);
+          await conferir(`configuracoes-${id.replace(/^config-aba-/, '')}`);
+        }
+        await fecharDialogos();
+        await espera(300);
+        await inicio();
+      } finally {
+        janela.setSize(largura, altura);
+      }
     },
   );
 }

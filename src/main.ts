@@ -50,6 +50,15 @@ import {
 import { guardarCopiaPerfil, type MotivoCopiaPerfil } from './perfisExcluidos';
 import { MARGEM_FOLHA_MM } from './nfe/folha';
 import {
+  ALTURA_MINIMA,
+  ALTURA_PADRAO,
+  LARGURA_MINIMA,
+  LARGURA_PADRAO,
+  estadoSalvo,
+  posicaoVisivel,
+  type EstadoJanela,
+} from './tamanhoJanela';
+import {
   ferramentasDoPerfil,
   lerFerramentas,
   lerFerramentasPorPerfil,
@@ -248,56 +257,9 @@ const MARGEM_PDF = MARGEM_FOLHA_MM / 25.4;
 // 10 mm em pixels (96 por polegada). print recebe margens em pixels.
 const MARGEM_IMPRESSAO = Math.round(MARGEM_PDF * 96);
 
-// Tamanho mínimo da janela (bordas e barra de título incluídas, em pixels
-// lógicos). Menor tela atendida: 1366 x 768 com escala de 125% no Windows, ou
-// seja 1366 / 1,25 = 1092,8 por 768 / 1,25 = 614,4. A barra de tarefas do
-// Windows 11 tem 48 de altura, então a área de trabalho é 1092,8 x 566,4. A
-// janela maximizada ocupa a área de trabalho, então o mínimo precisa caber
-// nela: 1024 x 560, com folga.
-const LARGURA_MINIMA = 1024;
-const ALTURA_MINIMA = 560;
-const LARGURA_PADRAO = 1280;
-const ALTURA_PADRAO = 860;
-
 // ---------- tamanho e posição da janela (config.json, chave "janela") ----------
 
-interface EstadoJanela {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  maximizada: boolean;
-}
-
-/**
- * Faixa do alto da janela (barra de título) que precisa estar dentro da área
- * de trabalho de algum monitor para a posição salva valer: com ela a pessoa
- * consegue pegar e arrastar a janela.
- */
-const FAIXA_VISIVEL = { largura: 120, altura: 30 };
-
-function estadoValido(e: unknown): e is EstadoJanela {
-  if (typeof e !== 'object' || e === null) return false;
-  const o = e as Record<string, unknown>;
-  return (
-    ['x', 'y', 'width', 'height'].every(
-      (k) => typeof o[k] === 'number' && Number.isFinite(o[k]),
-    ) &&
-    typeof o.maximizada === 'boolean' &&
-    (o.width as number) >= LARGURA_MINIMA &&
-    (o.height as number) >= ALTURA_MINIMA
-  );
-}
-
-/** true se a barra de título cai na área de trabalho de algum monitor conectado. */
-function posicaoVisivel(j: EstadoJanela): boolean {
-  return screen.getAllDisplays().some(({ workArea: a }) => {
-    const largura = Math.min(j.x + j.width, a.x + a.width) - Math.max(j.x, a.x);
-    const altura =
-      Math.min(j.y + FAIXA_VISIVEL.altura, a.y + a.height) - Math.max(j.y, a.y);
-    return largura >= FAIXA_VISIVEL.largura && altura >= FAIXA_VISIVEL.altura;
-  });
-}
+// Tamanho mínimo e padrão e a leitura do que foi salvo: src/tamanhoJanela.ts.
 
 /**
  * Tamanho e posição de abertura: os salvos ao fechar, se ainda caem num
@@ -305,8 +267,9 @@ function posicaoVisivel(j: EstadoJanela): boolean {
  * Lido de forma síncrona: a janela é criada logo em seguida.
  */
 function posicaoInicial(): EstadoJanela {
-  const salvo = lerConfigSync().janela;
-  if (estadoValido(salvo) && posicaoVisivel(salvo)) return salvo;
+  const salvo = estadoSalvo(lerConfigSync().janela);
+  const areas = screen.getAllDisplays().map((d) => d.workArea);
+  if (salvo && posicaoVisivel(salvo, areas)) return salvo;
   const a = screen.getPrimaryDisplay().workArea;
   const width = Math.min(LARGURA_PADRAO, a.width);
   const height = Math.min(ALTURA_PADRAO, a.height);

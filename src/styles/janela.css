@@ -648,6 +648,86 @@
     outline-color: var(--ps-preto);
   }
 
+  /* ---------- barra da nota em janela estreita ---------- */
+
+  /* Abaixo de 1024 (janela encaixada na metade da tela, por exemplo), a
+     barra fica numa linha só: as ações não descem, e o nome do perfil
+     encolhe, com reticências, se faltar lugar (o nome inteiro está no menu
+     do perfil e no leitor de tela). */
+  @media (max-width: 1023px) {
+    .barra,
+    .barra__acoes {
+      flex-wrap: nowrap;
+    }
+
+    .barra__vistas.abas {
+      flex: none;
+    }
+
+    .barra__acoes > *,
+    .barra .perfil-rapido__botao {
+      flex: none;
+    }
+
+    .barra__acoes > .barra__perfil,
+    .barra .perfil-rapido,
+    .barra .perfil-rapido__botao {
+      flex-shrink: 1;
+      min-width: 0;
+    }
+
+    .barra .perfil-rapido {
+      display: flex;
+    }
+
+    .barra .perfil-rapido__nome {
+      min-width: 0;
+    }
+  }
+
+  /* Abaixo de 960, Início, Abrir outro XML e Imprimir ficam só com o
+     ícone; o nome continua no aria-label. Salvar mantém o rótulo. */
+  @media (max-width: 959px) {
+    .barra__acoes .botao--barra {
+      padding: 0 10px;
+    }
+
+    .barra__acoes .botao--barra > span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  /* Abaixo de 780 (até o mínimo da janela, 680), menos espaço entre as
+     peças e sem as divisas. */
+  @media (max-width: 779px) {
+    .barra {
+      gap: 0 var(--esp-2);
+      padding: 0 10px;
+    }
+
+    .barra__acoes {
+      gap: 6px;
+    }
+
+    .barra__divisa {
+      display: none;
+    }
+
+    .aba {
+      gap: 8px;
+      padding: 0 14px 0 10px;
+    }
+
+    .barra .salvar-grupo__principal {
+      padding: 0 12px;
+    }
+  }
+
   /* ---------- painel Leitura da aba XML ---------- */
 
   :root {

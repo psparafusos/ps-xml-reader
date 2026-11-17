@@ -612,11 +612,16 @@ conferência numa grade de 12 colunas; nesta versão ele ainda não é editável
 enquanto é sempre vazio. Coluna que falte no arquivo entra no fim com a
 visibilidade padrão.
 
-A janela tem tamanho mínimo de 1024 x 560 (cabe maximizada numa tela de
-1366 x 768 com escala de 125%; a conta está em `src/main.ts`). Sem rolagem
+A janela tem tamanho mínimo de 680 x 560: encaixa na metade de uma tela de
+1366 x 768 a 100%, ao lado de outra janela, e cabe maximizada num 1366 x 768
+com escala de 125% (a conta está em `src/tamanhoJanela.ts`). Sem rolagem
 horizontal na janela: só a tabela de itens rola na horizontal, dentro do
-próprio quadro. Ao fechar, a janela guarda em `config.json` (chave `janela`) o
-tamanho, a posição e se estava maximizada, e abre assim da próxima vez. Se a
+próprio quadro. Abaixo de 1024 a barra da nota continua numa linha só (abaixo
+de 960, Início, Abrir outro XML e Imprimir ficam só com o ícone), e o DANFE
+em 100% encolhe até caber na largura (a partir de uns 880 px a folha cabe em
+tamanho real). Ao fechar, a janela guarda em `config.json` (chave `janela`) o
+tamanho, a posição e se estava maximizada, e abre assim da próxima vez; um
+tamanho salvo abaixo do mínimo sobe para o mínimo, sem perder a posição. Se a
 posição salva não cai em nenhum monitor conectado (por exemplo, o segundo
 monitor foi desligado), abre com o tamanho padrão, centralizada no monitor
 principal.
