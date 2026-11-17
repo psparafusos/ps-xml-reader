@@ -1858,6 +1858,141 @@ tratar(
   },
 );
 
+// ---------- tela de boas-vindas: início do bloco ----------
+// Primeira abertura normal sem CNPJ da loja gravado (instalação nova, ou
+// atualização de uma versão que tinha o CNPJ no código): a primeira tela de
+// cada janela pede o CNPJ (src/boasVindas.ts). O app aberto pelo instalador
+// (--squirrel-firstrun) não mostra: a tela fica para a primeira abertura
+// normal. Nada é gravado antes do Começar; o CNPJ vai por último, e é ele
+// que marca a tela como feita.
+import { cnpjDestinatarioDoTexto, cnpjMaisFrequente } from './nfe/cnpj';
+
+const abertoPeloInstalador = process.argv.includes('--squirrel-firstrun');
+
+/** Pasta de destino sugerida, quando não há uma gravada. */
+const pastaSugerida = () => path.join(app.getPath('documents'), 'PS Reader');
+
+/** Pasta escolhida no diálogo da tela, por janela (só o diálogo vale). */
+const pastasBoasVindas = new Map<number, string>();
+
+/** CNPJ do destinatário de uma nota recente; null se não dá para ler. */
+async function cnpjDaRecente(caminho: string): Promise<string | null> {
+  try {
+    const info = await comLimite(stat(caminho), ESPERA_CAMINHO_MS, null);
+    if (!info || !info.isFile() || problemaTamanhoNfe(info.size)) return null;
+    const bruto = await comLimite(readFile(caminho), ESPERA_CAMINHO_MS, null);
+    if (!bruto) return null;
+    const texto = bruto.toString('utf8');
+    if (verificarXmlSeguro(texto)) return null;
+    return cnpjDestinatarioDoTexto(texto);
+  } catch {
+    return null;
+  }
+}
+
+tratar('boas-vindas', async (): Promise<EstadoBoasVindas | null> => {
+  if (abertoPeloInstalador) return null;
+  const c = await lerConfig();
+  if (cnpjDaConfig(c.cnpjEmpresa)) return null;
+  const [perfis, pasta, cnpjs] = await Promise.all([
+    lerPerfis(),
+    lerPastaDestino(),
+    Promise.all(
+      lerRecentes(c.notasRecentes).map((r) => cnpjDaRecente(r.caminho)),
+    ),
+  ]);
+  return {
+    nomePerfil: perfilAtivo(perfis).nome,
+    pasta: pasta ?? pastaSugerida(),
+    pastaSugerida: pasta === null,
+    cnpjSugerido: cnpjMaisFrequente(cnpjs),
+  };
+});
+
+tratar('boas-vindas-escolher-pasta', async (event): Promise<string | null> => {
+  const j = estadoDe(event.sender);
+  const atual =
+    pastasBoasVindas.get(event.sender.id) ??
+    (await lerPastaDestino()) ??
+    app.getPath('documents');
+  const opcoes: Electron.OpenDialogOptions = {
+    title: 'Pasta de destino',
+    buttonLabel: 'Escolher pasta',
+    properties: ['openDirectory', 'createDirectory'],
+    defaultPath: atual,
+  };
+  const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, opcoes);
+  if (canceled || filePaths.length === 0) return null;
+  pastasBoasVindas.set(event.sender.id, filePaths[0]);
+  return filePaths[0];
+});
+
+tratar(
+  'boas-vindas-concluir',
+  async (event, p: unknown): Promise<ResultadoBoasVindas> => {
+    const o = (typeof p === 'object' && p !== null ? p : {}) as {
+      cnpj?: unknown;
+      nomePerfil?: unknown;
+      pasta?: unknown;
+    };
+    const cnpjTexto = texto(o.cnpj);
+    const problemaDoCnpj = problemaCnpj(cnpjTexto);
+    if (problemaDoCnpj)
+      return { status: 'erro', campo: 'cnpj', mensagem: problemaDoCnpj };
+    const perfis = await lerPerfis();
+    const ativo = perfilAtivo(perfis);
+    const nome = texto(o.nomePerfil).trim();
+    const renomear = nome !== ativo.nome;
+    if (renomear) {
+      const problema = problemaNomePerfil(nome, perfis.lista, ativo.id);
+      if (problema)
+        return { status: 'erro', campo: 'perfil', mensagem: problema };
+    }
+    let pasta: string | null = null;
+    if (o.pasta === 'escolhida') {
+      pasta = pastasBoasVindas.get(event.sender.id) ?? null;
+      if (!pasta)
+        return {
+          status: 'erro',
+          campo: 'pasta',
+          mensagem: 'Escolha a pasta de novo.',
+        };
+    } else if (o.pasta === 'sugerida') {
+      pasta = pastaSugerida();
+      try {
+        await mkdir(pasta, { recursive: true });
+      } catch (erro) {
+        return {
+          status: 'erro',
+          campo: 'pasta',
+          mensagem: `Não foi possível criar a pasta ${pasta}: ${mensagemDe(erro)}. Escolha outra.`,
+        };
+      }
+    }
+    try {
+      if (pasta) await gravarConfig({ pastaDestino: pasta });
+      if (renomear) {
+        ativo.nome = nome;
+        await gravarConfig({ perfis: perfisParaGravar(perfis) });
+      }
+      await gravarConfig({ cnpjEmpresa: cnpjDaConfig(cnpjTexto) });
+    } catch (erro) {
+      return {
+        status: 'erro',
+        campo: 'geral',
+        mensagem: `Não foi possível salvar a configuração: ${mensagemDe(erro)}`,
+      };
+    }
+    pastasBoasVindas.delete(event.sender.id);
+    const estado = estadoDosPerfis(perfis);
+    if (pasta) avisarOutras(event.sender, 'pasta-mudou');
+    if (renomear) avisarOutras(event.sender, 'perfis-mudou', estado);
+    avisarTodas('avisos-mudou');
+    return { status: 'ok', perfis: estado, pasta: await lerPastaDestino() };
+  },
+);
+// ---------- tela de boas-vindas: fim do bloco ----------
+
 tratar('dados-app', async (): Promise<EstadoDadosApp> => ({
   pasta: app.getPath('userData'),
   itens: await listarDadosApp(app.getPath('userData')),

@@ -216,6 +216,33 @@ Arquivo acima de 50 MB, ou com `<!DOCTYPE` ou `<!ENTITY`, é recusado antes
 de ser lido, com o motivo na tela. Planilhas (`.xlsx`) são medidas antes de
 abrir: até 30 MB, com limite por parte e no total do arquivo compactado.
 
+### Tela de boas-vindas
+
+Na primeira abertura normal, quando o `config.json` não tem o CNPJ da loja
+(instalação nova, ou atualização de uma versão que tinha o CNPJ no código),
+a janela mostra a tela de boas-vindas antes da tela inicial
+(`src/boasVindas.ts`). O app que o instalador abre (`--squirrel-firstrun`) e
+os eventos do Squirrel não mostram: ela fica para a primeira abertura normal.
+
+- **CNPJ da loja** (obrigatório): 14 dígitos, com ou sem máscara, conferido
+  com os dígitos verificadores. Serve para conferir se as notas abertas são
+  da loja (aviso de nota de outra empresa). Com notas recentes, a tela
+  sugere o CNPJ de destinatário que mais aparece nelas; a sugestão só
+  preenche o campo com **Usar este CNPJ** e nada é gravado antes do
+  **Começar**.
+- **Nome do perfil** (opcional): o do perfil em uso; na instalação nova, o
+  nome do usuário do Windows.
+- **Pasta de destino** (opcional): a gravada, ou a sugerida
+  `Documentos\PS Reader` (criada no Começar), com **Trocar...**.
+- **Documentos de referência**: só um link para as Configurações, sem
+  obrigação.
+
+Sem CNPJ válido a tela não sai (nem com Esc); fechar o app continua valendo.
+Um arquivo aberto por duplo clique ou arrastado para a janela com a tela
+aberta fica guardado e abre depois do Começar. Quem atualiza não perde
+perfis, pastas nem decisões: o Começar grava só o CNPJ (e o nome do perfil
+ou a pasta, se mudaram).
+
 ### Tela inicial
 
 - **Barra de título própria** (36 px, preta): a logo, **PS Reader** e
@@ -858,8 +885,8 @@ modo DANFE.
   15 dias vêm da chave `diasAvisoVencimento` do `config.json`.
 - **Nota de outra empresa**: o CNPJ do destinatário não é o da loja. Avisa
   no painel e num pop-up ao abrir. O CNPJ da loja fica na chave
-  `cnpjEmpresa` do `config.json`, gravada na aba Geral das Configurações
-  (conferido com os dígitos verificadores,
+  `cnpjEmpresa` do `config.json`, gravada na tela de boas-vindas ou na aba
+  Geral das Configurações (conferido com os dígitos verificadores,
   `src/nfe/cnpj.ts`). Não há CNPJ no código: sem CNPJ gravado, esta
   verificação não roda.
 - **Nota já conferida**: há um `.psxml` com a mesma chave de acesso na pasta
@@ -1215,6 +1242,8 @@ src/
   renderer.ts        monta a tela a partir do objeto Nota
   editorColunas.ts   painel Editar colunas (lista, arrastar, anotações extras, prévia)
   dom.ts             utilitários de DOM (el, icone, botao)
+  boasVindas.ts      tela de boas-vindas (CNPJ da loja, perfil e pasta na primeira abertura)
+  nfe/cnpj.ts        CNPJ: dígitos verificadores, destinatário no texto e sugestão das notas
   declarations.d.ts  tipos globais (window.psApi)
   nfe/config.ts      personalização da conferência: tipo, padrão, validação e migração
   nfe/perfis.ts      perfis de configuração: lista, migração, arquivo exportado e importado
@@ -1265,6 +1294,7 @@ src/
   styles/app.css     tela
   styles/bancada.css visual Bancada, só na tela: tela inicial, cartões, pastilhas, botões das janelas
   styles/janela.css  barra de título própria, barra preta, abas, menus, painel Leitura
+  styles/boasVindas.css tela de boas-vindas
   painelLeitura.ts   painel Leitura da aba XML: modo de leitura, Folhas, Arquivo
   nfe/folhasDanfe.ts Folhas do DANFE na tela e a orientação da Folha do PDF
   formatoOriginal/montar.ts  Formato original: blocos, tabelas e valores formatados (puro)

@@ -108,6 +108,12 @@ contextBridge.exposeInMainWorld('psApi', {
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
   configAvisos: (): Promise<ConfigAvisos> =>
     ipcRenderer.invoke('config-avisos'),
+  boasVindas: (): Promise<EstadoBoasVindas | null> =>
+    ipcRenderer.invoke('boas-vindas'),
+  escolherPastaBoasVindas: (): Promise<string | null> =>
+    ipcRenderer.invoke('boas-vindas-escolher-pasta'),
+  concluirBoasVindas: (dados: DadosBoasVindas): Promise<ResultadoBoasVindas> =>
+    ipcRenderer.invoke('boas-vindas-concluir', dados),
   buscarConferidos: (chave: string, nNF: string): Promise<ArquivoConferido[]> =>
     ipcRenderer.invoke('buscar-conferidos', chave, nNF),
   abrirConferido: (caminho: string): Promise<boolean> =>

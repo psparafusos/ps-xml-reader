@@ -17,8 +17,9 @@
 // linhas informativas do painel da Conferência (frete, t15 a t18, e
 // vencimentos escritos nas informações complementares, t19, e a devolução,
 // t14), a janela na largura mínima (680: não aceita menos, e as telas
-// principais cabem sem rolar de lado) e o rascunho das anotações
-// (rascunhos.cjs: fechamento à força e recuperar). Com
+// principais cabem sem rolar de lado), o rascunho das anotações
+// (rascunhos.cjs: fechamento à força e recuperar) e a tela de boas-vindas
+// (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
 // do painel e as das telas na largura mínima.
 'use strict';
@@ -33,6 +34,7 @@ const { casosServico } = require('./servico.cjs');
 const { casosConfigSeguro } = require('./configSeguro.cjs');
 const { casosPerfis } = require('./perfis.cjs');
 const { casosRascunhos } = require('./rascunhos.cjs');
+const { casosBoasVindas } = require('./boasVindas.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -2444,6 +2446,12 @@ async function principal() {
   // descartar, Decidir depois e duplo clique (rascunhos.cjs, cada abertura
   // num processo à parte, com pasta de dados própria).
   await casosRascunhos({ ...contexto, tmp });
+
+  // Tela de boas-vindas: primeira abertura sem configuração, CNPJ inválido,
+  // atualização com perfis e a sugestão das notas recentes, com CNPJ
+  // gravado e arquivo aberto com a tela aberta (boasVindas.cjs, cada
+  // abertura num processo à parte, com pasta de dados própria).
+  await casosBoasVindas({ ...contexto, tmp });
 
   // config.json cortado e perfis inválidos (por último: muda os perfis).
   await casosConfigSeguro({ ...contexto, dados });

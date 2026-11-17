@@ -487,6 +487,15 @@ interface PsApi {
   versao(): Promise<string>;
   /** Ajustes dos avisos da nota (config.json, ou os padrões). */
   configAvisos(): Promise<ConfigAvisos>;
+  /**
+   * Tela de boas-vindas: o que ela mostra, ou null se não aparece (CNPJ da
+   * loja já gravado, ou o app aberto pelo instalador).
+   */
+  boasVindas(): Promise<EstadoBoasVindas | null>;
+  /** Diálogo de pasta da tela de boas-vindas (não grava nada). */
+  escolherPastaBoasVindas(): Promise<string | null>;
+  /** Grava o que a tela de boas-vindas pediu (CNPJ por último). */
+  concluirBoasVindas(dados: DadosBoasVindas): Promise<ResultadoBoasVindas>;
   /** .psxml da pasta de destino em uso com a mesma chave (nota já conferida). */
   buscarConferidos(chave: string, nNF: string): Promise<ArquivoConferido[]>;
   /** Abre numa janela nova um .psxml achado por buscarConferidos. */
@@ -562,6 +571,35 @@ type ResultadoFerramentas =
 type ResultadoConfigAvisos =
   | { status: 'ok'; config: ConfigAvisos }
   | { status: 'erro'; mensagem: string };
+
+/** O que a tela de boas-vindas (src/boasVindas.ts) já mostra preenchido. */
+interface EstadoBoasVindas {
+  /** Nome do perfil ativo (na primeira abertura, o usuário do Windows). */
+  nomePerfil: string;
+  /** Pasta de destino gravada, ou a sugerida (Documentos\PS Reader). */
+  pasta: string;
+  /** `pasta` é a sugerida (ainda não existe pasta gravada). */
+  pastaSugerida: boolean;
+  /** Destinatário que mais aparece nas notas recentes (só dígitos). */
+  cnpjSugerido: string | null;
+}
+
+/** Pasta de destino da tela: a gravada, a sugerida ou a do diálogo. */
+type EscolhaPastaBoasVindas = 'atual' | 'sugerida' | 'escolhida';
+
+interface DadosBoasVindas {
+  cnpj: string;
+  nomePerfil: string;
+  pasta: EscolhaPastaBoasVindas;
+}
+
+type ResultadoBoasVindas =
+  | { status: 'ok'; perfis: EstadoPerfis; pasta: string | null }
+  | {
+      status: 'erro';
+      campo: 'cnpj' | 'perfil' | 'pasta' | 'geral';
+      mensagem: string;
+    };
 
 interface EstadoDadosApp {
   /** A pasta de dados de verdade (app.getPath('userData')). */

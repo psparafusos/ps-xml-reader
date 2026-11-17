@@ -1,0 +1,222 @@
+/* Tela de boas-vindas (src/boasVindas.ts), no visual Bancada: ocupa a
+   janela abaixo da barra de título própria (que continua à mostra e
+   arrastável), com a faixa preta e o filete amarelo no alto, o fundo bege e
+   um cartão branco com o CNPJ da loja e os opcionais. Cabe na largura
+   mínima da janela (680) sem rolar de lado; em altura pequena, o corpo
+   rola. Só na tela. */
+
+@media screen {
+  :root {
+    --largura-boas-vindas: 640px;
+  }
+
+  .boas-vindas {
+    position: fixed;
+    inset: var(--altura-titulo) 0 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: none;
+    height: calc(100vh - var(--altura-titulo));
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: var(--bancada-fundo);
+    color: var(--cor-texto);
+  }
+
+  .boas-vindas:not([open]) {
+    display: none;
+  }
+
+  /* A barra de título fica à mostra: o fundo da camada de cima não escurece. */
+  .boas-vindas::backdrop {
+    background: transparent;
+  }
+
+  .boas-vindas__faixa {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--esp-1) var(--esp-4);
+    min-height: var(--bancada-faixa-altura);
+    padding: var(--esp-4) var(--bancada-margem);
+    border-bottom: var(--bancada-faixa-linha) solid var(--ps-amarelo);
+    background: var(--bancada-faixa);
+    color: var(--ps-branco);
+  }
+
+  .boas-vindas__titulo {
+    margin: 0;
+    font-size: var(--fs-xl);
+    font-weight: var(--peso-forte);
+  }
+
+  .boas-vindas__subtitulo {
+    margin: 0;
+    color: var(--titulo-texto);
+    font-size: var(--fs-md);
+  }
+
+  .boas-vindas__corpo {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--esp-6) var(--esp-4);
+  }
+
+  .boas-vindas__cartao {
+    display: flex;
+    flex-direction: column;
+    gap: var(--esp-4);
+    width: 100%;
+    max-width: var(--largura-boas-vindas);
+    margin: 0 auto;
+    padding: var(--esp-5);
+  }
+
+  .boas-vindas__intro {
+    margin: 0;
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-md);
+  }
+
+  .boas-vindas__secao {
+    margin: var(--esp-2) 0 0;
+    padding-top: var(--esp-4);
+    border-top: var(--borda) solid var(--cartao-borda);
+  }
+
+  .boas-vindas__campo {
+    display: grid;
+    gap: var(--esp-1);
+    min-width: 0;
+  }
+
+  .boas-vindas__rotulo {
+    margin: 0;
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-forte);
+  }
+
+  .boas-vindas__ajuda {
+    margin: 0;
+    color: var(--titulo-secao-cor);
+    font-size: var(--fs-xs);
+  }
+
+  .boas-vindas__entrada {
+    min-width: 0;
+    max-width: 360px;
+    padding: var(--esp-2) var(--esp-3);
+    border: var(--borda) solid var(--bancada-borda-forte);
+    border-radius: var(--raio);
+    background: var(--cartao-fundo);
+    color: var(--cor-texto-forte);
+    font: inherit;
+    font-size: var(--fs-md);
+  }
+
+  .boas-vindas__entrada--cnpj {
+    max-width: 240px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .boas-vindas__entrada:focus {
+    outline: none;
+    border-color: var(--ps-preto);
+    box-shadow: 0 0 0 var(--borda) var(--ps-preto);
+  }
+
+  .boas-vindas__entrada[aria-invalid='true'] {
+    border-color: var(--aviso-erro-fundo);
+  }
+
+  .boas-vindas__erro {
+    margin: 0;
+    color: var(--aviso-erro-fundo);
+    font-size: var(--fs-sm);
+    font-weight: var(--peso-medio);
+  }
+
+  .boas-vindas__erro[hidden] {
+    display: none;
+  }
+
+  /* Sugestão do CNPJ (notas recentes): só preenche o campo no clique. */
+  .boas-vindas__sugestao {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2) var(--esp-3);
+    margin-top: var(--esp-1);
+    padding: var(--esp-2) var(--esp-3);
+    border: var(--borda) dashed var(--bancada-borda-forte);
+    border-radius: var(--raio);
+    background: var(--bancada-fundo);
+  }
+
+  .boas-vindas__sugestao-texto {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: var(--fs-sm);
+  }
+
+  .boas-vindas__sugestao-cnpj {
+    color: var(--cor-texto-forte);
+    font-size: var(--fs-md);
+    font-weight: var(--peso-forte);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .boas-vindas__pasta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--esp-2) var(--esp-3);
+  }
+
+  .boas-vindas__pasta-caminho {
+    display: inline-flex;
+    flex: 1 1 260px;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--esp-2);
+    min-width: 0;
+  }
+
+  .boas-vindas__caminho {
+    min-width: 0;
+    color: var(--cor-texto-forte);
+    font-family: var(--fonte-mono, ui-monospace, 'Consolas', monospace);
+    font-size: var(--fs-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .boas-vindas__marca {
+    padding: 0 var(--esp-2);
+    border-radius: var(--pastilha-raio);
+    background: var(--bancada-fundo);
+    color: var(--titulo-secao-cor);
+    font-size: var(--fs-xs);
+  }
+
+  .boas-vindas__marca[hidden] {
+    display: none;
+  }
+
+  .boas-vindas__docs {
+    margin: 0;
+    color: var(--cor-texto);
+    font-size: var(--fs-sm);
+  }
+
+  .boas-vindas__rodape {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--esp-2);
+  }
+}

@@ -143,6 +143,7 @@ import {
   atualizarConfiguracoes,
   ligarConfiguracoes,
 } from './configuracoes';
+import { mostrarBoasVindas } from './boasVindas';
 import {
   ferramentasPadrao,
   ferramentasVisiveis,
@@ -3205,7 +3206,7 @@ let externoAguardando = false;
  * pedido.
  */
 async function abrirExterno(): Promise<void> {
-  if (acoesBloqueadas || abrindoExterno) {
+  if (acoesBloqueadas || abrindoExterno || boasVindasAberta) {
     externoAguardando = true;
     return;
   }
@@ -3270,6 +3271,47 @@ async function avisarRascunhos(): Promise<void> {
     },
     descartar: (r) => window.psRascunhos.descartar(r.id),
   });
+}
+
+// ---------- tela de boas-vindas ----------
+
+/**
+ * A tela de boas-vindas está aberta (ou a janela ainda não sabe se ela
+ * aparece): arquivos de fora e atalhos esperam por ela.
+ */
+let boasVindasAberta = true;
+/** Arquivo solto na janela com a tela aberta: abre depois do Começar. */
+let soltoAguardando: File | null = null;
+
+/**
+ * Tela de boas-vindas (src/boasVindas.ts), se o processo principal disser
+ * que ela aparece (sem CNPJ da loja gravado). Resolve quando a pessoa
+ * conclui; um arquivo pedido enquanto isso abre depois.
+ */
+async function boasVindas(): Promise<void> {
+  try {
+    const estado = await window.psApi.boasVindas();
+    if (!estado) return;
+    const r = await mostrarBoasVindas(estado, {
+      escolherPasta: () => window.psApi.escolherPastaBoasVindas(),
+      abrirDocumentos: () => abrirConfiguracoes('documentos'),
+      concluir: (dados) => window.psApi.concluirBoasVindas(dados),
+    });
+    aplicarPerfis(r.perfis);
+    atualizarPasta(r.pasta);
+    atualizarConfiguracoes();
+  } catch (erro) {
+    console.error(erro);
+  } finally {
+    boasVindasAberta = false;
+  }
+}
+
+/** O arquivo solto com a tela de boas-vindas aberta, depois dela. */
+function abrirSoltoAguardando(): void {
+  const arquivo = soltoAguardando;
+  soltoAguardando = null;
+  if (arquivo) abrirSolto(arquivo);
 }
 
 /** Abre o arquivo de fora que chegou enquanto não dava. */
@@ -3478,8 +3520,10 @@ function passoZoom(e: KeyboardEvent): -1 | 0 | 1 | null {
 }
 
 window.addEventListener('keydown', (e) => {
-  // Com o painel de colunas aberto, os atalhos da nota não valem.
-  if (!e.ctrlKey || e.altKey || e.metaKey || editorAberto()) return;
+  // Com o painel de colunas ou a tela de boas-vindas aberta, os atalhos da
+  // nota não valem.
+  if (!e.ctrlKey || e.altKey || e.metaKey || editorAberto() || boasVindasAberta)
+    return;
   const passo = passoZoom(e);
   if (passo !== null) {
     e.preventDefault();
@@ -4022,10 +4066,15 @@ window.psApi
     console.error(erro);
   })
   .then(() => configCarregada)
+  // Sem CNPJ da loja gravado, a tela de boas-vindas vem antes de tudo: o
+  // arquivo do duplo clique (ou um solto na janela) espera por ela.
+  .then(() => boasVindas())
   .finally(() => {
     // O aviso de recuperar anotações vem depois do arquivo do duplo clique
     // (que já pergunta pelo rascunho dele, se tiver).
-    void abrirExterno().finally(() => void avisarRascunhos());
+    void abrirExterno()
+      .then(() => abrirSoltoAguardando())
+      .finally(() => void avisarRascunhos());
   });
 
 // Arrastar e soltar: aceito na janela toda. Sem preventDefault o Electron
@@ -4057,9 +4106,19 @@ window.addEventListener('drop', (e) => {
   if (!arquivo || editorAberto()) return;
   const nome = arquivo.name.toLowerCase();
   if (!nome.endsWith('.xml') && !nome.endsWith('.psxml')) {
-    mostrarMensagem('Selecione um arquivo .xml ou .psxml.', 'erro');
+    if (!boasVindasAberta)
+      mostrarMensagem('Selecione um arquivo .xml ou .psxml.', 'erro');
     return;
   }
+  if (boasVindasAberta) {
+    soltoAguardando = arquivo;
+    return;
+  }
+  abrirSolto(arquivo);
+});
+
+/** Abre o arquivo solto na janela (o processo principal lê pelo caminho). */
+function abrirSolto(arquivo: File): void {
   window.psApi
     .abrirSolto(arquivo)
     .then(tratarAbertura)
@@ -4067,7 +4126,7 @@ window.addEventListener('drop', (e) => {
       mostrarMensagem('Não foi possível ler o arquivo.', 'erro');
       console.error(erro);
     });
-});
+}
 
 // ---------- config.json seguro: início do bloco ----------
 // Aviso, uma vez, quando o app recuperou a configuração ou os perfis
