@@ -3216,10 +3216,10 @@ async function casosLarguraMinima(variasFolhas) {
 
 // ---------- painel da Conferência: frete, vencimentos e devolução ----------
 
-/** A linha da devolução do t14; o lembrete do Saef abre o detalhe. */
+/** A linha da devolução do t14; o lembrete da entrada abre o detalhe. */
 const LINHA_DEVOLUCAO_T14 = 'Nota de devolução: NF 1234, série 2';
-const LEMBRETE_SAEF =
-  "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+const LEMBRETE_DEVOLUCAO =
+  'No seu sistema de gestão, confira se a entrada não altera o custo do produto: algumas telas de entrada gravam o preço de venda como custo.';
 
 /** Títulos curtos: no máximo duas linhas de texto no painel. */
 const MAX_LINHAS_TITULO = 2;
@@ -3414,9 +3414,10 @@ async function casosPainelAvisos() {
   );
 
   // t14: devolução de cliente (finNFe 4, modFrete 9). A linha da devolução
-  // vem primeiro, com o lembrete do Saef no detalhe; o frete vem logo depois.
+  // vem primeiro, com o lembrete da entrada no detalhe; o frete vem logo
+  // depois.
   await caso(
-    'Painel da Conferência: devolução de cliente (t14), título curto e o lembrete do Saef no detalhe, em 1366 e em 1920',
+    'Painel da Conferência: devolução de cliente (t14), título curto e o lembrete da entrada no detalhe, em 1366 e em 1920',
     async () => {
       const [largura, altura] = janela.getContentSize();
       try {
@@ -3440,7 +3441,7 @@ async function casosPainelAvisos() {
           );
           const detalhe = await abrirDetalhe('devolucao');
           confere(
-            detalhe.startsWith(LEMBRETE_SAEF),
+            detalhe.startsWith(LEMBRETE_DEVOLUCAO),
             `detalhe da devolução: ${JSON.stringify(detalhe)}`,
           );
           await avaliar(`document.activeElement?.blur(); true`);

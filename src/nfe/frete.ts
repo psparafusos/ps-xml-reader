@@ -1,10 +1,10 @@
-// Linha do frete no painel da Conferência: como a nota entra no Saef pela
-// modalidade do frete (transp/modFrete), o valor do frete da nota
-// (ICMSTot/vFrete) e a transportadora. Só informa: a pessoa decide.
+// Linha do frete no painel da Conferência: como lançar a nota no sistema de
+// gestão pela modalidade do frete (transp/modFrete), o valor do frete da
+// nota (ICMSTot/vFrete) e a transportadora. Só informa: a pessoa decide.
 //
 // Regra da loja: o conhecimento de frete (CT-e) tem um tomador, quem paga.
 // Tomador fornecedor: o conhecimento não se lança e a nota entra como
-// Emitente CIF. Tomador PS Parafusos: a nota entra como Destinatário FOB e o
+// Emitente CIF. Tomador a loja: a nota entra como Destinatário FOB e o
 // valor do conhecimento é digitado. Lógica pura, sem DOM e sem Electron.
 
 import { centavos, reais } from './avisos';

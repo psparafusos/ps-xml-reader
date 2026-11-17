@@ -108,7 +108,7 @@ const DICAS = {
   gravarCfop:
     'Em qual coluna de anotação da nota o CFOP vai ser escrito ao clicar em Aplicar. Se a coluna ainda não existe, o app cria.',
   gravarMva:
-    'Marque para escrever também a MVA numa coluna de anotação. Útil para lançar no Saef.',
+    'Marque para escrever também a MVA numa coluna de anotação. Útil para lançar no sistema de gestão.',
   gravarAliq:
     'Marque para escrever também a alíquota interna numa coluna de anotação.',
   aplicar:

@@ -101,7 +101,8 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
   if (nota.ide.finNFe?.trim() === '4')
     verificacoes.push(verificacaoDevolucao(nota.ide.refNFe ?? []));
 
-  // Frete: como a nota entra no Saef (Emitente CIF ou Destinatário FOB).
+  // Frete: como lançar a nota no sistema de gestão (Emitente CIF ou
+  // Destinatário FOB).
   const frete = linhaFrete(nota);
   if (frete)
     verificacoes.push({ id: 'frete', ok: frete.nivel === 'info', ...frete });
@@ -253,15 +254,16 @@ export function numeroSerieDaChave(
 }
 
 /**
- * Na entrada da devolução pelo Saef, sem "Não alterar cadastro" o preço de
- * venda da nota vira o preço de compra do produto (a margem fica negativa).
+ * Na entrada da devolução, algumas telas de entrada do sistema de gestão
+ * gravam o preço de venda da nota como o custo do produto (a margem fica
+ * negativa). O lembrete fica genérico: cada sistema tem a sua opção.
  */
 const LEMBRETE_DEVOLUCAO =
-  "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+  'No seu sistema de gestão, confira se a entrada não altera o custo do produto: algumas telas de entrada gravam o preço de venda como custo.';
 
 /**
  * Linha "Nota de devolução", com a nota (ou as notas) referenciada no
- * título e o lembrete do Saef no detalhe.
+ * título e o lembrete da entrada no detalhe.
  */
 function verificacaoDevolucao(refs: readonly string[]): Verificacao {
   const lidas = refs.map((chave) => ({ chave, ns: numeroSerieDaChave(chave) }));
@@ -275,7 +277,7 @@ function verificacaoDevolucao(refs: readonly string[]): Verificacao {
     titulo: nomes.length
       ? `Nota de devolução: ${nomes.join('; ')}`
       : 'Nota de devolução',
-    // O lembrete do Saef primeiro; depois a nota referenciada.
+    // O lembrete da entrada primeiro; depois a nota referenciada.
     detalhe:
       refs.length === 0
         ? `${LEMBRETE_DEVOLUCAO} A nota é de devolução (finalidade 4), mas não traz a chave da nota devolvida.`

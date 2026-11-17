@@ -1,8 +1,9 @@
 // Vencimentos escritos nas informações complementares. Alguns fornecedores
 // não mandam duplicatas no XML (cobr/dup) e escrevem as datas no texto
 // ("SEUS VCTOS SERAO: 04/12 11/12 18/12"). Aqui se lê esse trecho e se
-// divide o total da nota em parcelas iguais, como o Saef faz. Sem
-// segurança para ler todas as datas, não se inventa: devolve só o trecho.
+// divide o total da nota em parcelas iguais (a diferença dos centavos fica
+// na última). Sem segurança para ler todas as datas, não se inventa: devolve
+// só o trecho.
 // Lógica pura, sem DOM e sem Electron.
 
 export interface ParcelaTexto {
@@ -21,7 +22,7 @@ export type VencimentosTexto =
 /**
  * Divide o total (em centavos) em `n` parcelas: as primeiras arredondadas
  * para cima e a última com a diferença (5.902,40 em 3 vezes: 1.967,47,
- * 1.967,47 e 1.967,46, como no Saef).
+ * 1.967,47 e 1.967,46).
  */
 export function dividirEmParcelas(total: number, n: number): number[] {
   if (n <= 0) return [];

@@ -16,7 +16,7 @@ const datas = (texto: string, vNF?: string, dhEmi?: string) => {
 };
 
 describe('dividirEmParcelas', () => {
-  it('como o Saef: as primeiras para cima, a última com a diferença', () => {
+  it('as primeiras para cima, a última com a diferença', () => {
     assert.deepEqual(dividirEmParcelas(590240, 3), [196747, 196747, 196746]);
     assert.deepEqual(dividirEmParcelas(10000, 3), [3334, 3334, 3332]);
     assert.deepEqual(dividirEmParcelas(30000, 3), [10000, 10000, 10000]);

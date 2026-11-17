@@ -242,8 +242,8 @@ describe('resumoConferencia', () => {
 // Chave inventada: SE, 10/2026, CNPJ zerado, modelo 55, série 2, NF 1234.
 const CHAVE_REF = `282610${'0'.repeat(14)}55002000001234100001234` + '5';
 
-const LEMBRETE_SAEF =
-  "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+const LEMBRETE_DEVOLUCAO =
+  'No seu sistema de gestão, confira se a entrada não altera o custo do produto: algumas telas de entrada gravam o preço de venda como custo.';
 
 describe('nota de devolução no resumo', () => {
   it('número e série pela chave', () => {
@@ -265,8 +265,8 @@ describe('nota de devolução no resumo', () => {
     assert.equal(v.nivel, 'info');
     assert.equal(v.ok, true);
     assert.equal(v.titulo, 'Nota de devolução: NF 1234, série 2');
-    // O lembrete do Saef abre o detalhe; depois, a nota referenciada.
-    assert.ok(v.detalhe.startsWith(LEMBRETE_SAEF), v.detalhe);
+    // O lembrete da entrada abre o detalhe; depois, a nota referenciada.
+    assert.ok(v.detalhe.startsWith(LEMBRETE_DEVOLUCAO), v.detalhe);
     assert.match(v.detalhe, /finalidade 4/);
     assert.match(v.detalhe, /2826 1000/);
     // Só informa: não vira ponto para olhar.
@@ -278,7 +278,7 @@ describe('nota de devolução no resumo', () => {
     n.ide.finNFe = '4';
     const v = ver(resumoConferencia(dados({ nota: n })), 'devolucao');
     assert.equal(v.titulo, 'Nota de devolução');
-    assert.ok(v.detalhe.startsWith(LEMBRETE_SAEF), v.detalhe);
+    assert.ok(v.detalhe.startsWith(LEMBRETE_DEVOLUCAO), v.detalhe);
     assert.match(v.detalhe, /não traz a chave/);
   });
 
@@ -563,7 +563,7 @@ describe('vencimentos das informações complementares no resumo', () => {
   const venc = (n: Nota) =>
     ver(resumoConferencia(dados({ nota: n })), 'vencimentos');
 
-  it('três datas sem ano: parcelas iguais, como o Saef, em dia', () => {
+  it('três datas sem ano: parcelas iguais, em dia', () => {
     const r = resumoConferencia(
       dados({
         nota: comTexto('PEDIDO 4512. SEUS VCTOS SERAO: 04/12 11/12 18/12'),
