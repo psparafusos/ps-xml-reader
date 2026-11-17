@@ -81,6 +81,7 @@ async function casosConfigSeguro(ctx) {
       const atual = JSON.parse(fs.readFileSync(arquivo('config.json'), 'utf8'));
       const bak = json({
         pastaDestino: atual.pastaDestino,
+        cnpjEmpresa: atual.cnpjEmpresa,
         perfis: {
           versao: 1,
           ativo: 'p-teste1',

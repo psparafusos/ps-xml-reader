@@ -28,6 +28,7 @@ import {
   type TipoDecisao,
 } from './filtroDecisoes';
 import { ICONES } from './icones';
+import { mascaraCnpj } from './nfe/cnpj';
 import { criarMenuEscolha } from './menuEscolha';
 import {
   FERRAMENTAS_PAINEL,
@@ -110,11 +111,6 @@ export const tamanho = (bytes: number) =>
     : bytes < 1024 * 1024
       ? `${(bytes / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} KB`
       : `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`;
-
-const formatarCnpj = (d: string) =>
-  d.length === 14
-    ? `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
-    : d;
 
 /** Cartão branco com título de seção. */
 function cartao(
@@ -375,7 +371,7 @@ function abaGeral({ area, status }: Hospede): void {
     return el('div', 'config__campo', l, input, a);
   };
   const preencher = (c: ConfigAvisos) => {
-    cnpj.value = formatarCnpj(c.cnpjEmpresa);
+    cnpj.value = mascaraCnpj(c.cnpjEmpresa ?? '');
     diasVenc.value = String(c.diasAvisoVencimento);
     diasAntiga.value = String(c.diasNotaAntiga);
   };
@@ -463,7 +459,7 @@ function abaGeral({ area, status }: Hospede): void {
         campo(
           cnpj,
           'CNPJ da empresa',
-          'O destinatário esperado das notas. Nota para outro CNPJ ganha aviso. Vazio volta ao padrão.',
+          'O destinatário esperado das notas. Nota para outro CNPJ ganha aviso.',
         ),
         campo(
           diasVenc,

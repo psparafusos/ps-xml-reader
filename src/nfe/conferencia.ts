@@ -74,7 +74,8 @@ export interface DadosConferencia {
   anotacoes: Anotacoes;
   /** A coluna Qtd recebida está na configuração (e visível). */
   comQtdRecebida: boolean;
-  cnpjEmpresa: string;
+  /** null: sem CNPJ gravado, a linha do destinatário não aparece. */
+  cnpjEmpresa: string | null;
   conferidos: Conferido[];
   /** Há pasta de destino para procurar notas já conferidas. */
   temPastaDestino: boolean;
@@ -169,23 +170,26 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
 
   verificacoes.push(verificacaoVencimentos(nota, d));
 
-  const outra = ehOutraEmpresa(nota, d.cnpjEmpresa);
-  verificacoes.push({
-    id: 'destinatario',
-    ok: !outra,
-    nivel: outra ? 'forte' : 'ok',
-    titulo: outra
-      ? `Destinatário é outra empresa${nota.destinatario.xNome ? `: ${nota.destinatario.xNome}` : ''}`
-      : `Destinatário: ${nota.destinatario.xNome || f.cnpj(d.cnpjEmpresa)}`,
-    detalhe: outra
-      ? textoAviso({
-          tipo: 'outra-empresa',
-          cnpj: nota.destinatario.CNPJ,
-          cpf: nota.destinatario.CPF,
-          nome: nota.destinatario.xNome,
-        }).detalhe
-      : `O destinatário é a empresa (CNPJ ${f.cnpj(d.cnpjEmpresa)}).`,
-  });
+  if (d.cnpjEmpresa !== null) {
+    const cnpj = d.cnpjEmpresa;
+    const outra = ehOutraEmpresa(nota, cnpj);
+    verificacoes.push({
+      id: 'destinatario',
+      ok: !outra,
+      nivel: outra ? 'forte' : 'ok',
+      titulo: outra
+        ? `Destinatário é outra empresa${nota.destinatario.xNome ? `: ${nota.destinatario.xNome}` : ''}`
+        : `Destinatário: ${nota.destinatario.xNome || f.cnpj(cnpj)}`,
+      detalhe: outra
+        ? textoAviso({
+            tipo: 'outra-empresa',
+            cnpj: nota.destinatario.CNPJ,
+            cpf: nota.destinatario.CPF,
+            nome: nota.destinatario.xNome,
+          }).detalhe
+        : `O destinatário é a empresa (CNPJ ${f.cnpj(cnpj)}).`,
+    });
+  }
 
   const [maisNovo] = d.conferidos;
   verificacoes.push(

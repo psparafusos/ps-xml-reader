@@ -856,10 +856,12 @@ modo DANFE.
   e há quantos dias venceu, e "Falar com o fornecedor para prorrogar"; o
   detalhe já abre à mostra. Parcela que vence em até 15 dias: aviso leve. Os
   15 dias vêm da chave `diasAvisoVencimento` do `config.json`.
-- **Nota de outra empresa**: o CNPJ do destinatário não é o da empresa. Avisa
-  no painel e num pop-up ao abrir. O CNPJ padrão é 09.076.777/0001-04
-  (`CNPJ_EMPRESA_PADRAO` em `src/nfe/avisos.ts`); a chave `cnpjEmpresa` do
-  `config.json` troca esse valor.
+- **Nota de outra empresa**: o CNPJ do destinatário não é o da loja. Avisa
+  no painel e num pop-up ao abrir. O CNPJ da loja fica na chave
+  `cnpjEmpresa` do `config.json`, gravada na aba Geral das Configurações
+  (conferido com os dígitos verificadores,
+  `src/nfe/cnpj.ts`). Não há CNPJ no código: sem CNPJ gravado, esta
+  verificação não roda.
 - **Nota já conferida**: há um `.psxml` com a mesma chave de acesso na pasta
   de destino em uso. Avisa no painel e num pop-up ao abrir, com o nome do
   arquivo, a data de modificação e **Abrir em nova janela**. O app lê só os
@@ -1053,7 +1055,7 @@ para o cartão. Seis abas:
 
 - **Geral**: a pasta de destino (a mesma do "Salvando em", com
   **Trocar pasta...** e **Abrir pasta no Explorer**); **Empresa e avisos da
-  nota**: CNPJ da empresa (vazio volta ao padrão), **Aviso de vencimento
+  nota**: CNPJ da loja (obrigatório, sem valor padrão), **Aviso de vencimento
   (dias)** (padrão 15) e **Nota antiga (dias)** (padrão 30), as chaves
   `cnpjEmpresa`, `diasAvisoVencimento` e `diasNotaAntiga` do `config.json`;
   e a **Verificação online**, com **Verificar ao abrir o app**.

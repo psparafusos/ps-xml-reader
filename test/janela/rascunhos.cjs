@@ -32,7 +32,11 @@ async function casosRascunhos(ctx) {
       fs.mkdirSync(p, { recursive: true });
     fs.writeFileSync(
       path.join(dados, 'config.json'),
-      JSON.stringify({ pastaDestino: destino }, null, 2),
+      JSON.stringify(
+        { pastaDestino: destino, cnpjEmpresa: '12345678000195' },
+        null,
+        2,
+      ),
     );
     const nota = path.join(notas, NOTA);
     fs.copyFileSync(path.join(FIXTURES, NOTA), nota);

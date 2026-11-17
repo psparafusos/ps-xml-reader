@@ -57,7 +57,6 @@ import type { Anotacoes, Endereco, Item, Nota } from './nfe/tipos';
 import * as f from './nfe/formato';
 import {
   avisosDaNota,
-  CNPJ_EMPRESA_PADRAO,
   DIAS_AVISO_VENCIMENTO_PADRAO,
   DIAS_NOTA_ANTIGA_PADRAO,
   ID_QTD_RECEBIDA,
@@ -2257,7 +2256,7 @@ function conteudoNota(n: Nota): HTMLElement[] {
 
 /** Ajustes dos avisos (config.json ou os padrões), lidos a cada nota aberta. */
 let configAvisos: ConfigAvisos = {
-  cnpjEmpresa: CNPJ_EMPRESA_PADRAO,
+  cnpjEmpresa: null,
   diasAvisoVencimento: DIAS_AVISO_VENCIMENTO_PADRAO,
   diasNotaAntiga: DIAS_NOTA_ANTIGA_PADRAO,
 };
@@ -2389,7 +2388,7 @@ async function avisarAoAbrir(): Promise<void> {
     if (a.tipo === 'outra-empresa') {
       await perguntar({
         titulo,
-        texto: `${detalhe} O CNPJ da empresa é ${f.cnpj(configAvisos.cnpjEmpresa)}.`,
+        texto: `${detalhe} O CNPJ da empresa é ${f.cnpj(configAvisos.cnpjEmpresa ?? '')}.`,
         botoes: [{ rotulo: 'Entendi', valor: 'ok', principal: true }],
         cancelar: 'ok',
       });

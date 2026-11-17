@@ -79,12 +79,12 @@ import {
 import {
   chaveDoArquivo,
   cnpjDaConfig,
-  CNPJ_EMPRESA_PADRAO,
   DIAS_AVISO_VENCIMENTO_PADRAO,
   DIAS_NOTA_ANTIGA_PADRAO,
   diasDaConfig,
   nomePodeSerConferencia,
 } from './nfe/avisos';
+import { problemaCnpj } from './nfe/cnpj';
 // XML que não é NF-e abre no leitor genérico (parte 3); NF-e acima de 5 MB é
 // lida no serviço de leitura pesada (parte 2).
 import { destinoDoArquivo } from './leitorXml/destino';
@@ -897,8 +897,9 @@ interface Config {
   /** Perfis de configuração da conferência (src/nfe/perfis.ts). */
   perfis?: unknown;
   /**
-   * CNPJ da empresa, o destinatário esperado das notas (aviso de nota de
-   * outra empresa). Sem ele, ou inválido, vale CNPJ_EMPRESA_PADRAO.
+   * CNPJ da loja, o destinatário esperado das notas (aviso de nota de outra
+   * empresa). Sem ele, ou inválido, a verificação não roda e a primeira
+   * janela mostra a tela de boas-vindas, que pede o CNPJ.
    */
   cnpjEmpresa?: unknown;
   /** Parcela que vence em até tantos dias: aviso leve (padrão 15). */
@@ -1276,7 +1277,7 @@ tratar('limpar-recentes', async (_event, caminho: unknown) => {
 tratar('config-avisos', async (): Promise<ConfigAvisos> => {
   const c = await lerConfig();
   return {
-    cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
+    cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa),
     diasAvisoVencimento: diasDaConfig(
       c.diasAvisoVencimento,
       DIAS_AVISO_VENCIMENTO_PADRAO,
@@ -1807,7 +1808,7 @@ tratar(
 /** Os ajustes dos avisos lidos do config.json, com os padrões. */
 function avisosDaConfig(c: Config): ConfigAvisos {
   return {
-    cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa) ?? CNPJ_EMPRESA_PADRAO,
+    cnpjEmpresa: cnpjDaConfig(c.cnpjEmpresa),
     diasAvisoVencimento: diasDaConfig(
       c.diasAvisoVencimento,
       DIAS_AVISO_VENCIMENTO_PADRAO,
@@ -1817,8 +1818,8 @@ function avisosDaConfig(c: Config): ConfigAvisos {
 }
 
 /**
- * CNPJ da empresa e dias dos avisos, da aba Geral. CNPJ vazio volta ao
- * padrão; valor inválido não grava nada.
+ * CNPJ da loja e dias dos avisos, da aba Geral. CNPJ vazio ou inválido não
+ * grava nada (não há CNPJ padrão).
  */
 tratar(
   'gravar-config-avisos',
@@ -1830,11 +1831,10 @@ tratar(
     };
     const parcial: Config = {};
     if (o.cnpjEmpresa !== undefined) {
-      const t = texto(o.cnpjEmpresa).trim();
-      const cnpj = t === '' ? CNPJ_EMPRESA_PADRAO : cnpjDaConfig(t);
-      if (!cnpj)
-        return { status: 'erro', mensagem: 'O CNPJ precisa ter 14 dígitos.' };
-      parcial.cnpjEmpresa = cnpj;
+      const t = texto(o.cnpjEmpresa);
+      const problema = problemaCnpj(t);
+      if (problema) return { status: 'erro', mensagem: problema };
+      parcial.cnpjEmpresa = cnpjDaConfig(t);
     }
     for (const k of ['diasAvisoVencimento', 'diasNotaAntiga'] as const) {
       if (o[k] === undefined) continue;

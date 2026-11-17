@@ -7,23 +7,18 @@ import { idDaAnotacao } from './config';
 import * as f from './formato';
 import type { Anotacoes, Item, Nota } from './tipos';
 
-/**
- * CNPJ da empresa (destinatário esperado das notas), só dígitos. É o valor
- * padrão: o config.json pode trocar (chave cnpjEmpresa).
- */
-export const CNPJ_EMPRESA_PADRAO = '09076777000104';
-
 /** Coluna de anotação que liga a conferência de quantidade. */
 export const ID_QTD_RECEBIDA = idDaAnotacao('Qtd recebida');
 
 const soDigitos = (s: string) => s.replace(/\D/g, '');
 
-/** CNPJ válido para a configuração (14 dígitos), só dígitos; senão null. */
-export function cnpjDaConfig(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const d = soDigitos(v);
-  return d.length === 14 ? d : null;
-}
+/**
+ * CNPJ da loja gravado no config.json (chave cnpjEmpresa), conferido com os
+ * dígitos verificadores (src/nfe/cnpj.ts). Não há valor padrão: sem CNPJ
+ * gravado, a verificação de nota de outra empresa não roda e a tela de
+ * boas-vindas pede o CNPJ.
+ */
+export { cnpjDaConfig } from './cnpj';
 
 /**
  * Número digitado numa anotação, ou null se não é número. Aceita vírgula
@@ -153,12 +148,13 @@ export function avisosDaNota(dados: {
   anotacoes: Anotacoes;
   /** A coluna Qtd recebida está na configuração (e visível). */
   comQtdRecebida: boolean;
-  cnpjEmpresa: string;
+  /** null: sem CNPJ gravado, a verificação de outra empresa não roda. */
+  cnpjEmpresa: string | null;
   conferidos: Conferido[];
 }): Aviso[] {
   const { nota } = dados;
   const avisos: Aviso[] = [];
-  if (ehOutraEmpresa(nota, dados.cnpjEmpresa))
+  if (dados.cnpjEmpresa !== null && ehOutraEmpresa(nota, dados.cnpjEmpresa))
     avisos.push({
       tipo: 'outra-empresa',
       cnpj: nota.destinatario.CNPJ,

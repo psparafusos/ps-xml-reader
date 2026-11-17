@@ -3,8 +3,8 @@ declare module '*.css';
 
 /** Ajustes dos avisos da nota lidos do config.json. */
 interface ConfigAvisos {
-  /** CNPJ da empresa, só dígitos. */
-  cnpjEmpresa: string;
+  /** CNPJ da loja, só dígitos; null se ainda não foi gravado. */
+  cnpjEmpresa: string | null;
   diasAvisoVencimento: number;
   diasNotaAntiga: number;
 }

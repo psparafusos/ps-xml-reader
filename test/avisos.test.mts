@@ -4,7 +4,6 @@ import {
   avisosDaNota,
   chaveDoArquivo,
   cnpjDaConfig,
-  CNPJ_EMPRESA_PADRAO,
   dataHoraArquivo,
   diferencasTotais,
   divergenciasQtd,
@@ -25,6 +24,9 @@ import {
   configPadrao,
 } from '../src/nfe/config.ts';
 import type { Anotacoes, Item, Nota } from '../src/nfe/tipos.ts';
+
+/** CNPJ inventado da loja, com dígitos verificadores válidos. */
+const CNPJ_LOJA = '12345678000195';
 
 function item(nItem: string, qCom: string, vProd: string): Item {
   return {
@@ -66,7 +68,7 @@ function nota(extra: Partial<Nota> = {}): Nota {
     ide: { nNF: '9001', serie: '1', dhEmi: '', natOp: '', tpNF: '1' },
     emitente: { CNPJ: '', xNome: '', xFant: '', IE: '', endereco },
     destinatario: {
-      CNPJ: CNPJ_EMPRESA_PADRAO,
+      CNPJ: CNPJ_LOJA,
       CPF: '',
       xNome: 'PS',
       IE: '',
@@ -193,22 +195,24 @@ describe('diferencasTotais', () => {
 
 describe('outra empresa', () => {
   it('compara só os dígitos do CNPJ', () => {
-    assert.equal(ehOutraEmpresa(nota(), '09.076.777/0001-04'), false);
+    assert.equal(ehOutraEmpresa(nota(), '12.345.678/0001-95'), false);
   });
 
   it('outro CNPJ ou CPF é outra empresa', () => {
     const n = nota();
     n.destinatario.CNPJ = '11222333000181';
-    assert.equal(ehOutraEmpresa(n, CNPJ_EMPRESA_PADRAO), true);
+    assert.equal(ehOutraEmpresa(n, CNPJ_LOJA), true);
     n.destinatario.CNPJ = '';
     n.destinatario.CPF = '12345678909';
-    assert.equal(ehOutraEmpresa(n, CNPJ_EMPRESA_PADRAO), true);
+    assert.equal(ehOutraEmpresa(n, CNPJ_LOJA), true);
   });
 
-  it('CNPJ da configuração: 14 dígitos, com ou sem máscara', () => {
-    assert.equal(cnpjDaConfig('09.076.777/0001-04'), CNPJ_EMPRESA_PADRAO);
+  it('CNPJ da configuração: 14 dígitos, com ou sem máscara, com o dígito verificador', () => {
+    assert.equal(cnpjDaConfig('12.345.678/0001-95'), CNPJ_LOJA);
     assert.equal(cnpjDaConfig('123'), null);
+    assert.equal(cnpjDaConfig('12345678000194'), null);
     assert.equal(cnpjDaConfig(42), null);
+    assert.equal(cnpjDaConfig(undefined), null);
   });
 });
 
@@ -249,7 +253,22 @@ describe('avisosDaNota', () => {
         nota: nota(),
         anotacoes: new Map(),
         comQtdRecebida: true,
-        cnpjEmpresa: CNPJ_EMPRESA_PADRAO,
+        cnpjEmpresa: CNPJ_LOJA,
+        conferidos: [],
+      }),
+      [],
+    );
+  });
+
+  it('sem CNPJ gravado, a verificação de outra empresa não roda', () => {
+    const n = nota();
+    n.destinatario.CNPJ = '11222333000181';
+    assert.deepEqual(
+      avisosDaNota({
+        nota: n,
+        anotacoes: new Map(),
+        comQtdRecebida: true,
+        cnpjEmpresa: null,
         conferidos: [],
       }),
       [],
@@ -261,7 +280,7 @@ describe('avisosDaNota', () => {
       nota: nota(),
       anotacoes: qtd([['1', '99']]),
       comQtdRecebida: false,
-      cnpjEmpresa: CNPJ_EMPRESA_PADRAO,
+      cnpjEmpresa: CNPJ_LOJA,
       conferidos: [],
     });
     assert.deepEqual(avisos, []);
@@ -275,7 +294,7 @@ describe('avisosDaNota', () => {
       nota: n,
       anotacoes: qtd([['1', '99']]),
       comQtdRecebida: true,
-      cnpjEmpresa: CNPJ_EMPRESA_PADRAO,
+      cnpjEmpresa: CNPJ_LOJA,
       conferidos: [
         {
           caminho: 'C:\\x\\A_NF9001_Conferencia.psxml',

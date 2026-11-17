@@ -53,9 +53,15 @@ const notas = path.join(tmp, 'notas');
 const destino = path.join(tmp, 'destino');
 for (const p of [dados, notas, destino]) fs.mkdirSync(p, { recursive: true });
 // Pasta de destino própria: o Salvar do T12 grava aqui, nunca nos fixtures.
+// CNPJ da loja inventado (o dos fixtures t15 a t19): com ele gravado, a tela
+// de boas-vindas não aparece (os casos dela estão em boasVindas.cjs).
 fs.writeFileSync(
   path.join(dados, 'config.json'),
-  JSON.stringify({ pastaDestino: destino }, null, 2),
+  JSON.stringify(
+    { pastaDestino: destino, cnpjEmpresa: '12345678000195' },
+    null,
+    2,
+  ),
 );
 app.setPath('userData', dados);
 

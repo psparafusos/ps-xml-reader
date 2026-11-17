@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
-import { CNPJ_EMPRESA_PADRAO, ID_QTD_RECEBIDA } from '../src/nfe/avisos.ts';
+import { ID_QTD_RECEBIDA } from '../src/nfe/avisos.ts';
 import {
   numeroSerieDaChave,
   painelCabeAoLado,
@@ -12,6 +12,9 @@ import { FERRAMENTAS } from '../src/nfe/ferramentas.ts';
 import { freteContraditoNoTexto } from '../src/nfe/frete.ts';
 import { criarIndicador } from '../src/indicador.ts';
 import type { Item, Nota } from '../src/nfe/tipos.ts';
+
+/** CNPJ inventado da loja, com dígitos verificadores válidos. */
+const CNPJ_LOJA = '12345678000195';
 
 function item(nItem: string, qCom: string, vProd: string): Item {
   return {
@@ -71,7 +74,7 @@ function nota(): Nota {
     },
     emitente: { CNPJ: '', xNome: '', xFant: '', IE: '', endereco },
     destinatario: {
-      CNPJ: CNPJ_EMPRESA_PADRAO,
+      CNPJ: CNPJ_LOJA,
       CPF: '',
       xNome: 'PS',
       IE: '',
@@ -106,7 +109,7 @@ const dados = (extra: Partial<DadosConferencia> = {}): DadosConferencia => ({
   nota: nota(),
   anotacoes: new Map(),
   comQtdRecebida: true,
-  cnpjEmpresa: CNPJ_EMPRESA_PADRAO,
+  cnpjEmpresa: CNPJ_LOJA,
   conferidos: [],
   temPastaDestino: true,
   hoje: HOJE,
@@ -149,6 +152,14 @@ describe('resumoConferencia', () => {
     assert.equal(ver(r, 'vencimentos').titulo, 'Sem parcelas');
     assert.equal(ver(r, 'destinatario').titulo, 'Destinatário: PS');
     assert.equal(ver(r, 'conferida').titulo, 'Primeira conferência desta nota');
+  });
+
+  it('sem CNPJ da loja gravado, a linha do destinatário não aparece', () => {
+    const n = nota();
+    n.destinatario.CNPJ = '11222333000181';
+    const r = resumoConferencia(dados({ nota: n, cnpjEmpresa: null }));
+    assert.ok(!r.verificacoes.some((v) => v.id === 'destinatario'));
+    assert.equal(r.pontos, 0);
   });
 
   it('sem pasta de destino, a "já conferida" diz que não há onde procurar', () => {
