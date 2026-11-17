@@ -219,6 +219,32 @@ export function gravarAtomico(
   }
 }
 
+/**
+ * Acrescenta `linha` ao recuperacoes.log da `pasta`, com a data e hora.
+ * Passou do limite, o log fica só com a metade mais nova. Nunca lança: sem
+ * log, quem chamou continua. `origem` marca a linha no console.
+ */
+export function registrarNoLog(
+  pasta: string,
+  linha: string,
+  quando: Date,
+  origem: string,
+): void {
+  const arquivo = path.join(pasta, ARQ_LOG);
+  try {
+    mkdirSync(pasta, { recursive: true });
+    appendFileSync(arquivo, `${quando.toISOString()} ${linha}\n`, 'utf8');
+    if (statSync(arquivo).size > LIMITE_LOG) {
+      const texto = readFileSync(arquivo, 'utf8');
+      const resto = texto.slice(Math.floor(texto.length / 2));
+      gravarAtomico(arquivo, resto.slice(resto.indexOf('\n') + 1));
+    }
+  } catch {
+    // Sem log: quem chamou continua.
+  }
+  console.warn(`[${origem}] ${linha}`);
+}
+
 /** Data e número de ordem do nome de uma cópia, ou null se não é dela. */
 function ordemDaCopia(nome: string, prefixo: string): [string, number] | null {
   if (!nome.startsWith(prefixo)) return null;
@@ -257,19 +283,7 @@ export function criarConfigSeguro<C extends object = Objeto>(
   const caminho = (nome: string) => path.join(pasta(), nome);
 
   function registrar(linha: string): void {
-    const arquivo = caminho(ARQ_LOG);
-    try {
-      mkdirSync(pasta(), { recursive: true });
-      appendFileSync(arquivo, `${agora().toISOString()} ${linha}\n`, 'utf8');
-      if (statSync(arquivo).size > LIMITE_LOG) {
-        const texto = readFileSync(arquivo, 'utf8');
-        const resto = texto.slice(Math.floor(texto.length / 2));
-        gravarAtomico(arquivo, resto.slice(resto.indexOf('\n') + 1));
-      }
-    } catch {
-      // Sem log: a recuperação continua.
-    }
-    console.warn(`[config] ${linha}`);
+    registrarNoLog(pasta(), linha, agora(), 'config');
   }
 
   function avisar(r: Recuperacao): void {
