@@ -539,6 +539,107 @@ describe('vencimentos e idade da nota no resumo', () => {
   });
 });
 
+describe('vencimentos das informações complementares no resumo', () => {
+  /** Nota sem duplicatas, com o texto e o total dados. */
+  function comTexto(infCpl: string, vNF = '5902.40', emissao = -3): Nota {
+    const n = nota();
+    n.ide.dhEmi = `${aDias(emissao)}T10:00:00-03:00`;
+    n.totais.vNF = vNF;
+    n.infAdic.infCpl = infCpl;
+    return n;
+  }
+  const venc = (n: Nota) =>
+    ver(resumoConferencia(dados({ nota: n })), 'vencimentos');
+
+  it('três datas sem ano: parcelas iguais, como o Saef, em dia', () => {
+    const r = resumoConferencia(
+      dados({
+        nota: comTexto('PEDIDO 4512. SEUS VCTOS SERAO: 04/12 11/12 18/12'),
+      }),
+    );
+    const v = ver(r, 'vencimentos');
+    assert.equal(v.nivel, 'info');
+    assert.equal(v.ok, true);
+    assert.equal(v.titulo, 'Parcelas em dia, das informações complementares');
+    assert.equal(
+      v.detalhe,
+      'A nota não tem duplicatas: os vencimentos vieram das informações complementares. O valor de cada parcela é o total da nota dividido em partes iguais (a última leva a diferença dos centavos). Datas contadas a partir de hoje.',
+    );
+    assert.equal(v.citacao, 'VCTOS SERAO: 04/12 11/12 18/12');
+    assert.deepEqual(
+      v.linhas?.map((l) => [plano(l.texto), l.nivel]),
+      [
+        ['Parcela 1 de 3, 04/12/2026, R$ 1.967,47: vence em 31 dias.', 'ok'],
+        ['Parcela 2 de 3, 11/12/2026, R$ 1.967,47: vence em 38 dias.', 'ok'],
+        ['Parcela 3 de 3, 18/12/2026, R$ 1.967,46: vence em 45 dias.', 'ok'],
+      ],
+    );
+    // A linha das duplicatas continua dizendo que não há duplicatas.
+    assert.equal(ver(r, 'duplicatas').titulo, 'Sem duplicatas');
+    assert.equal(r.pontos, 0);
+  });
+
+  it('uma data só, perto: aviso leve, "Parcela" sem número', () => {
+    const v = venc(comTexto('Vencimento: 10/11', '52.00'));
+    assert.equal(v.nivel, 'leve');
+    assert.equal(v.titulo, 'Parcela vence em 7 dias');
+    assert.match(
+      v.detalhe,
+      /^A nota não tem duplicatas: o vencimento veio das informações complementares\. O valor é o total da nota\./,
+    );
+    assert.equal(
+      plano(v.linhas?.[0].texto ?? ''),
+      'Parcela, 10/11/2026, R$ 52,00: vence em 7 dias.',
+    );
+  });
+
+  it('parcelas vencidas: as mesmas marcas das duplicatas', () => {
+    const v = venc(comTexto('VCTOS 01/10 01/11 01/12', '300.00', -40));
+    assert.equal(v.nivel, 'forte');
+    assert.equal(v.ok, false);
+    assert.equal(v.titulo, '2 parcelas vencidas, a mais antiga há 33 dias');
+    assert.deepEqual(
+      v.linhas?.map((l) => l.nivel),
+      ['forte', 'forte', 'ok'],
+    );
+    assert.match(
+      v.linhas?.[0].texto ?? '',
+      /Falar com o fornecedor para prorrogar\.$/,
+    );
+  });
+
+  it('datas que não dá para ler: só a frase da nota, como informação', () => {
+    const r = resumoConferencia(
+      dados({ nota: comTexto('VENCIMENTOS: 30/60/90 DIAS. OBRIGADO') }),
+    );
+    const v = ver(r, 'vencimentos');
+    assert.equal(v.nivel, 'info');
+    assert.equal(
+      v.titulo,
+      'Vencimentos escritos nas informações complementares',
+    );
+    assert.match(v.detalhe, /não puderam ser lidas com segurança/);
+    assert.equal(v.citacao, 'VENCIMENTOS: 30/60/90 DIAS');
+    assert.equal(v.linhas, undefined);
+    assert.equal(r.pontos, 0);
+  });
+
+  it('com duplicatas no XML, o texto não conta', () => {
+    const n = comTexto('VCTOS 04/12 11/12', '52.00');
+    n.duplicatas = [{ nDup: '001', dVenc: aDias(30), vDup: '52.00' }];
+    const v = venc(n);
+    assert.equal(v.titulo, 'Parcelas em dia');
+    assert.equal(v.citacao, undefined);
+    assert.equal(v.linhas?.length, 1);
+  });
+
+  it('sem trecho de vencimento: como antes, "Sem parcelas"', () => {
+    const v = venc(comTexto('PEDIDO 04/12. DATA DE VALIDADE 04/12/2027'));
+    assert.equal(v.titulo, 'Sem parcelas');
+    assert.equal(v.nivel, 'ok');
+  });
+});
+
 describe('painelCabeAoLado', () => {
   // Conteúdo da nota com 1200 px, painel de 320 px.
   it('1920 a 100%: cabe ao lado', () => {

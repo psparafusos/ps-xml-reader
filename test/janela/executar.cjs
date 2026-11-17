@@ -14,7 +14,8 @@
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
 // ferramenta ST), os dois avisos novos da ferramenta ST (t13, com a
 // planilha inventada de planilhaST.mts), a nota de devolução (t14) e as
-// linhas informativas do painel da Conferência (frete, t15 a t18). Com
+// linhas informativas do painel da Conferência (frete, t15 a t18, e
+// vencimentos escritos nas informações complementares, t19). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e as
 // do painel.
 'use strict';
@@ -3009,6 +3010,64 @@ async function casosPainelAvisos() {
             );
             await inicio();
           }
+        }
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
+  // t19: sem duplicatas, "SEUS VCTOS SERAO: 04/12 11/12 18/12" e 5.902,40.
+  // As marcas (vencida, próxima) dependem do dia em que o teste roda: confere
+  // só datas e valores.
+  await caso(
+    'Painel da Conferência: vencimentos das informações complementares (t19), parcelas iguais e trecho selecionável, em 1366 e em 1920',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of TAMANHOS_PAINEL) {
+          const linhas = await linhasDoPainel(
+            't19-vencimentos-texto.xml',
+            w,
+            h,
+          );
+          const ids = linhas.map((l) => l.id);
+          confere(
+            ids.indexOf('frete') === 0 &&
+              ids.indexOf('vencimentos') > ids.indexOf('frete'),
+            `ordem das linhas: ${ids.join(', ')}`,
+          );
+          const aberto = await avaliar(
+            `!document.getElementById('conferencia-detalhe-vencimentos').hidden`,
+          );
+          const detalhe = aberto
+            ? await avaliar(
+                `document.getElementById('conferencia-detalhe-vencimentos').textContent.replace(/ /g, ' ')`,
+              )
+            : await abrirDetalhe('vencimentos');
+          for (const trecho of [
+            'Parcela 1 de 3, 04/12/2026, R$ 1.967,47',
+            'Parcela 2 de 3, 11/12/2026, R$ 1.967,47',
+            'Parcela 3 de 3, 18/12/2026, R$ 1.967,46',
+            'vieram das informações complementares',
+            'dividido em partes iguais',
+            'Na nota: "VCTOS SERAO: 04/12 11/12 18/12"',
+          ])
+            confere(
+              detalhe.includes(trecho),
+              `falta "${trecho}" em: ${detalhe}`,
+            );
+          const sel = await avaliar(`(() => {
+            const c = document.querySelector('#conferencia-detalhe-vencimentos .conferencia__citacao');
+            const p = document.querySelector('#conferencia-detalhe-vencimentos > p:not(.conferencia__citacao)');
+            return [getComputedStyle(c).userSelect, getComputedStyle(p).userSelect];
+          })()`);
+          confere(
+            sel[0] === 'text' && sel[1] === 'none',
+            `seleção (trecho, explicação): ${sel.join(', ')}`,
+          );
+          await capturar(`painel-t19-vencimentos-texto-${w}.png`);
+          await inicio();
         }
       } finally {
         janela.setContentSize(largura, altura);

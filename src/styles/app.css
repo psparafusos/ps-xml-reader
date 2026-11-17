@@ -34,7 +34,7 @@ ul {
 /* Interface não seleciona: barra, cabeças de janela, abas, botões, rótulos,
    títulos, menus, selos, painel de conferência, tela inicial e dicas. Só os
    dados selecionam (como antes): campos de digitação, caminhos, a nota,
-   versão e vigência dos documentos, relatórios, erros e avisos, a explicação da ST, as decisões lembradas e a
+   versão e vigência dos documentos, relatórios, erros e avisos, a explicação da ST, o trecho da nota no painel da Conferência, as decisões lembradas e a
    tabela de Dados do app. Três regras: a base, os dados e, dentro dos
    dados, as peças de interface que voltam a não selecionar. O PDF e a
    impressão não mudam (fora da mídia screen). Diálogo e popover vão para a
@@ -75,6 +75,7 @@ ul {
   .documento__relatorio,
   .st__explicacao,
   .st__nota-info,
+  .conferencia__citacao,
   .config__tabela td {
     user-select: text;
   }
@@ -661,6 +662,11 @@ ul {
   gap: var(--esp-2);
   padding: var(--esp-2) var(--esp-2) var(--esp-2) calc(20px + 2 * var(--esp-2));
   color: var(--cor-texto);
+}
+
+.conferencia__citacao {
+  overflow-wrap: anywhere;
+  color: var(--cor-texto-forte);
 }
 
 .conferencia__detalhe[hidden] {

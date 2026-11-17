@@ -197,6 +197,8 @@ export function criarPainel(
       'div',
       'conferencia__detalhe',
       el('p', '', v.detalhe),
+      // O trecho da nota é dado: seleciona (o resto do painel não).
+      v.citacao && el('p', 'conferencia__citacao', `Na nota: "${v.citacao}"`),
       v.linhas &&
         v.linhas.length > 0 &&
         el(

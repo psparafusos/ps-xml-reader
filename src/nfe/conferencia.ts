@@ -17,6 +17,7 @@ import {
 } from './avisos';
 import * as f from './formato';
 import { linhaFrete } from './frete';
+import { vencimentosDoTexto } from './vencimentosTexto';
 import type { Anotacoes, Nota } from './tipos';
 
 export type IdVerificacao =
@@ -42,6 +43,11 @@ export interface Verificacao {
   nivel: NivelVerificacao;
   titulo: string;
   detalhe: string;
+  /**
+   * Trecho da nota mostrado como está (as informações complementares de
+   * onde vieram os vencimentos). É dado da nota: seleciona.
+   */
+  citacao?: string;
   /** Linhas do detalhe, cada uma com o seu nível (as parcelas). */
   linhas?: { texto: string; nivel: NivelVerificacao }[];
   /** Só na "já conferida": os .psxml achados, do mais novo ao mais antigo. */
@@ -161,29 +167,7 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
         },
   );
 
-  const parcelas = situacaoParcelas(nota, d.hoje, d.diasAvisoVencimento);
-  const vencidas = parcelas.filter((x) => x.nivel === 'vencida').length;
-  const proximas = parcelas.filter((x) => x.nivel === 'proxima').length;
-  const nivelVenc: NivelVerificacao =
-    vencidas > 0 ? 'forte' : proximas > 0 ? 'leve' : 'ok';
-  verificacoes.push({
-    id: 'vencimentos',
-    ok: nivelVenc === 'ok',
-    nivel: nivelVenc,
-    titulo: tituloParcelas(parcelas, d.diasAvisoVencimento),
-    detalhe:
-      parcelas.length === 0
-        ? 'A nota não tem duplicatas.'
-        : vencidas > 0
-          ? // "Falar com o fornecedor" fica só na linha da parcela vencida.
-            'Datas contadas a partir de hoje.'
-          : `Nenhuma parcela vencida. Datas contadas a partir de hoje.`,
-    linhas: parcelas.map((x) => ({
-      texto: x.texto,
-      nivel:
-        x.nivel === 'vencida' ? 'forte' : x.nivel === 'proxima' ? 'leve' : 'ok',
-    })),
-  });
+  verificacoes.push(verificacaoVencimentos(nota, d));
 
   const outra = ehOutraEmpresa(nota, d.cnpjEmpresa);
   verificacoes.push({
@@ -287,6 +271,81 @@ function verificacaoDevolucao(refs: readonly string[]): Verificacao {
                 : `chave ${x.chave} (fora do formato de 44 dígitos)`,
             )
             .join('; ')}.`,
+  };
+}
+
+const nivelParcela = (x: SituacaoParcela): NivelVerificacao =>
+  x.nivel === 'vencida' ? 'forte' : x.nivel === 'proxima' ? 'leve' : 'ok';
+
+/**
+ * Linha dos vencimentos: as duplicatas da nota, comparadas com hoje. Sem
+ * duplicatas, os vencimentos escritos nas informações complementares (o
+ * total dividido em parcelas iguais) ou, sem segurança para ler as datas, só
+ * o trecho da nota.
+ */
+function verificacaoVencimentos(nota: Nota, d: DadosConferencia): Verificacao {
+  const texto =
+    nota.duplicatas.length === 0
+      ? vencimentosDoTexto(nota.infAdic.infCpl, nota.ide.dhEmi, nota.totais.vNF)
+      : null;
+  if (texto?.tipo === 'ilegivel')
+    return {
+      id: 'vencimentos',
+      ok: true,
+      nivel: 'info',
+      titulo: 'Vencimentos escritos nas informações complementares',
+      detalhe:
+        'A nota não tem duplicatas e as informações complementares falam de vencimento, mas as datas não puderam ser lidas com segurança. Confira no texto da nota.',
+      citacao: texto.trecho,
+    };
+
+  const doTexto = texto?.tipo === 'datas';
+  const duplicatas = doTexto
+    ? texto.parcelas.map((p, i, todas) => ({
+        // Uma data só: "Parcela", sem número.
+        nDup: todas.length === 1 ? '' : `${i + 1} de ${todas.length}`,
+        ...p,
+      }))
+    : nota.duplicatas;
+  const parcelas = situacaoParcelas(
+    { ...nota, duplicatas },
+    d.hoje,
+    d.diasAvisoVencimento,
+  );
+  const vencidas = parcelas.filter((x) => x.nivel === 'vencida').length;
+  const proximas = parcelas.filter((x) => x.nivel === 'proxima').length;
+  const nivel: NivelVerificacao =
+    vencidas > 0 ? 'forte' : proximas > 0 ? 'leve' : doTexto ? 'info' : 'ok';
+  const linhas = parcelas.map((x) => ({
+    texto: x.texto,
+    nivel: nivelParcela(x),
+  }));
+  if (doTexto)
+    return {
+      id: 'vencimentos',
+      ok: nivel === 'info',
+      nivel,
+      titulo:
+        nivel === 'info'
+          ? 'Parcelas em dia, das informações complementares'
+          : tituloParcelas(parcelas, d.diasAvisoVencimento),
+      detalhe: `A nota não tem duplicatas: ${parcelas.length === 1 ? 'o vencimento veio' : 'os vencimentos vieram'} das informações complementares. ${parcelas.length === 1 ? 'O valor é o total da nota.' : 'O valor de cada parcela é o total da nota dividido em partes iguais (a última leva a diferença dos centavos).'} Datas contadas a partir de hoje.`,
+      citacao: texto.trecho,
+      linhas,
+    };
+  return {
+    id: 'vencimentos',
+    ok: nivel === 'ok',
+    nivel,
+    titulo: tituloParcelas(parcelas, d.diasAvisoVencimento),
+    detalhe:
+      parcelas.length === 0
+        ? 'A nota não tem duplicatas.'
+        : vencidas > 0
+          ? // "Falar com o fornecedor" fica só na linha da parcela vencida.
+            'Datas contadas a partir de hoje.'
+          : `Nenhuma parcela vencida. Datas contadas a partir de hoje.`,
+    linhas,
   };
 }
 
