@@ -161,6 +161,54 @@ E vão para as observações, sem mudar o selo: CNPJ em `vinculos` ou `fatores`
 que não está em `fornecedores` (usado assim mesmo), vínculos e chaves
 repetidos iguais, seções e campos a mais, e a falta das seções opcionais.
 
+## Como o app sugere o produto
+
+O motor fica em `src/cadastro/casamento.ts`. Para cada item da NF-e ele
+recebe o CNPJ (ou CPF) do emitente e, do item, `cProd`, `cEAN`, `xProd`,
+`NCM`, `uCom` e, se houver, `vUnCom`. Tenta os caminhos nesta ordem; o
+primeiro que acha algum produto decide:
+
+| Caminho                             | O que compara                                                                                                            | Confiança |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------- |
+| (a) vínculo exato do emitente       | `cProd` com `codigo_fornecedor` dos vínculos do CNPJ do emitente, sem diferenciar maiúsculas e sem os espaços das pontas | alta      |
+| (b) vínculo exato da raiz           | o mesmo, nos outros CNPJs com a mesma raiz (8 primeiros dígitos): as filiais                                             | média     |
+| (c) código normalizado, no emitente | `cProd` e `codigo_fornecedor` sem espaços em nenhuma posição e sem zeros à esquerda                                      | média     |
+| (c) código normalizado, na raiz     | o mesmo, nas filiais                                                                                                     | baixa     |
+| (d) cEAN                            | `cEAN` da nota contra `codigo_barras` dos produtos                                                                       | média     |
+| (e) cProd com cara de EAN           | `cProd` só com dígitos e 8, 12, 13 ou 14 posições contra `codigo_barras`                                                 | baixa     |
+
+- Códigos de barras são comparados sem os zeros à esquerda: o GTIN-14
+  `07890000004022` casa com o EAN-13 `7890000004022`. `SEM GTIN` e valores
+  que não são GTIN nunca casam.
+- CPF não tem raiz: só os caminhos (a) e (c) no próprio emitente, e os de
+  código de barras.
+- **Ambíguo**: mais de um produto no caminho que decidiu. O app mostra a
+  lista de candidatos (com o ativo marcado) e não sugere nenhum. Acontece com
+  o mesmo código em filiais apontando para produtos diferentes, com códigos
+  que só diferem por zeros (`009381` e `9381`, quando a nota traz `09381`),
+  com o mesmo código gravado duas vezes no fornecedor e com o código de
+  barras repetido em dois produtos.
+- **Rebaixamento**: a confiança cai um nível (alta para média, média para
+  baixa) quando o produto está inativo e quando o código foi reaproveitado
+  (`reaproveitado_em`) sem compra do fornecedor depois disso (pela
+  `ultima_entrada` do fator).
+
+**Fator.** Entre os fatores do emitente e das filiais para o produto
+sugerido, vale primeiro o da mesma unidade da nota (`unidade_compra` igual a
+`uCom`), depois o do próprio emitente, depois o da entrada mais recente. O
+app diz quando o fator é de uma filial e avisa quando a unidade do fator não
+é a da nota.
+
+**Avisos** de cada item: produto inativo; código reaproveitado sem compra
+depois; NCM do cadastro diferente do da nota; unidade do fator diferente da
+da nota; custo fora do padrão (o `vUnCom` levado à unidade de venda pelo
+fator, ou direto quando a unidade é a mesma, mais de 30% acima ou abaixo do
+`custo` do cadastro; limite provisório, a calibrar com notas reais); e, nos
+ambíguos, quando só um candidato está ativo.
+
+**Nota já lançada**: a chave de acesso está em `notas_lancadas` (com a data
+da entrada, se veio).
+
 ## Exemplo
 
 Inventado, com o mínimo de cada seção:
