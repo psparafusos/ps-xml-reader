@@ -250,7 +250,10 @@ describe('nota de devolução no resumo', () => {
     assert.equal(v.id, 'devolucao');
     assert.equal(v.nivel, 'info');
     assert.equal(v.ok, true);
-    assert.equal(v.titulo, 'Nota de devolução: NF 1234, série 2');
+    assert.equal(
+      v.titulo,
+      "Nota de devolução: NF 1234, série 2. No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.",
+    );
     assert.match(v.detalhe, /finalidade 4/);
     assert.match(v.detalhe, /2826 1000/);
     // Só informa: não vira ponto para olhar.
@@ -261,7 +264,10 @@ describe('nota de devolução no resumo', () => {
     const n = nota();
     n.ide.finNFe = '4';
     const v = ver(resumoConferencia(dados({ nota: n })), 'devolucao');
-    assert.equal(v.titulo, 'Nota de devolução');
+    assert.equal(
+      v.titulo,
+      "Nota de devolução. No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.",
+    );
     assert.match(v.detalhe, /não traz a chave/);
   });
 

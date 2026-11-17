@@ -15,7 +15,8 @@
 // ferramenta ST), os dois avisos novos da ferramenta ST (t13, com a
 // planilha inventada de planilhaST.mts), a nota de devolução (t14) e as
 // linhas informativas do painel da Conferência (frete, t15 a t18, e
-// vencimentos escritos nas informações complementares, t19). Com
+// vencimentos escritos nas informações complementares, t19, e a devolução,
+// t14). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e as
 // do painel.
 'use strict';
@@ -2844,7 +2845,7 @@ async function casosJanelasPorCima() {
         return t ?? null;
       })()`);
       confere(
-        linhaPainel?.includes('Nota de devolução: NF 1234, série 2'),
+        linhaPainel === LINHA_DEVOLUCAO_T14,
         `linha do painel: ${JSON.stringify(linhaPainel)}`,
       );
       // Painel aberto: a linha fica à mostra (na janela estreita ele começa
@@ -2905,6 +2906,10 @@ async function casosJanelasPorCima() {
 }
 
 // ---------- painel da Conferência: frete, vencimentos e devolução ----------
+
+/** A linha da devolução do t14, com o lembrete do Saef. */
+const LINHA_DEVOLUCAO_T14 =
+  "Nota de devolução: NF 1234, série 2. No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
 
 /** Tamanhos das capturas do painel: tela de 1366 e de 1920. */
 const TAMANHOS_PAINEL = [
@@ -3066,7 +3071,41 @@ async function casosPainelAvisos() {
             sel[0] === 'text' && sel[1] === 'none',
             `seleção (trecho, explicação): ${sel.join(', ')}`,
           );
+          await avaliar(`document.activeElement?.blur(); true`);
           await capturar(`painel-t19-vencimentos-texto-${w}.png`);
+          await inicio();
+        }
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
+  // t14: devolução de cliente (finNFe 4, modFrete 9). A linha da devolução
+  // vem primeiro, com o lembrete do Saef; o frete vem logo depois.
+  await caso(
+    'Painel da Conferência: devolução de cliente (t14) com o lembrete do Saef, em 1366 e em 1920',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      try {
+        for (const [w, h] of TAMANHOS_PAINEL) {
+          const linhas = await linhasDoPainel(
+            't14-devolucao-cliente.xml',
+            w,
+            h,
+          );
+          confere(
+            linhas[0]?.id === 'devolucao' &&
+              linhas[0].nivel === 'info' &&
+              linhas[0].titulo === LINHA_DEVOLUCAO_T14,
+            `linha da devolução em ${w}: ${JSON.stringify(linhas[0])}`,
+          );
+          confere(
+            linhas[1]?.id === 'frete' &&
+              linhas[1].titulo === 'Sem frete (modalidade 9)',
+            `linha do frete em ${w}: ${JSON.stringify(linhas[1])}`,
+          );
+          await capturar(`painel-t14-devolucao-cliente-${w}.png`);
           await inicio();
         }
       } finally {

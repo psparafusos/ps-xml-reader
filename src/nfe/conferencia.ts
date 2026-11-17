@@ -248,7 +248,17 @@ export function numeroSerieDaChave(
   };
 }
 
-/** Linha "Nota de devolução", com a nota (ou as notas) referenciada. */
+/**
+ * Na entrada da devolução pelo Saef, sem "Não alterar cadastro" o preço de
+ * venda da nota vira o preço de compra do produto (a margem fica negativa).
+ */
+const LEMBRETE_DEVOLUCAO =
+  "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+
+/**
+ * Linha "Nota de devolução", com a nota (ou as notas) referenciada e o
+ * lembrete do Saef.
+ */
 function verificacaoDevolucao(refs: readonly string[]): Verificacao {
   const lidas = refs.map((chave) => ({ chave, ns: numeroSerieDaChave(chave) }));
   const nomes = lidas
@@ -258,9 +268,7 @@ function verificacaoDevolucao(refs: readonly string[]): Verificacao {
     id: 'devolucao',
     ok: true,
     nivel: 'info',
-    titulo: nomes.length
-      ? `Nota de devolução: ${nomes.join('; ')}`
-      : 'Nota de devolução',
+    titulo: `${nomes.length ? `Nota de devolução: ${nomes.join('; ')}` : 'Nota de devolução'}. ${LEMBRETE_DEVOLUCAO}`,
     detalhe:
       refs.length === 0
         ? 'A nota é de devolução (finalidade 4), mas não traz a chave da nota devolvida.'
