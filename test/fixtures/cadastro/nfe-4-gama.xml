@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Nota 4: filial 3 da Ferramentas Gama, sem vínculos próprios. O mesmo código aponta para produtos diferentes nas filiais 1 e 2 (ambíguo), EAN repetido em dois produtos (ambíguo), GTIN-14 com zero na frente e cProd que é um EAN. NF-e INVENTADA para os testes do cadastro (dados fictícios, sem valor fiscal). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe28261133333333000353550010000000451000000451" versao="4.00">
+      <ide><cUF>28</cUF><cNF>00000045</cNF><natOp>Venda de mercadoria</natOp><mod>55</mod><serie>1</serie><nNF>45</nNF><dhEmi>2026-11-10T09:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb><finNFe>1</finNFe></ide>
+      <emit><CNPJ>33333333000353</CNPJ><xNome>Ferramentas Gama SA (filial 3)</xNome><enderEmit><xLgr>Rua Inventada</xLgr><nro>1</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderEmit><IE>000000000</IE><CRT>3</CRT></emit>
+      <dest><CNPJ>99999999000191</CNPJ><xNome>Loja Exemplo Inventada</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>AB-1</cProd><cEAN>SEM GTIN</cEAN><xProd>CHAVE COMBINADA</xProd><NCM>82041100</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>6.0000</qCom><vUnCom>12.5000</vUnCom><vProd>75.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>6.0000</qTrib><vUnTrib>12.5000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>75.00</vBC><pICMS>19.00</pICMS><vICMS>14.25</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="2">
+        <prod><cProd>FI-19</cProd><cEAN>7890000004008</cEAN><xProd>FITA ISOLANTE 19MM</xProd><NCM>39191020</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10.0000</qCom><vUnCom>3.2000</vUnCom><vProd>32.00</vProd><cEANTrib>7890000004008</cEANTrib><uTrib>UN</uTrib><qTrib>10.0000</qTrib><vUnTrib>3.2000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>32.00</vBC><pICMS>19.00</pICMS><vICMS>6.08</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="3">
+        <prod><cProd>VR-18</cProd><cEAN>07890000004022</cEAN><xProd>FITA VEDA ROSCA 18MM</xProd><NCM>39191020</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>12.0000</qCom><vUnCom>2.1000</vUnCom><vProd>25.20</vProd><cEANTrib>07890000004022</cEANTrib><uTrib>UN</uTrib><qTrib>12.0000</qTrib><vUnTrib>2.1000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>25.20</vBC><pICMS>19.00</pICMS><vICMS>4.79</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="4">
+        <prod><cProd>7890000004039</cProd><cEAN>SEM GTIN</cEAN><xProd>LIXA DAGUA 120</xProd><NCM>68052000</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>50.0000</qCom><vUnCom>1.3000</vUnCom><vProd>65.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>50.0000</qTrib><vUnTrib>1.3000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>65.00</vBC><pICMS>19.00</pICMS><vICMS>12.35</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>197.20</vBC><vICMS>37.47</vICMS><vST>0.00</vST><vProd>197.20</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>197.20</vNF></ICMSTot></total>
+      <transp><modFrete>9</modFrete></transp>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><chNFe>28261133333333000353550010000000451000000451</chNFe><dhRecbto>2026-11-10T09:01:00-03:00</dhRecbto><nProt>000000000000045</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>

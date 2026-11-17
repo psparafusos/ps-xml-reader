@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Nota 3: Parafusos Beta. Códigos que só diferem por zeros (exato, ambíguo depois da normalização, só com zeros a menos), código com espaço no meio, produto inativo e unidade diferente da do fator. NF-e INVENTADA para os testes do cadastro (dados fictícios, sem valor fiscal). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe28261122222222000191550010000881201000881209" versao="4.00">
+      <ide><cUF>28</cUF><cNF>00088120</cNF><natOp>Venda de mercadoria</natOp><mod>55</mod><serie>1</serie><nNF>88120</nNF><dhEmi>2026-11-10T09:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb><finNFe>1</finNFe></ide>
+      <emit><CNPJ>22222222000191</CNPJ><xNome>Parafusos Beta Comercio Ltda</xNome><enderEmit><xLgr>Rua Inventada</xLgr><nro>1</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderEmit><IE>000000000</IE><CRT>3</CRT></emit>
+      <dest><CNPJ>99999999000191</CNPJ><xNome>Loja Exemplo Inventada</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>9381</cProd><cEAN>SEM GTIN</cEAN><xProd>PORCA SEXT 5/16 ZINC</xProd><NCM>73181600</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>100.0000</qCom><vUnCom>0.1400</vUnCom><vProd>14.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>100.0000</qTrib><vUnTrib>0.1400</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>14.00</vBC><pICMS>19.00</pICMS><vICMS>2.66</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="2">
+        <prod><cProd>09381</cProd><cEAN>SEM GTIN</cEAN><xProd>PORCA SEXT 1/4 ZINC</xProd><NCM>73181600</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>100.0000</qCom><vUnCom>0.1000</vUnCom><vProd>10.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>100.0000</qTrib><vUnTrib>0.1000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>10.00</vBC><pICMS>19.00</pICMS><vICMS>1.90</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="3">
+        <prod><cProd>450</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAF ALLEN M6X20 CX 10</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>3.0000</qCom><vUnCom>8.0000</vUnCom><vProd>24.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>CX</uTrib><qTrib>3.0000</qTrib><vUnTrib>8.0000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>24.00</vBC><pICMS>19.00</pICMS><vICMS>4.56</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="4">
+        <prod><cProd>7 001</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAF ALLEN M8X30 CX 10</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>2.0000</qCom><vUnCom>12.0000</vUnCom><vProd>24.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>CX</uTrib><qTrib>2.0000</qTrib><vUnTrib>12.0000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>24.00</vBC><pICMS>19.00</pICMS><vICMS>4.56</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="5">
+        <prod><cProd>B-500</cProd><cEAN>SEM GTIN</cEAN><xProd>BROCA ACO RAPIDO 6MM</xProd><NCM>82075011</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10.0000</qCom><vUnCom>4.1000</vUnCom><vProd>41.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>10.0000</qTrib><vUnTrib>4.1000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>41.00</vBC><pICMS>19.00</pICMS><vICMS>7.79</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>113.00</vBC><vICMS>21.47</vICMS><vST>0.00</vST><vProd>113.00</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>113.00</vNF></ICMSTot></total>
+      <transp><modFrete>9</modFrete></transp>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><chNFe>28261122222222000191550010000881201000881209</chNFe><dhRecbto>2026-11-10T09:01:00-03:00</dhRecbto><nProt>000000000088120</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Nota 1: matriz da Ferragens Alfa. Vínculo exato (também em minúsculas e com espaço no fim), vínculo só na filial, cEAN contra o código de barras e um item sem nada que case (SEM GTIN). Já lançada (chave em notas_lancadas). NF-e INVENTADA para os testes do cadastro (dados fictícios, sem valor fiscal). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe28261111111111000191550010000012011000012013" versao="4.00">
+      <ide><cUF>28</cUF><cNF>00001201</cNF><natOp>Venda de mercadoria</natOp><mod>55</mod><serie>1</serie><nNF>1201</nNF><dhEmi>2026-11-10T09:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb><finNFe>1</finNFe></ide>
+      <emit><CNPJ>11111111000191</CNPJ><xNome>Ferragens Alfa Ltda (matriz)</xNome><enderEmit><xLgr>Rua Inventada</xLgr><nro>1</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderEmit><IE>000000000</IE><CRT>3</CRT></emit>
+      <dest><CNPJ>99999999000191</CNPJ><xNome>Loja Exemplo Inventada</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>PSX-14</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAF SEXT 1/4X2 ZINC CX 100</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>2.0000</qCom><vUnCom>42.0000</vUnCom><vProd>84.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>CX</uTrib><qTrib>2.0000</qTrib><vUnTrib>42.0000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>84.00</vBC><pICMS>19.00</pICMS><vICMS>15.96</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="2">
+        <prod><cProd>psx-16 </cProd><cEAN>SEM GTIN</cEAN><xProd>PARAF SEXT 1/4X3 ZINC CX 50</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>1.0000</qCom><vUnCom>27.5000</vUnCom><vProd>27.50</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>CX</uTrib><qTrib>1.0000</qTrib><vUnTrib>27.5000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>27.50</vBC><pICMS>19.00</pICMS><vICMS>5.22</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="3">
+        <prod><cProd>BN-8</cProd><cEAN>SEM GTIN</cEAN><xProd>BUCHA NYLON 8MM</xProd><NCM>39269090</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>200.0000</qCom><vUnCom>0.0800</vUnCom><vProd>16.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>200.0000</qTrib><vUnTrib>0.0800</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>16.00</vBC><pICMS>19.00</pICMS><vICMS>3.04</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="4">
+        <prod><cProd>ARP-14</cProd><cEAN>7890000001052</cEAN><xProd>ARRUELA PRESSAO 1/4</xProd><NCM>73182100</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>100.0000</qCom><vUnCom>0.0600</vUnCom><vProd>6.00</vProd><cEANTrib>7890000001052</cEANTrib><uTrib>UN</uTrib><qTrib>100.0000</qTrib><vUnTrib>0.0600</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>6.00</vBC><pICMS>19.00</pICMS><vICMS>1.14</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="5">
+        <prod><cProd>ZZ-99</cProd><cEAN>SEM GTIN</cEAN><xProd>ABRACADEIRA NYLON 200MM</xProd><NCM>39269090</NCM><CFOP>5102</CFOP><uCom>PCT</uCom><qCom>5.0000</qCom><vUnCom>9.9000</vUnCom><vProd>49.50</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>PCT</uTrib><qTrib>5.0000</qTrib><vUnTrib>9.9000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>49.50</vBC><pICMS>19.00</pICMS><vICMS>9.40</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>183.00</vBC><vICMS>34.77</vICMS><vST>0.00</vST><vProd>183.00</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>183.00</vNF></ICMSTot></total>
+      <transp><modFrete>9</modFrete></transp>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><chNFe>28261111111111000191550010000012011000012013</chNFe><dhRecbto>2026-11-10T09:01:00-03:00</dhRecbto><nProt>000000000001201</nProt><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>

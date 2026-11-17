@@ -938,6 +938,16 @@ cartão por documento:
   Arquivo sem o apêndice, ou de UF que não é Sergipe, é recusado. Com ele
   carregado, NCM 2710 e 3403 fora da planilha de ST vira "confirmar" na
   ferramenta.
+- **Cadastro do sistema de gestão**: opcional. Um `.json` que a loja
+  exporta do próprio sistema de gestão, no formato genérico descrito em
+  [docs/formato-cadastro.md](docs/formato-cadastro.md) (fornecedores,
+  produtos, vínculos de código, fatores e notas já lançadas; para quem não
+  tem como gerar JSON, há um modelo de planilha CSV e o conversor). O cartão
+  mostra a origem, a data da extração, a data da importação, as quantidades
+  e o relatório da leitura (pontos de atenção e observações). Arquivo que
+  não segue o formato é recusado com a lista do que falhou, e o cadastro
+  carregado continua valendo; limite de 30 MB. Por enquanto só é carregado:
+  a sugestão do produto da casa e do fator na Conferência vem depois.
 
 Cada cartão mostra o ícone e o rótulo da situação, o nome do arquivo em
 uso com um **X** para remover o documento (com confirmação; sem a planilha de
@@ -984,7 +994,9 @@ A base já lida fica na pasta de dados do app
 `tipi-info.json` (versão, vigência, data da importação e, para arquivo
 baixado pelo app, a data e o tamanho do servidor). O resumo da leitura
 (ignorados, problemas e os segmentos incompletos da planilha de ST) fica em
-`st-leitura.json` e `tipi-leitura.json`, na mesma pasta.
+`st-leitura.json` e `tipi-leitura.json`, na mesma pasta. O cadastro do
+sistema de gestão fica como foi importado em `cadastro.json`, com os
+metadados e o relatório da leitura em `cadastro-info.json`.
 
 **Verificação online** (embaixo, na mesma aba, e também na aba Geral): o
 interruptor vem desligado e,
@@ -1243,12 +1255,14 @@ não faz chamada de rede.
 
 ## Outros comandos
 
-| Comando               | O que faz                                                                                                                                                                                                           |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run typecheck`   | Verifica os tipos TypeScript                                                                                                                                                                                        |
-| `npm run lint`        | Roda oxlint e confere a formatação                                                                                                                                                                                  |
-| `npm test`            | Roda os testes automáticos                                                                                                                                                                                          |
-| `npm run test:janela` | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal. No fim, apaga as pastas temporárias que criou no `%TEMP%` (test/janela/rodar.cjs) |
+| Comando                                                                          | O que faz                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                                              | Verifica os tipos TypeScript                                                                                                                                                                                        |
+| `npm run lint`                                                                   | Roda oxlint e confere a formatação                                                                                                                                                                                  |
+| `npm test`                                                                       | Roda os testes automáticos                                                                                                                                                                                          |
+| `npm run test:janela`                                                            | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal. No fim, apaga as pastas temporárias que criou no `%TEMP%` (test/janela/rodar.cjs) |
+| `node scripts/medir-cadastro.mjs <pasta de XMLs> <cadastro.json> [gabarito.csv]` | Mede o motor de casamento do cadastro sobre uma pasta de NF-e; grava `medicao.md` e `nao-casados.csv` na pasta atual ([docs/medidor-cadastro.md](docs/medidor-cadastro.md))                                         |
+| `node scripts/cadastro-csv-para-json.mjs <pasta com os CSV> <cadastro.json>`     | Converte o modelo de planilha do cadastro (`docs/modelo-cadastro`) para o JSON, só se passar no validador                                                                                                           |
 
 ## Estrutura
 
@@ -1289,6 +1303,11 @@ src/
   icones.ts          conjunto único de ícones, inclusive os de estado
   onlineSimulado.ts  gancho de desenvolvimento para testar a verificação online sem rede
   documentos.ts      documentos no processo principal: importação, rede, análise, decisões
+  cadastroGestao.ts  cadastro do sistema de gestão no processo principal: carregar, gravar, remover
+  cadastro/formato.ts   formato do cadastro (versão 1) e o validador
+  cadastro/csv.ts       modelo de planilha do cadastro: leitura e conversão para o JSON
+  cadastro/casamento.ts motor de casamento: produto da casa, caminho, confiança, fator e avisos
+  cadastro/documento.ts o cadastro como documento: leitura, cadastro-info.json e o selo
   fiscal/xlsx.ts     leitor mínimo de .xlsx (com fiscal/zip.ts)
   fiscal/st.ts       planilha de ST de Sergipe (Portal ST do CONFAZ)
   fiscal/tipi.ts     TIPI: texto do PDF e tipi.xlsx
@@ -1333,6 +1352,9 @@ src/
   xml/busca.ts       leitor genérico: busca nos nomes, atributos e textos
   xml/limites.ts     leitor genérico: árvore até 20 MB, só texto até 100 MB
 test/janela/         app numa janela oculta com NF-e inventadas de ataque (npm run test:janela)
+test/fixtures/cadastro/ cadastro inventado, 6 NF-e inventadas e o gabarito delas (motor e medidor)
+scripts/             medidor e conversor do cadastro (Node, sem dependências para rodar)
+docs/                formato do cadastro, modelo de planilha e o medidor
 index.html           estrutura da página
 assets/              ícone do app (ps-reader.ico) e logo da PS
 forge.config.mts     configuração do Electron Forge (instalador Squirrel)
