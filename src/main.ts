@@ -12,7 +12,6 @@ import { ouvir, tratar } from './ipcSeguro';
 import { registrarEsquemaApp, servirEsquemaApp } from './protocoloApp';
 import { PAGINA_INICIAL } from './seguranca/protocolo';
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   access,
   constants,
@@ -36,7 +35,6 @@ import { ehImpressoraCupom } from './impressoras';
 import { configPadrao, validarConfig } from './nfe/config';
 import {
   lerArquivoPerfil,
-  migrarParaPerfis,
   nomeArquivoPerfil,
   nomeLivre,
   novoIdPerfil,
@@ -45,7 +43,6 @@ import {
   perfisParaGravar,
   problemaNomePerfil,
   textoArquivoPerfil,
-  validarPerfis,
   type Perfis,
 } from './nfe/perfis';
 import { MARGEM_FOLHA_MM } from './nfe/folha';
@@ -908,43 +905,31 @@ interface Config {
   ferramentasPerfis?: unknown;
 }
 
-function caminhoConfig(): string {
-  return path.join(app.getPath('userData'), 'config.json');
-}
+// ---------- config.json seguro (src/configSeguro.ts): início do bloco ----------
+// Gravação atômica (temporário e rename) com config.json.bak, uma por vez;
+// arquivo ilegível e perfis inválidos guardados e recuperados. Houve
+// recuperação: a tela mostra o aviso uma vez (canal config-recuperacoes).
+import { criarConfigSeguro } from './configSeguro';
 
-function interpretarConfig(texto: string): Config {
-  const config: unknown = JSON.parse(texto);
-  return typeof config === 'object' && config !== null
-    ? (config as Config)
-    : {};
-}
+const configSeguro = criarConfigSeguro<Config>({
+  pasta: () => app.getPath('userData'),
+  aoRecuperar: () => avisarTodas('config-recuperada'),
+});
+
+tratar('config-recuperacoes', () => configSeguro.tirarAvisos());
+// ---------- config.json seguro: fim do bloco ----------
 
 /** Versão síncrona de lerConfig, para abrir e fechar a janela. */
 function lerConfigSync(): Config {
-  try {
-    return interpretarConfig(readFileSync(caminhoConfig(), 'utf8'));
-  } catch {
-    return {};
-  }
+  return configSeguro.lerSync();
 }
 
 function gravarConfigSync(parcial: Config): void {
-  const config = { ...lerConfigSync(), ...parcial };
-  mkdirSync(app.getPath('userData'), { recursive: true });
-  writeFileSync(
-    caminhoConfig(),
-    `${JSON.stringify(config, null, 2)}\n`,
-    'utf8',
-  );
+  configSeguro.gravarSync(parcial);
 }
 
 async function lerConfig(): Promise<Config> {
-  try {
-    return interpretarConfig(await readFile(caminhoConfig(), 'utf8'));
-  } catch {
-    // Sem config (primeira execução) ou arquivo ilegível: config vazia.
-    return {};
-  }
+  return configSeguro.ler();
 }
 
 tratar('versao', (): string => app.getVersion());
@@ -1044,15 +1029,9 @@ tratar('config-avisos', async (): Promise<ConfigAvisos> => {
   };
 });
 
-/** Grava as chaves de `parcial` mantendo as demais. */
+/** Grava as chaves de `parcial` mantendo as demais (src/configSeguro.ts). */
 async function gravarConfig(parcial: Config): Promise<void> {
-  const config = { ...(await lerConfig()), ...parcial };
-  await mkdir(app.getPath('userData'), { recursive: true });
-  await writeFile(
-    caminhoConfig(),
-    `${JSON.stringify(config, null, 2)}\n`,
-    'utf8',
-  );
+  return configSeguro.gravar(parcial);
 }
 
 async function lerPastaDestino(): Promise<string | null> {
@@ -1208,22 +1187,13 @@ function nomeUsuario(): string {
 }
 
 /**
- * Perfis salvos. Na primeira vez (ou com a chave inválida), a configuração da
+ * Perfis salvos. Na primeira vez (sem a chave perfis), a configuração da
  * Parte A vira o primeiro perfil, com o nome do usuário do Windows, e já fica
- * gravada.
+ * gravada. Chave inválida: cópia do original e recuperação perfil a perfil
+ * (src/configSeguro.ts).
  */
 async function lerPerfis(): Promise<Perfis> {
-  const config = await lerConfig();
-  if (config.perfis !== undefined) {
-    try {
-      return validarPerfis(config.perfis);
-    } catch {
-      // Inválido: refaz a partir da configuração da Parte A, abaixo.
-    }
-  }
-  const perfis = migrarParaPerfis(config.conferencia, nomeUsuario());
-  await gravarConfig({ perfis: perfisParaGravar(perfis) }).catch(() => {});
-  return perfis;
+  return configSeguro.lerPerfis(nomeUsuario());
 }
 
 /** O que o renderer precisa: a lista (id e nome), o ativo e a config dele. */
@@ -1658,7 +1628,10 @@ tratar(
     backupsLidos.delete(token as string);
     let antes: string;
     try {
-      antes = await importarBackup(app.getPath('userData'), b, new Date());
+      // Na fila do config.json: nenhuma gravação entra no meio.
+      antes = await configSeguro.naFila(() =>
+        importarBackup(app.getPath('userData'), b, new Date()),
+      );
     } catch (erro) {
       return {
         status: 'erro',

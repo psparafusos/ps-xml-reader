@@ -3820,3 +3820,11 @@ window.addEventListener('drop', (e) => {
       console.error(erro);
     });
 });
+
+// ---------- config.json seguro: início do bloco ----------
+// Aviso, uma vez, quando o app recuperou a configuração ou os perfis
+// (src/configSeguro.ts).
+import { iniciarAvisoConfig } from './avisoConfig';
+
+iniciarAvisoConfig();
+// ---------- config.json seguro: fim do bloco ----------
