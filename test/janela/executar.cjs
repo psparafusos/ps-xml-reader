@@ -2907,9 +2907,13 @@ async function casosJanelasPorCima() {
 
 // ---------- painel da Conferência: frete, vencimentos e devolução ----------
 
-/** A linha da devolução do t14, com o lembrete do Saef. */
-const LINHA_DEVOLUCAO_T14 =
-  "Nota de devolução: NF 1234, série 2. No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+/** A linha da devolução do t14; o lembrete do Saef abre o detalhe. */
+const LINHA_DEVOLUCAO_T14 = 'Nota de devolução: NF 1234, série 2';
+const LEMBRETE_SAEF =
+  "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+
+/** Títulos curtos: no máximo duas linhas de texto no painel. */
+const MAX_LINHAS_TITULO = 2;
 
 /** Tamanhos das capturas do painel: tela de 1366 e de 1920. */
 const TAMANHOS_PAINEL = [
@@ -2946,6 +2950,12 @@ async function linhasDoPainel(arquivo, largura, altura) {
       id: b.getAttribute('aria-controls').replace('conferencia-detalhe-', ''),
       nivel: [...li.classList].find((c) => c.startsWith('conferencia__verificacao--')).split('--')[1],
       titulo: b.querySelector('.conferencia__linha-titulo').textContent.replace(/\u00a0/g, ' '),
+      // Linhas de texto do título na tela (topos distintos das caixas).
+      linhasTexto: (() => {
+        const r = document.createRange();
+        r.selectNodeContents(b.querySelector('.conferencia__linha-titulo'));
+        return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+      })(),
     };
   })`);
 }
@@ -2970,30 +2980,33 @@ async function casosPainelAvisos() {
     {
       arquivo: 't15-frete-cif.xml',
       nivel: 'info',
-      titulo:
-        'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança.',
+      titulo: 'Frete do fornecedor (CIF)',
+      detalhe: 'Se veio conhecimento em nome do fornecedor, ele não se lança.',
     },
     {
       arquivo: 't16-frete-fob.xml',
       nivel: 'leve',
-      titulo:
-        'Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora Transportes Inventados de Teste. Se o conhecimento não veio, pedir a segunda via.',
+      titulo: 'Frete da loja (FOB): lançar com o conhecimento',
+      detalhe:
+        'Transportadora: Transportes Inventados de Teste. Lançar como Destinatário FOB com o valor do conhecimento. Se o conhecimento não veio, pedir a segunda via.',
     },
     {
       arquivo: 't17-frete-cif-com-valor.xml',
       nivel: 'leve',
-      titulo:
+      titulo: 'Frete na nota: lançar como FOB',
+      detalhe:
         'A nota diz frete do remetente, mas traz frete de R$ 35,50: lançar como Destinatário FOB, sem digitar valor de conhecimento (o frete vem da nota).',
     },
     {
       arquivo: 't18-frete-terceiros.xml',
       nivel: 'info',
-      titulo:
-        'Frete por conta de terceiros (modalidade 2). As informações complementares dizem CIF.',
+      titulo: 'Frete por conta de terceiros (modalidade 2)',
+      detalhe:
+        'Modalidade do frete na nota: 2, por conta de terceiros. A nota não traz valor de frete. A nota não traz transportadora. As informações complementares dizem CIF.',
     },
   ];
   await caso(
-    'Painel da Conferência: linha do frete em cada modalidade (t15 a t18), em 1366 e em 1920',
+    'Painel da Conferência: linha do frete em cada modalidade (t15 a t18), título curto e explicação no detalhe, em 1366 e em 1920',
     async () => {
       const [largura, altura] = janela.getContentSize();
       try {
@@ -3005,11 +3018,21 @@ async function casosPainelAvisos() {
               frete?.titulo === fr.titulo && frete.nivel === fr.nivel,
               `${fr.arquivo} em ${w}: ${JSON.stringify(frete)}`,
             );
+            confere(
+              frete.linhasTexto <= MAX_LINHAS_TITULO,
+              `${fr.arquivo} em ${w}: título em ${frete.linhasTexto} linhas`,
+            );
             // Primeira linha (a nota não é de devolução).
             confere(
               linhas[0].id === 'frete',
               `${fr.arquivo}: o frete não é a primeira linha (${linhas.map((l) => l.id).join(', ')})`,
             );
+            const detalhe = await abrirDetalhe('frete');
+            confere(
+              detalhe === fr.detalhe,
+              `${fr.arquivo}: detalhe ${JSON.stringify(detalhe)}`,
+            );
+            await avaliar(`document.activeElement?.blur(); true`);
             await capturar(
               `painel-${fr.arquivo.replace(/\.xml$/, '')}-${w}.png`,
             );
@@ -3082,9 +3105,9 @@ async function casosPainelAvisos() {
   );
 
   // t14: devolução de cliente (finNFe 4, modFrete 9). A linha da devolução
-  // vem primeiro, com o lembrete do Saef; o frete vem logo depois.
+  // vem primeiro, com o lembrete do Saef no detalhe; o frete vem logo depois.
   await caso(
-    'Painel da Conferência: devolução de cliente (t14) com o lembrete do Saef, em 1366 e em 1920',
+    'Painel da Conferência: devolução de cliente (t14), título curto e o lembrete do Saef no detalhe, em 1366 e em 1920',
     async () => {
       const [largura, altura] = janela.getContentSize();
       try {
@@ -3097,7 +3120,8 @@ async function casosPainelAvisos() {
           confere(
             linhas[0]?.id === 'devolucao' &&
               linhas[0].nivel === 'info' &&
-              linhas[0].titulo === LINHA_DEVOLUCAO_T14,
+              linhas[0].titulo === LINHA_DEVOLUCAO_T14 &&
+              linhas[0].linhasTexto <= MAX_LINHAS_TITULO,
             `linha da devolução em ${w}: ${JSON.stringify(linhas[0])}`,
           );
           confere(
@@ -3105,6 +3129,12 @@ async function casosPainelAvisos() {
               linhas[1].titulo === 'Sem frete (modalidade 9)',
             `linha do frete em ${w}: ${JSON.stringify(linhas[1])}`,
           );
+          const detalhe = await abrirDetalhe('devolucao');
+          confere(
+            detalhe.startsWith(LEMBRETE_SAEF),
+            `detalhe da devolução: ${JSON.stringify(detalhe)}`,
+          );
+          await avaliar(`document.activeElement?.blur(); true`);
           await capturar(`painel-t14-devolucao-cliente-${w}.png`);
           await inicio();
         }

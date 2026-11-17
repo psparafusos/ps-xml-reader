@@ -231,6 +231,9 @@ describe('resumoConferencia', () => {
 // Chave inventada: SE, 10/2026, CNPJ zerado, modelo 55, série 2, NF 1234.
 const CHAVE_REF = `282610${'0'.repeat(14)}55002000001234100001234` + '5';
 
+const LEMBRETE_SAEF =
+  "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
+
 describe('nota de devolução no resumo', () => {
   it('número e série pela chave', () => {
     assert.equal(CHAVE_REF.length, 44);
@@ -250,10 +253,9 @@ describe('nota de devolução no resumo', () => {
     assert.equal(v.id, 'devolucao');
     assert.equal(v.nivel, 'info');
     assert.equal(v.ok, true);
-    assert.equal(
-      v.titulo,
-      "Nota de devolução: NF 1234, série 2. No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.",
-    );
+    assert.equal(v.titulo, 'Nota de devolução: NF 1234, série 2');
+    // O lembrete do Saef abre o detalhe; depois, a nota referenciada.
+    assert.ok(v.detalhe.startsWith(LEMBRETE_SAEF), v.detalhe);
     assert.match(v.detalhe, /finalidade 4/);
     assert.match(v.detalhe, /2826 1000/);
     // Só informa: não vira ponto para olhar.
@@ -264,10 +266,8 @@ describe('nota de devolução no resumo', () => {
     const n = nota();
     n.ide.finNFe = '4';
     const v = ver(resumoConferencia(dados({ nota: n })), 'devolucao');
-    assert.equal(
-      v.titulo,
-      "Nota de devolução. No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.",
-    );
+    assert.equal(v.titulo, 'Nota de devolução');
+    assert.ok(v.detalhe.startsWith(LEMBRETE_SAEF), v.detalhe);
     assert.match(v.detalhe, /não traz a chave/);
   });
 
@@ -306,16 +306,11 @@ describe('frete no resumo', () => {
     const v = ver(r, 'frete');
     assert.equal(v.nivel, 'info');
     assert.equal(v.ok, true);
+    assert.equal(v.titulo, 'Frete do fornecedor (CIF)');
     assert.equal(
-      v.titulo,
-      'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança.',
-    );
-    assert.match(
       v.detalhe,
-      /Modalidade do frete na nota: 0, por conta do remetente \(CIF\)\./,
+      'Se veio conhecimento em nome do fornecedor, ele não se lança.',
     );
-    assert.match(v.detalhe, /Emitente CIF, sem valor de conhecimento/);
-    assert.match(v.detalhe, /A nota não traz transportadora\./);
     // Só informa: não vira ponto para olhar.
     assert.equal(r.pontos, 0);
     assert.equal(r.titulo, 'Tudo certo · 7 verificações');
@@ -333,31 +328,25 @@ describe('frete no resumo', () => {
     const v = ver(r, 'frete');
     assert.equal(v.nivel, 'leve');
     assert.equal(v.ok, false);
+    assert.equal(v.titulo, 'Frete da loja (FOB): lançar com o conhecimento');
     assert.equal(
-      v.titulo,
-      'Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora TRANSPORTES INVENTADOS LTDA. Se o conhecimento não veio, pedir a segunda via.',
-    );
-    assert.match(
       v.detalhe,
-      /Transportadora na nota: TRANSPORTES INVENTADOS LTDA \(CNPJ 11\.222\.333\/0001-81\)\./,
-    );
-    assert.match(
-      v.detalhe,
-      /Destinatário FOB, com o valor do conhecimento digitado/,
+      'Transportadora: TRANSPORTES INVENTADOS LTDA. Lançar como Destinatário FOB com o valor do conhecimento. Se o conhecimento não veio, pedir a segunda via.',
     );
     assert.equal(r.pontos, 1);
   });
 
   it('modFrete 1 sem transportadora no XML: sem o nome', () => {
     const v = frete(comFrete('1'));
+    assert.equal(v.titulo, 'Frete da loja (FOB): lançar com o conhecimento');
     assert.equal(
-      v.titulo,
-      'Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora. Se o conhecimento não veio, pedir a segunda via.',
+      v.detalhe,
+      'Lançar como Destinatário FOB com o valor do conhecimento. Se o conhecimento não veio, pedir a segunda via.',
     );
   });
 
-  it('transportadora com CPF: o CPF vai para o detalhe', () => {
-    const n = comFrete('1');
+  it('modalidade sem regra, transportadora com CPF: o CPF vai para o detalhe', () => {
+    const n = comFrete('2');
     n.transporte.transportadoraNome = 'MOTORISTA INVENTADO';
     n.transporte.transportadoraCPF = '12345678909';
     assert.match(
@@ -372,11 +361,11 @@ describe('frete no resumo', () => {
     const r = resumoConferencia(dados({ nota: n }));
     const v = ver(r, 'frete');
     assert.equal(v.nivel, 'leve');
+    assert.equal(v.titulo, 'Frete na nota: lançar como FOB');
     assert.equal(
-      plano(v.titulo),
+      plano(v.detalhe),
       'A nota diz frete do remetente, mas traz frete de R$ 35,50: lançar como Destinatário FOB, sem digitar valor de conhecimento (o frete vem da nota).',
     );
-    assert.match(plano(v.detalhe), /Valor do frete na nota: R\$ 35,50\./);
     assert.equal(r.pontos, 1);
   });
 
@@ -405,24 +394,30 @@ describe('frete no resumo', () => {
     );
   });
 
-  it('informações complementares que contradizem o modFrete', () => {
+  it('informações complementares que contradizem o modFrete: no detalhe', () => {
     const n = comFrete('0');
     n.infAdic.infCpl = 'Pedido 123. Frete fob, entrega na loja.';
+    assert.equal(frete(n).titulo, 'Frete do fornecedor (CIF)');
     assert.equal(
-      frete(n).titulo,
-      'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança. As informações complementares dizem FOB.',
+      frete(n).detalhe,
+      'Se veio conhecimento em nome do fornecedor, ele não se lança. As informações complementares dizem FOB.',
     );
     const m = comFrete('1');
     m.infAdic.infCpl = 'TIPO DE FRETE: CIF';
-    assert.match(
+    assert.equal(
       frete(m).titulo,
+      'Frete da loja (FOB): lançar com o conhecimento',
+    );
+    assert.match(
+      frete(m).detalhe,
       /segunda via\. As informações complementares dizem CIF\.$/,
     );
     const s = comFrete('9');
     s.infAdic.infCpl = 'FRETE FOB';
-    assert.equal(
-      frete(s).titulo,
-      'Sem frete (modalidade 9). As informações complementares dizem FOB.',
+    assert.equal(frete(s).titulo, 'Sem frete (modalidade 9)');
+    assert.match(
+      frete(s).detalhe,
+      /A nota não traz transportadora\. As informações complementares dizem FOB\.$/,
     );
     // Não muda o nível.
     assert.equal(frete(n).nivel, 'info');

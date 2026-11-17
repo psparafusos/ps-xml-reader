@@ -78,60 +78,59 @@ function textoTransportadora(n: Nota): string {
 
 /**
  * A linha do frete, ou null quando a nota não traz a modalidade do frete.
- * modFrete 0 sem valor de frete: informação. modFrete 1, e modFrete 0 com
- * valor de frete: aviso. Outras modalidades: informação com o significado.
+ * Título curto; a explicação fica no detalhe. modFrete 0 sem valor de
+ * frete: informação. modFrete 1, e modFrete 0 com valor de frete: aviso.
+ * Outras modalidades: informação com o significado do código.
  */
 export function linhaFrete(n: Nota): LinhaFrete | null {
   const mod = n.transporte.modFrete.trim();
   if (!mod) return null;
   const frete = centavos(n.totais.vFrete);
   const nome = n.transporte.transportadoraNome.trim();
-  const significado = MODALIDADE[mod];
-  const modalidade = significado
-    ? `Modalidade do frete na nota: ${mod}, ${significado}.`
-    : `Modalidade do frete na nota: ${mod}, fora da tabela da NF-e.`;
-  const valorFrete =
-    frete > 0
-      ? `Valor do frete na nota: ${reais(frete)}.`
-      : 'A nota não traz valor de frete.';
-  const transportadora = textoTransportadora(n);
 
   let nivel: LinhaFrete['nivel'];
   let titulo: string;
-  let saef = '';
+  let detalhe: string[];
   if (mod === '0' && frete === 0) {
     nivel = 'info';
-    titulo =
-      'Frete do fornecedor (CIF). Se veio conhecimento em nome do fornecedor, ele não se lança.';
-    saef =
-      'No Saef, a nota entra como Emitente CIF, sem valor de conhecimento.';
+    titulo = 'Frete do fornecedor (CIF)';
+    detalhe = ['Se veio conhecimento em nome do fornecedor, ele não se lança.'];
   } else if (mod === '0') {
     nivel = 'leve';
-    titulo = `A nota diz frete do remetente, mas traz frete de ${reais(frete)}: lançar como Destinatário FOB, sem digitar valor de conhecimento (o frete vem da nota).`;
+    titulo = 'Frete na nota: lançar como FOB';
+    detalhe = [
+      `A nota diz frete do remetente, mas traz frete de ${reais(frete)}: lançar como Destinatário FOB, sem digitar valor de conhecimento (o frete vem da nota).`,
+    ];
   } else if (mod === '1') {
     nivel = 'leve';
-    titulo = `Frete por conta da loja (FOB): lançar com o valor do conhecimento da transportadora${nome ? ` ${nome}` : ''}. Se o conhecimento não veio, pedir a segunda via.`;
-    saef =
-      'No Saef, a nota entra como Destinatário FOB, com o valor do conhecimento digitado.';
+    titulo = 'Frete da loja (FOB): lançar com o conhecimento';
+    detalhe = [
+      nome ? `Transportadora: ${nome}.` : '',
+      'Lançar como Destinatário FOB com o valor do conhecimento. Se o conhecimento não veio, pedir a segunda via.',
+    ];
   } else {
+    // Sem regra da loja: o significado do código e os dados da nota.
     nivel = 'info';
     titulo =
       TITULO_SEM_REGRA[mod] ??
       `Modalidade de frete ${mod}, fora da tabela da NF-e`;
+    const significado = MODALIDADE[mod];
+    detalhe = [
+      significado
+        ? `Modalidade do frete na nota: ${mod}, ${significado}.`
+        : `Modalidade do frete na nota: ${mod}, fora da tabela da NF-e.`,
+      frete > 0
+        ? `Valor do frete na nota: ${reais(frete)}.`
+        : 'A nota não traz valor de frete.',
+      textoTransportadora(n),
+    ];
   }
 
   const contradito = freteContraditoNoTexto(mod, n.infAdic.infCpl);
-  if (contradito.length > 0) {
-    const ditas = contradito.join(' e ');
-    // O título pode terminar sem ponto (modalidades sem regra).
-    titulo = `${titulo.replace(/\.?$/, '.')} As informações complementares dizem ${ditas}.`;
-  }
+  if (contradito.length > 0)
+    detalhe.push(
+      `As informações complementares dizem ${contradito.join(' e ')}.`,
+    );
 
-  return {
-    nivel,
-    titulo,
-    detalhe: [modalidade, valorFrete, transportadora, saef]
-      .filter(Boolean)
-      .join(' '),
-  };
+  return { nivel, titulo, detalhe: detalhe.filter(Boolean).join(' ') };
 }

@@ -256,8 +256,8 @@ const LEMBRETE_DEVOLUCAO =
   "No Saef, marque 'Não alterar cadastro' na entrada: sem isso, o preço de venda vira o custo do produto.";
 
 /**
- * Linha "Nota de devolução", com a nota (ou as notas) referenciada e o
- * lembrete do Saef.
+ * Linha "Nota de devolução", com a nota (ou as notas) referenciada no
+ * título e o lembrete do Saef no detalhe.
  */
 function verificacaoDevolucao(refs: readonly string[]): Verificacao {
   const lidas = refs.map((chave) => ({ chave, ns: numeroSerieDaChave(chave) }));
@@ -268,11 +268,14 @@ function verificacaoDevolucao(refs: readonly string[]): Verificacao {
     id: 'devolucao',
     ok: true,
     nivel: 'info',
-    titulo: `${nomes.length ? `Nota de devolução: ${nomes.join('; ')}` : 'Nota de devolução'}. ${LEMBRETE_DEVOLUCAO}`,
+    titulo: nomes.length
+      ? `Nota de devolução: ${nomes.join('; ')}`
+      : 'Nota de devolução',
+    // O lembrete do Saef primeiro; depois a nota referenciada.
     detalhe:
       refs.length === 0
-        ? 'A nota é de devolução (finalidade 4), mas não traz a chave da nota devolvida.'
-        : `A nota é de devolução (finalidade 4). ${refs.length === 1 ? 'Nota referenciada' : 'Notas referenciadas'}: ${lidas
+        ? `${LEMBRETE_DEVOLUCAO} A nota é de devolução (finalidade 4), mas não traz a chave da nota devolvida.`
+        : `${LEMBRETE_DEVOLUCAO} A nota é de devolução (finalidade 4). ${refs.length === 1 ? 'Nota referenciada' : 'Notas referenciadas'}: ${lidas
             .map((x) =>
               x.ns
                 ? `NF ${x.ns.numero}, série ${x.ns.serie} (chave ${f.chaveAcesso(x.chave)})`
