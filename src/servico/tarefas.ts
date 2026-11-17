@@ -1,8 +1,10 @@
-// As tarefas do serviço de leitura pesada: XML genérico, NF-e grande e
-// planilhas de referência. Sem Electron: o mesmo código roda no
-// utilityProcess (src/servico/servicoPesado.ts) e, só se o filho não subir,
-// no processo principal como reserva (src/servico/principal.ts).
+// As tarefas do serviço de leitura pesada: XML genérico, NF-e grande,
+// planilhas de referência e o cadastro do sistema de gestão. Sem Electron:
+// o mesmo código roda no utilityProcess (src/servico/servicoPesado.ts) e,
+// só se o filho não subir, no processo principal como reserva
+// (src/servico/principal.ts).
 
+import { lerArquivoCadastro } from '../cadastro/documento';
 import { lerPlanilha } from '../fiscal/leituraPlanilha';
 import { lerParaLeitor } from '../leitorXml/arquivo';
 import { lerXmlSeguro } from '../seguranca/arquivo';
@@ -33,6 +35,10 @@ export async function executarTarefa(
         return { ok: false, mensagem: erro.message } satisfies ResultadoNfe;
       throw erro;
     }
+  }
+  if (tarefa.tipo === 'cadastro') {
+    aoEtapa('cadastro');
+    return lerArquivoCadastro(tarefa.dados);
   }
   aoEtapa('planilha');
   return lerPlanilha(tarefa.documento, tarefa.dados);

@@ -6,7 +6,9 @@
 // é recusado com o que ele parece e o que fazer; planilha com segmentos não
 // lidos só entra com a confirmação da pessoa; embaixo, quantas decisões
 // lembradas há (a lista mora na aba Decisões das Configurações) e a
-// verificação online (desligada por padrão). Mora na aba "Documentos de
+// verificação online (desligada por padrão). O último cartão é o do
+// cadastro do sistema de gestão (opcional, src/cadastroGestao.ts), com o
+// mesmo desenho e canais próprios. Mora na aba "Documentos de
 // referência" das Configurações (src/configuracoes.ts); abrirAreaDocumentos,
 // chamada pelo rodapé do painel de conferência e pela tela inicial, abre as
 // Configurações nesta aba. Tudo passa pelo processo principal
@@ -18,6 +20,12 @@ import { NOME_DOCUMENTO } from './fiscal/documentos';
 import { problemasPorAba, rotuloDocumento } from './leituraDocumentos';
 import { seloVisivel, textoVersaoNova } from './estadoDocumentos';
 import { ICONES } from './icones';
+import {
+  NOME_CADASTRO,
+  seloCadastro,
+  textoExtracao,
+  textoQuantidades,
+} from './cadastro/documento';
 
 /** A aba está montada (Configurações abertas na aba Documentos). */
 let montada = false;
@@ -129,6 +137,9 @@ export function montarAreaDocumentos(
   let ocupado = false;
   /** Download do Atualizar em andamento (indicador no cartão). */
   const progresso = new Map<TipoDocumento, ProgressoDocumento>();
+  /** Cadastro do sistema de gestão: erro da última tentativa e relatório aberto. */
+  let erroCadastro: { mensagem: string; erros: string[] } | null = null;
+  let relatorioCadastro = false;
 
   const { corpo, status } = hospede;
   montada = true;
@@ -753,6 +764,250 @@ export function montarAreaDocumentos(
     return artigo;
   }
 
+  // ---------- cadastro do sistema de gestão ----------
+
+  function aoImportarCadastro(r: ResultadoImportarCadastro) {
+    if (r.status === 'cancelado') return;
+    estado = r.estado;
+    if (r.status === 'ok') {
+      erroCadastro = null;
+      const n = r.info.totalPontos;
+      status.textContent =
+        n === 0
+          ? `${NOME_CADASTRO}: carregado.`
+          : `${NOME_CADASTRO}: carregado com ${n} ${n === 1 ? 'ponto de atenção' : 'pontos de atenção'}.`;
+      relatorioCadastro = n > 0;
+    } else {
+      erroCadastro = { mensagem: r.mensagem, erros: r.erros };
+      status.textContent = '';
+    }
+  }
+
+  function relatorioDoCadastro(info: InfoCadastro): HTMLElement {
+    const total = info.totalPontos;
+    return el(
+      'section',
+      'documento__relatorio',
+      el(
+        'h4',
+        'documento__subtitulo',
+        total === 0
+          ? 'Pontos de atenção: nenhum'
+          : `Pontos de atenção: ${total.toLocaleString('pt-BR')}`,
+      ),
+      total > 0 &&
+        el(
+          'p',
+          'documento__nota',
+          'Registros (ou valores) que ficaram de fora. O resto do cadastro está carregado.',
+        ),
+      info.pontos.length > 0 &&
+        el(
+          'div',
+          'documento__tabela',
+          el(
+            'table',
+            '',
+            el(
+              'thead',
+              '',
+              el(
+                'tr',
+                '',
+                el('th', '', 'Onde'),
+                el('th', '', 'Motivo'),
+                el('th', '', 'Conteúdo'),
+              ),
+            ),
+            el(
+              'tbody',
+              '',
+              ...info.pontos.map((p) =>
+                el(
+                  'tr',
+                  '',
+                  el('td', '', p.onde),
+                  el('td', '', p.motivo),
+                  el('td', 'documento__valor', p.valor || '-'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      total > info.pontos.length &&
+        el(
+          'p',
+          'documento__nota',
+          `Mostrando ${info.pontos.length} de ${total.toLocaleString('pt-BR')}.`,
+        ),
+      info.observacoes.length > 0 &&
+        el(
+          'div',
+          'documento__grupo',
+          el('h4', 'documento__subtitulo', 'Observações'),
+          el(
+            'ul',
+            'documento__observacoes',
+            ...info.observacoes.map((o) => el('li', '', o)),
+          ),
+        ),
+    );
+  }
+
+  /** Arquivo recusado: a mensagem, o que o validador recusou e o X que fecha. */
+  function caixaErroCadastro(erro: {
+    mensagem: string;
+    erros: string[];
+  }): HTMLElement {
+    const fechar = botao('fechar-aviso', icone(...ICONES.fechar));
+    fechar.dataset.foco = 'fechar-erro-cadastro';
+    fechar.setAttribute(
+      'aria-label',
+      `Fechar o aviso de erro de ${NOME_CADASTRO}`,
+    );
+    fechar.addEventListener(
+      'click',
+      () =>
+        void acao('atualizar-cadastro', async () => {
+          erroCadastro = null;
+          estado = await window.psApi.descartarRecusaCadastro();
+        }),
+    );
+    const caixa = el(
+      'div',
+      'documento__erro',
+      el('p', '', el('strong', '', erro.mensagem)),
+      fechar,
+      erro.erros.length > 0 &&
+        el('ul', 'documento__erros', ...erro.erros.map((x) => el('li', '', x))),
+      erro.erros.length > 0 &&
+        el(
+          'p',
+          '',
+          'O que fazer: corrija esses pontos no sistema ou na planilha de origem e gere o arquivo de novo no formato do cadastro (versão 1).',
+        ),
+    );
+    caixa.setAttribute('role', 'alert');
+    return caixa;
+  }
+
+  function cartaoCadastro(e: EstadoDocumentos): HTMLElement {
+    const info = e.cadastro.info;
+    const selo = seloCadastro(e.cadastro);
+    const btnCarregar = botao(
+      info
+        ? 'botao botao--claro botao--pequeno'
+        : 'botao botao--principal botao--pequeno',
+      icone(...ICONES.enviar),
+      el('span', '', info ? 'Trocar arquivo' : 'Carregar'),
+    );
+    btnCarregar.dataset.foco = 'atualizar-cadastro';
+    btnCarregar.addEventListener(
+      'click',
+      () =>
+        void acao('atualizar-cadastro', async () => {
+          status.textContent = '';
+          aoImportarCadastro(await window.psApi.importarCadastro());
+        }),
+    );
+    const btnRelatorio =
+      info &&
+      botao(
+        'botao botao--claro botao--pequeno',
+        el(
+          'span',
+          '',
+          relatorioCadastro ? 'Esconder relatório' : 'Ver relatório da leitura',
+        ),
+      );
+    if (btnRelatorio) {
+      btnRelatorio.dataset.foco = 'relatorio-cadastro';
+      btnRelatorio.setAttribute('aria-expanded', String(relatorioCadastro));
+      btnRelatorio.addEventListener('click', () => {
+        relatorioCadastro = !relatorioCadastro;
+        desenhar(e);
+        corpo
+          .querySelector<HTMLElement>('[data-foco="relatorio-cadastro"]')
+          ?.focus();
+      });
+    }
+    let arquivo: HTMLElement | false = false;
+    if (info) {
+      const remover = botao('documento__remover', icone(...ICONES.fechar));
+      remover.dataset.foco = 'remover-cadastro';
+      remover.setAttribute(
+        'aria-label',
+        `Remover ${NOME_CADASTRO} (${info.arquivo})`,
+      );
+      remover.addEventListener(
+        'click',
+        () =>
+          void acao('atualizar-cadastro', async () => {
+            const resposta = await perguntar({
+              titulo: `Remover ${NOME_CADASTRO}?`,
+              texto: `${info.arquivo} sai da pasta de dados do app. Para usar de novo, carregue o arquivo outra vez.`,
+              botoes: [
+                { rotulo: 'Cancelar', valor: 'cancelar', principal: true },
+                { rotulo: 'Remover', valor: 'remover', perigo: true },
+              ],
+              cancelar: 'cancelar',
+            });
+            if (resposta !== 'remover') return;
+            estado = await window.psApi.removerCadastro();
+            relatorioCadastro = false;
+            erroCadastro = null;
+            status.textContent = `${NOME_CADASTRO} removido.`;
+          }),
+      );
+      arquivo = el(
+        'p',
+        'documento__arquivo',
+        el('span', '', 'Arquivo: '),
+        el('strong', '', info.arquivo),
+        remover,
+      );
+    }
+    const h = el('h3', 'documento__titulo', NOME_CADASTRO);
+    h.id = 'documento-cadastro';
+    const artigo = el(
+      'article',
+      `documento documento--${selo.estado} documento--opcional documento--cadastro`,
+      el(
+        'header',
+        'documento__cabecalho',
+        h,
+        el(
+          'span',
+          `documento__selo documento__selo--${selo.estado}`,
+          marcaEstado(selo.estado, selo.texto),
+        ),
+      ),
+      arquivo,
+      el(
+        'p',
+        'documento__para-que',
+        'Opcional. Arquivo .json exportado do sistema de gestão da loja no formato "Cadastro do sistema de gestão" (versão 1): fornecedores, produtos, vínculos de código, fatores de conversão e notas já lançadas. Ainda não muda a Conferência: vai servir para sugerir, em cada item da nota, o produto da casa e o fator.',
+      ),
+      info &&
+        el(
+          'dl',
+          'documento__dados',
+          linhaInfo('Origem', info.origem, true),
+          linhaInfo('Extraído em', textoExtracao(info.extraidoEm), true),
+          linhaInfo(
+            'Importado',
+            `${dataHora(info.importadoEm)} (${tamanho(info.tamanhoArquivo)})`,
+          ),
+          linhaInfo('Lido', textoQuantidades(info.quantidades)),
+        ),
+      erroCadastro && caixaErroCadastro(erroCadastro),
+      el('div', 'documento__acoes', btnCarregar, btnRelatorio),
+      info && relatorioCadastro && relatorioDoCadastro(info),
+    );
+    artigo.setAttribute('aria-labelledby', h.id);
+    return artigo;
+  }
+
   // ---------- decisões lembradas (a lista mora na aba Decisões) ----------
 
   function decisoes(e: EstadoDocumentos): HTMLElement {
@@ -907,6 +1162,7 @@ export function montarAreaDocumentos(
           cartao('st', e),
           cartao('tipi', e),
           cartao('combustiveis', e),
+          cartaoCadastro(e),
         ),
         decisoes(e),
         online(e),

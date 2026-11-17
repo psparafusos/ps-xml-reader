@@ -35,6 +35,12 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('remover-documento', tipo),
   abrirPaginaDocumento: (tipo: TipoDocumento): Promise<void> =>
     ipcRenderer.invoke('abrir-pagina-documento', tipo),
+  importarCadastro: (): Promise<ResultadoImportarCadastro> =>
+    ipcRenderer.invoke('importar-cadastro'),
+  removerCadastro: (): Promise<EstadoDocumentos> =>
+    ipcRenderer.invoke('remover-cadastro'),
+  descartarRecusaCadastro: (): Promise<EstadoDocumentos> =>
+    ipcRenderer.invoke('descartar-recusa-cadastro'),
   analisarST: (pedido: {
     itens: ItemParaAnalise[];
     uf: string;

@@ -9,7 +9,8 @@
 //     preferencias,   documentos/preferencias.json, ou null se não havia
 //     decisoes }      documentos/decisoes.json, ou null se não havia
 // Os documentos fiscais (planilha de ST, TIPI, combustíveis) ficam de fora:
-// são públicos e se baixam ou carregam de novo.
+// são públicos e se baixam ou carregam de novo. O cadastro do sistema de
+// gestão também: é exportado de novo do sistema da loja.
 //
 // Importar valida o arquivo inteiro antes de mexer em qualquer coisa; aí
 // copia os três arquivos atuais para "antes-da-importacao-<data>", dentro da
@@ -127,6 +128,10 @@ function oQueEDocumento(nome: string): string {
     return 'Preferências: verificação online e "verificar ao abrir".';
   if (nome === 'decisoes.json')
     return 'Decisões lembradas da ferramenta "ST, MVA e CFOP".';
+  if (nome === 'cadastro.json')
+    return 'Cadastro do sistema de gestão, como foi importado.';
+  if (nome === 'cadastro-info.json')
+    return 'Cadastro do sistema de gestão, dados da importação e relatório da leitura.';
   const m = /^(st|tipi|combustiveis)(-info|-leitura)?\.json$/.exec(nome);
   if (m) {
     const doc = DESCRICAO_DOCUMENTO[m[1]];

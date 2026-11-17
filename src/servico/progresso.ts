@@ -16,6 +16,7 @@ const ETAPA: Record<EtapaProgresso, string> = {
   arvore: 'Montando a árvore…',
   linhas: 'Preparando o texto…',
   planilha: 'Conferindo a planilha…',
+  cadastro: 'Conferindo o cadastro…',
 };
 
 const api = window.psServico;

@@ -11,6 +11,10 @@
 import type { LeituraParaTela } from '../leitorXml/arquivo';
 import type { LeituraPlanilha } from '../fiscal/leituraPlanilha';
 import type { TipoDocumento } from '../fiscal/documentos';
+import {
+  LIMITE_CADASTRO_BYTES,
+  type LeituraCadastro,
+} from '../cadastro/documento';
 import { NENHUM } from '../xml/arvore';
 
 /** Maior planilha aceita (o mesmo limite do download, 30 MB). */
@@ -26,7 +30,9 @@ export type Tarefa =
       original?: boolean;
     }
   | { tipo: 'nfe'; caminho: string }
-  | { tipo: 'planilha'; documento: TipoDocumento; dados: Uint8Array };
+  | { tipo: 'planilha'; documento: TipoDocumento; dados: Uint8Array }
+  /** Cadastro do sistema de gestão (JSON): só a validação e o resumo voltam. */
+  | { tipo: 'cadastro'; dados: Uint8Array };
 
 export type TipoTarefa = Tarefa['tipo'];
 
@@ -36,7 +42,8 @@ export type EtapaProgresso =
   | 'decodificando'
   | 'arvore'
   | 'linhas'
-  | 'planilha';
+  | 'planilha'
+  | 'cadastro';
 
 export const ETAPAS: readonly EtapaProgresso[] = [
   'lendo',
@@ -44,6 +51,7 @@ export const ETAPAS: readonly EtapaProgresso[] = [
   'arvore',
   'linhas',
   'planilha',
+  'cadastro',
 ];
 
 export interface Pedido {
@@ -101,6 +109,11 @@ export function pedidoValido(v: unknown): v is Pedido {
       t.dados.byteLength <= LIMITE_PLANILHA_BYTES
     );
   }
+  if (t.tipo === 'cadastro')
+    return (
+      t.dados instanceof Uint8Array &&
+      t.dados.byteLength <= LIMITE_CADASTRO_BYTES
+    );
   return false;
 }
 
@@ -295,11 +308,45 @@ function planilhaValida(v: unknown, documento: TipoDocumento): boolean {
   );
 }
 
+const textos = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((s) => typeof s === 'string');
+
+function cadastroValido(v: unknown): boolean {
+  if (!objeto(v)) return false;
+  if (v.ok === false) return textos(v.erros) && inteiro(v.totalErros);
+  if (v.ok !== true) return false;
+  const q = v.quantidades;
+  return (
+    typeof v.origem === 'string' &&
+    typeof v.extraidoEm === 'string' &&
+    objeto(q) &&
+    [
+      'fornecedores',
+      'produtos',
+      'produtosAtivos',
+      'vinculos',
+      'fatores',
+      'notasLancadas',
+    ].every((k) => inteiro(q[k])) &&
+    Array.isArray(v.pontos) &&
+    v.pontos.every(
+      (p) =>
+        objeto(p) &&
+        typeof p.onde === 'string' &&
+        typeof p.motivo === 'string' &&
+        typeof p.valor === 'string',
+    ) &&
+    inteiro(v.totalPontos) &&
+    textos(v.observacoes)
+  );
+}
+
 /** O resultado que voltou do filho tem o formato da tarefa pedida. */
 export function resultadoValido(tarefa: Tarefa, v: unknown): boolean {
   try {
     if (tarefa.tipo === 'xml') return leituraXmlValida(v);
     if (tarefa.tipo === 'nfe') return nfeValida(v);
+    if (tarefa.tipo === 'cadastro') return cadastroValido(v);
     return planilhaValida(v, tarefa.documento);
   } catch {
     return false;

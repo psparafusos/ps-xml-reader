@@ -38,6 +38,8 @@ const TEMPO_MAXIMO_MS: Record<TipoTarefa, number> = {
   xml: 60_000,
   nfe: 15_000,
   planilha: 60_000,
+  // Cadastro real de 17 MB: a leitura e a validação levam menos de 1 s.
+  cadastro: 60_000,
 };
 
 /**
@@ -123,6 +125,18 @@ export function lerPlanilhaNoServico(
     wc,
     { tipo: 'planilha', documento, dados },
     'Lendo o documento de referência',
+  );
+}
+
+/** Cadastro do sistema de gestão lido e validado no serviço. */
+export function lerCadastroNoServico(
+  dados: Uint8Array,
+  wc: WebContents | null,
+): Promise<Desfecho> {
+  return executarNaJanela(
+    wc,
+    { tipo: 'cadastro', dados },
+    'Lendo o cadastro do sistema de gestão',
   );
 }
 

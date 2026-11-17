@@ -289,7 +289,24 @@ interface EstadoDocumentos {
   stSemProtocolos: boolean;
   /** Decisões lembradas da ferramenta ST, MVA e CFOP. */
   decisoes: DecisaoLembrada[];
+  /** Cadastro do sistema de gestão (opcional; src/cadastroGestao.ts). */
+  cadastro: EstadoCadastro;
 }
+
+type EstadoCadastro = import('./cadastro/documento').EstadoCadastro;
+type InfoCadastro = import('./cadastro/documento').InfoCadastro;
+
+/** Carregar o cadastro: o carregado só muda com status ok. */
+type ResultadoImportarCadastro =
+  | { status: 'ok'; info: InfoCadastro; estado: EstadoDocumentos }
+  | {
+      status: 'erro';
+      mensagem: string;
+      /** O que o validador recusou, registro a registro (pode vir vazio). */
+      erros: string[];
+      estado: EstadoDocumentos;
+    }
+  | { status: 'cancelado' };
 
 type AnaliseItem = import('./fiscal/analise').AnaliseItem;
 type DecisaoLembrada = import('./fiscal/entrada').DecisaoLembrada;
@@ -403,6 +420,12 @@ interface PsApi {
   removerDocumento(tipo: TipoDocumento): Promise<EstadoDocumentos>;
   /** Abre no navegador a página oficial do documento. */
   abrirPaginaDocumento(tipo: TipoDocumento): Promise<void>;
+  /** Escolhe o arquivo do cadastro, valida e grava no lugar do anterior. */
+  importarCadastro(): Promise<ResultadoImportarCadastro>;
+  /** Tira o cadastro da pasta de dados. */
+  removerCadastro(): Promise<EstadoDocumentos>;
+  /** Aviso de erro do cadastro fechado: esquece a recusa. */
+  descartarRecusaCadastro(): Promise<EstadoDocumentos>;
   aoMudarDocumentos(callback: () => void): void;
   /** Andamento do download do Atualizar, em qualquer janela. */
   aoProgressoDocumento(callback: (p: ProgressoDocumento) => void): void;

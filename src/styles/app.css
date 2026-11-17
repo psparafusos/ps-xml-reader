@@ -3416,8 +3416,16 @@ ul {
   gap: var(--esp-1) var(--esp-2);
 }
 
-.documento__erro > p {
+.documento__erro > p,
+.documento__erro > ul {
   grid-column: 1;
+}
+
+/* Lista do que o validador recusou (cadastro do sistema de gestão). */
+.documento__erros {
+  margin: 0;
+  padding-left: var(--esp-4);
+  overflow-wrap: anywhere;
 }
 
 .documento__erro > .fechar-aviso {

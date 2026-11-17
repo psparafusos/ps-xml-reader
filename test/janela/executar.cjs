@@ -18,10 +18,12 @@
 // vencimentos escritos nas informações complementares, t19, e a devolução,
 // t14), a janela na largura mínima (680: não aceita menos, e as telas
 // principais cabem sem rolar de lado), o rascunho das anotações
-// (rascunhos.cjs: fechamento à força e recuperar) e a tela de boas-vindas
-// (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas). Com
+// (rascunhos.cjs: fechamento à força e recuperar), a tela de boas-vindas
+// (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas) e o
+// cadastro do sistema de gestão nos Documentos de referência
+// (cadastro.cjs). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
-// do painel e as das telas na largura mínima.
+// do painel, as das telas na largura mínima e a do cartão do cadastro.
 'use strict';
 
 const { app, session } = require('electron');
@@ -35,6 +37,7 @@ const { casosConfigSeguro } = require('./configSeguro.cjs');
 const { casosPerfis } = require('./perfis.cjs');
 const { casosRascunhos } = require('./rascunhos.cjs');
 const { casosBoasVindas } = require('./boasVindas.cjs');
+const { casosCadastro } = require('./cadastro.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -2422,6 +2425,7 @@ async function principal() {
     visivel,
     abrirNota,
     inicio,
+    capturar,
   };
   await casosLeitorXml(contexto);
   await casosNavegacao(contexto);
@@ -2441,6 +2445,10 @@ async function principal() {
   // Perfis: renomear, cópia antes de excluir ou substituir, importar e
   // exportar (perfis.cjs).
   await casosPerfis({ ...contexto, dados, tmp });
+
+  // Cadastro do sistema de gestão na aba Documentos de referência
+  // (cadastro.cjs): carregar, recusar sem trocar o carregado, remover.
+  await casosCadastro({ ...contexto, dados, tmp });
 
   // Rascunho das anotações: fechamento à força, recuperar, salvar,
   // descartar, Decidir depois e duplo clique (rascunhos.cjs, cada abertura

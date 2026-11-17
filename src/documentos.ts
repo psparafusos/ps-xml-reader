@@ -69,6 +69,7 @@ import {
   type LeituraDocumento,
 } from './leituraDocumentos';
 import { lerPlanilhaNoServico } from './servico/principal';
+import { estadoCadastro, registrarCadastro } from './cadastroGestao';
 import { mensagemDoDesfecho } from './servico/supervisor';
 
 /**
@@ -151,6 +152,7 @@ async function estado(): Promise<EstadoDocumentos> {
     decisoes: Object.values(await lerArquivoDecisoes()).sort((a, b) =>
       `${a.fornecedor} ${a.xProd}`.localeCompare(`${b.fornecedor} ${b.xProd}`),
     ),
+    cadastro: await estadoCadastro(pastaDocumentos()),
   };
 }
 
@@ -542,6 +544,9 @@ const FILTROS: Record<TipoDocumento, Electron.FileFilter[]> = {
 
 export function registrarDocumentos(): void {
   tratar('documentos', () => estado());
+
+  // Cadastro do sistema de gestão: mesmo lugar e mesmo aviso às janelas.
+  registrarCadastro(pastaDocumentos, estado, () => avisarJanelas());
 
   tratar('analisar-st', (_event, pedido: unknown) => analisar(pedido));
 
