@@ -140,6 +140,7 @@ import {
 import { COM_ARTIGO, MOTIVO_DESCONHECIDO, NOME_FISCAL } from './docfiscal/tipo';
 // Cada documento auxiliar se registra ao ser importado.
 import './docfiscal/danfse';
+import './docfiscal/dacte';
 import { formatarTamanho } from './leitorXml/formato';
 import {
   esconderFormato,

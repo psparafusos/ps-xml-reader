@@ -51,6 +51,24 @@ const DOCUMENTOS = [
     psxml: false,
     captura: 'danfse-nacional',
   },
+  {
+    fixture: 'd03-cte.xml',
+    nome: 'DACTE',
+    folha: 'folha--dacte',
+    textos: [
+      'Documento Auxiliar do Conhecimento de Transporte Eletrônico',
+      'MODAL RODOVIÁRIO',
+      'TOMADOR DO SERVIÇO',
+      '4226 1187 6543 2100 0198 5500 1000 0012 3411 2345 6789',
+      '342260000123456 - 05/11/2026 14:21:02',
+      'FOLHA 1/1',
+      '850,40',
+    ],
+    titulo: ['Transportadora Inventada Ltda', 'CT-e nº 4567 série 1'],
+    qr: true,
+    psxml: false,
+    captura: 'dacte',
+  },
 ];
 
 /**
@@ -88,6 +106,7 @@ async function casosDocumentos(c) {
         imprimir: document.getElementById('btn-imprimir').disabled,
         salvar: document.getElementById('btn-salvar').disabled,
         titulo: [...document.querySelectorAll('#titulo-janela-textos > :not(.titulo-janela__sep)')].map((e) => e.textContent),
+        transborda: [...danfe.querySelectorAll('.dx-corpo')].some((c) => c.scrollHeight > c.clientHeight + 1),
         rotuloSelecao: rotulo ? getComputedStyle(rotulo).userSelect : null,
         valorSelecao: valor ? getComputedStyle(valor).userSelect : null,
       };
@@ -101,6 +120,8 @@ async function casosDocumentos(c) {
     for (const x of d.textos)
       confere(t.texto.includes(x), `falta "${x}" no ${d.nome}`);
     confere(t.qr === d.qr, `QR Code: ${t.qr}`);
+    confere(!t.transborda, `o ${d.nome} passou do fim da folha`);
+    confere(t.folhas === (d.folhas ?? 1), `folhas: ${t.folhas}`);
     confere(
       d.titulo.every((x) => t.titulo.includes(x)),
       `título: ${t.titulo.join(' | ')}`,
@@ -122,6 +143,48 @@ async function casosDocumentos(c) {
       `dado não selecionável: ${t.valorSelecao}`,
     );
   }
+
+  await caso(
+    'Documento: DACTE com 150 NF-e continua nas folhas seguintes, com o cabeçalho',
+    async () => {
+      const base = fs.readFileSync(path.join(FIXTURES, 'd03-cte.xml'), 'utf8');
+      const chaves = Array.from(
+        { length: 150 },
+        (_, i) =>
+          `<infNFe><chave>422611876543210001985500100${String(i + 1).padStart(7, '0')}1123456789</chave></infNFe>`,
+      ).join('');
+      const alvo = path.join(notas, 'd03-cte-muitas-nfe.xml');
+      fs.writeFileSync(
+        alvo,
+        base.replace(/<infDoc>[\s\S]*<\/infDoc>/, `<infDoc>${chaves}</infDoc>`),
+      );
+      abrir(alvo);
+      await aguardar(
+        `!!document.querySelector('#danfe .folha--dacte')`,
+        30000,
+        'o DACTE não apareceu',
+      );
+      const r = await avaliar(`(() => {
+        const folhas = [...document.querySelectorAll('#danfe .folha--dacte')];
+        return {
+          total: folhas.length,
+          numeros: folhas.map((f) => f.querySelector('.dx-folha-numero')?.textContent),
+          cabecalhos: folhas.filter((f) => f.querySelector('.dx-dacte__cab')).length,
+          linhas: document.querySelectorAll('#danfe .dx-bloco--documentos tbody tr').length,
+          transborda: folhas.some((f) => { const c = f.querySelector('.dx-corpo'); return c.scrollHeight > c.clientHeight + 1; }),
+        };
+      })()`);
+      confere(r.total >= 2, `folhas: ${r.total}`);
+      confere(r.cabecalhos === r.total, 'falta o cabeçalho numa folha');
+      confere(
+        r.numeros.every((n, i) => n === `FOLHA ${i + 1}/${r.total}`),
+        `números: ${r.numeros.join(', ')}`,
+      );
+      confere(r.linhas === 150, `NF-e na tabela: ${r.linhas}`);
+      confere(!r.transborda, 'uma folha do DACTE transbordou');
+      await inicio();
+    },
+  );
 
   for (const d of DOCUMENTOS) {
     await caso(

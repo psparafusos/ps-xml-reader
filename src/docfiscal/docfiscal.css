@@ -297,3 +297,134 @@
   min-height: 1.2cm;
 }
 
+/* ---------- DACTE (MOC CT-e Anexo II, versão 4.00) ---------- */
+
+.folha--dacte {
+  --dx-fs-valor: 7.5pt;
+}
+
+.dx-dacte__topo {
+  display: flex;
+  border-bottom: var(--dx-linha) solid var(--dx-cor);
+}
+
+.dx-dacte__emitente {
+  flex: 7 1 0;
+  min-width: 0;
+  padding: 1.2mm 1.5mm;
+  font-size: 7pt;
+  line-height: 1.3;
+  user-select: text;
+}
+
+.dx-dacte__razao {
+  margin-bottom: 0.8mm;
+  font-size: 10pt;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.dx-dacte__titulo {
+  display: flex;
+  flex: 5 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6mm;
+  padding: 1mm;
+  border-left: var(--dx-linha) solid var(--dx-cor);
+  text-align: center;
+  user-select: none;
+}
+
+.dx-dacte__nome {
+  font-family: var(--dx-fonte-rotulo);
+  font-size: 14pt;
+  font-weight: 700;
+}
+
+.dx-dacte__sub {
+  font-size: 6.5pt;
+  font-weight: 700;
+}
+
+.dx-dacte__modal,
+.dx-dacte__folha {
+  font-size: 7.5pt;
+  font-weight: 700;
+}
+
+.dx-dacte__fisco {
+  display: flex;
+  flex: 8 1 0;
+  flex-direction: column;
+  gap: 0.6mm;
+  min-width: 0;
+  padding: 1mm 1.5mm;
+  border-left: var(--dx-linha) solid var(--dx-cor);
+}
+
+.dx-dacte__barras {
+  height: 11mm;
+}
+
+.dx-dacte__chave {
+  font-size: 8pt;
+  font-weight: 700;
+  text-align: center;
+  user-select: text;
+}
+
+.dx-dacte__consulta {
+  font-size: 6pt;
+  text-align: center;
+  user-select: none;
+}
+
+.dx-dacte__qr {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 29mm;
+  border-left: var(--dx-linha) solid var(--dx-cor);
+}
+
+.dx-dacte__qr .dx-qr {
+  width: 25mm;
+  height: 25mm;
+}
+
+.dx-dacte__cab > .dx-linha {
+  border-top: var(--dx-linha) solid var(--dx-cor);
+}
+
+.dx-dacte__cab > .dx-dacte__topo + .dx-linha {
+  border-top: none;
+}
+
+.dx-dacte__lado {
+  display: flex;
+}
+
+.dx-dacte__parte {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dx-dacte__parte + .dx-dacte__parte {
+  border-left: var(--dx-linha) solid var(--dx-cor);
+}
+
+.folha--dacte .dx-bloco--tomador .dx-campo--destaque .dx-campo__valor {
+  font-weight: 700;
+}
+
+.folha--dacte .dx-bloco--observacoes .dx-texto {
+  min-height: 8mm;
+}
+
+.folha--dacte .dx-bloco--fisco .dx-campo {
+  min-height: 12mm;
+}
+
