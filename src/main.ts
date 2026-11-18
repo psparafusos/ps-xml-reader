@@ -753,12 +753,13 @@ async function decidirAbertura(
     trazerParaFrente(ja);
     return { status: ja === j ? 'ja-aberto' : 'outra-janela' };
   }
-  if ((await destinoDoArquivo(caminho)) === 'leitor') {
+  const destino = await destinoDoArquivo(caminho);
+  if (destino !== 'nota') {
     if (!janelaVazia(j)) {
       criarJanela({ caminho, modo: null, sessao: false });
       return { status: 'nova-janela' };
     }
-    abrirNoLeitor(j.janela.webContents, caminho);
+    abrirNoLeitor(j.janela.webContents, caminho, destino === 'documento');
     return { status: 'leitor' };
   }
   let texto: string;
@@ -805,9 +806,12 @@ tratar('abrir-arquivo', async (event): Promise<ResultadoAbrir> => {
   const j = estadoDe(event.sender);
   const inicial = await pastaInicialAbertura();
   const { canceled, filePaths } = await dialog.showOpenDialog(j.janela, {
-    title: 'Abrir XML da NF-e',
+    title: 'Abrir XML de documento fiscal',
     filters: [
-      { name: 'XML da NF-e ou cópia editada', extensions: ['xml', 'psxml'] },
+      {
+        name: 'XML de documento fiscal ou cópia editada',
+        extensions: ['xml', 'psxml'],
+      },
     ],
     properties: ['openFile'],
     ...(inicial ? { defaultPath: inicial } : {}),
@@ -851,9 +855,15 @@ tratar(
     j.pedido = null;
     if (!pedido) return null;
     if (pedido.recusa) return { status: 'recusado', mensagem: pedido.recusa };
-    // XML que não é NF-e: o leitor genérico abre por cima da tela inicial.
-    if ((await destinoDoArquivo(pedido.caminho)) === 'leitor') {
-      abrirNoLeitor(j.janela.webContents, pedido.caminho);
+    // XML que não é NF-e: a aba XML abre por cima da tela inicial (no modo
+    // Documento, se for outro documento fiscal).
+    const destino = await destinoDoArquivo(pedido.caminho);
+    if (destino !== 'nota') {
+      abrirNoLeitor(
+        j.janela.webContents,
+        pedido.caminho,
+        destino === 'documento',
+      );
       return null;
     }
     let arquivo: ArquivoAberto;

@@ -1,7 +1,9 @@
 // Para onde vai um arquivo pedido para abrir (botão Abrir, arrastar, nota
-// recente, duplo clique ou "Abrir com"): a tela da nota (NF-e ou cópia
-// editada) ou o leitor genérico de XML (qualquer outro XML). Decide pelo
-// elemento raiz, lido só no começo do arquivo, sem ler o arquivo inteiro.
+// recente, duplo clique ou "Abrir com"): a tela da nota (NF-e, NFC-e ou
+// cópia editada), a aba XML no modo Documento (outro documento fiscal: CT-e,
+// NFS-e, evento da NF-e; src/docfiscal/tipo.ts) ou o leitor genérico de XML
+// (qualquer outro XML). Decide pelo elemento raiz, lido só no começo do
+// arquivo, sem ler o arquivo inteiro.
 //
 // .psxml sempre vai para a nota. Na dúvida (arquivo que não abre, que não
 // responde ou com começo estranho que tem cara de NF-e), também: a leitura
@@ -10,9 +12,10 @@
 
 import { open } from 'node:fs/promises';
 import path from 'node:path';
+import { tipoPeloComeco } from '../docfiscal/tipo';
 import { comLimite, ESPERA_CAMINHO_MS } from '../seguranca/arquivo';
 
-export type Destino = 'nota' | 'leitor';
+export type Destino = 'nota' | 'documento' | 'leitor';
 
 /** Raízes que a tela da nota abre (as mesmas de RAIZES_ACEITAS em main.ts). */
 const RAIZES_DA_NOTA = ['nfeProc', 'NFe', 'psCopiaEditada'];
@@ -77,8 +80,11 @@ export function destinoPeloComeco(
 ): Destino {
   if (path.extname(caminho).toLowerCase() !== '.xml') return 'nota';
   if (comeco === null) return 'nota';
-  const raiz = raizDoComeco(textoDoComeco(comeco));
-  return raiz !== null && RAIZES_DA_NOTA.includes(raiz) ? 'nota' : 'leitor';
+  const texto = textoDoComeco(comeco);
+  const raiz = raizDoComeco(texto);
+  if (raiz === null) return 'leitor';
+  if (RAIZES_DA_NOTA.includes(raiz)) return 'nota';
+  return tipoPeloComeco(raiz, texto) !== null ? 'documento' : 'leitor';
 }
 
 /** Lê até BYTES_DO_COMECO bytes do começo do arquivo. */

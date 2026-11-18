@@ -206,8 +206,10 @@ contextBridge.exposeInMainWorld('psLeitorXml', {
   texto: () => ipcRenderer.invoke('leitor-xml-texto'),
   abrirNoBlocoDeNotas: () => ipcRenderer.invoke('leitor-xml-bloco-de-notas'),
   fechar: () => ipcRenderer.invoke('leitor-xml-fechar'),
-  aoMostrar: (callback: () => void): void => {
-    ipcRenderer.on('leitor-xml-mostrar', () => callback());
+  aoMostrar: (callback: (documento: boolean) => void): void => {
+    ipcRenderer.on('leitor-xml-mostrar', (_e, documento: unknown) =>
+      callback(documento === true),
+    );
   },
 } satisfies PsLeitorXmlApi);
 // ---------- leitor de XML genérico (parte 1): fim do bloco ----------

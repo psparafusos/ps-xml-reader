@@ -1,6 +1,7 @@
 // Painel "Leitura" da aba XML, à esquerda (no lugar do rodapé dos esboços):
-// Modo de leitura (DANFE, Formato original, .XML), Folhas (só no DANFE) e o
-// Arquivo. Mesmo visual e mesmo jeito de recolher do painel da Conferência
+// Modo de leitura (Documento, Formato original, .XML), Folhas (só no
+// Documento) e o Arquivo. O Documento é o documento auxiliar do XML aberto
+// (DANFE, DANFE NFC-e, DACTE, DANFSe, Evento), com o nome embaixo do rótulo. Mesmo visual e mesmo jeito de recolher do painel da Conferência
 // (classes .conferencia de app.css e bancada.css): recolhido, fica só a seta
 // para abrir e, embaixo, o ícone do modo de leitura atual. A tela da nota
 // (renderer.ts) decide o que cada botão faz; aqui só se desenha.
@@ -13,16 +14,16 @@ import {
   type ArranjoFolhas,
 } from './nfe/folhasDanfe';
 
-export type ModoLeitura = 'danfe' | 'formato' | 'xml';
+export type ModoLeitura = 'documento' | 'formato' | 'xml';
 
 export const MODOS_LEITURA: readonly ModoLeitura[] = [
-  'danfe',
+  'documento',
   'formato',
   'xml',
 ];
 
 export const ROTULO_MODO: Record<ModoLeitura, string> = {
-  danfe: 'DANFE',
+  documento: 'Documento',
   formato: 'Formato original',
   xml: '.XML',
 };
@@ -30,8 +31,10 @@ export const ROTULO_MODO: Record<ModoLeitura, string> = {
 /** O que o painel mostra. */
 export interface EstadoLeitura {
   modo: ModoLeitura;
-  /** Por que o DANFE não está disponível (o botão fica apagado), ou null. */
-  semDanfe: string | null;
+  /** Por que o Documento não está disponível (o botão fica apagado), ou null. */
+  semDocumento: string | null;
+  /** Nome do documento auxiliar (DANFE, DACTE...), ou null se não há. */
+  nomeDocumento: string | null;
   /** O Formato original ainda não pode ser mostrado (botão apagado). */
   semFormato: boolean;
   folhas: ArranjoFolhas;
@@ -53,7 +56,7 @@ export interface AcoesLeitura {
 
 // Ícones dos botões grandes, no desenho de 40 x 40 do protótipo.
 const ICONE_MODO: Record<ModoLeitura, string[]> = {
-  danfe: [
+  documento: [
     'M11 4h18a2 2 0 0 1 2 2v28a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
     'M13 10h14M13 14h9',
     'M13 18h14v5H13z',
@@ -167,7 +170,10 @@ export function criarPainelLeitura(
     );
   }
 
-  /** Botão grande com ícone e texto (estilo Word), marcado com aria-pressed. */
+  /**
+   * Botão grande com ícone e texto (estilo Word), marcado com aria-pressed.
+   * `tipo`: segunda linha, menor (o nome do documento montado).
+   */
   function ladrilho(
     id: string,
     rotulo: string,
@@ -175,11 +181,15 @@ export function criarPainelLeitura(
     marcado: boolean,
     apagado: boolean,
     aoClicar: () => void,
+    tipo: string | null = null,
   ): HTMLButtonElement {
     const b = botao(
       'leitura__ladrilho',
       iconeGrande(caminhos),
       el('span', '', rotulo),
+      // O espaço some no leiaute (coluna flexível), mas separa o nome lido.
+      tipo ? ' ' : null,
+      tipo ? el('span', 'leitura__ladrilho-tipo', tipo) : null,
     );
     b.id = id;
     b.setAttribute('aria-pressed', String(marcado));
@@ -215,20 +225,23 @@ export function criarPainelLeitura(
           ROTULO_MODO[m],
           ICONE_MODO[m],
           e.modo === m,
-          (m === 'danfe' && e.semDanfe !== null) ||
+          (m === 'documento' && e.semDocumento !== null) ||
             (m === 'formato' && e.semFormato),
           () => acoes.escolherModo(m),
+          m === 'documento' && e.semDocumento === null ? e.nomeDocumento : null,
         ),
       ),
     );
     modos.setAttribute('role', 'group');
     modos.setAttribute('aria-label', 'Modo de leitura');
     const aviso =
-      e.semDanfe !== null ? el('p', 'leitura__aviso', e.semDanfe) : null;
-    if (aviso) aviso.id = 'leitura-aviso-danfe';
+      e.semDocumento !== null
+        ? el('p', 'leitura__aviso', e.semDocumento)
+        : null;
+    if (aviso) aviso.id = 'leitura-aviso-documento';
 
     const folhas =
-      e.modo === 'danfe'
+      e.modo === 'documento'
         ? (() => {
             const g = el(
               'div',
@@ -281,7 +294,12 @@ export function criarPainelLeitura(
       'conferencia__icone-trilho conferencia__flutuante leitura__modo-trilho',
       iconeGrande(ICONE_MODO[e.modo], 'icone'),
     );
-    modo.setAttribute('aria-label', `Modo de leitura: ${ROTULO_MODO[e.modo]}`);
+    const nome =
+      e.modo === 'documento' && e.nomeDocumento ? ` (${e.nomeDocumento})` : '';
+    modo.setAttribute(
+      'aria-label',
+      `Modo de leitura: ${ROTULO_MODO[e.modo]}${nome}`,
+    );
     for (const b of [expandir, modo])
       b.addEventListener('click', () => abrir());
     trilho.replaceChildren(expandir, modo);

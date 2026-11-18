@@ -131,7 +131,13 @@ import {
   lerXml,
   mostrarXml,
   novoDocumentoXml,
+  textoXml,
 } from './leitorXml/tela';
+import {
+  prepararDocumento,
+  type DocumentoMontavel,
+} from './docfiscal/documento';
+import { MOTIVO_DESCONHECIDO, NOME_FISCAL } from './docfiscal/tipo';
 import { formatarTamanho } from './leitorXml/formato';
 import {
   esconderFormato,
@@ -1622,21 +1628,29 @@ let danfeMontado = false;
 
 /**
  * As telas: a inicial, a aba PSXML (Conferência) e a aba XML em cada modo de
- * leitura (DANFE, Formato original, .XML).
+ * leitura (Documento, Formato original, .XML).
  */
 type Tela = 'vazio' | 'nota' | ModoLeitura;
 
 /** A tela à mostra. */
 let telaAtual: Tela = 'vazio';
 /** Modo da aba XML deste documento (volta a ele ao trocar de aba). */
-let modoXml: ModoLeitura = 'danfe';
+let modoXml: ModoLeitura = 'documento';
 /**
  * XML que não é NF-e aberto nesta janela (o nome e a raiz chegam com a
- * leitura), ou null.
+ * leitura), ou null. `documento`: o processo principal reconheceu um
+ * documento fiscal (CT-e, NFS-e, evento da NF-e) e a aba XML começa no modo
+ * Documento.
  */
-let generico: { nome: string; raiz: string | null } | null = null;
-/** Por que o DANFE não sai deste documento, ou null (sai). */
-let semDanfe: string | null = null;
+let generico: {
+  nome: string;
+  raiz: string | null;
+  documento: boolean;
+} | null = null;
+/** O documento fiscal do XML genérico, pronto para montar, ou null. */
+let documentoFiscal: DocumentoMontavel | null = null;
+/** Por que o Documento não sai deste arquivo, ou null (sai). */
+let semDocumento: string | null = null;
 /** Folhas do DANFE na tela; ficam para a próxima nota desta janela. */
 let arranjoFolhas: ArranjoFolhas = 'uma';
 /**
@@ -1646,8 +1660,6 @@ let arranjoFolhas: ArranjoFolhas = 'uma';
 let orientacaoNota: Orientacao | null = null;
 /** Folhas do DANFE montado (para o cartão Arquivo), ou 0. */
 let folhasDanfe = 0;
-
-const AVISO_INCOMPATIVEL = 'XML incompatível com a visualização em DANFE';
 
 /** Mostra só uma das telas: inicial, aba PSXML ou aba XML num modo. */
 function mostrarTela(tela: Tela): void {
@@ -1661,10 +1673,10 @@ function mostrarTela(tela: Tela): void {
   } else if (perfilRapido.parentElement !== barraPerfil) {
     barraPerfil.append(perfilRapido);
   }
-  const naAbaXml = tela === 'danfe' || tela === 'formato' || tela === 'xml';
+  const naAbaXml = tela === 'documento' || tela === 'formato' || tela === 'xml';
   barra.hidden = tela === 'vazio';
   notaEl.hidden = tela !== 'nota';
-  danfeEl.hidden = tela !== 'danfe';
+  danfeEl.hidden = tela !== 'documento';
   painelEl.hidden = tela !== 'nota';
   painelLeituraEl.hidden = !naAbaXml;
   if (tela === 'xml') mostrarXml();
@@ -1675,8 +1687,8 @@ function mostrarTela(tela: Tela): void {
     modoXml = tela;
     ajustarLayoutLeitura();
   }
-  if (tela === 'nota' || tela === 'danfe') {
-    modoAtual = tela === 'danfe' ? 'danfe' : 'conferencia';
+  if (tela === 'nota' || tela === 'documento') {
+    modoAtual = tela === 'documento' ? 'danfe' : 'conferencia';
     document.body.dataset.modo = modoAtual;
     atualizarMenuSalvar();
   }
@@ -1691,16 +1703,19 @@ function mostrarTela(tela: Tela): void {
   aplicarFolhas();
   aplicarZoom();
   painel.ajustarLayout();
-  if (tela === 'nota' || tela === 'danfe') void avisarAoAbrir();
+  if ((tela === 'nota' || tela === 'documento') && !generico)
+    void avisarAoAbrir();
 }
 
 /**
- * Imprimir e Salvar (com a seta) só no DANFE e na Conferência; no Formato
- * original e no .XML ficam apagados. Respeita o bloqueio de salvar e
+ * Imprimir e Salvar (com a seta) só no Documento da NF-e e na Conferência;
+ * no Formato original, no .XML e no Documento de um XML que não é NF-e
+ * (CT-e, NFS-e, evento) ficam apagados. Respeita o bloqueio de salvar e
  * imprimir em andamento.
  */
 function atualizarAcoesSaida(): void {
-  const comSaida = telaAtual === 'nota' || telaAtual === 'danfe';
+  const comSaida =
+    telaAtual === 'nota' || (telaAtual === 'documento' && !generico);
   for (const b of [btnImprimir, btnSalvar, btnSalvarMais])
     b.disabled = acoesBloqueadas || !comSaida;
 }
@@ -1727,7 +1742,8 @@ function marcarAba(aba: HTMLElement, ativa: boolean): void {
 function atualizarLeitura(): void {
   painelLeitura.atualizar({
     modo: modoXml,
-    semDanfe,
+    semDocumento,
+    nomeDocumento: nomeDocumentoAberto(),
     semFormato: false,
     folhas: arranjoFolhas,
     folhasSemEfeito: folhasSemEfeito(),
@@ -1735,8 +1751,38 @@ function atualizarLeitura(): void {
   });
 }
 
+/** Nome do documento auxiliar do arquivo aberto (DANFE, DACTE...), ou null. */
+function nomeDocumentoAberto(): string | null {
+  if (generico) return documentoFiscal?.nomeAuxiliar ?? null;
+  return aberto ? 'DANFE' : null;
+}
+
+/** Folhas montadas, para o cartão Arquivo ('' sem montar). */
+function textoFolhas(): string {
+  return folhasDanfe > 0
+    ? `${folhasDanfe} ${folhasDanfe === 1 ? 'folha' : 'folhas'}`
+    : '';
+}
+
 /** O cartão Arquivo do painel Leitura: nome, tipo e versão, tamanho, emissão. */
 function cartaoArquivo(): { nome: string; linhas: string[] } | null {
+  if (generico && documentoFiscal) {
+    const lido = arquivoXml();
+    const r = documentoFiscal.resumo;
+    const tipo = `${NOME_FISCAL[documentoFiscal.tipo]}${r.versao ? ` versão ${r.versao}` : ''}`;
+    const tamanho =
+      lido?.arquivo.tamanho != null
+        ? ` · ${formatarTamanho(lido.arquivo.tamanho)}`
+        : '';
+    const emissao = r.emissao ? `Emitido em ${f.data(r.emissao)}` : '';
+    return {
+      nome: generico.nome || lido?.arquivo.nome || '',
+      linhas: [
+        `${tipo}${tamanho}`,
+        [emissao, textoFolhas()].filter(Boolean).join(' · '),
+      ].filter(Boolean),
+    };
+  }
   if (generico) {
     const lido = arquivoXml();
     const linhas = [
@@ -1753,10 +1799,7 @@ function cartaoArquivo(): { nome: string; linhas: string[] } | null {
   const emissao = aberto.lido.nota.ide.dhEmi
     ? `Emitida em ${f.data(aberto.lido.nota.ide.dhEmi)}`
     : '';
-  const folhas =
-    folhasDanfe > 0
-      ? `${folhasDanfe} ${folhasDanfe === 1 ? 'folha' : 'folhas'}`
-      : '';
+  const folhas = textoFolhas();
   return {
     nome: aberto.nome,
     linhas: [
@@ -1772,6 +1815,7 @@ function cartaoArquivo(): { nome: string; linhas: string[] } | null {
  */
 function novoDocumento(): void {
   generico = null;
+  documentoFiscal = null;
   // A largura pode ter mudado com o painel escondido (tela inicial).
   ajustarLayoutLeitura();
   painelLeitura.novoDocumento();
@@ -1779,24 +1823,26 @@ function novoDocumento(): void {
   novoDocumentoFormato();
   folhasDanfe = 0;
   orientacaoNota = null;
-  modoXml = 'danfe';
-  semDanfe = null;
+  modoXml = 'documento';
+  semDocumento = null;
 }
 
 /**
  * XML que não é NF-e aberto nesta janela (o processo principal manda
- * mostrar): a aba XML no Formato original, a aba PSXML apagada, o DANFE
- * apagado com o aviso. O nome e a raiz chegam com a leitura (aoLerXml).
+ * mostrar), com a aba PSXML apagada. Documento fiscal reconhecido pelo
+ * processo principal (`documento`): a aba XML começa no modo Documento, que
+ * é montado quando a leitura termina (aoLerXml). Qualquer outro XML: no
+ * Formato original, com o Documento apagado e o motivo.
  */
-function abrirGenerico(): void {
+function abrirGenerico(documento: boolean): void {
   esconderMensagem();
   limparNota();
-  generico = { nome: '', raiz: null };
-  semDanfe = AVISO_INCOMPATIVEL;
-  modoXml = 'formato';
+  generico = { nome: '', raiz: null, documento };
+  semDocumento = documento ? null : MOTIVO_DESCONHECIDO;
+  modoXml = documento ? 'documento' : 'formato';
   atualizarTituloJanela({ forte: 'Lendo o arquivo…', resto: [] });
   lerXml();
-  mostrarTela('formato');
+  mostrarTela(modoXml);
 }
 
 aoLerXml((dados) => {
@@ -1807,19 +1853,74 @@ aoLerXml((dados) => {
   generico = {
     nome: dados?.arquivo.nome ?? generico.nome,
     raiz: dados?.raiz ?? null,
+    documento: generico.documento,
   };
-  atualizarTituloJanela({
-    forte: generico.nome,
-    resto: [
-      generico.raiz
-        ? `XML que não é NF-e (raiz ${generico.raiz})`
-        : 'XML que não é NF-e',
-    ],
-  });
-  document.title = generico.nome || 'PS Reader';
+  const texto = textoXml();
+  const preparo = texto
+    ? prepararDocumento(texto)
+    : { documento: null, motivo: MOTIVO_DESCONHECIDO };
+  documentoFiscal = preparo.documento;
+  semDocumento = preparo.motivo;
+  if (documentoFiscal) {
+    const r = documentoFiscal.resumo;
+    atualizarTituloJanela({
+      forte: r.emitente || generico.nome,
+      resto: [r.titulo, generico.nome].filter(Boolean),
+    });
+    document.title = juntar([generico.nome, r.titulo, r.emitente], ' | ');
+  } else {
+    atualizarTituloJanela({
+      forte: generico.nome,
+      resto: [
+        generico.raiz
+          ? `XML que não é NF-e (raiz ${generico.raiz})`
+          : 'XML que não é NF-e',
+      ],
+    });
+    document.title = generico.nome || 'PS Reader';
+  }
+  if (modoXml === 'documento' && telaAtual === 'documento') {
+    if (documentoFiscal) mostrarDocumentoFiscal();
+    else {
+      // Não deu para montar: o arquivo abre no Formato original.
+      modoXml = 'formato';
+      mostrarTela('formato');
+    }
+    return;
+  }
   atualizarLeitura();
 });
-window.psLeitorXml.aoMostrar(() => abrirGenerico());
+window.psLeitorXml.aoMostrar((documento) => abrirGenerico(documento));
+
+/**
+ * Mostra o documento auxiliar do XML genérico (DACTE, DANFSe, Evento),
+ * montado na primeira vez, como o DANFE.
+ */
+function mostrarDocumentoFiscal(): void {
+  if (!documentoFiscal) return;
+  if (danfeMontado) {
+    mostrarTela('documento');
+    return;
+  }
+  mostrarTela('documento');
+  try {
+    danfeEl.style.zoom = '1';
+    folhasDanfe = documentoFiscal.montar(danfeEl);
+    if (folhasSemEfeito()[arranjoFolhas]) arranjoFolhas = 'uma';
+    danfeMontado = true;
+    aplicarFolhas();
+    atualizarLeitura();
+    aplicarZoom();
+  } catch (erro) {
+    console.error(erro);
+    danfeEl.replaceChildren();
+    semDocumento = `Não foi possível montar o ${documentoFiscal.nomeAuxiliar}.`;
+    documentoFiscal = null;
+    modoXml = 'formato';
+    mostrarTela('formato');
+    mostrarMensagem(semDocumento, 'erro');
+  }
+}
 
 /**
  * Seção "Ao imprimir e no PDF" do painel da Conferência: Retrato e Paisagem
@@ -1884,7 +1985,7 @@ function orientacaoDaTela(): Orientacao {
   return planoDaTabela(tabela, 'automatica').orientacao;
 }
 
-/** Diálogo do modo apagado (DANFE ou PSXML): o motivo e só OK. */
+/** Diálogo do modo apagado (Documento ou PSXML): o motivo e só OK. */
 async function avisarIndisponivel(
   titulo: string,
   texto: string,
@@ -1899,12 +2000,13 @@ async function avisarIndisponivel(
 
 /** Troca o modo de leitura da aba XML (botões do painel Leitura). */
 function escolherModoXml(modo: ModoLeitura): void {
-  if (modo === 'danfe') {
-    if (semDanfe !== null) {
-      void avisarIndisponivel(AVISO_SEM_DANFE.titulo, semDanfe);
+  if (modo === 'documento') {
+    if (semDocumento !== null) {
+      void avisarIndisponivel(AVISO_SEM_DOCUMENTO.titulo, semDocumento);
       return;
     }
-    mostrarDanfe();
+    if (generico) mostrarDocumentoFiscal();
+    else mostrarDanfe();
     return;
   }
   if (telaAtual !== modo) mostrarTela(modo);
@@ -1912,10 +2014,13 @@ function escolherModoXml(modo: ModoLeitura): void {
 
 /** Aba XML: o modo em que ela estava (ou o primeiro que dá). */
 function mostrarAbaXml(): void {
-  const modo = modoXml === 'danfe' && semDanfe !== null ? 'formato' : modoXml;
+  const modo =
+    modoXml === 'documento' && semDocumento !== null ? 'formato' : modoXml;
   if (telaAtual === modo) return;
-  if (modo === 'danfe') mostrarDanfe();
-  else mostrarTela(modo);
+  if (modo === 'documento') {
+    if (generico) mostrarDocumentoFiscal();
+    else mostrarDanfe();
+  } else mostrarTela(modo);
 }
 
 // ---------- painel Leitura e Folhas do DANFE ----------
@@ -1930,7 +2035,7 @@ const painelLeitura = criarPainelLeitura(painelLeituraEl, {
         ? 'var(--largura-painel-conferencia)'
         : 'var(--largura-trilho-conferencia)',
     );
-    if (telaAtual === 'danfe') {
+    if (telaAtual === 'documento') {
       if (arranjoFolhas === 'largura') calcularZoomLargura();
       aplicarZoom();
     }
@@ -1940,7 +2045,7 @@ const painelLeitura = criarPainelLeitura(painelLeituraEl, {
 /** Arruma as folhas do DANFE na tela (só a tela; o papel é uma por página). */
 function aplicarFolhas(): void {
   danfeEl.dataset.folhas = arranjoFolhas;
-  if (arranjoFolhas === 'largura' && telaAtual === 'danfe')
+  if (arranjoFolhas === 'largura' && telaAtual === 'documento')
     calcularZoomLargura();
 }
 
@@ -2022,7 +2127,7 @@ function ajustarLayoutLeitura(): void {
 // folha em 100% que não passa da área (zoomDanfeNaTela) acompanham.
 window.addEventListener('resize', () => {
   if (!painelLeituraEl.hidden) ajustarLayoutLeitura();
-  if (telaAtual === 'danfe') {
+  if (telaAtual === 'documento') {
     if (arranjoFolhas === 'largura') calcularZoomLargura();
     aplicarZoom();
   }
@@ -2164,16 +2269,17 @@ function preencherBarra(n: Nota): void {
  * dica ao passar o mouse.
  */
 function atualizarSeletorDanfe(): void {
-  if (generico) semDanfe = AVISO_INCOMPATIVEL;
-  else if (!aberto) semDanfe = null;
-  else if (aberto.lido.copiaEditada) semDanfe = AVISO_SEM_DANFE.texto;
-  else semDanfe = lerDadosDanfe(aberto.texto).motivo;
+  // XML genérico: o motivo vem da leitura (aoLerXml).
+  if (generico) return atualizarLeitura();
+  if (!aberto) semDocumento = null;
+  else if (aberto.lido.copiaEditada) semDocumento = AVISO_SEM_DOCUMENTO.texto;
+  else semDocumento = lerDadosDanfe(aberto.texto).motivo;
   atualizarLeitura();
 }
 
-/** Diálogo do DANFE indisponível (cópia editada aberta): só OK. */
-const AVISO_SEM_DANFE = {
-  titulo: 'DANFE indisponível',
+/** Diálogo do Documento indisponível; o texto é o da cópia editada aberta. */
+const AVISO_SEM_DOCUMENTO = {
+  titulo: 'Documento indisponível',
   texto: 'O DANFE só é gerado a partir do XML original da nota.',
 } as const;
 
@@ -2185,7 +2291,7 @@ const AVISO_SEM_DANFE = {
 function mostrarDanfe(): void {
   if (!aberto || aberto.lido.copiaEditada) return;
   if (danfeMontado) {
-    mostrarTela('danfe');
+    mostrarTela('documento');
     return;
   }
   const { dados, motivo } = lerDadosDanfe(aberto.texto);
@@ -2197,7 +2303,7 @@ function mostrarDanfe(): void {
   preencherBarra(aberto.lido.nota);
   // A montagem mede a altura dos itens já renderizados: a área precisa estar
   // visível antes.
-  mostrarTela('danfe');
+  mostrarTela('documento');
   try {
     // Paginado sempre em 100%: as medidas não dependem do zoom da tela.
     danfeEl.style.zoom = '1';
@@ -3543,9 +3649,12 @@ btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
 btnAbaPsxml.addEventListener('click', () => {
   if (generico) {
+    const tipo = documentoFiscal ? NOME_FISCAL[documentoFiscal.tipo] : '';
     void avisarIndisponivel(
       'PSXML indisponível',
-      'Este XML não é uma NF-e. A Conferência (PSXML) só existe para NF-e; use a aba XML.',
+      tipo
+        ? `Este arquivo é um ${tipo}, não uma NF-e de produto. A Conferência (PSXML) só existe para NF-e; use a aba XML.`
+        : 'Este XML não é uma NF-e. A Conferência (PSXML) só existe para NF-e; use a aba XML.',
     );
     return;
   }

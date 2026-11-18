@@ -1153,7 +1153,7 @@ async function principal() {
   );
 
   await caso(
-    'Painel Leitura: DANFE, Formato original e .XML; Folhas só no DANFE; Arquivo; recolhe e expande',
+    'Painel Leitura: Documento (DANFE), Formato original e .XML; Folhas só no Documento; Arquivo; recolhe e expande',
     async () => {
       await abrirNota(outra);
       const p1 = await leitura(`return {
@@ -1164,7 +1164,8 @@ async function principal() {
         titulo: p.querySelector('.conferencia__titulo')?.textContent,
       };`);
       confere(
-        p1.modos.join('|') === 'DANFE:true|Formato original:false|.XML:false',
+        p1.modos.join('|') ===
+          'Documento DANFE:true|Formato original:false|.XML:false',
         `modos: ${p1.modos.join(', ')}`,
       );
       confere(
@@ -1226,7 +1227,7 @@ async function principal() {
         (await leitura(`return p.dataset.estado;`)) === 'aberto',
         'o painel não abriu de novo',
       );
-      await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+      await avaliar(`document.getElementById('btn-modo-documento').click()`);
       await aguardar(visivel('danfe'), 15000, 'o DANFE não voltou');
       confere(
         await avaliar(
@@ -1377,8 +1378,8 @@ async function principal() {
         titulo: [...document.querySelectorAll('#titulo-janela-textos > :not(.titulo-janela__sep)')].map((e) => e.textContent),
         psxml: document.getElementById('btn-aba-psxml').getAttribute('aria-disabled'),
         xml: document.getElementById('btn-aba-xml').getAttribute('aria-selected'),
-        danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
-        aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
+        danfe: document.getElementById('btn-modo-documento').getAttribute('aria-disabled'),
+        aviso: document.getElementById('leitura-aviso-documento')?.textContent,
         modo: document.getElementById('btn-modo-formato').getAttribute('aria-pressed'),
       }))()`);
       confere(
@@ -1392,7 +1393,8 @@ async function principal() {
       );
       confere(
         g.danfe === 'true' &&
-          g.aviso === 'XML incompatível com a visualização em DANFE',
+          g.aviso ===
+            'Este XML não é um documento fiscal que o PS Reader saiba mostrar (NF-e, NFC-e, CT-e, NFS-e ou evento da NF-e).',
         `DANFE: ${JSON.stringify(g)}`,
       );
       await avaliar(`document.getElementById('btn-aba-psxml').click()`);
@@ -1441,8 +1443,8 @@ async function principal() {
       );
       const v = await avaliar(`(() => ({
         texto: document.querySelector('.leitor-xml__vista--arvore').innerText,
-        danfe: document.getElementById('btn-modo-danfe').getAttribute('aria-disabled'),
-        aviso: document.getElementById('leitura-aviso-danfe')?.textContent,
+        danfe: document.getElementById('btn-modo-documento').getAttribute('aria-disabled'),
+        aviso: document.getElementById('leitura-aviso-documento')?.textContent,
       }))()`);
       confere(/nfeProc|<NFe/.test(v.texto), 'o original não aparece');
       confere(
@@ -1969,7 +1971,9 @@ async function principal() {
           await conferir('Formato original');
           await avaliar(`document.getElementById('btn-modo-xml').click()`);
           await conferir('.XML');
-          await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+          await avaliar(
+            `document.getElementById('btn-modo-documento').click()`,
+          );
           await inicio();
         }
         // Janela estreita: o painel Leitura abre por cima do DANFE e começa
@@ -2143,7 +2147,7 @@ async function principal() {
         return {
           interface: {
             salvar: us('#btn-salvar'),
-            modo: us('#btn-modo-danfe'),
+            modo: us('#btn-modo-documento'),
             cabecalho: us('#nota th'),
           },
           dados: {
@@ -2187,7 +2191,7 @@ async function principal() {
       );
       await abrirNota(copiaEditada, 'nota');
       const antes = await avaliar(`(() => {
-        const b = document.getElementById('btn-modo-danfe');
+        const b = document.getElementById('btn-modo-documento');
         return {
           caixa: !!document.getElementById('dica-danfe') || !!document.querySelector('.dica, [role="tooltip"]'),
           indisponivel: b.getAttribute('aria-disabled'),
@@ -2197,7 +2201,7 @@ async function principal() {
       confere(!antes.caixa, 'a caixa preta do DANFE continua na página');
       confere(antes.indisponivel === 'true', 'o DANFE não está indisponível');
       confere(antes.descrito === null, `aria-describedby: ${antes.descrito}`);
-      await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+      await avaliar(`document.getElementById('btn-modo-documento').click()`);
       await aguardar(
         `!!document.querySelector('dialog[open]')`,
         15000,
@@ -2212,7 +2216,7 @@ async function principal() {
           foco: document.activeElement?.textContent?.trim(),
         };
       })()`);
-      confere(d.titulo === 'DANFE indisponível', `título: ${d.titulo}`);
+      confere(d.titulo === 'Documento indisponível', `título: ${d.titulo}`);
       confere(
         d.texto === 'O DANFE só é gerado a partir do XML original da nota.',
         `texto: ${d.texto}`,
@@ -3140,7 +3144,7 @@ async function casosLarguraMinima(variasFolhas) {
           'o Formato original não abriu',
         );
         await conferir('formato-original');
-        await avaliar(`document.getElementById('btn-modo-danfe').click()`);
+        await avaliar(`document.getElementById('btn-modo-documento').click()`);
         await inicio();
 
         // Aba PSXML (Conferência): painel fechado e aberto, os menus, a

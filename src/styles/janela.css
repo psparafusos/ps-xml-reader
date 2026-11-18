@@ -806,6 +806,14 @@
     stroke: #bbbbbb;
   }
 
+  /* Nome do documento montado no Documento (DANFE, DACTE, DANFSe...). */
+  .leitura__ladrilho-tipo {
+    margin-top: -2px;
+    color: #555555;
+    font-size: 10.5px;
+    font-weight: var(--peso-normal, 400);
+  }
+
   .leitura__ladrilho:focus-visible {
     outline: var(--botao-foco-espessura) solid var(--botao-foco);
     outline-offset: var(--botao-foco-afastamento);

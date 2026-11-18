@@ -96,12 +96,17 @@ export function caminhoNoLeitor(wcId: number): string | null {
 }
 
 /**
- * Abre o arquivo no leitor da janela. O caminho já passou pelas barreiras do
+ * Abre o arquivo no leitor da janela (`documento`: é um documento fiscal que
+ * não é NF-e, e a aba XML começa no modo Documento). O caminho já passou pelas barreiras do
  * fluxo de abrir; antes de ler, leitor-xml-carregar confere de novo.
  */
-export function abrirNoLeitor(wc: WebContents, caminho: string): void {
+export function abrirNoLeitor(
+  wc: WebContents,
+  caminho: string,
+  documento = false,
+): void {
   guardar(wc, caminho);
-  wc.send('leitor-xml-mostrar');
+  wc.send('leitor-xml-mostrar', documento);
 }
 
 export function registrarLeitorXml(): void {

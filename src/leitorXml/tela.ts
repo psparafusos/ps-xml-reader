@@ -794,6 +794,11 @@ export function aoLerXml(
   aoLer = callback;
 }
 
+/** O texto da última leitura ('' antes de ler ou se não leu). */
+export function textoXml(): string {
+  return texto;
+}
+
 /** O arquivo da última leitura (nome e tamanho), ou null. */
 export function arquivoXml(): {
   arquivo: InfoArquivo;

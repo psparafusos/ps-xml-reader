@@ -49,6 +49,9 @@ export interface PsLeitorXmlApi {
   abrirNoBlocoDeNotas(): Promise<ResultadoBlocoDeNotas>;
   /** A tela fechou: o principal esquece o arquivo desta janela. */
   fechar(): Promise<void>;
-  /** O principal mandou mostrar a tela (um XML que não é NF-e foi aberto). */
-  aoMostrar(callback: () => void): void;
+  /**
+   * O principal mandou mostrar a tela (um XML que não é NF-e foi aberto);
+   * `documento`: é outro documento fiscal (CT-e, NFS-e, evento da NF-e).
+   */
+  aoMostrar(callback: (documento: boolean) => void): void;
 }

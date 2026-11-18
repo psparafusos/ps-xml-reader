@@ -80,9 +80,24 @@ describe('destinoPeloComeco', () => {
       assert.equal(destinoPeloComeco(XML, bytes(x)), 'nota', x);
   });
 
-  it('outro XML vai para o leitor (CT-e, catálogo, configuração)', () => {
+  it('CT-e, NFS-e e evento da NF-e vão para o modo Documento', () => {
     for (const x of [
       '<?xml version="1.0"?><cteProc versao="4.00">',
+      '<CTe xmlns="http://www.portalfiscal.inf.br/cte">',
+      '<NFSe versao="1.00" xmlns="http://www.sped.fazenda.gov.br/nfse">',
+      '<CompNfse xmlns="http://www.abrasf.org.br/nfse.xsd"><Nfse versao="2.02">',
+      '<ns2:ConsultarNfseRpsResposta xmlns:ns2="http://www.abrasf.org.br/nfse.xsd"><ns2:CompNfse>',
+      '<procEventoNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">',
+      '<evento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">',
+    ])
+      assert.equal(destinoPeloComeco(XML, bytes(x)), 'documento', x);
+  });
+
+  it('outro XML vai para o leitor (MDF-e, catálogo, configuração)', () => {
+    for (const x of [
+      '<?xml version="1.0"?><mdfeProc versao="3.00">',
+      '<evento versao="1.00" xmlns="urn:outro">',
+      '<ConsultarNfseRpsResposta><ListaMensagemRetorno>',
       '<catalogo origem="teste">',
       '<!DOCTYPE c [ <!ENTITY e "x"> ]><configuracao/>',
     ])
