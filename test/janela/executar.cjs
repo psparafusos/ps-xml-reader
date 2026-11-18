@@ -39,7 +39,7 @@ const { casosPerfis } = require('./perfis.cjs');
 const { casosRascunhos } = require('./rascunhos.cjs');
 const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
-const { casosDocumentos } = require('./documentos.cjs');
+const { casosDocumentos, casosSaida } = require('./documentos.cjs');
 const { casosDanfeHtml } = require('./danfeHtml.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
@@ -2433,10 +2433,17 @@ async function principal() {
     abrirNota,
     inicio,
     capturar,
+    tmp,
+    destino,
+    pdfNoDestino,
+    paginasDoPdf,
+    apagarPdfs,
   };
   await casosLeitorXml(contexto);
   // Modo Documento: DANFSe, DACTE, Evento e DANFE NFC-e (documentos.cjs).
   await casosDocumentos(contexto);
+  // Salvar PDF e Imprimir de cada documento do modo Documento.
+  await casosSaida(contexto);
   // Só com PS_JANELA_DANFE: o HTML do DANFE de cada NF-e inventada, para
   // comparar duas versões do app (danfeHtml.cjs).
   await casosDanfeHtml(contexto);

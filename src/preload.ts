@@ -93,7 +93,9 @@ contextBridge.exposeInMainWorld('psApi', {
   sugerirCopia: (
     base: string | null,
     tipo: TipoCopia,
-  ): Promise<SugestaoCopia> => ipcRenderer.invoke('sugerir-copia', base, tipo),
+    sufixo?: string,
+  ): Promise<SugestaoCopia> =>
+    ipcRenderer.invoke('sugerir-copia', base, tipo, sufixo),
   salvarCopia: (
     textoCopia: string,
     nome: string,
@@ -111,6 +113,13 @@ contextBridge.exposeInMainWorld('psApi', {
     opcoes: OpcoesSalvar = {},
   ): Promise<ResultadoSalvarDanfe> =>
     ipcRenderer.invoke('salvar-danfe', base, opcoes),
+  salvarDocumento: (
+    base: string | null,
+    sufixo: string,
+    bobina: number | null,
+    opcoes: OpcoesSalvar = {},
+  ): Promise<ResultadoSalvarDanfe> =>
+    ipcRenderer.invoke('salvar-documento', base, sufixo, bobina, opcoes),
   versao: (): Promise<string> => ipcRenderer.invoke('versao'),
   configAvisos: (): Promise<ConfigAvisos> =>
     ipcRenderer.invoke('config-avisos'),
@@ -127,8 +136,9 @@ contextBridge.exposeInMainWorld('psApi', {
   imprimir: (
     modo: ModoImpressao,
     paisagem: boolean,
+    bobina: number | null = null,
   ): Promise<ResultadoImprimir> =>
-    ipcRenderer.invoke('imprimir', modo, paisagem),
+    ipcRenderer.invoke('imprimir', modo, paisagem, bobina),
   informarPendentes: (pendentes: boolean): void =>
     ipcRenderer.send('anotacoes-pendentes', pendentes),
   aoPedirFechar: (callback: () => void): void => {

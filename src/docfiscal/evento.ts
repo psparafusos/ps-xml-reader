@@ -10,6 +10,7 @@
 // lerEvento e modeloEvento são puros; montarEvento desenha.
 
 import { registrarMontador } from './documento';
+import { saidaEvento } from './nomeArquivo';
 import { barrasSvg, el, montarFolhas } from './folha';
 import {
   campo,
@@ -296,6 +297,7 @@ export function montarEvento(container: HTMLElement, d: DadosEvento): number {
 registrarMontador('evento-nfe', (elementos: ElementoXml[]) => {
   const d = lerEvento(elementos[0]);
   return {
+    arquivo: saidaEvento(d.chave, d.codigo, d.leiauteAntigo),
     resumo: {
       emitente: d.tipo || 'Evento da NF-e',
       titulo:

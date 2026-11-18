@@ -6,6 +6,7 @@
 
 import { ArquivoRecusadoError } from '../seguranca/xml';
 import { lerDocumento } from '../nfe/parser';
+import type { SaidaDocumento } from './nomeArquivo';
 import {
   identificar,
   MOTIVO_DESCONHECIDO,
@@ -36,6 +37,8 @@ export interface DocumentoMontavel {
    * folhas.
    */
   montar(container: HTMLElement): number;
+  /** Nome do PDF (Salvar): base e sufixo (./nomeArquivo.ts). */
+  arquivo: SaidaDocumento;
 }
 
 /** Lê os elementos identificados e prepara a montagem. */

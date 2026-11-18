@@ -34,6 +34,7 @@ const DOCUMENTOS = [
     qr: false,
     psxml: false,
     captura: 'danfse-abrasf',
+    pdf: 'LOCADORA-INVENTADA_NFSe202600000000321_DANFSe.pdf',
   },
   {
     fixture: 'd02-nfse-nacional.xml',
@@ -50,6 +51,7 @@ const DOCUMENTOS = [
     qr: true,
     psxml: false,
     captura: 'danfse-nacional',
+    pdf: 'PRESTADORA-INVENTADA_NFSe123_DANFSe.pdf',
   },
   {
     fixture: 'd03-cte.xml',
@@ -68,6 +70,7 @@ const DOCUMENTOS = [
     qr: true,
     psxml: false,
     captura: 'dacte',
+    pdf: 'TRANSPORTADORA-INVEN_CTe4567_DACTE.pdf',
   },
   {
     fixture: 'd04-evento-cce.xml',
@@ -85,6 +88,7 @@ const DOCUMENTOS = [
     qr: false,
     psxml: false,
     captura: 'evento-cce',
+    pdf: '87654321000198_NF1234_Evento-CCe.pdf',
   },
   {
     fixture: 'd05-evento-cancelamento.xml',
@@ -100,6 +104,7 @@ const DOCUMENTOS = [
     qr: false,
     psxml: false,
     captura: 'evento-cancelamento',
+    pdf: '87654321000198_NF1235_Evento-Cancelamento.pdf',
   },
   {
     fixture: 'd06-cancelamento-antigo.xml',
@@ -114,6 +119,7 @@ const DOCUMENTOS = [
     qr: false,
     psxml: false,
     captura: null,
+    pdf: '87654321000198_NF123_Evento-Cancelamento.pdf',
   },
   {
     fixture: 'd07-nfce.xml',
@@ -133,6 +139,8 @@ const DOCUMENTOS = [
     qr: true,
     psxml: true,
     captura: 'danfe-nfce',
+    pdf: 'MERCADO-INVENTADO_NF456_DANFE-NFCe.pdf',
+    bobina: true,
   },
 ];
 
@@ -196,8 +204,8 @@ async function casosDocumentos(c) {
       `aba PSXML: ${t.psxml}`,
     );
     confere(
-      d.psxml || (t.imprimir && t.salvar),
-      'Imprimir e Salvar deveriam ficar apagados',
+      !t.imprimir && !t.salvar,
+      'Imprimir e Salvar deveriam estar disponíveis no documento montado',
     );
     confere(
       t.rotuloSelecao === 'none',
@@ -316,4 +324,162 @@ async function casosDocumentos(c) {
   }
 }
 
-module.exports = { casosDocumentos, DOCUMENTOS };
+/**
+ * Salvar e Imprimir de cada documento (src/docfiscal/nomeArquivo.ts):
+ * o PDF na pasta de destino com o nome do padrão e o tamanho da folha da
+ * tela (A4; a NFC-e na bobina de 80 mm), a pergunta de Substituir, Salvar
+ * cópia ou Cancelar quando o PDF já existe, e a impressão até o diálogo do
+ * Windows (o teste fica no lugar dele, confere as opções que o app pediu e
+ * gera o PDF com elas, como faria a "Microsoft Print to PDF").
+ */
+async function casosSaida(c) {
+  const { caso, avaliar, aguardar, confere, abrir, notas, inicio } = c;
+  const A4 = { largura: 595.92, altura: 842.88 };
+  const perto = (a, b) => Math.abs(a - b) < 2;
+
+  for (const d of DOCUMENTOS) {
+    await caso(`Documento: ${d.fixture} salva o PDF e imprime`, async () => {
+      c.apagarPdfs();
+      const alvo = path.join(notas, d.fixture);
+      fs.copyFileSync(path.join(FIXTURES, d.fixture), alvo);
+      abrir(alvo);
+      await aguardar(
+        `(() => { const e = document.getElementById('danfe'); return !!e && !e.hidden && !!e.querySelector('.${d.folha}') && !document.getElementById('btn-salvar').disabled; })()`,
+        30000,
+        `o ${d.nome} de ${d.fixture} não ficou pronto para salvar`,
+      );
+      // Avisos da nota (NFC-e) por cima: fecha antes de salvar.
+      await avaliar(
+        `[...document.querySelectorAll('dialog[open]')].forEach((x) => { x.dispatchEvent(new Event('cancel', { cancelable: true })); if (x.open) x.close(); }); true`,
+      );
+      await avaliar(`document.getElementById('btn-salvar').click()`);
+      const arquivo = await c.pdfNoDestino(d.pdf);
+      confere(
+        path.basename(arquivo) === d.pdf,
+        `nome do PDF: ${path.basename(arquivo)}`,
+      );
+      const pdf = c.paginasDoPdf(arquivo);
+      if (d.bobina)
+        confere(
+          perto(pdf.largura, (80 / 25.4) * 72) &&
+            pdf.altura > pdf.largura &&
+            pdf.paginas === 1,
+          `PDF da NFC-e fora da bobina: ${JSON.stringify(pdf)}`,
+        );
+      else
+        confere(
+          perto(pdf.largura, A4.largura) && perto(pdf.altura, A4.altura),
+          `PDF fora do A4: ${JSON.stringify(pdf)}`,
+        );
+
+      // De novo: o PDF já existe. A pergunta do app, com as três saídas;
+      // Substituir grava por cima.
+      const antes = fs.statSync(arquivo).mtimeMs;
+      await avaliar(`document.getElementById('btn-salvar').click()`);
+      await aguardar(
+        `!!document.querySelector('dialog[open] .caixa-dialogo__titulo')`,
+        15000,
+        'a pergunta de arquivo existente não apareceu',
+      );
+      const pergunta = await avaliar(`(() => {
+        const x = document.querySelector('dialog[open]');
+        return { titulo: x.querySelector('.caixa-dialogo__titulo')?.textContent, botoes: [...x.querySelectorAll('button')].map((b) => b.textContent.trim()) };
+      })()`);
+      confere(
+        pergunta.titulo === 'Arquivo já existe' &&
+          ['Cancelar', 'Salvar cópia...', 'Substituir'].every((b) =>
+            pergunta.botoes.includes(b),
+          ),
+        `pergunta: ${JSON.stringify(pergunta)}`,
+      );
+      await avaliar(
+        `[...document.querySelectorAll('dialog[open] button')].find((b) => b.textContent.trim() === 'Substituir').click()`,
+      );
+      const limite = Date.now() + 30000;
+      while (fs.statSync(arquivo).mtimeMs === antes && Date.now() < limite)
+        await c.espera(200);
+      confere(
+        fs.statSync(arquivo).mtimeMs !== antes,
+        'Substituir não regravou o PDF',
+      );
+      await aguardar(
+        `!document.getElementById('btn-salvar').disabled`,
+        15000,
+        'o Salvar não voltou',
+      );
+
+      // Imprimir: até o diálogo do Windows.
+      const { dialog } = require('electron');
+      const janela = c.janela();
+      const proto = Object.getPrototypeOf(janela.webContents);
+      const printOriginal = proto.print;
+      const avisoOriginal = dialog.showMessageBox;
+      const saida = path.join(c.tmp, `impressao-${d.fixture}.pdf`);
+      let impressao = null;
+      let avisos = 0;
+      dialog.showMessageBox = async () => {
+        avisos++;
+        return { response: 0, checkboxChecked: false };
+      };
+      proto.print = function (opcoes, fim) {
+        impressao = (async () => {
+          const ps = opcoes.pageSize;
+          fs.writeFileSync(
+            saida,
+            await this.printToPDF({
+              printBackground: true,
+              pageSize:
+                typeof ps === 'object'
+                  ? { width: ps.width / 25400, height: ps.height / 25400 }
+                  : ps,
+              margins: { top: 0, bottom: 0, left: 0, right: 0 },
+            }),
+          );
+          fim(true, '');
+          return { opcoes, pdf: c.paginasDoPdf(saida) };
+        })();
+      };
+      try {
+        const impressoras = (await janela.webContents.getPrintersAsync()).map(
+          (x) => x.name,
+        );
+        await avaliar(`document.getElementById('btn-imprimir').click()`);
+        const fimEspera = Date.now() + 30000;
+        while (!impressao && Date.now() < fimEspera) await c.espera(100);
+        confere(impressao, `Imprimir do ${d.nome} não chegou ao diálogo`);
+        const r = await impressao;
+        confere(r.opcoes.silent === false, 'a impressão não abriria o diálogo');
+        if (d.bobina)
+          confere(
+            r.opcoes.pageSize?.width === 80000 &&
+              perto(r.pdf.largura, (80 / 25.4) * 72) &&
+              avisos === 0,
+            `impressão da NFC-e: ${JSON.stringify({ ...r, avisos })}`,
+          );
+        else
+          confere(
+            r.opcoes.pageSize === 'A4' &&
+              perto(r.pdf.largura, A4.largura) &&
+              perto(r.pdf.altura, A4.altura),
+            `impressão do ${d.nome}: ${JSON.stringify(r)}`,
+          );
+        // Com a "Microsoft Print to PDF" instalada, ela é uma das opções do
+        // diálogo (o teste não escolhe a impressora: o diálogo é do Windows).
+        if (!impressoras.includes('Microsoft Print to PDF'))
+          console.log('  (a Microsoft Print to PDF não está instalada aqui)');
+        await aguardar(
+          `!document.getElementById('btn-imprimir').disabled`,
+          10000,
+          'Imprimir não voltou',
+        );
+      } finally {
+        proto.print = printOriginal;
+        dialog.showMessageBox = avisoOriginal;
+      }
+      c.apagarPdfs();
+      await inicio();
+    });
+  }
+}
+
+module.exports = { casosDocumentos, casosSaida, DOCUMENTOS };

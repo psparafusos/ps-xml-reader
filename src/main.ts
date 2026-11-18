@@ -88,6 +88,7 @@ import { problemaCnpj } from './nfe/cnpj';
 // XML que não é NF-e abre no leitor genérico (parte 3); NF-e acima de 5 MB é
 // lida no serviço de leitura pesada (parte 2).
 import { destinoDoArquivo } from './leitorXml/destino';
+import { BASE_DOCUMENTO, SUFIXO_DOCUMENTO } from './docfiscal/nomeArquivo';
 import {
   abrirNoLeitor,
   caminhoNoLeitor,
@@ -2116,10 +2117,12 @@ tratar(
 
 /**
  * Nome base vindo do renderer, montado com os dados da nota
- * (src/nfe/nome.ts): FORNECEDOR_NF<número>, com -S<série> se a série não for 1.
- * Só letras maiúsculas, dígitos, hífen e o "_NF": nada que vire caminho.
+ * (src/nfe/nome.ts): FORNECEDOR_NF<número>, com -S<série> se a série não for 1;
+ * nos outros documentos fiscais, _CTe<número> ou _NFSe<número>
+ * (src/docfiscal/nomeArquivo.ts). Só letras maiúsculas, dígitos, hífen e o
+ * "_NF", "_CTe" ou "_NFSe": nada que vire caminho.
  */
-const NOME_BASE_VALIDO = /^[A-Z0-9]+(?:-[A-Z0-9]+)*_NF\d+(?:-S\d+)?$/;
+const NOME_BASE_VALIDO = BASE_DOCUMENTO;
 
 /**
  * Nome base dos arquivos salvos: o dos dados da nota; se a nota não tem os
@@ -2209,6 +2212,14 @@ async function desfazerTrocas(
   return falhas;
 }
 
+/**
+ * O arquivo aberto na janela: a NF-e ou o .psxml da tela da nota, ou o
+ * documento fiscal (CT-e, NFS-e, evento) aberto na aba XML. null: nenhum.
+ */
+function arquivoDaJanela(j: Janela): string | null {
+  return j.arquivoAberto ?? caminhoNoLeitor(j.janela.webContents.id);
+}
+
 /** Um arquivo a gravar: texto pronto ou o PDF da tela atual (gerado depois). */
 type Saida =
   | { destino: string; texto: string }
@@ -2244,7 +2255,7 @@ async function gravarSaidas(
   const semPergunta = opcoes.semPergunta ?? (() => false);
   const j = estadoDe(event.sender);
   const janela = j.janela;
-  const arquivoAberto = j.arquivoAberto;
+  const arquivoAberto = arquivoDaJanela(j);
   const abertoEhCopia = j.abertoEhCopia;
   if (!arquivoAberto) {
     return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
@@ -2471,7 +2482,7 @@ async function salvarPdf(
   event: Electron.IpcMainInvokeEvent,
   base: unknown,
   opcoes: unknown,
-  sufixo: '_Conferencia' | '_DANFE',
+  sufixo: string,
   pdf: Electron.PrintToPDFOptions,
 ): Promise<ResultadoSalvarDanfe> {
   const { substituir, nome } = opcoesDoRenderer(opcoes);
@@ -2491,11 +2502,58 @@ async function salvarPdf(
   return { status: 'salvo', pdf: r.destinos[0] };
 }
 
+/** Largura da bobina da NFC-e, em mm (src/docfiscal/docfiscal.css). */
+const LARGURA_BOBINA_MM = 80;
+
+/**
+ * Altura da tira da NFC-e (mm) vinda do renderer, ou null: só números
+ * razoáveis (de 40 mm a 5 m).
+ */
+function alturaBobina(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 40 && v <= 5000
+    ? Math.ceil(v)
+    : null;
+}
+
+/**
+ * PDF dos documentos fiscais do modo Documento além do DANFE da NF-e
+ * (DACTE, DANFSe, Evento: A4 sem margem, como o DANFE; DANFE NFC-e: a
+ * bobina de 80 mm na altura da tira). `sufixo`: _DACTE, _DANFSe,
+ * _Evento-CCe... (SUFIXO_DOCUMENTO).
+ */
+tratar(
+  'salvar-documento',
+  async (
+    event,
+    base: unknown,
+    sufixo: unknown,
+    bobina: unknown,
+    opcoes: unknown,
+  ): Promise<ResultadoSalvarDanfe> => {
+    if (typeof sufixo !== 'string' || !SUFIXO_DOCUMENTO.test(sufixo))
+      return { status: 'erro', mensagem: 'Tipo de documento inválido.' };
+    const altura = alturaBobina(bobina);
+    const pdf: Electron.PrintToPDFOptions = altura
+      ? {
+          pageSize: {
+            width: LARGURA_BOBINA_MM / 25.4,
+            height: altura / 25.4,
+          },
+          landscape: false,
+          printBackground: true,
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        }
+      : PDF_DANFE;
+    return salvarPdf(event, base, opcoes, sufixo, pdf);
+  },
+);
+
 /** Sufixo e extensão de cada tipo de cópia. */
 const TIPOS_COPIA: Record<TipoCopia, { sufixo: string; extensao: string }> = {
   psxml: { sufixo: '_Conferencia', extensao: EXTENSAO },
   conferencia: { sufixo: '_Conferencia', extensao: '.pdf' },
   danfe: { sufixo: '_DANFE', extensao: '.pdf' },
+  documento: { sufixo: '', extensao: '.pdf' },
 };
 
 /**
@@ -2504,9 +2562,14 @@ const TIPOS_COPIA: Record<TipoCopia, { sufixo: string; extensao: string }> = {
  */
 tratar(
   'sugerir-copia',
-  async (event, base: unknown, tipo: unknown): Promise<SugestaoCopia> => {
+  async (
+    event,
+    base: unknown,
+    tipo: unknown,
+    sufixoDocumento: unknown,
+  ): Promise<SugestaoCopia> => {
     const j = estadoDe(event.sender);
-    const arquivo = j.arquivoAberto;
+    const arquivo = arquivoDaJanela(j);
     if (!arquivo) return { status: 'erro', mensagem: 'Nenhum arquivo aberto.' };
     const efetiva = await pastaEfetiva(j);
     const pasta = efetiva.caminho;
@@ -2514,8 +2577,17 @@ tratar(
       return { status: 'erro', mensagem: 'Escolha a pasta de destino.' };
     if (!(await ehPasta(pasta)))
       return { status: 'erro', mensagem: pastaSumiu(efetiva) };
-    const { sufixo, extensao } =
-      TIPOS_COPIA[tipo === 'conferencia' || tipo === 'danfe' ? tipo : 'psxml'];
+    const documento =
+      tipo === 'documento' &&
+      typeof sufixoDocumento === 'string' &&
+      SUFIXO_DOCUMENTO.test(sufixoDocumento)
+        ? sufixoDocumento
+        : null;
+    const { sufixo, extensao } = documento
+      ? { sufixo: documento, extensao: '.pdf' }
+      : TIPOS_COPIA[
+          tipo === 'conferencia' || tipo === 'danfe' ? tipo : 'psxml'
+        ];
     const b = nomeBase(base, arquivo);
     for (let n = 1; ; n++) {
       const nome = `${b}${sufixo}_copia${n}`;
@@ -2637,10 +2709,13 @@ tratar(
     event,
     modo: unknown,
     paisagem: unknown,
+    bobina: unknown,
   ): Promise<ResultadoImprimir> => {
-    // Antes do diálogo do Windows: se a padrão é de cupom, avisa. Cancelar
-    // não abre o diálogo de impressão.
-    const padrao = await impressoraPadrao();
+    // DANFE NFC-e: a tira de 80 mm, que é o papel da impressora de cupom.
+    const altura = modo === 'danfe' ? alturaBobina(bobina) : null;
+    // Antes do diálogo do Windows: se a padrão é de cupom, avisa (menos na
+    // NFC-e). Cancelar não abre o diálogo de impressão.
+    const padrao = altura ? null : await impressoraPadrao();
     if (padrao && ehImpressoraCupom(padrao)) {
       const janela = BrowserWindow.fromWebContents(event.sender);
       const opcoes: Electron.MessageBoxOptions = {
@@ -2659,9 +2734,18 @@ tratar(
     }
     return new Promise((resolve) => {
       event.sender.print(
-        modo === 'danfe'
-          ? OPCOES_IMPRESSAO.danfe
-          : { ...OPCOES_IMPRESSAO.conferencia, landscape: paisagem === true },
+        altura
+          ? {
+              ...OPCOES_IMPRESSAO.danfe,
+              // Em mícrons.
+              pageSize: {
+                width: LARGURA_BOBINA_MM * 1000,
+                height: altura * 1000,
+              },
+            }
+          : modo === 'danfe'
+            ? OPCOES_IMPRESSAO.danfe
+            : { ...OPCOES_IMPRESSAO.conferencia, landscape: paisagem === true },
         (sucesso, motivo) => {
           if (sucesso) resolve({ status: 'impresso' });
           else if (motivo === 'Print job canceled')

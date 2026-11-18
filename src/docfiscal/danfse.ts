@@ -19,7 +19,8 @@ import {
   type DadosNfse,
   type PessoaNfse,
 } from './nfse';
-import type { ElementoXml } from './tipo';
+import { saidaDanfse } from './nomeArquivo';
+import { filhoXml, primeiroXml, textoXml, type ElementoXml } from './tipo';
 
 export const URL_CONSULTA_NACIONAL =
   'https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=';
@@ -488,7 +489,13 @@ function resumo(notas: DadosNfse[]): {
 
 registrarMontador('nfse-nacional', (elementos: ElementoXml[]) => {
   const notas = elementos.map(lerNfseNacional);
+  const emit = filhoXml(primeiroXml(elementos[0], 'infNFSe'), 'emit');
   return {
+    arquivo: saidaDanfse(
+      textoXml(emit, 'xFant'),
+      notas[0].prestador.nome,
+      notas[0].numero,
+    ),
     resumo: resumo(notas),
     montar: (c) => montarDanfse(c, notas),
   };
@@ -496,7 +503,13 @@ registrarMontador('nfse-nacional', (elementos: ElementoXml[]) => {
 
 registrarMontador('nfse-abrasf', (elementos: ElementoXml[]) => {
   const notas = elementos.map(lerNfseAbrasf);
+  const prest = primeiroXml(elementos[0], 'PrestadorServico');
   return {
+    arquivo: saidaDanfse(
+      textoXml(prest, 'NomeFantasia'),
+      notas[0].prestador.nome,
+      notas[0].numero,
+    ),
     resumo: resumo(notas),
     montar: (c) => montarDanfse(c, notas),
   };

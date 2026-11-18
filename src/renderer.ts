@@ -1720,7 +1720,8 @@ function mostrarTela(tela: Tela): void {
  */
 function atualizarAcoesSaida(): void {
   const comSaida =
-    telaAtual === 'nota' || (telaAtual === 'documento' && !generico);
+    telaAtual === 'nota' ||
+    (telaAtual === 'documento' && (!generico || documentoFiscal !== null));
   for (const b of [btnImprimir, btnSalvar, btnSalvarMais])
     b.disabled = acoesBloqueadas || !comSaida;
 }
@@ -3017,6 +3018,8 @@ const TEXTO_COPIA: Record<TipoCopia, string> = {
     'O PDF vai com outro nome. O PDF que já existe com o nome padrão não muda.',
   danfe:
     'O PDF vai com outro nome. O PDF que já existe com o nome padrão não muda.',
+  documento:
+    'O PDF vai com outro nome. O PDF que já existe com o nome padrão não muda.',
 };
 
 /**
@@ -3030,9 +3033,14 @@ async function gravarCopia<R extends { status: string }>(
     opcoes: OpcoesSalvar & { nome: string },
   ) => Promise<R | ArquivoExistente>,
 ): Promise<R | { status: 'cancelado' } | { status: 'erro'; mensagem: string }> {
-  const base = aberto ? nomeBaseArquivo(aberto.lido.nota) : null;
+  const saida = tipo === 'documento' ? saidaDocumento() : null;
+  const base = saida
+    ? saida.base
+    : aberto
+      ? nomeBaseArquivo(aberto.lido.nota)
+      : null;
   for (;;) {
-    const sugestao = await window.psApi.sugerirCopia(base, tipo);
+    const sugestao = await window.psApi.sugerirCopia(base, tipo, saida?.sufixo);
     if (sugestao.status === 'erro') return sugestao;
     const nome = await pedirNomeCopia({
       sugestao: sugestao.nome,
@@ -3120,9 +3128,74 @@ function avisarPdf(
   return false;
 }
 
+/**
+ * O PDF do Documento quando não é o DANFE da NF-e: nome base, sufixo
+ * (src/docfiscal/nomeArquivo.ts) e, na NFC-e, a altura da tira (mm). null:
+ * é o DANFE da NF-e (salvarDanfe de sempre) ou não há documento montado.
+ */
+function saidaDocumento(): {
+  base: string | null;
+  sufixo: string;
+  bobina: number | null;
+} | null {
+  if (generico)
+    return documentoFiscal && danfeMontado
+      ? { ...documentoFiscal.arquivo, bobina: null }
+      : null;
+  if (aberto && notaEhNfce(aberto.texto))
+    return {
+      base: nomeBaseArquivo(aberto.lido.nota),
+      sufixo: '_DANFE-NFCe',
+      bobina: alturaBobina(),
+    };
+  return null;
+}
+
+/**
+ * Altura da tira do DANFE NFC-e em mm, medida contra uma régua de 100 mm no
+ * mesmo lugar (as duas passam pelo mesmo zoom da tela). null sem a tira.
+ */
+function alturaBobina(): number | null {
+  const tira = danfeEl.querySelector<HTMLElement>('.folha--nfce');
+  if (!tira) return null;
+  const regua = document.createElement('div');
+  regua.style.cssText =
+    'position:absolute;visibility:hidden;width:1px;height:100mm;';
+  danfeEl.append(regua);
+  const mm = 100 / regua.getBoundingClientRect().height;
+  regua.remove();
+  const altura = tira.getBoundingClientRect().height * mm;
+  return Number.isFinite(altura) && altura > 0 ? Math.ceil(altura) : null;
+}
+
+/** Salva o PDF do Documento que não é o DANFE da NF-e. true se gravou. */
+async function salvarDocumento(saida: {
+  base: string | null;
+  sufixo: string;
+  bobina: number | null;
+}): Promise<boolean> {
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return false;
+  bloquearAcoes(true, true);
+  try {
+    const { r } = await gravarComPergunta('documento', (o) =>
+      window.psApi.salvarDocumento(saida.base, saida.sufixo, saida.bobina, o),
+    );
+    return avisarPdf(r);
+  } catch (erro) {
+    mostrarMensagem('Não foi possível salvar.', 'erro');
+    console.error(erro);
+    return false;
+  } finally {
+    bloquearAcoes(false);
+  }
+}
+
 /** Salva só o PDF do DANFE (<base>_DANFE.pdf). true se gravou. */
 async function salvarDanfe(): Promise<boolean> {
-  if (!aberto) return false;
+  const saida = saidaDocumento();
+  if (saida) return salvarDocumento(saida);
+  if (!aberto || generico) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
   const base = nomeBaseArquivo(aberto.lido.nota);
@@ -3314,12 +3387,15 @@ const itensMenuSalvar = (): HTMLButtonElement[] =>
 /** O que Salvar e Salvar PDF fazem no modo em que a tela está. */
 function atualizarMenuSalvar(): void {
   const danfe = modoAtual === 'danfe';
+  const nome = nomeDocumentoAberto() ?? 'DANFE';
   menuSalvarAjuda.textContent = danfe
-    ? 'PDF do DANFE na pasta de destino'
+    ? `PDF do ${nome} na pasta de destino`
     : 'Cópia editada (.psxml) na pasta de destino';
   menuPdfAjuda.textContent = danfe
-    ? 'PDF do DANFE na pasta de destino'
+    ? `PDF do ${nome} na pasta de destino`
     : 'PDF da Conferência na pasta de destino';
+  // A cópia editada (.psxml) só existe para NF-e.
+  btnSalvarCopia.disabled = generico !== null;
 }
 
 // ---------- arquivo vindo de fora (duplo clique num .psxml) ----------
@@ -3484,7 +3560,7 @@ async function podeSair(): Promise<boolean> {
 }
 
 async function imprimir(): Promise<void> {
-  if (!aberto) return;
+  if (!aberto && !(generico && documentoFiscal)) return;
   esconderMensagem();
   // Na Conferência, a tabela da folha (orientação, fonte, partes) antes.
   let paisagem = false;
@@ -3496,7 +3572,11 @@ async function imprimir(): Promise<void> {
   marcarGeradoEm();
   bloquearAcoes(true);
   try {
-    const r = await window.psApi.imprimir(modoAtual, paisagem);
+    const r = await window.psApi.imprimir(
+      modoAtual,
+      paisagem,
+      modoAtual === 'danfe' ? (saidaDocumento()?.bobina ?? null) : null,
+    );
     if (r.status === 'erro') mostrarMensagem(r.mensagem, 'erro');
   } catch (erro) {
     mostrarMensagem('Não foi possível imprimir.', 'erro');

@@ -103,7 +103,7 @@ interface OpcoesSalvar {
 }
 
 /** O que o Salvar cópia está copiando: o .psxml ou um dos PDFs. */
-type TipoCopia = 'psxml' | 'conferencia' | 'danfe';
+type TipoCopia = 'psxml' | 'conferencia' | 'danfe' | 'documento';
 
 type ResultadoSalvar =
   | { status: 'salvo'; copia: string }
@@ -479,7 +479,11 @@ interface PsApi {
    * Nome sugerido do Salvar cópia (<base>_Conferencia_copiaN ou
    * <base>_DANFE_copiaN, sem extensão) e a pasta onde ele vai.
    */
-  sugerirCopia(base: string | null, tipo: TipoCopia): Promise<SugestaoCopia>;
+  sugerirCopia(
+    base: string | null,
+    tipo: TipoCopia,
+    sufixo?: string,
+  ): Promise<SugestaoCopia>;
   /**
    * Grava a cópia <nome>.psxml na pasta de destino; depois a janela trabalha
    * nela.
@@ -506,6 +510,17 @@ interface PsApi {
     base: string | null,
     opcoes?: OpcoesSalvar,
   ): Promise<ResultadoSalvarDanfe>;
+  /**
+   * Grava o PDF do documento do modo Documento que não é o DANFE da NF-e
+   * (<base><sufixo>.pdf: _DACTE, _DANFSe, _Evento-CCe, _DANFE-NFCe...): A4
+   * sem margem, ou a bobina de 80 mm com `bobina` mm de altura (NFC-e).
+   */
+  salvarDocumento(
+    base: string | null,
+    sufixo: string,
+    bobina: number | null,
+    opcoes?: OpcoesSalvar,
+  ): Promise<ResultadoSalvarDanfe>;
   /** Versão do app (package.json). */
   versao(): Promise<string>;
   /** Ajustes dos avisos da nota (config.json, ou os padrões). */
@@ -524,7 +539,12 @@ interface PsApi {
   /** Abre numa janela nova um .psxml achado por buscarConferidos. */
   abrirConferido(caminho: string): Promise<boolean>;
   /** Abre o diálogo de impressão do Windows com a tela atual. */
-  imprimir(modo: ModoImpressao, paisagem: boolean): Promise<ResultadoImprimir>;
+  imprimir(
+    modo: ModoImpressao,
+    paisagem: boolean,
+    /** Altura da tira da NFC-e (mm): imprime na bobina de 80 mm. */
+    bobina?: number | null,
+  ): Promise<ResultadoImprimir>;
   /** Avisa o processo principal se há anotações alteradas e não salvas. */
   informarPendentes(pendentes: boolean): void;
   /** Chamado quando o usuário tenta fechar a janela com anotações pendentes. */

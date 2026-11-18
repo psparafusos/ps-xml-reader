@@ -10,6 +10,7 @@
 // lerCte e modeloDacte são puros (testados fora do app); montarDacte desenha.
 
 import { registrarMontador } from './documento';
+import { saidaDacte } from './nomeArquivo';
 import { barrasSvg, el, montarFolhas, qrSvg } from './folha';
 import {
   campo,
@@ -740,7 +741,14 @@ export function montarDacte(container: HTMLElement, d: DadosCte): number {
 
 registrarMontador('cte', (elementos: ElementoXml[]) => {
   const d = lerCte(elementos[0]);
+  const emit = filhoXml(primeiroXml(elementos[0], 'infCte'), 'emit');
   return {
+    arquivo: saidaDacte(
+      textoXml(emit, 'xFant'),
+      textoXml(emit, 'xNome'),
+      d.numero,
+      d.serie,
+    ),
     resumo: {
       emitente: d.emitente.nome,
       titulo: juntar(
