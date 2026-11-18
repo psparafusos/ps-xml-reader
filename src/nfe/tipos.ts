@@ -30,6 +30,7 @@ export interface Destinatario {
 export interface Ide {
   nNF: string;
   serie: string;
+  /** Emissão: dhEmi (3.10 e 4.00) ou, nos leiautes 1.10 e 2.00, a data de dEmi. */
   dhEmi: string;
   natOp: string;
   tpNF: string;
