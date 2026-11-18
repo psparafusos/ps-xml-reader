@@ -171,6 +171,17 @@ function lerItem(det: Element): ItemDanfe {
   };
 }
 
+/**
+ * Saída/entrada nos leiautes 1.10 e 2.00: dSaiEnt ("2013-05-06") e, no 2.00,
+ * hSaiEnt ("14:30:00"), juntos no formato de dhSaiEnt. Vazio sem dSaiEnt.
+ */
+function saidaAntiga(ide: Element | null): string {
+  const data = texto(ide, 'dSaiEnt');
+  if (!data) return '';
+  const hora = texto(ide, 'hSaiEnt');
+  return hora ? `${data}T${hora}` : data;
+}
+
 /** Lê o DANFE a partir do elemento raiz da NF-e (nfeProc ou NFe). */
 export function lerDanfe(raiz: Element): DadosDanfe {
   const infNFe = descendente(raiz, 'infNFe');
@@ -204,8 +215,9 @@ export function lerDanfe(raiz: Element): DadosDanfe {
       serie: texto(ide, 'serie'),
       natOp: texto(ide, 'natOp'),
       tpNF: texto(ide, 'tpNF'),
-      dhEmi: texto(ide, 'dhEmi'),
-      dhSaiEnt: texto(ide, 'dhSaiEnt'),
+      // Leiautes 1.10 e 2.00: dEmi, e dSaiEnt com hSaiEnt (2.00) à parte.
+      dhEmi: texto(ide, 'dhEmi') || texto(ide, 'dEmi'),
+      dhSaiEnt: texto(ide, 'dhSaiEnt') || saidaAntiga(ide),
     },
     emit: {
       xNome: texto(emit, 'xNome'),

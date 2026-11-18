@@ -201,8 +201,8 @@ describe('caminho (c): código sem espaços e sem zeros à esquerda', () => {
   });
 });
 
-describe('caminhos (d) e (e): código de barras', () => {
-  it('(d) cEAN contra o código de barras', () => {
+describe('caminhos (e) e (g): código de barras', () => {
+  it('(e) cEAN contra o código de barras', () => {
     const s = um(ALFA, { cProd: 'ARP-14', cEAN: '7890000001052' });
     assert.equal(s.caminho, 'cean');
     assert.equal(s.codigo, '105');
@@ -210,13 +210,13 @@ describe('caminhos (d) e (e): código de barras', () => {
     assert.equal(s.candidatos[0].fornecedor, null);
   });
 
-  it('(d) GTIN-14 com zero na frente casa com o EAN-13', () => {
+  it('(e) GTIN-14 com zero na frente casa com o EAN-13', () => {
     const s = um(GAMA3, { cProd: 'VR-18', cEAN: '07890000004022' });
     assert.equal(s.caminho, 'cean');
     assert.equal(s.codigo, '402');
   });
 
-  it('(d) EAN repetido em dois produtos: ambíguo', () => {
+  it('(e) EAN repetido em dois produtos: ambíguo', () => {
     const s = um(GAMA3, { cProd: 'FI-19', cEAN: '7890000004008' });
     assert.equal(s.caminho, 'cean');
     assert.equal(s.ambiguo, true);
@@ -226,7 +226,7 @@ describe('caminhos (d) e (e): código de barras', () => {
     );
   });
 
-  it('(e) cProd com cara de EAN, confiança baixa', () => {
+  it('(g) cProd com cara de EAN, confiança baixa', () => {
     const s = um(GAMA3, { cProd: '7890000004039' });
     assert.equal(s.caminho, 'cprod-ean');
     assert.equal(s.codigo, '403');
@@ -245,6 +245,196 @@ describe('caminhos (d) e (e): código de barras', () => {
     const s = um(ALFA, { cProd: 'PSX-14', cEAN: '7890000004039' });
     assert.equal(s.caminho, 'vinculo-emitente');
     assert.equal(s.codigo, '100');
+  });
+});
+
+describe('caminhos (d) e (f): cEAN da nota contra os vínculos', () => {
+  // Cadastro próprio, inventado: o sistema gravou alguns vínculos com o GTIN
+  // do item em vez do código do fornecedor.
+  const MATRIZ = '55555555000191';
+  const FILIAL = '55555555000272';
+  const OUTRO = '66666666000191';
+  const r = validarCadastro({
+    meta: { versao: 1, origem: 'teste inventado', extraido_em: '2026-11-14' },
+    fornecedores: [
+      { cnpj_cpf: MATRIZ, nome: 'Epsilon Inventada (matriz)', ativo: true },
+      { cnpj_cpf: FILIAL, nome: 'Epsilon Inventada (filial)', ativo: true },
+      { cnpj_cpf: OUTRO, nome: 'Zeta Inventada', ativo: true },
+    ],
+    produtos: [
+      {
+        codigo: '700',
+        descricao: 'REBITE POP 4 X 10',
+        unidade: 'CT',
+        ativo: true,
+      },
+      {
+        codigo: '701',
+        descricao: 'REBITE POP 4 X 12',
+        unidade: 'CT',
+        ativo: true,
+        codigo_barras: '7890000007015',
+      },
+      {
+        codigo: '702',
+        descricao: 'REBITE POP 4 X 16',
+        unidade: 'CT',
+        ativo: true,
+      },
+      {
+        codigo: '703',
+        descricao: 'REBITE POP 4 X 20',
+        unidade: 'CT',
+        ativo: true,
+      },
+      {
+        codigo: '704',
+        descricao: 'ALICATE REBITADOR',
+        unidade: 'UN',
+        ativo: true,
+        reaproveitado_em: '2026-06-01',
+      },
+      {
+        codigo: '705',
+        descricao: 'REBITE POP 5 X 10',
+        unidade: 'CT',
+        ativo: true,
+      },
+    ],
+    vinculos: [
+      { fornecedor: MATRIZ, codigo_fornecedor: 'EP-10', produto: '700' },
+      {
+        fornecedor: MATRIZ,
+        codigo_fornecedor: '7890000007008',
+        produto: '700',
+      },
+      {
+        fornecedor: MATRIZ,
+        codigo_fornecedor: '7890000007022',
+        produto: '702',
+      },
+      {
+        fornecedor: MATRIZ,
+        codigo_fornecedor: '7890000007039',
+        produto: '703',
+      },
+      {
+        fornecedor: MATRIZ,
+        codigo_fornecedor: '7890000007039',
+        produto: '705',
+      },
+      {
+        fornecedor: MATRIZ,
+        codigo_fornecedor: '7890000007046',
+        produto: '704',
+      },
+      { fornecedor: MATRIZ, codigo_fornecedor: '123456789', produto: '705' },
+      {
+        fornecedor: FILIAL,
+        codigo_fornecedor: '7890000007015',
+        produto: '702',
+      },
+      {
+        fornecedor: FILIAL,
+        codigo_fornecedor: '7890000007053',
+        produto: '705',
+      },
+      { fornecedor: OUTRO, codigo_fornecedor: '7890000007060', produto: '700' },
+    ],
+    fatores: [
+      {
+        fornecedor: MATRIZ,
+        produto: '700',
+        unidade_compra: 'CX',
+        fator: 10,
+        ultima_entrada: '2026-09-01',
+      },
+      {
+        fornecedor: MATRIZ,
+        produto: '704',
+        unidade_compra: 'UN',
+        fator: 1,
+        ultima_entrada: '2026-01-10',
+      },
+    ],
+  });
+  if (!r.ok) throw new Error(`cadastro do (d) inválido: ${r.erros.join(' ')}`);
+  const ind = prepararCadastro(r.cadastro);
+  const sug = (cnpj: string, p: Partial<ItemNota>) =>
+    sugerirNota(ind, { cnpjEmitente: cnpj, itens: [item(p)] }).itens[0];
+
+  it('cEAN gravado como vínculo do emitente: acha, confiança alta, com o fator do par', () => {
+    const s = sug(MATRIZ, {
+      cProd: 'EP-10-NOVO',
+      cEAN: '7890000007008',
+      uCom: 'CX',
+    });
+    assert.equal(s.caminho, 'cean-vinculo-emitente');
+    assert.equal(s.codigo, '700');
+    assert.equal(s.confianca, 'alta');
+    assert.equal(s.candidatos[0].fornecedor, MATRIZ);
+    assert.equal(s.fator?.fator, 10);
+  });
+
+  it('GTIN-14 com zero na frente casa com o vínculo gravado em EAN-13', () => {
+    const s = sug(MATRIZ, { cProd: 'X', cEAN: '07890000007022' });
+    assert.equal(s.caminho, 'cean-vinculo-emitente');
+    assert.equal(s.codigo, '702');
+  });
+
+  it('vínculo só na filial: (f), confiança média', () => {
+    const s = sug(MATRIZ, { cProd: 'X', cEAN: '7890000007053' });
+    assert.equal(s.caminho, 'cean-vinculo-raiz');
+    assert.equal(s.codigo, '705');
+    assert.equal(s.confianca, 'media');
+    assert.equal(s.candidatos[0].fornecedor, FILIAL);
+  });
+
+  it('o vínculo pelo cProd vem antes: (a) decide', () => {
+    const s = sug(MATRIZ, { cProd: 'EP-10', cEAN: '7890000007022' });
+    assert.equal(s.caminho, 'vinculo-emitente');
+    assert.equal(s.codigo, '700');
+  });
+
+  it('o vínculo pelo GTIN vem antes do código de barras do produto', () => {
+    // Na filial o GTIN aponta para o 702; o código de barras do 701 é o mesmo.
+    const s = sug(FILIAL, { cProd: 'X', cEAN: '7890000007015' });
+    assert.equal(s.caminho, 'cean-vinculo-emitente');
+    assert.equal(s.codigo, '702');
+    // Na matriz não há vínculo com esse GTIN: o código de barras do produto
+    // (e) vem antes do vínculo da filial (f).
+    const m = sug(MATRIZ, { cProd: 'X', cEAN: '7890000007015' });
+    assert.equal(m.caminho, 'cean');
+    assert.equal(m.codigo, '701');
+  });
+
+  it('o mesmo GTIN em dois produtos do emitente: ambíguo, com a lista', () => {
+    const s = sug(MATRIZ, { cProd: 'X', cEAN: '7890000007039' });
+    assert.equal(s.caminho, 'cean-vinculo-emitente');
+    assert.equal(s.ambiguo, true);
+    assert.equal(s.codigo, null);
+    assert.deepEqual(
+      s.candidatos.map((c) => c.codigo),
+      ['703', '705'],
+    );
+  });
+
+  it('vínculo de outro fornecedor (outra raiz) não vale', () => {
+    const s = sug(MATRIZ, { cProd: 'X', cEAN: '7890000007060' });
+    assert.equal(s.caminho, null);
+  });
+
+  it('SEM GTIN e código de vínculo sem cara de GTIN nunca casam por aqui', () => {
+    assert.equal(sug(MATRIZ, { cProd: 'X', cEAN: 'SEM GTIN' }).caminho, null);
+    assert.equal(sug(MATRIZ, { cProd: 'X', cEAN: '123456789' }).caminho, null);
+  });
+
+  it('código reaproveitado sem compra depois: aviso e confiança rebaixada, como nos vínculos', () => {
+    const s = sug(MATRIZ, { cProd: 'X', cEAN: '7890000007046' });
+    assert.equal(s.caminho, 'cean-vinculo-emitente');
+    assert.equal(s.codigo, '704');
+    assert.deepEqual(tipos(s), ['reaproveitado']);
+    assert.equal(s.confianca, 'media');
   });
 });
 

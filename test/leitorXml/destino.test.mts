@@ -13,6 +13,12 @@ import {
 const XML = 'C:\\Notas\\arquivo inventado.xml';
 const PSXML = 'C:\\Notas\\arquivo inventado.psxml';
 const bytes = (s: string) => new TextEncoder().encode(s);
+/** O texto em UTF-8 com o BOM (EF BB BF) na frente. */
+const comBomUtf8 = (s: string) =>
+  new Uint8Array([0xef, 0xbb, 0xbf, ...bytes(s)]);
+/** Começo de uma NF-e inventada (CNPJ e chave de mentira). */
+const NFE_INVENTADA =
+  '<?xml version="1.0" encoding="UTF-8"?><nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe35990100000000000191550010000000011000000019"><ide><cUF>35</cUF><natOp>VENDA DE PARAFUSO INVENTADO</natOp>';
 const utf16le = (s: string, bom = true) => {
   const b = Buffer.from(s, 'utf16le');
   return new Uint8Array(
@@ -67,6 +73,14 @@ describe('textoDoComeco', () => {
     assert.equal(raizDoComeco(textoDoComeco(utf16le('<NFe/>', false))), 'NFe');
     assert.equal(raizDoComeco(textoDoComeco(utf16be('<pedido/>'))), 'pedido');
   });
+
+  it('BOM UTF-8 fica de fora do texto', () => {
+    assert.equal(textoDoComeco(comBomUtf8('<NFe/>')), '<NFe/>');
+    assert.equal(
+      raizDoComeco(textoDoComeco(comBomUtf8(NFE_INVENTADA))),
+      'nfeProc',
+    );
+  });
 });
 
 describe('destinoPeloComeco', () => {
@@ -102,6 +116,47 @@ describe('destinoPeloComeco', () => {
       '<!DOCTYPE c [ <!ENTITY e "x"> ]><configuracao/>',
     ])
       assert.equal(destinoPeloComeco(XML, bytes(x)), 'leitor', x);
+  });
+
+  it('BOM UTF-8: NF-e com e sem BOM na nota; NFS-e com BOM no Documento; outro XML com BOM no leitor', () => {
+    assert.equal(destinoPeloComeco(XML, bytes(NFE_INVENTADA)), 'nota');
+    assert.equal(destinoPeloComeco(XML, comBomUtf8(NFE_INVENTADA)), 'nota');
+    assert.equal(
+      destinoPeloComeco(
+        XML,
+        comBomUtf8('<NFe xmlns="http://www.portalfiscal.inf.br/nfe">'),
+      ),
+      'nota',
+    );
+    assert.equal(
+      destinoPeloComeco(
+        XML,
+        comBomUtf8(
+          '<?xml version="1.0" encoding="utf-8"?><CompNfse xmlns="http://www.abrasf.org.br/nfse.xsd">',
+        ),
+      ),
+      // Documento fiscal que não é NF-e: o BOM some e a raiz é reconhecida.
+      'documento',
+    );
+    assert.equal(
+      destinoPeloComeco(XML, comBomUtf8('<catalogo origem="teste"/>')),
+      'leitor',
+    );
+    // Só o BOM, sem nada depois: o leitor explica (arquivo vazio).
+    assert.equal(
+      destinoPeloComeco(XML, new Uint8Array([0xef, 0xbb, 0xbf])),
+      'leitor',
+    );
+  });
+
+  it('BOM UTF-8 em CT-e, NFS-e e evento: modo Documento (as duas regras juntas)', () => {
+    for (const x of [
+      '<?xml version="1.0" encoding="UTF-8"?><cteProc versao="4.00">',
+      '<?xml version="1.0" encoding="utf-8"?><CompNfse xmlns="http://www.abrasf.org.br/nfse.xsd"><Nfse versao="2.02">',
+      '<NFSe versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">',
+      '<procEventoNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">',
+    ])
+      assert.equal(destinoPeloComeco(XML, comBomUtf8(x)), 'documento', x);
   });
 
   it('UTF-16: NF-e na nota, outro no leitor', () => {

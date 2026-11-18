@@ -74,11 +74,19 @@ describe('medidor nas NF-e inventadas', () => {
       '1',
     );
     assert.deepEqual(
-      celula('d) cEAN da nota contra o código de barras')[0],
+      celula('d) cEAN da nota contra os vínculos do emitente')[0],
+      '0',
+    );
+    assert.deepEqual(
+      celula('f) cEAN da nota contra os vínculos da raiz (filial)')[0],
+      '0',
+    );
+    assert.deepEqual(
+      celula('e) cEAN da nota contra o código de barras')[0],
       '4',
     );
     assert.deepEqual(
-      celula('e) cProd com cara de EAN contra o código de barras')[0],
+      celula('g) cProd com cara de EAN contra o código de barras')[0],
       '1',
     );
     assert.deepEqual(celula('sem sugestão')[0], '3');

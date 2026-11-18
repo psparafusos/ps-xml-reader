@@ -78,7 +78,8 @@ function lerIde(el: Element | null): Ide {
   return {
     nNF: texto(el, 'nNF'),
     serie: texto(el, 'serie'),
-    dhEmi: texto(el, 'dhEmi'),
+    // Leiautes 1.10 e 2.00: só a data, em dEmi.
+    dhEmi: texto(el, 'dhEmi') || texto(el, 'dEmi'),
     natOp: texto(el, 'natOp'),
     tpNF: texto(el, 'tpNF'),
     finNFe: texto(el, 'finNFe'),
