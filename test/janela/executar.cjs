@@ -21,7 +21,8 @@
 // (rascunhos.cjs: fechamento à força e recuperar), a tela de boas-vindas
 // (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas) e o
 // cadastro do sistema de gestão nos Documentos de referência
-// (cadastro.cjs). Com
+// (cadastro.cjs) e o modo Documento com os documentos fiscais que não são
+// NF-e de produto (documentos.cjs). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
 // do painel, as das telas na largura mínima e a do cartão do cadastro.
 'use strict';
@@ -38,6 +39,7 @@ const { casosPerfis } = require('./perfis.cjs');
 const { casosRascunhos } = require('./rascunhos.cjs');
 const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
+const { casosDocumentos } = require('./documentos.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -2432,6 +2434,8 @@ async function principal() {
     capturar,
   };
   await casosLeitorXml(contexto);
+  // Modo Documento: DANFSe, DACTE, Evento e DANFE NFC-e (documentos.cjs).
+  await casosDocumentos(contexto);
   await casosNavegacao(contexto);
   await casosServico(contexto);
 

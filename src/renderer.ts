@@ -137,7 +137,9 @@ import {
   prepararDocumento,
   type DocumentoMontavel,
 } from './docfiscal/documento';
-import { MOTIVO_DESCONHECIDO, NOME_FISCAL } from './docfiscal/tipo';
+import { COM_ARTIGO, MOTIVO_DESCONHECIDO, NOME_FISCAL } from './docfiscal/tipo';
+// Cada documento auxiliar se registra ao ser importado.
+import './docfiscal/danfse';
 import { formatarTamanho } from './leitorXml/formato';
 import {
   esconderFormato,
@@ -3649,11 +3651,11 @@ btnAbrir.addEventListener('click', () => void abrir());
 btnAbrirOutro.addEventListener('click', () => void abrir());
 btnAbaPsxml.addEventListener('click', () => {
   if (generico) {
-    const tipo = documentoFiscal ? NOME_FISCAL[documentoFiscal.tipo] : '';
+    const tipo = documentoFiscal ? COM_ARTIGO[documentoFiscal.tipo] : '';
     void avisarIndisponivel(
       'PSXML indisponível',
       tipo
-        ? `Este arquivo é um ${tipo}, não uma NF-e de produto. A Conferência (PSXML) só existe para NF-e; use a aba XML.`
+        ? `Este arquivo é ${tipo}, não uma NF-e de produto. A Conferência (PSXML) só existe para NF-e; use a aba XML.`
         : 'Este XML não é uma NF-e. A Conferência (PSXML) só existe para NF-e; use a aba XML.',
     );
     return;

@@ -35,6 +35,16 @@ export const NOME_FISCAL: Record<TipoDocumento, string> = {
   'evento-nfe': 'Evento da NF-e',
 };
 
+/** "uma NFS-e", "um CT-e": o artigo de cada documento, para os avisos. */
+export const COM_ARTIGO: Record<TipoDocumento, string> = {
+  nfe: 'uma NF-e',
+  nfce: 'uma NFC-e',
+  cte: 'um CT-e',
+  'nfse-nacional': 'uma NFS-e Nacional',
+  'nfse-abrasf': 'uma NFS-e (padrão ABRASF)',
+  'evento-nfe': 'um evento da NF-e',
+};
+
 export const NS_NFE = 'http://www.portalfiscal.inf.br/nfe';
 export const NS_CTE = 'http://www.portalfiscal.inf.br/cte';
 export const NS_NFSE_NACIONAL = 'http://www.sped.fazenda.gov.br/nfse';

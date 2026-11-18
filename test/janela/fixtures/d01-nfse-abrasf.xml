@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NFS-e inventada no padrão ABRASF 2.02 (estrutura do padrão; nenhum dado real). -->
+<CompNfse xmlns="http://www.abrasf.org.br/nfse.xsd">
+  <Nfse versao="2.02">
+    <InfNfse Id="NFSe202600000000321">
+      <Numero>202600000000321</Numero>
+      <CodigoVerificacao>TST1-AB2C</CodigoVerificacao>
+      <DataEmissao>2026-11-03T10:14:40</DataEmissao>
+      <OutrasInformacoes>Esta NFS-e foi emitida em ambiente de teste. Trib. aprox. R$ 19,50 Federal e R$ 7,25 Municipal.</OutrasInformacoes>
+      <ValoresNfse>
+        <BaseCalculo>1450.00</BaseCalculo>
+        <Aliquota>2.00</Aliquota>
+        <ValorIss>29.00</ValorIss>
+        <ValorLiquidoNfse>1382.57</ValorLiquidoNfse>
+      </ValoresNfse>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <CpfCnpj>
+            <Cnpj>98765432000198</Cnpj>
+          </CpfCnpj>
+          <InscricaoMunicipal>1000001</InscricaoMunicipal>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Locadora Inventada de Veiculos Ltda</RazaoSocial>
+        <NomeFantasia>Locadora Inventada</NomeFantasia>
+        <Endereco>
+          <Endereco>Rua das Amostras</Endereco>
+          <Numero>100</Numero>
+          <Bairro>Centro</Bairro>
+          <CodigoMunicipio>2800308</CodigoMunicipio>
+          <Uf>SE</Uf>
+          <CodigoPais>1058</CodigoPais>
+          <Cep>49000000</Cep>
+        </Endereco>
+        <Contato>
+          <Telefone>7933334444</Telefone>
+          <Email>fiscal@locadora-inventada.test</Email>
+        </Contato>
+      </PrestadorServico>
+      <OrgaoGerador>
+        <CodigoMunicipio>2800308</CodigoMunicipio>
+        <Uf>SE</Uf>
+      </OrgaoGerador>
+      <DeclaracaoPrestacaoServico>
+        <InfDeclaracaoPrestacaoServico>
+          <Rps Id="Rps000321">
+            <IdentificacaoRps>
+              <Numero>321</Numero>
+              <Serie>0</Serie>
+              <Tipo>1</Tipo>
+            </IdentificacaoRps>
+            <DataEmissao>2026-11-03</DataEmissao>
+            <Status>1</Status>
+          </Rps>
+          <Competencia>2026-11-01</Competencia>
+          <Servico>
+            <Valores>
+              <ValorServicos>1450.00</ValorServicos>
+              <ValorPis>9.43</ValorPis>
+              <ValorCofins>43.50</ValorCofins>
+              <ValorCsll>14.50</ValorCsll>
+            </Valores>
+            <IssRetido>2</IssRetido>
+            <ItemListaServico>0399</ItemListaServico>
+            <CodigoCnae>7711000</CodigoCnae>
+            <CodigoTributacaoMunicipio>0399</CodigoTributacaoMunicipio>
+            <Discriminacao>LOCACAO DE VEICULO INVENTADO PLACA TST1A23 PERIODO 01/11/26 A 30/11/26 CONTRATO 0001 - LOCACAO SEM MOTORISTA</Discriminacao>
+            <CodigoMunicipio>2800308</CodigoMunicipio>
+            <ExigibilidadeISS>1</ExigibilidadeISS>
+            <MunicipioIncidencia>2800308</MunicipioIncidencia>
+          </Servico>
+          <Prestador>
+            <CpfCnpj>
+              <Cnpj>98765432000198</Cnpj>
+            </CpfCnpj>
+            <InscricaoMunicipal>1000001</InscricaoMunicipal>
+          </Prestador>
+          <Tomador>
+            <IdentificacaoTomador>
+              <CpfCnpj>
+                <Cnpj>12345678000195</Cnpj>
+              </CpfCnpj>
+            </IdentificacaoTomador>
+            <RazaoSocial>Loja Inventada de Parafusos Ltda</RazaoSocial>
+            <Endereco>
+              <Endereco>Avenida de Teste</Endereco>
+              <Numero>2000</Numero>
+              <Complemento>Sala 1</Complemento>
+              <Bairro>Bairro Inventado</Bairro>
+              <CodigoMunicipio>2800308</CodigoMunicipio>
+              <Uf>SE</Uf>
+              <CodigoPais>1058</CodigoPais>
+              <Cep>49000001</Cep>
+            </Endereco>
+            <Contato>
+              <Telefone>79999998888</Telefone>
+              <Email>compras@loja-inventada.test</Email>
+            </Contato>
+          </Tomador>
+          <OptanteSimplesNacional>2</OptanteSimplesNacional>
+          <IncentivoFiscal>2</IncentivoFiscal>
+        </InfDeclaracaoPrestacaoServico>
+      </DeclaracaoPrestacaoServico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

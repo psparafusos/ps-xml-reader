@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NFS-e Nacional inventada (estrutura do leiaute do Sistema Nacional NFS-e; nenhum dado real). -->
+<NFSe versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">
+  <infNFSe Id="NFS28003082298765432000198000000000012326111234567897">
+    <xLocEmi>Aracaju</xLocEmi>
+    <xLocPrestacao>Aracaju</xLocPrestacao>
+    <nNFSe>123</nNFSe>
+    <cLocIncid>2800308</cLocIncid>
+    <xLocIncid>Aracaju</xLocIncid>
+    <xTribNac>Locação de bens móveis</xTribNac>
+    <verAplic>Teste 1.0</verAplic>
+    <ambGer>2</ambGer>
+    <tpEmis>1</tpEmis>
+    <procEmi>1</procEmi>
+    <cStat>100</cStat>
+    <dhProc>2026-11-10T09:30:15-03:00</dhProc>
+    <nDFSe>456</nDFSe>
+    <emit>
+      <CNPJ>98765432000198</CNPJ>
+      <IM>1000001</IM>
+      <xNome>Prestadora Inventada de Servicos Ltda</xNome>
+      <enderNac>
+        <xLgr>Rua das Amostras</xLgr>
+        <nro>100</nro>
+        <xBairro>Centro</xBairro>
+        <cMun>2800308</cMun>
+        <UF>SE</UF>
+        <CEP>49000000</CEP>
+      </enderNac>
+      <fone>7933334444</fone>
+      <email>fiscal@prestadora-inventada.test</email>
+    </emit>
+    <valores>
+      <vBC>2000.00</vBC>
+      <pAliqAplic>3.00</pAliqAplic>
+      <vISSQN>60.00</vISSQN>
+      <vTotalRet>30.00</vTotalRet>
+      <vLiq>1970.00</vLiq>
+    </valores>
+    <IBSCBS>
+      <cLocalidadeIncid>2800308</cLocalidadeIncid>
+      <xLocalidadeIncid>Aracaju</xLocalidadeIncid>
+      <valores>
+        <vBC>2000.00</vBC>
+        <uf>
+          <pIBSUF>0.10</pIBSUF>
+          <pAliqEfetUF>0.10</pAliqEfetUF>
+        </uf>
+        <mun>
+          <pIBSMun>0.00</pIBSMun>
+          <pAliqEfetMun>0.00</pAliqEfetMun>
+        </mun>
+        <fed>
+          <pCBS>0.90</pCBS>
+          <pAliqEfetCBS>0.90</pAliqEfetCBS>
+        </fed>
+      </valores>
+      <totCIBS>
+        <vTotNF>1990.00</vTotNF>
+        <gIBS>
+          <vIBSTot>2.00</vIBSTot>
+          <gIBSUFTot>
+            <vIBSUF>2.00</vIBSUF>
+          </gIBSUFTot>
+          <gIBSMunTot>
+            <vIBSMun>0.00</vIBSMun>
+          </gIBSMunTot>
+        </gIBS>
+        <gCBS>
+          <vCBS>18.00</vCBS>
+        </gCBS>
+      </totCIBS>
+    </IBSCBS>
+    <DPS versao="1.01">
+      <infDPS Id="DPS280030829876543200019800001000000000000077">
+        <tpAmb>2</tpAmb>
+        <dhEmi>2026-11-10T09:25:00-03:00</dhEmi>
+        <verAplic>Teste 1.0</verAplic>
+        <serie>1</serie>
+        <nDPS>77</nDPS>
+        <dCompet>2026-11-10</dCompet>
+        <tpEmit>1</tpEmit>
+        <cLocEmi>2800308</cLocEmi>
+        <prest>
+          <CNPJ>98765432000198</CNPJ>
+          <IM>1000001</IM>
+          <fone>7933334444</fone>
+          <email>fiscal@prestadora-inventada.test</email>
+          <regTrib>
+            <opSimpNac>1</opSimpNac>
+            <regEspTrib>0</regEspTrib>
+          </regTrib>
+        </prest>
+        <toma>
+          <CNPJ>12345678000195</CNPJ>
+          <xNome>Loja Inventada de Parafusos Ltda</xNome>
+          <end>
+            <endNac>
+              <cMun>2800308</cMun>
+              <CEP>49000001</CEP>
+            </endNac>
+            <xLgr>Avenida de Teste</xLgr>
+            <nro>2000</nro>
+            <xCpl>Sala 1</xCpl>
+            <xBairro>Bairro Inventado</xBairro>
+          </end>
+          <fone>79999998888</fone>
+          <email>compras@loja-inventada.test</email>
+        </toma>
+        <serv>
+          <locPrest>
+            <cLocPrestacao>2800308</cLocPrestacao>
+          </locPrest>
+          <cServ>
+            <cTribNac>030301</cTribNac>
+            <xDescServ>Locação de empilhadeira inventada para teste, período de 01/11/2026 a 10/11/2026.</xDescServ>
+            <cNBS>123456789</cNBS>
+          </cServ>
+          <infoCompl>
+            <xInfComp>Pedido de compra inventado 4567.</xInfComp>
+          </infoCompl>
+        </serv>
+        <valores>
+          <vServPrest>
+            <vServ>2000.00</vServ>
+          </vServPrest>
+          <trib>
+            <tribMun>
+              <tribISSQN>1</tribISSQN>
+              <tpRetISSQN>1</tpRetISSQN>
+            </tribMun>
+            <tribFed>
+              <vRetIRRF>30.00</vRetIRRF>
+            </tribFed>
+            <totTrib>
+              <vTotTrib>
+                <vTotTribFed>120.00</vTotTribFed>
+                <vTotTribEst>0.00</vTotTribEst>
+                <vTotTribMun>60.00</vTotTribMun>
+              </vTotTrib>
+            </totTrib>
+          </trib>
+        </valores>
+        <IBSCBS>
+          <finNFSe>0</finNFSe>
+          <indDest>0</indDest>
+          <valores>
+            <trib>
+              <gIBSCBS>
+                <CST>000</CST>
+                <cClassTrib>000001</cClassTrib>
+              </gIBSCBS>
+            </trib>
+          </valores>
+        </IBSCBS>
+      </infDPS>
+    </DPS>
+  </infNFSe>
+</NFSe>
