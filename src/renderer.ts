@@ -141,6 +141,8 @@ import { COM_ARTIGO, MOTIVO_DESCONHECIDO, NOME_FISCAL } from './docfiscal/tipo';
 // Cada documento auxiliar se registra ao ser importado.
 import './docfiscal/danfse';
 import './docfiscal/dacte';
+import './docfiscal/evento';
+import { lerNfce, montarDanfeNfce } from './docfiscal/nfce';
 import { formatarTamanho } from './leitorXml/formato';
 import {
   esconderFormato,
@@ -1616,7 +1618,7 @@ function esconderMensagem(): void {
 }
 
 function textoNumeroSerie(n: Nota): string {
-  const partes = ['NF-e'];
+  const partes = [aberto && notaEhNfce(aberto.texto) ? 'NFC-e' : 'NF-e'];
   if (n.ide.nNF) partes.push(`nº ${n.ide.nNF}`);
   if (n.ide.serie) partes.push(`série ${n.ide.serie}`);
   return partes.join(' ');
@@ -1757,7 +1759,14 @@ function atualizarLeitura(): void {
 /** Nome do documento auxiliar do arquivo aberto (DANFE, DACTE...), ou null. */
 function nomeDocumentoAberto(): string | null {
   if (generico) return documentoFiscal?.nomeAuxiliar ?? null;
-  return aberto ? 'DANFE' : null;
+  if (!aberto) return null;
+  return notaEhNfce(aberto.texto) ? 'DANFE NFC-e' : 'DANFE';
+}
+
+/** A nota aberta é uma NFC-e (modelo 65)? Pelo texto, sem montar nada. */
+function notaEhNfce(texto: string): boolean {
+  // O primeiro <mod> é o do ide (vem antes das notas referenciadas).
+  return /<(?:[\w.-]+:)?mod>\s*([^<\s]*)\s*</.exec(texto)?.[1] === '65';
 }
 
 /** Folhas montadas, para o cartão Arquivo ('' sem montar). */
@@ -1795,7 +1804,7 @@ function cartaoArquivo(): { nome: string; linhas: string[] } | null {
   }
   if (!aberto) return null;
   const versao = /<infNFe\b[^>]*\bversao="([^"]+)"/.exec(aberto.texto)?.[1];
-  const tipo = `${aberto.lido.copiaEditada ? 'Cópia editada (.psxml), ' : ''}NF-e${versao ? ` versão ${versao}` : ''}`;
+  const tipo = `${aberto.lido.copiaEditada ? 'Cópia editada (.psxml), ' : ''}${notaEhNfce(aberto.texto) ? 'NFC-e' : 'NF-e'}${versao ? ` versão ${versao}` : ''}`;
   const tamanho = formatarTamanho(
     new TextEncoder().encode(aberto.texto).length,
   );
@@ -2297,8 +2306,8 @@ function mostrarDanfe(): void {
     mostrarTela('documento');
     return;
   }
-  const { dados, motivo } = lerDadosDanfe(aberto.texto);
-  if (!dados) {
+  const { montar, motivo } = lerDadosDanfe(aberto.texto);
+  if (!montar) {
     mostrarMensagem(motivo, 'erro');
     return;
   }
@@ -2310,7 +2319,7 @@ function mostrarDanfe(): void {
   try {
     // Paginado sempre em 100%: as medidas não dependem do zoom da tela.
     danfeEl.style.zoom = '1';
-    montarDanfe(danfeEl, dados);
+    montar(danfeEl);
     folhasDanfe = danfeEl.querySelectorAll('.folha').length;
     // Uma folha só: Lado a lado fica apagado e a tela volta para Uma.
     if (folhasSemEfeito()[arranjoFolhas]) arranjoFolhas = 'uma';
@@ -2320,24 +2329,38 @@ function mostrarDanfe(): void {
     aplicarZoom();
   } catch (erro) {
     danfeEl.replaceChildren();
-    mostrarMensagem('Não foi possível montar o DANFE.', 'erro');
+    mostrarMensagem(
+      `Não foi possível montar o ${nomeDocumentoAberto()}.`,
+      'erro',
+    );
     console.error(erro);
     mostrarConferencia();
   }
 }
 
-/** Dados do DANFE do arquivo aberto, ou o motivo de não gerar. */
+/**
+ * Quem monta o documento do arquivo aberto (DANFE da NF-e ou DANFE NFC-e,
+ * pelo modelo), ou o motivo de não gerar.
+ */
 function lerDadosDanfe(
   texto: string,
-): { dados: DadosDanfe; motivo: null } | { dados: null; motivo: string } {
+):
+  | { montar: (c: HTMLElement) => void; motivo: null }
+  | { montar: null; motivo: string } {
   try {
     const { original } = localizarOriginal(lerDocumento(texto));
-    const dados = lerDanfe(original);
+    const dados: DadosDanfe = lerDanfe(original);
+    if (dados.mod === '65') {
+      const nfce = lerNfce(original);
+      return { montar: (c) => montarDanfeNfce(c, nfce), motivo: null };
+    }
     const motivo = motivoNaoSuportado(dados);
-    return motivo ? { dados: null, motivo } : { dados, motivo: null };
+    return motivo
+      ? { montar: null, motivo }
+      : { montar: (c) => montarDanfe(c, dados), motivo: null };
   } catch (erro) {
     console.error(erro);
-    return { dados: null, motivo: 'Não foi possível montar o DANFE.' };
+    return { montar: null, motivo: 'Não foi possível montar o DANFE.' };
   }
 }
 

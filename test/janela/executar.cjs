@@ -40,6 +40,7 @@ const { casosRascunhos } = require('./rascunhos.cjs');
 const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
 const { casosDocumentos } = require('./documentos.cjs');
+const { casosDanfeHtml } = require('./danfeHtml.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -2436,6 +2437,9 @@ async function principal() {
   await casosLeitorXml(contexto);
   // Modo Documento: DANFSe, DACTE, Evento e DANFE NFC-e (documentos.cjs).
   await casosDocumentos(contexto);
+  // Só com PS_JANELA_DANFE: o HTML do DANFE de cada NF-e inventada, para
+  // comparar duas versões do app (danfeHtml.cjs).
+  await casosDanfeHtml(contexto);
   await casosNavegacao(contexto);
   await casosServico(contexto);
 

@@ -428,3 +428,180 @@
   min-height: 12mm;
 }
 
+/* ---------- Evento da NF-e (sem modelo oficial) ---------- */
+
+.folha--evento {
+  --dx-fs-valor: 8pt;
+}
+
+.dx-evento__cab {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  padding: 3mm 3mm 2.5mm;
+  background: var(--dx-cinza);
+}
+
+.dx-evento__titulos {
+  flex: 1 1 0;
+  min-width: 0;
+  user-select: none;
+}
+
+.dx-evento__titulo {
+  font-family: var(--dx-fonte-rotulo);
+  font-size: 13pt;
+  font-weight: 700;
+}
+
+.dx-evento__sub {
+  margin-top: 0.8mm;
+  font-size: 8pt;
+}
+
+.dx-evento__barras {
+  flex: none;
+  width: 80mm;
+  height: 12mm;
+  padding: 1mm;
+  background: #fff;
+}
+
+.folha--evento .dx-texto__valor {
+  font-size: 9pt;
+  line-height: 1.35;
+}
+
+/* ---------- DANFE NFC-e (Manual do DANFE NFC-e e QR Code, versão 6.0) ----------
+   Bobina de 80 mm, em uma tira só (a altura acompanha o conteúdo). */
+
+.folha.folha--nfce {
+  width: 80mm;
+  height: auto;
+  min-height: 0;
+}
+
+.dx-nfce {
+  padding: 3mm 3mm 4mm;
+  font-size: 7.5pt;
+  line-height: 1.3;
+  user-select: text;
+}
+
+.dx-nfce__div {
+  padding: 1.5mm 0;
+  text-align: center;
+}
+
+.dx-nfce__div + .dx-nfce__div,
+.dx-nfce__qr-consumidor {
+  border-top: 0.3mm dashed #000;
+}
+
+.dx-nfce__div--cabecalho > :first-child {
+  font-weight: 700;
+}
+
+.dx-nfce__div--cabecalho > :last-child {
+  margin-top: 1mm;
+  font-weight: 700;
+  user-select: none;
+}
+
+.dx-nfce__forte {
+  font-weight: 700;
+}
+
+.dx-nfce__itens {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 6.5pt;
+  text-align: left;
+}
+
+.dx-nfce__itens th {
+  font-weight: 700;
+  user-select: none;
+}
+
+.dx-nfce__itens th,
+.dx-nfce__itens td {
+  padding: 0.2mm 0.4mm;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.dx-nfce__itens th:nth-child(n + 3),
+.dx-nfce__itens td:nth-child(n + 3) {
+  text-align: right;
+}
+
+/* Só a descrição quebra; código, quantidade, unidade e valores, não. */
+.dx-nfce__itens th:not(:nth-child(2)),
+.dx-nfce__itens td:not(:nth-child(2)) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.dx-nfce__itens th:nth-child(4),
+.dx-nfce__itens td:nth-child(4) {
+  text-align: center;
+}
+
+.dx-nfce__par {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+  text-align: left;
+}
+
+.dx-nfce__valor {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dx-nfce__cab-pag {
+  margin-top: 1mm;
+  font-weight: 700;
+  user-select: none;
+}
+
+.dx-nfce__chave {
+  margin-top: 0.6mm;
+  font-weight: 700;
+}
+
+.dx-nfce__qr-consumidor {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+}
+
+.dx-nfce__div--qr {
+  flex: none;
+  padding: 1.5mm 0;
+}
+
+.dx-nfce__div--qr .dx-qr {
+  width: 28mm;
+  height: 28mm;
+}
+
+.dx-nfce__lado {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+}
+
+.dx-nfce__lado .dx-nfce__div {
+  text-align: left;
+}
+
+.dx-nfce__lado .dx-nfce__div + .dx-nfce__div {
+  border-top: none;
+}
+
+.dx-nfce__div--contribuinte {
+  white-space: pre-wrap;
+  text-align: left;
+}

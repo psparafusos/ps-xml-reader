@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Carta de correção inventada (estrutura do evento 110110 da NF-e; nenhum dado real). -->
+<procEventoNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <evento versao="1.00">
+    <infEvento Id="ID1101102826118765432100019855001000001234112345678901">
+      <cOrgao>28</cOrgao>
+      <tpAmb>1</tpAmb>
+      <CNPJ>87654321000198</CNPJ>
+      <chNFe>28261187654321000198550010000012341123456789</chNFe>
+      <dhEvento>2026-11-06T10:15:00-03:00</dhEvento>
+      <tpEvento>110110</tpEvento>
+      <nSeqEvento>1</nSeqEvento>
+      <verEvento>1.00</verEvento>
+      <detEvento versao="1.00">
+        <descEvento>Carta de Correcao</descEvento>
+        <xCorrecao>Onde se le volumes 10, leia-se volumes 12. Correcao inventada para teste.</xCorrecao>
+        <xCondUso>A Carta de Correcao e disciplinada pelo paragrafo 1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 e pode ser utilizada para regularizacao de erro ocorrido na emissao de documento fiscal, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da operacao ou da prestacao; II - a correcao de dados cadastrais que implique mudanca do remetente ou do destinatario; III - a data de emissao ou de saida.</xCondUso>
+      </detEvento>
+    </infEvento>
+  </evento>
+  <retEvento versao="1.00">
+    <infEvento Id="ID128260000012345">
+      <tpAmb>1</tpAmb>
+      <verAplic>Teste</verAplic>
+      <cOrgao>28</cOrgao>
+      <cStat>135</cStat>
+      <xMotivo>Evento registrado e vinculado a NF-e</xMotivo>
+      <chNFe>28261187654321000198550010000012341123456789</chNFe>
+      <tpEvento>110110</tpEvento>
+      <nSeqEvento>1</nSeqEvento>
+      <CNPJDest>12345678000195</CNPJDest>
+      <dhRegEvento>2026-11-06T10:15:30-03:00</dhRegEvento>
+      <nProt>128260000012345</nProt>
+    </infEvento>
+  </retEvento>
+</procEventoNFe>

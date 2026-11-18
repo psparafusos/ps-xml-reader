@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Cancelamento inventado no leiaute anterior aos eventos (procCancNFe; nenhum dado real). -->
+<procCancNFe versao="2.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <cancNFe versao="2.00">
+    <infCanc Id="ID28100987654321000198550010000001231123456780">
+      <tpAmb>1</tpAmb>
+      <xServ>CANCELAR</xServ>
+      <chNFe>28100987654321000198550010000001231123456780</chNFe>
+      <nProt>128100000000111</nProt>
+      <xJust>Cancelamento inventado para teste do leiaute antigo.</xJust>
+    </infCanc>
+  </cancNFe>
+  <retCancNFe versao="2.00">
+    <infCanc>
+      <tpAmb>1</tpAmb>
+      <verAplic>Teste</verAplic>
+      <cStat>101</cStat>
+      <xMotivo>Cancelamento de NF-e homologado</xMotivo>
+      <cUF>28</cUF>
+      <chNFe>28100987654321000198550010000001231123456780</chNFe>
+      <dhRecbto>2010-09-20T11:00:00</dhRecbto>
+      <nProt>128100000000222</nProt>
+    </infCanc>
+  </retCancNFe>
+</procCancNFe>

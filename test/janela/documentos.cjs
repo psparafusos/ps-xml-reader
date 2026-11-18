@@ -69,6 +69,71 @@ const DOCUMENTOS = [
     psxml: false,
     captura: 'dacte',
   },
+  {
+    fixture: 'd04-evento-cce.xml',
+    nome: 'Evento',
+    folha: 'folha--evento',
+    textos: [
+      'CARTA DE CORREÇÃO',
+      'Onde se le volumes 10, leia-se volumes 12.',
+      '2826 1187 6543 2100 0198 5500 1000 0012 3411 2345 6789',
+      '128260000012345',
+      'CONDIÇÃO DE USO',
+      'montada pelo PS Reader a partir do XML do evento',
+    ],
+    titulo: ['Carta de Correção', 'NF-e nº 1234 série 1'],
+    qr: false,
+    psxml: false,
+    captura: 'evento-cce',
+  },
+  {
+    fixture: 'd05-evento-cancelamento.xml',
+    nome: 'Evento',
+    folha: 'folha--evento',
+    textos: [
+      'CANCELAMENTO',
+      'Pedido inventado cancelado pelo cliente',
+      '128260000099999',
+      'AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL',
+    ],
+    titulo: ['Cancelamento', 'NF-e nº 1235 série 1'],
+    qr: false,
+    psxml: false,
+    captura: 'evento-cancelamento',
+  },
+  {
+    fixture: 'd06-cancelamento-antigo.xml',
+    nome: 'Evento',
+    folha: 'folha--evento',
+    textos: [
+      'Cancelamento da NF-e (leiaute anterior aos eventos)',
+      'Cancelamento inventado para teste do leiaute antigo.',
+      '128100000000222',
+    ],
+    titulo: ['Cancelamento', 'NF-e nº 123 série 1'],
+    qr: false,
+    psxml: false,
+    captura: null,
+  },
+  {
+    fixture: 'd07-nfce.xml',
+    nome: 'DANFE NFC-e',
+    folha: 'folha--nfce',
+    textos: [
+      'Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica',
+      'BROCA DE ACO RAPIDO 8MM INVENTADA',
+      'Consulte pela Chave de Acesso em',
+      '2826 1165 4321 0000 0132 6500 1000 0004 5611 2345 6781',
+      'CONSUMIDOR CNPJ: 12.345.678/0001-95',
+      'Protocolo de autorização: 228260000004567',
+      'EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL',
+      'Troco R$',
+    ],
+    titulo: ['Mercado Inventado de Ferragens Ltda', 'NFC-e nº 456 série 1'],
+    qr: true,
+    psxml: true,
+    captura: 'danfe-nfce',
+  },
 ];
 
 /**
@@ -93,8 +158,8 @@ async function casosDocumentos(c) {
     return avaliar(`(() => {
       const danfe = document.getElementById('danfe');
       const b = document.getElementById('btn-modo-documento');
-      const rotulo = danfe.querySelector('.dx-campo__rotulo, .dx-bloco__titulo');
-      const valor = danfe.querySelector('.dx-campo__valor, .dx-texto__valor');
+      const rotulo = danfe.querySelector('.dx-campo__rotulo, .dx-bloco__titulo, .dx-nfce__itens th');
+      const valor = danfe.querySelector('.dx-campo__valor, .dx-texto__valor, .dx-nfce__itens td');
       return {
         texto: danfe.innerText,
         folhas: danfe.querySelectorAll('.folha').length,
@@ -214,7 +279,7 @@ async function casosDocumentos(c) {
           );
         }
         // Capturas em 1366 e 1920 (só com PS_JANELA_CAPTURAS).
-        if (process.env.PS_JANELA_CAPTURAS) {
+        if (process.env.PS_JANELA_CAPTURAS && d.captura) {
           const janela = c.janela();
           const antes = janela.getContentSize();
           for (const [w, h] of [

@@ -53,6 +53,8 @@ export const NS_NFSE_NACIONAL = 'http://www.sped.fazenda.gov.br/nfse';
 export const RAIZES_NFE = ['nfeProc', 'NFe'];
 const RAIZES_CTE = ['cteProc', 'CTe'];
 const RAIZES_EVENTO_NFE = ['procEventoNFe', 'evento'];
+/** Cancelamento da NF-e no leiaute de antes dos eventos (até 2012). */
+const RAIZES_CANCELAMENTO_ANTIGO = ['procCancNFe', 'cancNFe'];
 
 /**
  * Documentos fiscais conhecidos para os quais o PS Reader não monta documento
@@ -110,7 +112,8 @@ export function tipoPeloComeco(
     /<(?:[A-Za-z_][\w.-]*:)?CompNfse\b/.test(comeco)
   )
     return 'nfse-abrasf';
-  if (raiz === 'procEventoNFe') return 'evento-nfe';
+  if (raiz === 'procEventoNFe' || RAIZES_CANCELAMENTO_ANTIGO.includes(raiz))
+    return 'evento-nfe';
   if (raiz === 'evento' && namespaceDaRaiz(comeco, raiz) === NS_NFE)
     return 'evento-nfe';
   return null;
@@ -215,6 +218,11 @@ export function identificar(raiz: ElementoXml): Identificacao {
   }
   if (RAIZES_EVENTO_NFE.includes(nome)) {
     const inf = primeiroXml(raiz, 'infEvento');
+    if (inf && textoXml(inf, 'chNFe'))
+      return { tipo: 'evento-nfe', elementos: [raiz] };
+  }
+  if (RAIZES_CANCELAMENTO_ANTIGO.includes(nome)) {
+    const inf = primeiroXml(raiz, 'infCanc');
     if (inf && textoXml(inf, 'chNFe'))
       return { tipo: 'evento-nfe', elementos: [raiz] };
   }

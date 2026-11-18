@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NFC-e inventada (modelo 65, leiaute 4.00, em homologação; nenhum dado real). -->
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe versao="4.00" Id="NFe28261165432100000132650010000004561123456781">
+      <ide>
+        <cUF>28</cUF>
+        <cNF>12345678</cNF>
+        <natOp>VENDA AO CONSUMIDOR</natOp>
+        <mod>65</mod>
+        <serie>1</serie>
+        <nNF>456</nNF>
+        <dhEmi>2026-11-08T16:45:10-03:00</dhEmi>
+        <tpNF>1</tpNF>
+        <idDest>1</idDest>
+        <cMunFG>2800308</cMunFG>
+        <tpImp>4</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>1</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>1</indFinal>
+        <indPres>1</indPres>
+        <procEmi>0</procEmi>
+        <verProc>Teste 1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>65432100000132</CNPJ>
+        <xNome>Mercado Inventado de Ferragens Ltda</xNome>
+        <xFant>Mercado Inventado</xFant>
+        <enderEmit>
+          <xLgr>Rua do Comercio</xLgr>
+          <nro>50</nro>
+          <xBairro>Centro</xBairro>
+          <cMun>2800308</cMun>
+          <xMun>Aracaju</xMun>
+          <UF>SE</UF>
+          <CEP>49000002</CEP>
+        </enderEmit>
+        <IE>271111111</IE>
+        <CRT>1</CRT>
+      </emit>
+      <dest>
+        <CNPJ>12345678000195</CNPJ>
+        <xNome>Loja Inventada de Parafusos Ltda</xNome>
+        <indIEDest>9</indIEDest>
+      </dest>
+      <det nItem="1">
+        <prod>
+          <cProd>7001</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>BROCA DE ACO RAPIDO 8MM INVENTADA</xProd>
+          <NCM>82075011</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>2.0000</qCom>
+          <vUnCom>18.5000000000</vUnCom>
+          <vProd>37.00</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>2.0000</qTrib>
+          <vUnTrib>18.5000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>
+        </imposto>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>7002</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>FITA ISOLANTE 20M INVENTADA</xProd>
+          <NCM>39191010</NCM>
+          <CFOP>5102</CFOP>
+          <uCom>UN</uCom>
+          <qCom>1.0000</qCom>
+          <vUnCom>9.9000000000</vUnCom>
+          <vProd>9.90</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>UN</uTrib>
+          <qTrib>1.0000</qTrib>
+          <vUnTrib>9.9000000000</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>
+        </imposto>
+      </det>
+      <total>
+        <ICMSTot>
+          <vBC>0.00</vBC>
+          <vICMS>0.00</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>0.00</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vFCPST>0.00</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>46.90</vProd>
+          <vFrete>0.00</vFrete>
+          <vSeg>0.00</vSeg>
+          <vDesc>1.90</vDesc>
+          <vII>0.00</vII>
+          <vIPI>0.00</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>0.00</vPIS>
+          <vCOFINS>0.00</vCOFINS>
+          <vOutro>0.00</vOutro>
+          <vNF>45.00</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>01</tPag>
+          <vPag>50.00</vPag>
+        </detPag>
+        <vTroco>5.00</vTroco>
+      </pag>
+      <infAdic>
+        <infCpl>Venda inventada para teste. Volte sempre.</infCpl>
+      </infAdic>
+    </infNFe>
+    <infNFeSupl>
+      <qrCode>https://www.nfce.fazenda.uf.test/qrcode?p=28261165432100000132650010000004561123456781|2|2|1|0123456789ABCDEF0123456789ABCDEF01234567</qrCode>
+      <urlChave>www.nfce.fazenda.uf.test/consulta</urlChave>
+    </infNFeSupl>
+  </NFe>
+  <protNFe versao="4.00">
+    <infProt>
+      <tpAmb>2</tpAmb>
+      <verAplic>Teste</verAplic>
+      <chNFe>28261165432100000132650010000004561123456781</chNFe>
+      <dhRecbto>2026-11-08T16:45:12-03:00</dhRecbto>
+      <nProt>228260000004567</nProt>
+      <digVal>AAAA</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso da NF-e</xMotivo>
+    </infProt>
+  </protNFe>
+</nfeProc>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Cancelamento inventado (estrutura do evento 110111 da NF-e; nenhum dado real). -->
+<procEventoNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <evento versao="1.00">
+    <infEvento Id="ID1101112826118765432100019855001000001235112345678801">
+      <cOrgao>28</cOrgao>
+      <tpAmb>2</tpAmb>
+      <CNPJ>87654321000198</CNPJ>
+      <chNFe>28261187654321000198550010000012351123456788</chNFe>
+      <dhEvento>2026-11-07T08:00:00-03:00</dhEvento>
+      <tpEvento>110111</tpEvento>
+      <nSeqEvento>1</nSeqEvento>
+      <verEvento>1.00</verEvento>
+      <detEvento versao="1.00">
+        <descEvento>Cancelamento</descEvento>
+        <nProt>128260000099999</nProt>
+        <xJust>Pedido inventado cancelado pelo cliente antes da saida da mercadoria.</xJust>
+      </detEvento>
+    </infEvento>
+  </evento>
+  <retEvento versao="1.00">
+    <infEvento>
+      <tpAmb>2</tpAmb>
+      <verAplic>Teste</verAplic>
+      <cOrgao>28</cOrgao>
+      <cStat>135</cStat>
+      <xMotivo>Evento registrado e vinculado a NF-e</xMotivo>
+      <chNFe>28261187654321000198550010000012351123456788</chNFe>
+      <tpEvento>110111</tpEvento>
+      <nSeqEvento>1</nSeqEvento>
+      <dhRegEvento>2026-11-07T08:00:20-03:00</dhRegEvento>
+      <nProt>128260000099998</nProt>
+    </infEvento>
+  </retEvento>
+</procEventoNFe>
