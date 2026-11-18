@@ -9,8 +9,11 @@
 //   (a) vínculo exato do emitente;
 //   (b) vínculo exato de outro CNPJ com a mesma raiz (filial);
 //   (c) código sem espaços e sem zeros à esquerda, no emitente e depois na raiz;
-//   (d) cEAN da nota contra o código de barras do produto;
-//   (e) cProd com cara de EAN contra o código de barras.
+//   (d) cEAN da nota contra os códigos dos vínculos do emitente (há sistemas
+//       que gravam o vínculo com o GTIN do item, não com o cProd);
+//   (e) cEAN da nota contra o código de barras do produto;
+//   (f) cEAN da nota contra os códigos dos vínculos das filiais (mesma raiz);
+//   (g) cProd com cara de EAN contra o código de barras.
 // Mais de um produto no caminho que decidiu: ambíguo, com a lista, sem
 // sugestão única.
 //
@@ -25,6 +28,8 @@ export type Caminho =
   | 'vinculo-raiz'
   | 'codigo-emitente'
   | 'codigo-raiz'
+  | 'cean-vinculo-emitente'
+  | 'cean-vinculo-raiz'
   | 'cean'
   | 'cprod-ean';
 
@@ -33,7 +38,9 @@ export const CAMINHOS: readonly Caminho[] = [
   'vinculo-raiz',
   'codigo-emitente',
   'codigo-raiz',
+  'cean-vinculo-emitente',
   'cean',
+  'cean-vinculo-raiz',
   'cprod-ean',
 ];
 
@@ -43,13 +50,22 @@ export const ROTULO_CAMINHO: Record<Caminho, string> = {
   'codigo-emitente':
     'c) código sem espaços e sem zeros à esquerda, no emitente',
   'codigo-raiz': 'c) código sem espaços e sem zeros à esquerda, na raiz',
-  cean: 'd) cEAN da nota contra o código de barras',
-  'cprod-ean': 'e) cProd com cara de EAN contra o código de barras',
+  'cean-vinculo-emitente': 'd) cEAN da nota contra os vínculos do emitente',
+  cean: 'e) cEAN da nota contra o código de barras',
+  'cean-vinculo-raiz': 'f) cEAN da nota contra os vínculos da raiz (filial)',
+  'cprod-ean': 'g) cProd com cara de EAN contra o código de barras',
 };
 
 export type Confianca = 'alta' | 'media' | 'baixa' | 'nenhuma';
 
-/** Confiança de cada caminho antes dos rebaixamentos. */
+/**
+ * Confiança de cada caminho antes dos rebaixamentos. O (d) e o (f) seguem o
+ * (a) e o (b): são vínculos que a loja gravou para o fornecedor, só que pelo
+ * GTIN; no emitente valem como o vínculo exato (alta), na filial como o da
+ * filial (média). O da filial vem depois do código de barras do produto:
+ * nas notas reais medidas, quando os dois discordavam, o código de barras
+ * estava certo e o vínculo da filial era de outro produto.
+ */
 export const CONFIANCA_CAMINHO: Record<
   Caminho,
   Exclude<Confianca, 'nenhuma'>
@@ -58,6 +74,8 @@ export const CONFIANCA_CAMINHO: Record<
   'vinculo-raiz': 'media',
   'codigo-emitente': 'media',
   'codigo-raiz': 'baixa',
+  'cean-vinculo-emitente': 'alta',
+  'cean-vinculo-raiz': 'media',
   cean: 'media',
   'cprod-ean': 'baixa',
 };
@@ -182,6 +200,8 @@ export interface IndiceCadastro {
   produtos: Map<string, ProdutoCadastro>;
   vinculoExato: Mapa;
   vinculoNormal: Mapa;
+  /** Vínculos cujo código tem cara de GTIN, pelo GTIN sem zeros à esquerda. */
+  vinculoGtin: Mapa;
   /** Raiz do CNPJ para os CNPJs dela que aparecem no cadastro. */
   porRaiz: Map<string, Set<string>>;
   /** CNPJs e CPFs que aparecem em alguma seção. */
@@ -204,6 +224,7 @@ export function prepararCadastro(c: Cadastro): IndiceCadastro {
   const produtos = new Map(c.produtos.map((p) => [p.codigo, p]));
   const vinculoExato: Mapa = new Map();
   const vinculoNormal: Mapa = new Map();
+  const vinculoGtin: Mapa = new Map();
   const documentos = new Set<string>();
   for (const v of c.vinculos) {
     juntar(
@@ -214,6 +235,13 @@ export function prepararCadastro(c: Cadastro): IndiceCadastro {
     );
     const n = normalizarCodigo(v.codigoFornecedor);
     if (n) juntar(vinculoNormal, v.fornecedor, n, v.produto);
+    if (pareceGtin(v.codigoFornecedor))
+      juntar(
+        vinculoGtin,
+        v.fornecedor,
+        chaveGtin(v.codigoFornecedor),
+        v.produto,
+      );
     documentos.add(v.fornecedor);
   }
   const barras = new Map<string, Set<string>>();
@@ -246,6 +274,7 @@ export function prepararCadastro(c: Cadastro): IndiceCadastro {
     produtos,
     vinculoExato,
     vinculoNormal,
+    vinculoGtin,
     porRaiz,
     documentos,
     barras,
@@ -373,6 +402,7 @@ export function sugerirItem(
   const doEmitente = emitente ? [emitente] : [];
   const exato = chaveExata(item.cProd);
   const normal = normalizarCodigo(item.cProd);
+  const gtin = pareceGtin(item.cEAN) ? chaveGtin(item.cEAN) : '';
   const tentativas: [Caminho, () => Achados][] = [
     [
       'vinculo-emitente',
@@ -384,7 +414,12 @@ export function sugerirItem(
       () => buscarVinculo(ind.vinculoNormal, doEmitente, normal),
     ],
     ['codigo-raiz', () => buscarVinculo(ind.vinculoNormal, filiais, normal)],
+    [
+      'cean-vinculo-emitente',
+      () => buscarVinculo(ind.vinculoGtin, doEmitente, gtin),
+    ],
     ['cean', () => buscarBarras(ind, item.cEAN)],
+    ['cean-vinculo-raiz', () => buscarVinculo(ind.vinculoGtin, filiais, gtin)],
     ['cprod-ean', () => buscarBarras(ind, item.cProd)],
   ];
   const sugestao: SugestaoItem = {

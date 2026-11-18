@@ -100,6 +100,11 @@ O mesmo `codigo_fornecedor` pode aparecer mais de uma vez no mesmo
 fornecedor apontando para produtos diferentes: o app mostra os candidatos
 como ambíguos, sem escolher.
 
+Se o sistema grava alguns vínculos com o código de barras do item (o `cEAN`
+da nota) em vez do `cProd`, exporte como está: o app também procura o `cEAN`
+entre os códigos dos vínculos (caminhos (d) e (f) em
+[Como o app sugere o produto](#como-o-app-sugere-o-produto)).
+
 ## fatores (opcional)
 
 O fator de conversão por fornecedor e produto: quantas unidades de venda há
@@ -174,20 +179,31 @@ primeiro que acha algum produto decide:
 | (b) vínculo exato da raiz           | o mesmo, nos outros CNPJs com a mesma raiz (8 primeiros dígitos): as filiais                                             | média     |
 | (c) código normalizado, no emitente | `cProd` e `codigo_fornecedor` sem espaços em nenhuma posição e sem zeros à esquerda                                      | média     |
 | (c) código normalizado, na raiz     | o mesmo, nas filiais                                                                                                     | baixa     |
-| (d) cEAN                            | `cEAN` da nota contra `codigo_barras` dos produtos                                                                       | média     |
-| (e) cProd com cara de EAN           | `cProd` só com dígitos e 8, 12, 13 ou 14 posições contra `codigo_barras`                                                 | baixa     |
+| (d) cEAN nos vínculos do emitente   | `cEAN` da nota contra os `codigo_fornecedor` com cara de GTIN dos vínculos do emitente                                   | alta      |
+| (e) cEAN                            | `cEAN` da nota contra `codigo_barras` dos produtos                                                                       | média     |
+| (f) cEAN nos vínculos da raiz       | o mesmo do (d), nas filiais                                                                                              | média     |
+| (g) cProd com cara de EAN           | `cProd` só com dígitos e 8, 12, 13 ou 14 posições contra `codigo_barras`                                                 | baixa     |
 
 - Códigos de barras são comparados sem os zeros à esquerda: o GTIN-14
   `07890000004022` casa com o EAN-13 `7890000004022`. `SEM GTIN` e valores
   que não são GTIN nunca casam.
-- CPF não tem raiz: só os caminhos (a) e (c) no próprio emitente, e os de
-  código de barras.
+- Os caminhos (d) e (f) existem porque há sistemas que, ao lançar a nota,
+  gravam o vínculo com o código de barras do item (o `cEAN`) em vez do
+  código do fornecedor (o `cProd`). São vínculos que a loja gravou para
+  aquele fornecedor, só que pelo GTIN. No emitente têm a confiança do
+  vínculo exato (alta) e vêm antes do código de barras do produto, que não
+  diz de que fornecedor é. Nas filiais têm a confiança da filial (média) e
+  vêm depois do código de barras, porque um vínculo antigo de filial pode
+  apontar para outro produto com o mesmo GTIN.
+- CPF não tem raiz: só os caminhos (a), (c) e (d) no próprio emitente, e os
+  de código de barras.
 - **Ambíguo**: mais de um produto no caminho que decidiu. O app mostra a
   lista de candidatos (com o ativo marcado) e não sugere nenhum. Acontece com
   o mesmo código em filiais apontando para produtos diferentes, com códigos
   que só diferem por zeros (`009381` e `9381`, quando a nota traz `09381`),
   com o mesmo código gravado duas vezes no fornecedor e com o código de
-  barras repetido em dois produtos.
+  barras repetido em dois produtos (ou o mesmo GTIN gravado como vínculo de
+  dois produtos).
 - **Rebaixamento**: a confiança cai um nível (alta para média, média para
   baixa) quando o produto está inativo e quando o código foi reaproveitado
   (`reaproveitado_em`) sem compra do fornecedor depois disso (pela
