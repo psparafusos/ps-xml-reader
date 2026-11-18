@@ -22,9 +22,12 @@ export const BYTES_DO_COMECO = 64 * 1024;
 
 /**
  * Texto do começo do arquivo: UTF-16 pela marca BOM ou pelos zeros
- * alternados de `<?` e `<`; senão, como Latin-1 (só os nomes ASCII importam).
+ * alternados de `<?` e `<`; senão, como Latin-1 (só os nomes ASCII importam),
+ * sem o BOM UTF-8 (EF BB BF), que em Latin-1 viraria "ï»¿" antes do "<".
  */
 export function textoDoComeco(b: Uint8Array): string {
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf)
+    return new TextDecoder('latin1').decode(b.subarray(3));
   if (b[0] === 0xff && b[1] === 0xfe)
     return new TextDecoder('utf-16le').decode(b.subarray(2));
   if (b[0] === 0xfe && b[1] === 0xff)
