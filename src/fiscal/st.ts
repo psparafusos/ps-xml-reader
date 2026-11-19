@@ -594,6 +594,27 @@ export function buscarST(
 }
 
 /**
+ * Linhas da planilha com um CEST (de qualquer segmento), comparando os 7
+ * dígitos sem pontos. Uma linha com vários NCMs aparece uma vez.
+ */
+export function linhasDoCest(
+  tabela: TabelaST | LinhaST[],
+  cest: string,
+): LinhaST[] {
+  const linhas = Array.isArray(tabela) ? tabela : tabela.linhas;
+  const alvo = cest.replace(/\D/g, '');
+  if (alvo.length !== 7) return [];
+  const vistas = new Set<string>();
+  return linhas.filter((l) => {
+    if (l.cest.replace(/\D/g, '') !== alvo) return false;
+    const chave = `${l.segmento}:${l.linhaPlanilha}`;
+    if (vistas.has(chave)) return false;
+    vistas.add(chave);
+    return true;
+  });
+}
+
+/**
  * Linhas da planilha que citam o mesmo começo do NCM (os 4 primeiros
  * dígitos), mas para NCMs completos diferentes do item: não servem para ele.
  * Explica por que a busca no Excel acha mais linhas do que o app mostra.

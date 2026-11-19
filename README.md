@@ -1035,6 +1035,22 @@ filtro **Só os que precisam de mim** deixa só o que pede decisão. O que vem d
 TIPI (NCM que não existe, IPI diferente: "conferir exceções") aparece como
 observação, não como erro.
 
+- **Evidência na nota**: o NCM bater com uma linha da planilha não basta
+  para o "Sim". Com uma linha candidata, o "Sim" automático pede também uma
+  evidência na nota para aquele item: o CEST do item é o da linha
+  (comparado pelos 7 dígitos) ou o fornecedor reteve ST no item (CST 10,
+  30, 60, 70 ou 90, ou CSOSN 201, 202, 203, 500 ou 900, com valores de ST;
+  ou ICMS-ST, base do ST retido ou ICMS-ST retido maior que zero). Sem
+  nenhuma das duas, o item fica em **Confirmar** e conta em "precisam de
+  você"; quando a nota não tem CEST e veio com tributação sem ST, **Sem ST**
+  vem sugerido. CEST de outra linha ou de outro segmento também fica em
+  **Confirmar**, com os dois CEST no motivo. A caixa "Item N: o produto é do
+  segmento X?" mostra as evidências em linhas curtas (NCM e linha da
+  planilha, descrição da linha, segmento, CEST da nota, ST retida) e as
+  escolhas **Tem ST (é deste segmento)** e **Sem ST (não é deste
+  segmento)**; a MVA e a alíquota interna só valem depois de "Tem ST". A
+  escolha vira decisão lembrada com o motivo ("é do segmento X" ou "não é
+  do segmento X").
 - **Confirmar**: quando mais de uma linha da planilha serve, a caixa "Item
   N: qual linha da planilha vale?" mostra a linha da TIPI e uma explicação
   montada com a TIPI, as linhas candidatas e a nota (CEST e ST retido). A

@@ -23,6 +23,7 @@ import {
   finalidadeInicial,
   finalidadeLembravel,
   lerCfopManual,
+  motivoDaEscolha,
   raizCnpj,
   RESSALVA_APENDICE_XIV,
   ROTULO_FINALIDADE,
@@ -37,14 +38,17 @@ import {
   type LinhaPrevia,
 } from './previaST';
 import {
+  detalhesDoQuadro,
   explicacaoItem,
   formatarNcm,
   frasesForaLinhaAutomotiva,
+  linhasEvidencia,
   stRetidoNaNota,
   sugerirSemST,
   temCandidatoAutopecas,
   textoForaLinhaAutomotiva,
   textoOutrasLinhas,
+  textoSugestaoSemST,
 } from './explicacaoST';
 import { observacaoMvaFornecedor, sugestaoHistorico } from './historicoST';
 import { ligarDica, type Dica } from './tooltip';
@@ -420,12 +424,21 @@ export function abrirFerramentaST(c: ContextoST): void {
     decisao: DecisaoST,
     origem?: 'histórico',
   ): Promise<void> {
-    // Mudou só a finalidade ou a MVA: a escolha (e de onde veio) fica.
-    l.origem =
-      origem ?? (decisao.escolha === l.decisao.escolha ? l.origem : undefined);
+    const a = analises.get(l.item.nItem)!;
+    // Mudou só a finalidade: a escolha (de onde veio e o motivo) fica.
+    const mesmaEscolha = decisao.escolha === l.decisao.escolha;
+    l.origem = origem ?? (mesmaEscolha ? l.origem : undefined);
+    if (!mesmaEscolha) {
+      // "é do segmento X" / "não é do segmento X", guardado com a escolha.
+      const motivo = motivoDaEscolha(a, decisao.escolha);
+      decisao = {
+        escolha: decisao.escolha,
+        finalidade: decisao.finalidade,
+        ...(motivo ? { motivo } : {}),
+      };
+    }
     l.decisao = decisao;
     l.lembrada = false;
-    const a = analises.get(l.item.nItem)!;
     const chave = chaveDecisao(cnpj, l.item.cProd);
     if (
       !l.item.cProd.trim() ||
@@ -681,9 +694,17 @@ export function abrirFerramentaST(c: ContextoST): void {
         ? '-'
         : `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
     const retido = stRetidoNaNota(l.item);
-    // "Sem ST" pré-marcado só sem escolha feita e quando nada liga o produto às linhas.
+    // Uma linha candidata: a pergunta é se o produto é do segmento dela, com
+    // as evidências da nota (CEST e ST retida) à vista.
+    const umaLinha = !apendice.length && a.candidatos.length === 1;
+    const segmentoLinha = umaLinha ? a.candidatos[0].segmento : '';
+    // "Sem ST" pré-marcado só sem escolha feita: com uma linha, pela sugestão
+    // do motor (sem CEST, tributação sem ST); com várias, quando nada liga o
+    // produto às linhas.
     const sugerido =
-      !apendice.length && atual === null && sugerirSemST(a, retido);
+      !apendice.length &&
+      atual === null &&
+      (umaLinha ? a.sugestaoSemST === true : sugerirSemST(a, retido));
     const explicacao = apendice.length ? null : explicacaoItem(a, retido);
     // Pelo histórico do NCM: só sem escolha própria; nunca pré-marcada.
     const hist =
@@ -725,7 +746,9 @@ export function abrirFerramentaST(c: ContextoST): void {
               el(
                 'span',
                 'st__sugerido',
-                'Sugerido também porque o produto não parece ser nenhuma das linhas.',
+                umaLinha
+                  ? 'Sugerido também porque a nota não tem CEST e veio sem ST.'
+                  : 'Sugerido também porque o produto não parece ser nenhuma das linhas.',
               ),
           ),
           usarHist,
@@ -749,52 +772,90 @@ export function abrirFerramentaST(c: ContextoST): void {
             ),
           ),
         }))
-      : [
-          ...a.candidatos.map((cand) => ({
-            valor: {
-              tipo: 'candidato' as const,
-              segmento: cand.segmento,
-              linhaPlanilha: cand.linhaPlanilha,
-              cest: cand.cest,
-            },
-            rotulo: el(
-              'span',
-              'st__opcao-texto',
-              el('strong', '', `${cand.segmento}, CEST ${cand.cest}`),
-              ` NCM ${cand.ncmPlanilha} na planilha (linha ${cand.linhaPlanilha}): ${cand.descricao}`,
-              el(
+      : umaLinha
+        ? [
+            {
+              valor: {
+                tipo: 'candidato' as const,
+                segmento: a.candidatos[0].segmento,
+                linhaPlanilha: a.candidatos[0].linhaPlanilha,
+                cest: a.candidatos[0].cest,
+              },
+              rotulo: el(
                 'span',
-                'st__cest',
-                ` MVA: ${cand.mvas.map((m) => (m.valor === null ? '-' : `${(m.valor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`)).join(' / ')}${cand.cestConfere ? ' · CEST da nota confere' : ''}`,
+                'st__opcao-texto',
+                el('strong', '', 'Tem ST (é deste segmento)'),
+                ` ${segmentoLinha}, CEST ${a.candidatos[0].cest}. A MVA e a alíquota interna da linha passam a valer.`,
               ),
-            ),
-          })),
-          {
-            valor: { tipo: 'sem-st' },
-            rotulo: el(
-              'span',
-              'st__opcao-texto',
-              el('strong', '', 'Sem ST'),
-              ' O produto não é nenhuma das linhas acima.',
-              sugerido &&
-                !juntos &&
+            },
+            {
+              valor: { tipo: 'sem-st' },
+              rotulo: el(
+                'span',
+                'st__opcao-texto',
+                el('strong', '', 'Sem ST (não é deste segmento)'),
+                ` O produto não é de ${segmentoLinha}.`,
+                sugerido &&
+                  !juntos &&
+                  el('span', 'st__sugerido', textoSugestaoSemST(a) ?? ''),
+              ),
+            },
+            {
+              valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' },
+              rotulo: el(
+                'span',
+                'st__opcao-texto',
+                el('strong', '', 'Outro'),
+                ' Informar o CFOP (e a MVA, se houver) com o motivo.',
+              ),
+            },
+          ]
+        : [
+            ...a.candidatos.map((cand) => ({
+              valor: {
+                tipo: 'candidato' as const,
+                segmento: cand.segmento,
+                linhaPlanilha: cand.linhaPlanilha,
+                cest: cand.cest,
+              },
+              rotulo: el(
+                'span',
+                'st__opcao-texto',
+                el('strong', '', `${cand.segmento}, CEST ${cand.cest}`),
+                ` NCM ${cand.ncmPlanilha} na planilha (linha ${cand.linhaPlanilha}): ${cand.descricao}`,
                 el(
                   'span',
-                  'st__sugerido',
-                  'Sugerido: o produto não parece ser nenhuma das linhas',
+                  'st__cest',
+                  ` MVA: ${cand.mvas.map((m) => (m.valor === null ? '-' : `${(m.valor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`)).join(' / ')}${cand.cestConfere ? ' · CEST da nota confere' : ''}`,
                 ),
-            ),
-          },
-          {
-            valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' },
-            rotulo: el(
-              'span',
-              'st__opcao-texto',
-              el('strong', '', 'Outro'),
-              ' Informar o CFOP (e a MVA, se houver) com o motivo.',
-            ),
-          },
-        ];
+              ),
+            })),
+            {
+              valor: { tipo: 'sem-st' },
+              rotulo: el(
+                'span',
+                'st__opcao-texto',
+                el('strong', '', 'Sem ST'),
+                ' O produto não é nenhuma das linhas acima.',
+                sugerido &&
+                  !juntos &&
+                  el(
+                    'span',
+                    'st__sugerido',
+                    'Sugerido: o produto não parece ser nenhuma das linhas',
+                  ),
+              ),
+            },
+            {
+              valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' },
+              rotulo: el(
+                'span',
+                'st__opcao-texto',
+                el('strong', '', 'Outro'),
+                ' Informar o CFOP (e a MVA, se houver) com o motivo.',
+              ),
+            },
+          ];
     const igual = (x: EscolhaST, y: EscolhaST) =>
       x.tipo === y.tipo &&
       (x.tipo === 'sem-st' ||
@@ -895,7 +956,9 @@ export function abrirFerramentaST(c: ContextoST): void {
         mostrarErro(
           apendice.length
             ? 'Escolha: derivado ou não derivado de petróleo.'
-            : 'Escolha uma linha da planilha, "Sem ST" ou "Outro".',
+            : umaLinha
+              ? 'Escolha "Tem ST", "Sem ST" ou "Outro".'
+              : 'Escolha uma linha da planilha, "Sem ST" ou "Outro".',
         );
         return;
       }
@@ -934,11 +997,19 @@ export function abrirFerramentaST(c: ContextoST): void {
         '',
         apendice.length
           ? `Item ${n}: o lubrificante é derivado de petróleo?`
-          : `Item ${n}: qual linha da planilha vale?`,
+          : umaLinha
+            ? `Item ${n}: o produto é do segmento ${segmentoLinha}?`
+            : `Item ${n}: qual linha da planilha vale?`,
       ),
       blocoHistorico,
       explicacao?.linhaTipi && el('p', 'st__tipi', explicacao.linhaTipi),
-      explicacao && el('p', 'st__explicacao', explicacao.texto),
+      explicacao && !umaLinha && el('p', 'st__explicacao', explicacao.texto),
+      umaLinha &&
+        el(
+          'ul',
+          'st__evidencias',
+          ...linhasEvidencia(a).map((t) => el('li', '', t)),
+        ),
       // Por que a busca no Excel acha mais linhas do que as opções abaixo.
       !apendice.length &&
         a.outrasLinhas &&
@@ -952,7 +1023,13 @@ export function abrirFerramentaST(c: ContextoST): void {
       ),
       apendice.length > 0 &&
         el('p', 'st__explicacao', `${RESSALVA_APENDICE_XIV}.`),
-      el('ul', 'st__motivos', ...r.detalhes.map((m) => el('li', '', m))),
+      el(
+        'ul',
+        'st__motivos',
+        ...(umaLinha ? detalhesDoQuadro(r.detalhes) : r.detalhes).map((m) =>
+          el('li', '', m),
+        ),
+      ),
       ...radios.map((x) => x.lbl),
       !apendice.length && camposManual,
       el('div', 'documento__acoes', usar, voltar),
@@ -1129,6 +1206,8 @@ export function itensParaAnalise(itens: Item[]): ItemParaAnalise[] {
     pICMS: i.pICMS ?? '',
     vBCST: i.vBCST ?? '',
     vST: i.vST ?? '',
+    vBCSTRet: i.vBCSTRet ?? '',
+    vICMSSTRet: i.vICMSSTRet ?? '',
     CFOP: i.CFOP,
     cstIPI: i.cstIPI ?? '',
     pIPI: i.pIPI ?? '',

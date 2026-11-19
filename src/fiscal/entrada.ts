@@ -134,6 +134,34 @@ export type EscolhaST =
 export interface Decisao {
   escolha: EscolhaST | null;
   finalidade: Finalidade;
+  /**
+   * Por que a pessoa escolheu: "é do segmento Autopeças", "não é do segmento
+   * Autopeças" (motivoDaEscolha). Ausente nas decisões antigas e no CFOP
+   * manual (que tem o motivo próprio).
+   */
+  motivo?: string;
+}
+
+const listaE = (xs: string[]) =>
+  xs.length <= 1
+    ? (xs[0] ?? '')
+    : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`;
+
+/**
+ * Motivo guardado com a escolha da linha ou do "Sem ST": "é do segmento X"
+ * ou "não é do segmento X" (com mais de um segmento entre as linhas, "não é
+ * dos segmentos X e Y"). Nas outras escolhas, undefined.
+ */
+export function motivoDaEscolha(
+  a: Pick<AnaliseItem, 'candidatos'>,
+  e: EscolhaST | null,
+): string | undefined {
+  if (e?.tipo === 'candidato') return `é do segmento ${e.segmento}`;
+  if (e?.tipo !== 'sem-st' || a.candidatos.length === 0) return undefined;
+  const segs = [...new Set(a.candidatos.map((c) => c.segmento))];
+  return segs.length === 1
+    ? `não é do segmento ${segs[0]}`
+    : `não é dos segmentos ${listaE(segs)}`;
 }
 
 /** Decisão guardada no arquivo de decisões lembradas. */
@@ -276,14 +304,16 @@ export function resolverItem(
 
   if (escolha?.tipo === 'sem-st') {
     st = 'nao';
-    motivo = 'marcado "sem ST"';
+    motivo = decisao.motivo
+      ? `marcado "sem ST": ${decisao.motivo}`
+      : 'marcado "sem ST"';
   } else if (escolhido) {
     st = 'sim';
     candidato = escolhido;
     motivo =
       escolha?.tipo === 'apendice-xiv'
         ? motivoApendiceXIV(escolhido)
-        : `linha escolhida: ${escolhido.segmento}, CEST ${escolhido.cest}`;
+        : `linha escolhida: ${escolhido.segmento}, CEST ${escolhido.cest}${decisao.motivo ? ` (${decisao.motivo})` : ''}`;
   } else if (a.stSergipe === 'nao') {
     st = 'nao';
     motivo = 'NCM fora da planilha de ST de Sergipe';
@@ -299,7 +329,11 @@ export function resolverItem(
         ? `${a.candidatos.length} linhas da planilha servem: escolher uma`
         : a.apendiceXIV
           ? MOTIVO_APENDICE_XIV
-          : (pendencias[0] ?? 'conferir a linha da planilha');
+          : a.semEvidencia
+            ? `sem CEST e sem ST retida na nota: confirmar se é de ${a.candidatos[0]?.segmento ?? 'segmento da planilha'}${a.sugestaoSemST ? ' (sugestão: Sem ST)' : ''}`
+            : (pendencias.find((p) => p.startsWith('CEST da nota')) ??
+              pendencias[0] ??
+              'conferir a linha da planilha');
   }
 
   // MVA: só da linha em uso, e só na revenda.
@@ -414,6 +448,7 @@ export function decisaoValida(d: unknown): d is DecisaoLembrada {
           Number.isInteger(e.linhaPlanilha))));
   return (
     escolhaOk &&
+    (x.motivo === undefined || texto(x.motivo)) &&
     FINALIDADES.includes(x.finalidade as Finalidade) &&
     finalidadeLembravel(x.finalidade as Finalidade) &&
     /^\d{8}$/.test(x.raizCnpj ?? '') &&

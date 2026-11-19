@@ -2,7 +2,8 @@
 // leiaute do Portal ST) no caminho dado. O executar.cjs roda este arquivo
 // com o Node do Electron e carrega a planilha pelo Carregar dos Documentos.
 // Abas: Tintas; Pneus (o 4011.20.90 do t13 com duas linhas candidatas e
-// outras três linhas citando 4011 para NCMs diferentes); Autopecas (7318).
+// outras três linhas citando 4011 para NCMs diferentes); Autopecas (7318
+// do t13; 3917, 4016.93.00 e 8425.42.00 do t20).
 // Uso: node planilhaST.mts <saida.xlsx>
 import { writeFileSync } from 'node:fs';
 import { xlsxAbas, type CelulaTeste } from '../fiscal/fixtures/xlsx.mts';
@@ -62,6 +63,23 @@ writeFileSync(
         ...topo('II', 'AUTOPEÇAS'),
         cab,
         [1, '01.019.00', '7318', 'Parafusos, porcas, arruelas', ...mvas],
+        // t20 (evidências na nota): tubo de plástico, junta de borracha e
+        // macaco hidráulico.
+        [
+          2,
+          '01.002.00',
+          '3917',
+          'Tubos e seus acessórios, de plásticos',
+          ...mvas,
+        ],
+        [
+          7,
+          '01.007.00',
+          '4016.93.00',
+          'Juntas, gaxetas e outros elementos com função semelhante de vedação',
+          ...mvas,
+        ],
+        [43, '01.043.00', '8425.42.00', 'Macacos', ...mvas],
       ],
     },
   ]),

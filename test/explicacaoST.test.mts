@@ -185,10 +185,17 @@ describe('ST retido na nota', () => {
     assert.equal(stRetidoNaNota({ CST: '00', vST: '', vBCST: '' }), false));
   it('valor de ST: reteve', () =>
     assert.equal(stRetidoNaNota({ CST: '00', vST: '3,50' }), true));
-  it('CST 60 (ST cobrada antes): reteve', () =>
-    assert.equal(stRetidoNaNota({ CST: '60' }), true));
-  it('CSOSN 202: reteve', () =>
-    assert.equal(stRetidoNaNota({ CST: '', CSOSN: '202' }), true));
+  it('CST 60 com o ST retido antes: reteve', () =>
+    assert.equal(stRetidoNaNota({ CST: '60', vICMSSTRet: '4.10' }), true));
+  it('CST 60 sem valor: só o código não basta', () =>
+    assert.equal(stRetidoNaNota({ CST: '60' }), false));
+  it('CSOSN 202 com base de ST: reteve', () =>
+    assert.equal(
+      stRetidoNaNota({ CST: '', CSOSN: '202', vBCST: '80.00' }),
+      true,
+    ));
+  it('CST 00 com base de ST e sem valor: não reteve', () =>
+    assert.equal(stRetidoNaNota({ CST: '00', vBCST: '80.00' }), false));
 });
 
 describe('sugestão de "Sem ST"', () => {

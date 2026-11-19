@@ -5,33 +5,20 @@
 // Lógica pura, sem DOM.
 
 import type { AnaliseItem } from './fiscal/analise';
+import {
+  stRetidoPeloFornecedor,
+  type ItemTributacao,
+} from './fiscal/evidencias';
 
 /** Campos do item da nota que dizem se o fornecedor reteve ST. */
-export interface ItemRetencao {
-  CST?: string;
-  CSOSN?: string;
-  vST?: string;
-  vBCST?: string;
-}
+export type ItemRetencao = ItemTributacao;
 
-/** CST e CSOSN de ST retida (agora ou antes, como o 60). */
-const CST_RETIDO = new Set([
-  '10',
-  '30',
-  '60',
-  '70',
-  '201',
-  '202',
-  '203',
-  '500',
-]);
-
-/** O fornecedor reteve ST: valor ou base de ST na nota, ou CST/CSOSN de ST. */
+/**
+ * O fornecedor reteve ST: a mesma regra do motor (fiscal/evidencias.ts),
+ * CST ou CSOSN de ST com valores de ST, ou valor de ST retido maior que zero.
+ */
 export function stRetidoNaNota(i: ItemRetencao): boolean {
-  const valor = (v?: string) => Number((v ?? '').trim().replace(',', '.')) || 0;
-  if (valor(i.vST) > 0 || valor(i.vBCST) > 0) return true;
-  const cst = i.CSOSN?.trim() || i.CST?.trim() || '';
-  return CST_RETIDO.has(cst);
+  return stRetidoPeloFornecedor(i);
 }
 
 export function formatarNcm(ncm: string): string {
@@ -225,4 +212,69 @@ export function temCandidatoAutopecas(a: AnaliseItem): boolean {
 /** Texto mostrado no quadro: a frase da nota, como informação. */
 export function textoForaLinhaAutomotiva(frase: string): string {
   return `Informações complementares da nota: "${frase}". Só informação: a decisão e a sugestão não mudam.`;
+}
+
+// ---------- evidências na nota (uma linha candidata) ----------
+
+/**
+ * Linhas curtas do quadro "é do segmento X?", com uma linha candidata: o
+ * NCM bate com a linha, a descrição dela, o segmento, o CEST da nota
+ * (ausente, igual ou diferente, com a linha de onde ele é) e se o
+ * fornecedor reteve ST. Vazio sem exatamente uma linha candidata.
+ */
+export function linhasEvidencia(a: AnaliseItem): string[] {
+  if (a.candidatos.length !== 1) return [];
+  const c = a.candidatos[0];
+  const ev = a.evidencias;
+  const ncmLinha =
+    c.ncmPlanilha.length === 8 ? formatarNcm(c.ncmPlanilha) : c.ncmPlanilha;
+  const linhas = [
+    `NCM ${formatarNcm(a.ncm)} bate com a linha ${c.linhaPlanilha} da planilha (NCM ${ncmLinha} na linha).`,
+    `Descrição da linha: ${c.descricao.replace(/[.;:]+$/, '')}.`,
+    `Segmento: ${c.segmento}${c.segmentoOficial && c.segmentoOficial !== c.segmento ? ` (${c.segmentoOficial})` : ''}, CEST ${c.cest}.`,
+  ];
+  if (!a.cestNota) linhas.push('CEST da nota: ausente.');
+  else if (c.cestConfere)
+    linhas.push(`CEST da nota: igual ao da linha (${a.cestNota}).`);
+  else {
+    const doCest = ev?.linhasDoCest ?? [];
+    const onde = doCest.length
+      ? `é de ${doCest.map((l) => `${l.segmento}, linha ${l.linhaPlanilha}`).join('; ')}`
+      : 'não está na planilha';
+    linhas.push(
+      `CEST da nota: diferente. A nota traz ${a.cestNota} (${onde}); a linha tem ${c.cest}.`,
+    );
+  }
+  if (ev)
+    linhas.push(
+      `ST retida pelo fornecedor: ${ev.stRetido ? 'sim' : 'não'} (${ev.tributacao}).`,
+    );
+  return linhas;
+}
+
+/** Por que o motor sugere "Sem ST" (só com a sugestão do motor). */
+export function textoSugestaoSemST(a: AnaliseItem): string | null {
+  if (!a.sugestaoSemST) return null;
+  const codigo = a.evidencias?.codigo || 'tributação sem ST';
+  return `Sugerido: a nota não tem CEST, veio com ${codigo} e sem ST retida.`;
+}
+
+/**
+ * Detalhes do motor que ficam fora do quadro de uma linha candidata: os que
+ * repetem as evidências (linha, CEST, ST retida) e os de MVA e alíquota
+ * interna, que só valem depois de "Tem ST".
+ */
+const FORA_DO_QUADRO = [
+  /^NCM na planilha de ST/,
+  /^nota sem CEST/,
+  /^CEST da nota/,
+  /^coluna de MVA/,
+  /^MVA /,
+  /^Autopeças: /,
+  /^alíquota interna/,
+  /^fornecedor não indicou ST/,
+];
+
+export function detalhesDoQuadro(detalhes: string[]): string[] {
+  return detalhes.filter((d) => !FORA_DO_QUADRO.some((re) => re.test(d)));
 }

@@ -13,7 +13,8 @@
 // de leitura pesada (servico.cjs), com XML inventado gerado no teste; as
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
 // ferramenta ST), os dois avisos novos da ferramenta ST (t13, com a
-// planilha inventada de planilhaST.mts), a nota de devolução (t14) e as
+// planilha inventada de planilhaST.mts), as evidências na nota (t20: o
+// quadro "é do segmento?", ensinar e desfazer), a nota de devolução (t14) e as
 // linhas informativas do painel da Conferência (frete, t15 a t18, e
 // vencimentos escritos nas informações complementares, t19, e a devolução,
 // t14), a janela na largura mínima (680: não aceita menos, e as telas
@@ -24,7 +25,8 @@
 // (cadastro.cjs), o modo Documento com os documentos fiscais que não são
 // NF-e de produto (documentos.cjs) e as colunas fiscais da Conferência
 // (colunasFiscais.cjs, com capturas em 1366 e 1920). Com
-// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
+// PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e no
+// t20, as
 // do painel, as das telas na largura mínima e a do cartão do cadastro.
 'use strict';
 
@@ -2873,7 +2875,12 @@ async function casosJanelasPorCima() {
         `item 2 sem a frase da nota: ${JSON.stringify(item2)}`,
       );
       confere(item2.selecionavel === 'text', 'a frase da nota não seleciona');
-      confere(item2.st === 'Sim', `a decisão do item 2 mudou: ${item2.st}`);
+      // Sem CEST nem ST retida na nota: "Confirmar" pela regra das
+      // evidências; a frase da nota não muda isso.
+      confere(
+        item2.st === 'Confirmar',
+        `a decisão do item 2 mudou: ${item2.st}`,
+      );
       // Item 1 (pneu): sem candidato em Autopeças, sem a frase.
       confere(
         !(await avaliar(`!!${linha(1)}.querySelector('.st__nota-info')`)),
@@ -2910,6 +2917,268 @@ async function casosJanelasPorCima() {
         15000,
         'o X não fechou a ferramenta',
       );
+    },
+  );
+
+  // Evidências na nota (t20): o NCM na planilha não basta para o "Sim". O
+  // tubo de PVC e o anel de borracha vêm sem CEST e sem ST retida: o quadro
+  // pergunta se o produto é do segmento, com as evidências em linhas curtas e
+  // "Sem ST" sugerido; o macaco, com o CEST da linha e ST retida, é "Sim".
+  // Ensinar "Sem ST" vira decisão lembrada; desfazer na ferramenta e apagar
+  // nas Configurações voltam ao "Confirmar". Em 1366 e em 1920.
+  await caso(
+    'Ferramenta ST: evidências na nota (t20), quadro "é do segmento?", ensinar e desfazer, em 1366 e em 1920',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      const linha = (n) =>
+        `[...document.querySelectorAll('dialog.painel--st tr.st__linha')].find((tr) => tr.querySelector('td.num')?.textContent.trim() === '${n}')`;
+      const abrirFerramenta = async () => {
+        await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
+          .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
+          .querySelector('.botao--ferramenta:not(:disabled)').click()`);
+        await aguardar(
+          `!!document.querySelector('dialog.painel--st[open]') && !!${linha(3)}`,
+          30000,
+          'a ferramenta ST não abriu',
+        );
+      };
+      const fecharFerramenta = async () => {
+        await avaliar(
+          `document.querySelector('dialog.painel--st .painel__fechar').click()`,
+        );
+        await aguardar(
+          `!document.querySelector('dialog.painel--st')`,
+          15000,
+          'o X não fechou a ferramenta',
+        );
+      };
+      const resumo = () =>
+        avaliar(
+          `document.querySelector('dialog.painel--st .painel__cabecalho .painel__dica').textContent`,
+        );
+      const estado = (n) =>
+        avaliar(`(() => {
+          const tr = ${linha(n)};
+          return {
+            st: tr.querySelector('.st__situacao').textContent.trim(),
+            mva: tr.querySelector('.st__mva').textContent.trim(),
+            aliq: tr.querySelector('.st__aliq').textContent.trim(),
+            cfop: tr.querySelector('.st__cfop').textContent.trim(),
+            motivo: tr.querySelector('.st__motivo > span').textContent.trim(),
+            etiqueta: tr.querySelector('.st__lembrado .st__etiqueta')?.textContent.trim() ?? null,
+            pendente: tr.classList.contains('st__linha--pendente'),
+          };
+        })()`);
+      const abrirQuadro = async (n) => {
+        await avaliar(`${linha(n)}.querySelector('.st__confirmar').click()`);
+        await aguardar(
+          `!!document.querySelector('dialog.painel--st .st__escolha')`,
+          15000,
+          'o quadro de escolha não abriu',
+        );
+      };
+      const usarEscolha = async () => {
+        await avaliar(`[...document.querySelectorAll('dialog.painel--st .st__escolha button')]
+          .find((b) => b.textContent.trim() === 'Usar esta escolha').click()`);
+        await aguardar(
+          `!document.querySelector('dialog.painel--st .st__escolha') && ${linha(1)}.querySelector('.st__situacao').textContent.trim() === 'Não'`,
+          15000,
+          'a escolha "Sem ST" não foi aplicada',
+        );
+      };
+      const MOTIVO_SEM_EVIDENCIA =
+        'sem CEST e sem ST retida na nota: confirmar se é de Autopecas (sugestão: Sem ST)';
+      const MOTIVO_LEMBRADO = 'marcado "sem ST": não é do segmento Autopecas';
+      try {
+        await carregarPlanilhaST();
+        for (const [w, h] of TAMANHOS_PAINEL) {
+          janela.setContentSize(w, h);
+          await abrirNota(copia('t20-st-evidencias.xml'));
+          await irParaConferencia();
+          await abrirFerramenta();
+
+          // Abertura: dois itens sem evidência pedem confirmação; o macaco é Sim.
+          let r = await resumo();
+          confere(
+            r.endsWith('3 itens · 2 precisam de você'),
+            `resumo (${w}): ${r}`,
+          );
+          for (const n of [1, 2]) {
+            const e = await estado(n);
+            confere(
+              e.st === 'Confirmar' &&
+                e.mva === '-' &&
+                e.aliq === '-' &&
+                e.cfop === '-' &&
+                e.pendente &&
+                e.motivo === MOTIVO_SEM_EVIDENCIA,
+              `item ${n} (${w}): ${JSON.stringify(e)}`,
+            );
+          }
+          const macaco = await estado(3);
+          confere(
+            macaco.st === 'Sim' &&
+              macaco.mva.startsWith('48,5%') &&
+              macaco.cfop === '2403' &&
+              !macaco.pendente,
+            `item 3 (${w}): ${JSON.stringify(macaco)}`,
+          );
+
+          // Quadro do item 1: evidências em linhas curtas e as duas escolhas.
+          await abrirQuadro(1);
+          const q = await avaliar(`(() => {
+            const q = document.querySelector('dialog.painel--st .st__escolha');
+            const ul = q.querySelector('.st__evidencias');
+            const marcada = q.querySelector('input[type=radio]:checked');
+            return {
+              legenda: q.querySelector('legend').textContent,
+              legendaSel: getComputedStyle(q.querySelector('legend')).userSelect,
+              evidencias: [...(ul?.querySelectorAll('li') ?? [])].map((li) => li.textContent),
+              evidenciasSel: ul ? getComputedStyle(ul).userSelect : null,
+              opcoes: [...q.querySelectorAll('.st__opcao strong')].map((s) => s.textContent),
+              opcoesSel: getComputedStyle(q.querySelector('.st__opcao')).userSelect,
+              marcada: marcada?.closest('label')?.querySelector('strong')?.textContent ?? null,
+              sugerido: q.querySelector('.st__sugerido')?.textContent ?? null,
+              comPercentual: [...q.querySelectorAll('.st__opcao')].some((l) => /\\d%/.test(l.textContent)),
+              detalhesMva: [...q.querySelectorAll('.st__motivos li')].map((li) => li.textContent).filter((t) => /MVA|alíquota interna/.test(t)),
+            };
+          })()`);
+          confere(
+            q.legenda === 'Item 1: o produto é do segmento Autopecas?',
+            `legenda: ${q.legenda}`,
+          );
+          confere(
+            JSON.stringify(q.evidencias) ===
+              JSON.stringify([
+                'NCM 3917.23.00 bate com a linha 6 da planilha (NCM 3917 na linha).',
+                'Descrição da linha: Tubos e seus acessórios, de plásticos.',
+                'Segmento: Autopecas (AUTOPEÇAS), CEST 01.002.00.',
+                'CEST da nota: ausente.',
+                'ST retida pelo fornecedor: não (CST 00, sem valores de ST).',
+              ]),
+            `evidências: ${JSON.stringify(q.evidencias)}`,
+          );
+          confere(
+            q.evidenciasSel === 'text' &&
+              q.legendaSel === 'none' &&
+              q.opcoesSel === 'none',
+            `seleção: ${JSON.stringify(q)}`,
+          );
+          confere(
+            JSON.stringify(q.opcoes) ===
+              JSON.stringify([
+                'Tem ST (é deste segmento)',
+                'Sem ST (não é deste segmento)',
+                'Outro',
+              ]),
+            `opções: ${JSON.stringify(q.opcoes)}`,
+          );
+          confere(
+            q.marcada === 'Sem ST (não é deste segmento)' &&
+              q.sugerido ===
+                'Sugerido: a nota não tem CEST, veio com CST 00 e sem ST retida.',
+            `sugestão: ${JSON.stringify(q)}`,
+          );
+          confere(
+            !q.comPercentual && q.detalhesMva.length === 0,
+            `a MVA ou a alíquota aparecem no quadro antes de "Tem ST": ${JSON.stringify(q.detalhesMva)}`,
+          );
+          confere(
+            !(await avaliar(
+              `${linha(1)}.querySelector('.st__motivo').textContent.includes('alíquota interna')`,
+            )),
+            'a alíquota interna aparece no motivo do item em Confirmar',
+          );
+          await avaliar(`document.activeElement?.blur(); true`);
+          await capturar(`ferramenta-st-evidencias-${w}.png`);
+
+          // Ensinar: "Sem ST" vira decisão guardada; sai de "precisam de você".
+          await usarEscolha();
+          let e1 = await estado(1);
+          confere(
+            e1.cfop === '2102' &&
+              e1.etiqueta === 'guardado' &&
+              !e1.pendente &&
+              e1.motivo === MOTIVO_LEMBRADO,
+            `item 1 depois de ensinar (${w}): ${JSON.stringify(e1)}`,
+          );
+          r = await resumo();
+          confere(r.endsWith('1 precisa de você'), `resumo: ${r}`);
+
+          // Próxima abertura: o item já vem decidido, como decisão lembrada.
+          await fecharFerramenta();
+          await abrirFerramenta();
+          e1 = await estado(1);
+          confere(
+            e1.st === 'Não' &&
+              e1.cfop === '2102' &&
+              e1.etiqueta === 'lembrado' &&
+              !e1.pendente &&
+              e1.motivo === MOTIVO_LEMBRADO,
+            `item 1 lembrado (${w}): ${JSON.stringify(e1)}`,
+          );
+          r = await resumo();
+          confere(r.endsWith('1 precisa de você'), `resumo lembrado: ${r}`);
+          await avaliar(`document.activeElement?.blur(); true`);
+          await capturar(`ferramenta-st-lembrado-${w}.png`);
+
+          // Desfazer na ferramenta: volta a "Confirmar".
+          await avaliar(`${linha(1)}.querySelector('.st__desfazer').click()`);
+          await aguardar(
+            `${linha(1)}.querySelector('.st__situacao').textContent.trim() === 'Confirmar'`,
+            15000,
+            'o desfazer não voltou o item a "Confirmar"',
+          );
+          r = await resumo();
+          confere(r.endsWith('2 precisam de você'), `resumo desfeito: ${r}`);
+
+          // Ensina de novo e desfaz nas Configurações, Decisões lembradas.
+          await abrirQuadro(1);
+          await usarEscolha();
+          await fecharFerramenta();
+          await abrirConfiguracoes();
+          await aguardar(configAberta, 15000, 'as Configurações não abriram');
+          await avaliar(`[...document.querySelectorAll('dialog.painel--config [role=tab]')]
+            .find((b) => b.textContent.trim() === 'Decisões lembradas').click()`);
+          const linhaConfig = `[...document.querySelectorAll('dialog.painel--config tbody tr')].find((tr) => tr.textContent.includes('T20A'))`;
+          await aguardar(
+            `!!${linhaConfig}`,
+            15000,
+            'a decisão do T20A não apareceu nas Configurações',
+          );
+          const decisao = await avaliar(
+            `${linhaConfig}.children[4].textContent`,
+          );
+          confere(
+            decisao === 'Sem ST: não é do segmento Autopecas · Revenda',
+            `decisão nas Configurações: ${decisao}`,
+          );
+          await avaliar(`document.activeElement?.blur(); true`);
+          await capturar(`config-decisoes-evidencias-${w}.png`);
+          await avaliar(
+            `${linhaConfig}.querySelector('button[aria-label="Apagar a decisão de T20A"]').click()`,
+          );
+          await aguardar(
+            `!${linhaConfig}`,
+            15000,
+            'a decisão do T20A não foi apagada',
+          );
+          await avaliar(
+            `document.querySelector('dialog.painel--config .painel__cabecalho > button[aria-label="Fechar"]').click()`,
+          );
+          await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
+          await abrirFerramenta();
+          e1 = await estado(1);
+          confere(
+            e1.st === 'Confirmar' && e1.etiqueta === null && e1.pendente,
+            `item 1 depois de apagar (${w}): ${JSON.stringify(e1)}`,
+          );
+          await fecharFerramenta();
+          await inicio();
+        }
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
     },
   );
 

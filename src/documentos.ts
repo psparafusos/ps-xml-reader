@@ -249,6 +249,8 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
       pICMS: textoDe(i.pICMS),
       vBCST: textoDe(i.vBCST),
       vST: textoDe(i.vST),
+      vBCSTRet: textoDe(i.vBCSTRet),
+      vICMSSTRet: textoDe(i.vICMSSTRet),
       CFOP: textoDe(i.CFOP),
       cstIPI: textoDe(i.cstIPI),
       pIPI: textoDe(i.pIPI),

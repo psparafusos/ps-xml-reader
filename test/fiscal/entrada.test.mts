@@ -42,9 +42,11 @@ const st = lerTabelaST(
   ),
 );
 
+// O verniz traz o CEST da linha (evidência na nota para o "Sim" automático).
 const item = (p: Partial<ItemFiscal>): ItemFiscal => ({
   nItem: '1',
   NCM: '32081020',
+  CEST: (p.NCM ?? '32081020').startsWith('3208') ? '2400100' : '',
   orig: '0',
   CST: '00',
   pICMS: '7',

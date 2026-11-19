@@ -325,6 +325,9 @@ interface ItemParaAnalise {
   /** ICMS-ST retido pelo fornecedor: base e valor. */
   vBCST: string;
   vST: string;
+  /** ICMS-ST retido antes (CST 60, CSOSN 500): base e valor. */
+  vBCSTRet: string;
+  vICMSSTRet: string;
   CFOP: string;
   cstIPI: string;
   pIPI: string;

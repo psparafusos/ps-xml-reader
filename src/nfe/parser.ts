@@ -152,7 +152,10 @@ function lerItem(det: Element): Item {
     CSOSN: texto(grupoIcms, 'CSOSN'),
     pICMS: texto(grupoIcms, 'pICMS'),
     vBCST: texto(grupoIcms, 'vBCST'),
-    vST: texto(grupoIcms, 'vST'),
+    // No item o valor do ICMS-ST é vICMSST (vST é o do total da nota).
+    vST: texto(grupoIcms, 'vICMSST') || texto(grupoIcms, 'vST'),
+    vBCSTRet: texto(grupoIcms, 'vBCSTRet'),
+    vICMSSTRet: texto(grupoIcms, 'vICMSSTRet'),
     pMVAST: texto(grupoIcms, 'pMVAST'),
     cstIPI: texto(grupoIpi, 'CST'),
     pIPI: texto(grupoIpi, 'pIPI'),

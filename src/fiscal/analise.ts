@@ -7,6 +7,14 @@
 // Regras (confirmadas pela contabilidade):
 // - Quem decide a ST é a planilha de Sergipe. NCM fora dela = sem ST. O CEST
 //   da nota não prova ST, só ajuda a escolher a linha.
+// - O NCM na planilha não basta para o "Sim" (roteiro da contabilidade, 11/2026):
+//   o NCM bate com a linha, a descrição da linha descreve o produto, o
+//   produto é do segmento da aba e, prova dos nove, o CEST da nota. O "Sim"
+//   automático pede uma linha candidata e uma evidência na nota (o CEST do
+//   item é o da linha, ou o fornecedor reteve ST no item; ver
+//   fiscal/evidencias.ts). Sem evidência: "confirmar", com a sugestão "Sem ST"
+//   quando a nota não tem CEST e veio com tributação sem ST. CEST de outra
+//   linha ou de outro segmento: "confirmar", mostrando os dois.
 // - O NCM da planilha vale pelo prefixo (4 dígitos podem bastar).
 // - A coluna de MVA é a alíquota de ICMS que veio na nota.
 // - Origem (orig): 1, 2, 3 e 8 = importado (4%); 0, 4, 5, 6 e 7 = nacional.
@@ -39,6 +47,7 @@ import { jogosAutopecas, MOTIVO_APENDICE_XIV } from './entrada';
 export { MOTIVO_APENDICE_XIV };
 import {
   buscarST,
+  linhasDoCest,
   outrasLinhasDoComeco,
   type AliquotaInterna,
   type AliquotaMva,
@@ -49,6 +58,11 @@ import {
   type TabelaST,
 } from './st';
 import { consultarTipi, type AliquotaIpi, type TabelaTipi } from './tipi';
+import {
+  evidenciasDaNota,
+  type EvidenciasNota,
+  type LinhaDoCest,
+} from './evidencias';
 
 /** Campos do item que a análise usa. Texto como no XML; vazio = ausente. */
 export interface ItemFiscal {
@@ -61,9 +75,12 @@ export interface ItemFiscal {
   CST?: string;
   CSOSN?: string;
   pICMS?: string;
-  /** ICMS-ST retido pelo fornecedor: base e valor. */
+  /** ICMS-ST retido pelo fornecedor: base e valor (vBCST e vICMSST). */
   vBCST?: string;
   vST?: string;
+  /** ICMS-ST retido antes (CST 60, CSOSN 500): base e valor. */
+  vBCSTRet?: string;
+  vICMSSTRet?: string;
   /** CFOP que o fornecedor usou na saída. */
   CFOP?: string;
   cstIPI?: string;
@@ -199,6 +216,21 @@ export interface AnaliseItem {
    * análises gravadas antes deste campo.
    */
   outrasLinhas?: OutrasLinhasNcm | null;
+  /**
+   * O que a nota diz sobre o item (CEST, ST retida, tributação), para o
+   * quadro de confirmação. Ausente em análises de antes deste campo.
+   */
+  evidencias?: EvidenciasNota;
+  /**
+   * Uma linha candidata e nenhuma evidência na nota (sem CEST e sem ST
+   * retida): "confirmar" por isso. Ausente = false.
+   */
+  semEvidencia?: boolean;
+  /**
+   * Sugestão de "Sem ST" do motor: linha candidata sem evidência, nota sem
+   * CEST e tributação sem ST. Ausente = false.
+   */
+  sugestaoSemST?: boolean;
 }
 
 const ORIGEM_IMPORTADO = new Set(['1', '2', '3', '8']);
@@ -251,6 +283,16 @@ export function analisarItem(
   const aliquota = numero(item.pICMS);
   const colunaMva = colunaDaAliquota(aliquota);
   const tipi = analisarTipi(ncm, item, base.tipi ?? null);
+  const doCest: LinhaDoCest[] =
+    cestNota === null
+      ? []
+      : linhasDoCest(base.st, cestNota).map((l) => ({
+          segmento: l.segmento,
+          cest: l.cest,
+          linhaPlanilha: l.linhaPlanilha,
+          descricao: l.descricao,
+        }));
+  const evidencias = evidenciasDaNota(item, cestNota, doCest);
 
   if (!uf) pendencias.push('UF do fornecedor ausente: CFOP não sugerido');
   if (
@@ -292,6 +334,7 @@ export function analisarItem(
     observacoes,
     tipi,
     apendiceXIV: null,
+    evidencias,
     ...extra,
   });
 
@@ -384,15 +427,37 @@ export function analisarItem(
     }
   }
 
+  // Evidência na nota de que o produto é do segmento (só com uma linha; com
+  // várias, a pessoa já escolhe).
+  let semEvidencia = false;
+  let sugestaoSemST = false;
   if (cestNota === null) {
-    motivos.push(
-      `nota sem CEST: avaliado pelo segmento (${segmentos.join(', ')})`,
-    );
+    if (candidatos.length === 1 && evidencias.stRetido) {
+      motivos.push(
+        `nota sem CEST; o fornecedor reteve ST (${evidencias.tributacao})`,
+      );
+    } else if (candidatos.length === 1) {
+      duvidaST = true;
+      semEvidencia = true;
+      sugestaoSemST = evidencias.tributacaoSemST;
+      pendencias.push(
+        `nota sem CEST e sem ST retida (${evidencias.tributacao}): confirmar se o produto é de ${segmentos[0]}`,
+      );
+    } else {
+      motivos.push(
+        `nota sem CEST: avaliado pelo segmento (${segmentos.join(', ')})`,
+      );
+    }
   } else if (!candidatos.some((c) => c.cestConfere)) {
     duvidaST = true;
+    const onde = doCest.length
+      ? `é de ${doCest.map((l) => `${l.segmento}, linha ${l.linhaPlanilha}`).join('; ')}`
+      : 'não está na planilha';
     pendencias.push(
-      `CEST da nota (${cestNota}) não bate com a planilha (${candidatos.map((c) => c.cest).join(', ')})`,
+      `CEST da nota (${cestNota}) não bate com a planilha (${candidatos.map((c) => c.cest).join(', ')}); o CEST da nota ${onde}`,
     );
+  } else if (candidatos.length === 1) {
+    motivos.push(`CEST da nota (${cestNota}) é o da linha`);
   }
 
   if (colunaMva === null) {
@@ -489,6 +554,8 @@ export function analisarItem(
     // Com a ST certa e só a MVA em dúvida, o CFOP já está decidido.
     cfopSugerido: duvidaST ? null : cfop(uf, true),
     outrasLinhas,
+    semEvidencia,
+    sugestaoSemST,
   });
 }
 
@@ -513,6 +580,8 @@ export function itemFiscalDe(i: Item): ItemFiscal {
     pICMS: i.pICMS,
     vBCST: i.vBCST,
     vST: i.vST,
+    vBCSTRet: i.vBCSTRet,
+    vICMSSTRet: i.vICMSSTRet,
     CFOP: i.CFOP,
     cstIPI: i.cstIPI,
     pIPI: i.pIPI,

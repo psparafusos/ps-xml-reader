@@ -187,19 +187,46 @@ describe('analise: casos da contabilidade', () => {
     assert.equal(ok.tipi.confere, true);
   });
 
-  it('verniz sem CEST na nota: avalia pelo segmento e decide', () => {
+  it('verniz sem CEST e sem ST retida: confirmar, sugestão Sem ST', () => {
     const r = analisarItem(
-      { NCM: '3208.10.20', orig: '0', pICMS: '7', CFOP: '6403' },
+      { NCM: '3208.10.20', orig: '0', CST: '00', pICMS: '7', CFOP: '6102' },
+      'SP',
+      base,
+    );
+    assert.equal(r.stSergipe, 'confirmar');
+    assert.equal(r.cestNota, null);
+    assert.equal(r.cfopSugerido, null);
+    assert.equal(r.semEvidencia, true);
+    assert.equal(r.sugestaoSemST, true);
+    assert.ok(
+      r.pendencias.some((p) =>
+        /nota sem CEST e sem ST retida \(CST 00, sem valores de ST\): confirmar se o produto é de Tintas/.test(
+          p,
+        ),
+      ),
+    );
+  });
+
+  it('verniz sem CEST com ST retida pelo fornecedor: decide pelo segmento', () => {
+    const r = analisarItem(
+      {
+        NCM: '3208.10.20',
+        orig: '0',
+        CST: '10',
+        pICMS: '7',
+        CFOP: '6403',
+        vBCST: '157.00',
+        vST: '11.20',
+      },
       'SP',
       base,
     );
     assert.equal(r.stSergipe, 'sim');
     assert.equal(r.cestNota, null);
     assert.equal(r.cest, '24.001.00');
+    assert.equal(r.semEvidencia, false);
     assert.ok(
-      r.motivos.some((m) =>
-        /sem CEST: avaliado pelo segmento \(Tintas\)/.test(m),
-      ),
+      r.motivos.some((m) => /nota sem CEST; o fornecedor reteve ST/.test(m)),
     );
     assert.ok(r.motivos.some((m) => /CFOP 6403/.test(m)));
   });
@@ -484,8 +511,14 @@ const stEstados = lerTabelaST([
   },
 ]);
 const baseEstados = { st: stEstados };
+// Com o CEST da linha: evidência na nota para o "Sim" automático.
+const CEST_FERRAMENTA: Record<string, string> = {
+  '82051000': '0800100',
+  '82052000': '0800200',
+};
 const itemFerramenta = (NCM: string, extra = {}) => ({
   NCM,
+  CEST: CEST_FERRAMENTA[NCM] ?? '',
   orig: '0',
   pICMS: '12',
   ...extra,

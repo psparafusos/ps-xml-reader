@@ -78,6 +78,7 @@ ul {
   .config__resultado,
   .documento__relatorio,
   .st__explicacao,
+  .st__evidencias,
   .st__nota-info,
   .conferencia__citacao,
   .config__tabela td {
@@ -3243,6 +3244,16 @@ ul {
   padding: 0 var(--esp-1);
   color: var(--cor-texto-forte);
   font-weight: var(--peso-forte);
+}
+
+/* Evidências na nota (uma linha candidata): linhas curtas, dados. */
+.st__evidencias {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  max-width: 90ch;
+  padding-left: var(--esp-5);
+  color: var(--cor-texto-forte);
 }
 
 .st__motivos {

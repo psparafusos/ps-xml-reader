@@ -83,9 +83,11 @@ const st = lerTabelaST([
   ),
 ]);
 
+// O item traz o CEST da linha (evidência na nota para o "Sim" automático).
 const item = (p: Partial<ItemFiscal>): ItemFiscal => ({
   nItem: '1',
   NCM: '40093100',
+  CEST: (p.NCM ?? '40093100').startsWith('3208') ? '2400100' : '0100100',
   orig: '0',
   CST: '00',
   pICMS: '7',

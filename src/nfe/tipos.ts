@@ -77,8 +77,11 @@ export interface Item {
   pICMS?: string;
   /** Base do ICMS-ST retido pelo fornecedor (vBCST). */
   vBCST?: string;
-  /** Valor do ICMS-ST retido pelo fornecedor (vST). */
+  /** Valor do ICMS-ST retido pelo fornecedor (vICMSST do grupo ICMS). */
   vST?: string;
+  /** ICMS-ST retido antes (CST 60, CSOSN 500): base e valor. */
+  vBCSTRet?: string;
+  vICMSSTRet?: string;
   /** MVA (%) que o fornecedor usou na retenção do ICMS-ST (pMVAST). */
   pMVAST?: string;
   /** CST do IPI (IPITrib ou IPINT). */

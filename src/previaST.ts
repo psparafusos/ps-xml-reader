@@ -42,7 +42,11 @@ export const MOTIVO_SEM_FIDELIZACAO =
 export function decisaoDaLembrada(l: DecisaoLembradaST): DecisaoST | null {
   if (l.escolha === null && l.finalidade === FINALIDADE_PADRAO) return null;
   if (!finalidadeLembravel(l.finalidade)) return null;
-  return { escolha: l.escolha, finalidade: l.finalidade };
+  return {
+    escolha: l.escolha,
+    finalidade: l.finalidade,
+    ...(l.motivo ? { motivo: l.motivo } : {}),
+  };
 }
 
 /**
@@ -89,6 +93,7 @@ const RE_INFORMATIVA = [
   /^origem \S+ \(importado\)/,
   /^fornecedor tratou como ST/,
 ];
+const RE_ALIQUOTA = /^alíquota interna/;
 const RE_SEGMENTO = /^segmento .+ lido com problemas$/;
 const RE_TIPI = /TIPI/;
 
@@ -136,9 +141,15 @@ export function previaItem(
     (aliquotaInterna === null || aliquotaInterna.aliquota === null);
 
   const pendencias = a.pendencias.filter((p) => !RE_TIPI.test(p));
+  // A alíquota interna só vale com ST: sem ST ou a confirmar, a pendência
+  // dela não aparece.
   const observacoes = [
     ...a.observacoes,
-    ...pendencias.filter((p) => RE_INFORMATIVA.some((re) => re.test(p))),
+    ...pendencias.filter(
+      (p) =>
+        RE_INFORMATIVA.some((re) => re.test(p)) &&
+        (r.st === 'sim' || !RE_ALIQUOTA.test(p)),
+    ),
   ];
   const segmentoProblema = pendencias.find((p) => RE_SEGMENTO.test(p)) ?? null;
 
