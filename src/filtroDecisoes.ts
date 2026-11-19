@@ -50,9 +50,9 @@ export function textoDecisao(d: DecisaoLembrada): string {
           ? `Sem ST: ${d.motivo}`
           : 'Sem ST'
         : e.tipo === 'apendice-xiv'
-          ? `Apêndice XIV: ${ROTULO_LUBRIFICANTE[e.lubrificante]}`
+          ? `Apêndice XIV: ${ROTULO_LUBRIFICANTE[e.lubrificante]}${d.motivo ? ` (${d.motivo})` : ''}`
           : e.tipo === 'manual'
-            ? `CFOP manual ${e.cfop}${e.mva === null ? '' : `, MVA ${textoMva(e.mva)}`}: ${e.motivo}`
+            ? `CFOP manual ${e.cfop}${e.mva === null ? '' : `, MVA ${textoMva(e.mva)}`}: ${e.motivo}${d.motivo ? ` (${d.motivo})` : ''}`
             : `${e.segmento}, CEST ${e.cest}${d.motivo ? `: ${d.motivo}` : ''}`,
     ROTULO_FINALIDADE[d.finalidade],
     d.origem === 'histórico' ? 'pelo histórico' : null,

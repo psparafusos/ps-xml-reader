@@ -79,6 +79,7 @@ ul {
   .documento__relatorio,
   .st__explicacao,
   .st__evidencias,
+  .st__app,
   .st__nota-info,
   .conferencia__citacao,
   .config__tabela td {
@@ -2457,8 +2458,10 @@ ul {
   font-weight: var(--peso-forte);
 }
 
+/* Bloco na largura da miniatura: com o contain da legenda, inline-block
+   ficava sem largura própria e quebrava uma palavra por linha. */
 .miniatura__fonte {
-  display: inline-block;
+  display: block;
   margin-top: var(--esp-2);
   padding: var(--esp-1) var(--esp-2);
   border-radius: var(--raio);
@@ -3199,6 +3202,31 @@ ul {
 
 .st__motivo {
   min-width: 200px;
+}
+
+/* Lápis "Mudar" ao lado da situação (Sim, Não, lembrado). */
+.st__mudar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--esp-1);
+  padding: 2px var(--esp-1);
+  vertical-align: middle;
+}
+
+.st__mudar .icone {
+  width: 16px;
+  height: 16px;
+}
+
+/* A decisão foi da pessoa (o app tinha decidido outra coisa): marca
+   discreta, sem cor de alerta. */
+.st__etiqueta--pessoa {
+  display: inline-block;
+  margin-top: 2px;
+  border-color: var(--cor-texto);
+  color: var(--cor-texto-forte);
+  font-weight: normal;
 }
 
 .st__lembrado {

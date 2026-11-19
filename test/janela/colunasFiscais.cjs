@@ -564,6 +564,87 @@ async function casosColunasFiscais(ctx) {
     },
   );
 
+  // Aviso "Letra reduzida para N pt" embaixo da miniatura da folha (painel
+  // da Conferência e editor de colunas): na largura disponível, em uma ou
+  // duas linhas (antes ficava uma palavra por linha). Perfil com as muitas
+  // colunas do caso anterior, folha em retrato.
+  await caso(
+    'Colunas fiscais: aviso de letra reduzida na largura da miniatura, no painel e no editor, em 1366 e em 1920',
+    async () => {
+      /** Mede o aviso dentro de `seletor`: texto, linhas e largura. */
+      const medir = (seletor) =>
+        avaliar(`(() => {
+          const f = document.querySelector(${JSON.stringify(`${seletor} .miniatura__fonte`)});
+          if (!f || f.getClientRects().length === 0) return null;
+          const caixa = f.closest('.miniatura').getBoundingClientRect();
+          const r = document.createRange();
+          r.selectNodeContents(f);
+          const linhas = new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+          return {
+            texto: f.textContent,
+            linhas,
+            largura: Math.round(f.getBoundingClientRect().width),
+            disponivel: Math.round(caixa.width),
+          };
+        })()`);
+      const confereAviso = (m, onde) =>
+        confere(
+          m &&
+            /^Letra reduzida para [\d,]+ pt$/.test(m.texto) &&
+            m.linhas >= 1 &&
+            m.linhas <= 2 &&
+            m.largura >= m.disponivel - 1,
+          `aviso de letra no ${onde}: ${JSON.stringify(m)}`,
+        );
+      const [largura, altura] = janela().getContentSize();
+      try {
+        await conferencia(vinteCinco);
+        await avaliar(
+          `document.querySelector('#painel-conferencia .conferencia__expandir')?.click(); true`,
+        );
+        await aguardar(
+          `!!document.getElementById('btn-folha-retrato')`,
+          15000,
+          'sem a seção Ao imprimir e no PDF no painel',
+        );
+        await avaliar(`document.getElementById('btn-folha-retrato').click()`);
+        for (const [w, h] of [
+          [1366, 768],
+          [1920, 1040],
+        ]) {
+          janela().setContentSize(w, h);
+          await espera(400);
+          await aguardar(
+            `!!document.querySelector('#miniatura-folha-pdf .miniatura__fonte')`,
+            15000,
+            'o painel não mostrou o aviso de letra reduzida',
+          );
+          await avaliar(
+            `document.querySelector('#miniatura-folha-pdf').scrollIntoView({ block: 'center' }); true`,
+          );
+          confereAviso(await medir('#miniatura-folha-pdf'), `painel (${w})`);
+          await capturar(`letra-reduzida-painel-${w}.png`);
+          await abrirEditor();
+          await aguardar(
+            `!!document.querySelector('dialog[open] .miniatura__fonte')`,
+            15000,
+            'o editor não mostrou o aviso de letra reduzida',
+          );
+          await avaliar(
+            `document.querySelector('dialog[open] .miniatura__fonte').scrollIntoView({ block: 'center' }); true`,
+          );
+          confereAviso(await medir('dialog[open]'), `editor (${w})`);
+          await capturar(`letra-reduzida-editor-${w}.png`);
+          await cancelarEditor();
+        }
+      } finally {
+        janela().setContentSize(largura, altura);
+        await espera(200);
+      }
+      await inicio();
+    },
+  );
+
   await caso(
     'Colunas fiscais: volta ao perfil de antes e exclui o de teste',
     async () => {

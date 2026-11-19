@@ -14,7 +14,8 @@
 // janelas por cima (X e Esc das Configurações, rolagem travada atrás da
 // ferramenta ST), os dois avisos novos da ferramenta ST (t13, com a
 // planilha inventada de planilhaST.mts), as evidências na nota (t20: o
-// quadro "é do segmento?", ensinar e desfazer), a nota de devolução (t14) e as
+// quadro "é do segmento?", ensinar e desfazer), a pessoa mudando a decisão
+// do app (t21: Sim e Não pelo lápis), a nota de devolução (t14) e as
 // linhas informativas do painel da Conferência (frete, t15 a t18, e
 // vencimentos escritos nas informações complementares, t19, e a devolução,
 // t14), a janela na largura mínima (680: não aceita menos, e as telas
@@ -3172,6 +3173,262 @@ async function casosJanelasPorCima() {
           confere(
             e1.st === 'Confirmar' && e1.etiqueta === null && e1.pendente,
             `item 1 depois de apagar (${w}): ${JSON.stringify(e1)}`,
+          );
+          await fecharFerramenta();
+          await inicio();
+        }
+      } finally {
+        janela.setContentSize(largura, altura);
+      }
+    },
+  );
+
+  // A palavra final é da pessoa (t21): o macaco que o app decidiu "Sim"
+  // (2403) e a caneta fora da planilha ("Não", 2102) também abrem o quadro,
+  // pelo lápis "Mudar". Sim vira Sem ST (2102); Não vira Outro (2403). As
+  // trocas são lembradas, marcadas "sua decisão" com o valor do app, e o
+  // Apagar das Configurações volta ao app. Em 1366 e em 1920.
+  await caso(
+    'Ferramenta ST: mudar a decisão do app (t21), Sim para Sem ST e Não para Outro, lembradas e desfeitas, em 1366 e em 1920',
+    async () => {
+      const [largura, altura] = janela.getContentSize();
+      const linha = (n) =>
+        `[...document.querySelectorAll('dialog.painel--st tr.st__linha')].find((tr) => tr.querySelector('td.num')?.textContent.trim() === '${n}')`;
+      const abrirFerramenta = async () => {
+        await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
+          .find((li) => li.textContent.includes(${JSON.stringify('ST, MVA e CFOP')}))
+          .querySelector('.botao--ferramenta:not(:disabled)').click()`);
+        await aguardar(
+          `!!document.querySelector('dialog.painel--st[open]') && !!${linha(2)}`,
+          30000,
+          'a ferramenta ST não abriu',
+        );
+      };
+      const fecharFerramenta = async () => {
+        await avaliar(
+          `document.querySelector('dialog.painel--st .painel__fechar').click()`,
+        );
+        await aguardar(
+          `!document.querySelector('dialog.painel--st')`,
+          15000,
+          'o X não fechou a ferramenta',
+        );
+      };
+      const resumo = () =>
+        avaliar(
+          `document.querySelector('dialog.painel--st .painel__cabecalho .painel__dica').textContent`,
+        );
+      const estado = (n) =>
+        avaliar(`(() => {
+          const tr = ${linha(n)};
+          const b = tr.querySelector('button.st__mudar');
+          return {
+            st: tr.querySelector('.st__situacao').textContent.trim(),
+            cfop: tr.querySelector('.st__cfop').textContent.trim(),
+            motivo: tr.querySelector('.st__motivo > span').textContent.trim(),
+            lembrado: tr.querySelector('.st__lembrado .st__etiqueta')?.textContent.trim() ?? null,
+            pessoa: tr.querySelector('.st__etiqueta--pessoa')?.textContent.trim() ?? null,
+            app: tr.querySelector('.st__app')?.textContent ?? null,
+            appSel: tr.querySelector('.st__app') ? getComputedStyle(tr.querySelector('.st__app')).userSelect : null,
+            mudar: b ? { aria: b.getAttribute('aria-label'), texto: b.textContent.trim(), icone: !!b.querySelector('svg') } : null,
+            pendente: tr.classList.contains('st__linha--pendente'),
+          };
+        })()`);
+      const abrirQuadro = async (n) => {
+        await avaliar(`${linha(n)}.querySelector('button.st__mudar').click()`);
+        await aguardar(
+          `!!document.querySelector('dialog.painel--st .st__escolha')`,
+          15000,
+          'o quadro de escolha não abriu pelo lápis',
+        );
+      };
+      const quadro = () =>
+        avaliar(`(() => {
+          const q = document.querySelector('dialog.painel--st .st__escolha');
+          const app = q.querySelector('.st__app-decidiu');
+          const marcada = q.querySelector('input[type=radio]:checked');
+          return {
+            legenda: q.querySelector('legend').textContent,
+            app: app?.textContent ?? null,
+            appSel: app ? getComputedStyle(app).userSelect : null,
+            opcoes: [...q.querySelectorAll('.st__opcao strong')].map((s) => s.textContent),
+            marcada: marcada?.closest('label')?.querySelector('strong')?.textContent ?? null,
+          };
+        })()`);
+      const marcarOpcao = (texto) =>
+        avaliar(`(() => {
+          const l = [...document.querySelectorAll('dialog.painel--st .st__escolha .st__opcao')]
+            .find((x) => x.querySelector('strong')?.textContent === ${JSON.stringify(texto)});
+          l.querySelector('input').click();
+          return true;
+        })()`);
+      const usarEscolha = (n, st) =>
+        avaliar(`[...document.querySelectorAll('dialog.painel--st .st__escolha button')]
+          .find((b) => b.textContent.trim() === 'Usar esta escolha').click()`).then(
+          () =>
+            aguardar(
+              `!document.querySelector('dialog.painel--st .st__escolha') && ${linha(n)}.querySelector('.st__situacao').textContent.trim() === '${st}'`,
+              15000,
+              `a escolha do item ${n} não foi aplicada`,
+            ),
+        );
+      const PELO_APP_1 = 'Pelo app: Sim, CFOP 2403, MVA 48,5%';
+      try {
+        await carregarPlanilhaST();
+        for (const [w, h] of TAMANHOS_PAINEL) {
+          janela.setContentSize(w, h);
+          await abrirNota(copia('t21-st-mudar-decisao.xml'));
+          await irParaConferencia();
+          await abrirFerramenta();
+
+          let r = await resumo();
+          confere(
+            r.endsWith('2 itens · 0 precisam de você'),
+            `resumo (${w}): ${r}`,
+          );
+          let e1 = await estado(1);
+          confere(
+            e1.st === 'Sim' &&
+              e1.cfop === '2403' &&
+              e1.mudar?.aria === 'Mudar a decisão do item 1' &&
+              e1.mudar.texto === '' &&
+              e1.mudar.icone &&
+              e1.pessoa === null,
+            `item 1 (${w}): ${JSON.stringify(e1)}`,
+          );
+
+          // Quadro aberto a partir de um "Sim": o que o app decidiu e por quê.
+          await abrirQuadro(1);
+          let q = await quadro();
+          confere(
+            q.legenda === 'Item 1: o produto é do segmento Autopecas?' &&
+              q.app?.startsWith(`${PELO_APP_1}. Por quê: `) &&
+              q.appSel === 'text' &&
+              JSON.stringify(q.opcoes) ===
+                JSON.stringify([
+                  'Tem ST (é deste segmento)',
+                  'Sem ST (não é deste segmento)',
+                  'Outro',
+                ]) &&
+              q.marcada === 'Tem ST (é deste segmento)',
+            `quadro do item 1 (${w}): ${JSON.stringify(q)}`,
+          );
+          await avaliar(`document.activeElement?.blur(); true`);
+          await capturar(`ferramenta-st-mudar-sim-${w}.png`);
+          await marcarOpcao('Sem ST (não é deste segmento)');
+          await usarEscolha(1, 'Não');
+          e1 = await estado(1);
+          confere(
+            e1.cfop === '2102' &&
+              e1.lembrado === 'guardado' &&
+              e1.pessoa === 'sua decisão' &&
+              e1.app === PELO_APP_1 &&
+              e1.appSel === 'text' &&
+              e1.motivo ===
+                'marcado "sem ST": decisão da pessoa; não é do segmento Autopecas' &&
+              !e1.pendente,
+            `item 1 mudado (${w}): ${JSON.stringify(e1)}`,
+          );
+
+          // Um "Não" (fora da planilha): sem "Tem ST"; vira "Outro", 2403.
+          await abrirQuadro(2);
+          q = await quadro();
+          confere(
+            q.legenda === 'Item 2: mudar a decisão' &&
+              q.app?.startsWith('Pelo app: Não, CFOP 2102. Por quê: ') &&
+              JSON.stringify(q.opcoes) ===
+                JSON.stringify(['Sem ST', 'Outro']) &&
+              q.marcada === 'Sem ST',
+            `quadro do item 2 (${w}): ${JSON.stringify(q)}`,
+          );
+          await avaliar(`(() => {
+            for (const [id, v] of [['st-escolha-2-cfop', '2403'], ['st-escolha-2-motivo', 'teste inventado']]) {
+              const i = document.getElementById(id);
+              i.value = v;
+              i.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            return true;
+          })()`);
+          await usarEscolha(2, 'Sim');
+          const e2 = await estado(2);
+          confere(
+            e2.cfop === '2403' &&
+              e2.pessoa === 'sua decisão' &&
+              e2.app === 'Pelo app: Não, CFOP 2102' &&
+              e2.motivo === 'CFOP manual: teste inventado (decisão da pessoa)',
+            `item 2 mudado (${w}): ${JSON.stringify(e2)}`,
+          );
+          r = await resumo();
+          confere(r.endsWith('0 precisam de você'), `resumo: ${r}`);
+          await avaliar(`document.activeElement?.blur(); true`);
+          await capturar(`ferramenta-st-mudado-${w}.png`);
+
+          // Próxima abertura: as duas trocas vêm lembradas.
+          await fecharFerramenta();
+          await abrirFerramenta();
+          e1 = await estado(1);
+          let e2b = await estado(2);
+          confere(
+            e1.st === 'Não' &&
+              e1.cfop === '2102' &&
+              e1.lembrado === 'lembrado' &&
+              e1.pessoa === 'sua decisão' &&
+              e2b.st === 'Sim' &&
+              e2b.cfop === '2403' &&
+              e2b.lembrado === 'lembrado',
+            `lembradas (${w}): ${JSON.stringify([e1, e2b])}`,
+          );
+          await fecharFerramenta();
+
+          // Configurações, Decisões lembradas: aparecem e o Apagar desfaz.
+          await abrirConfiguracoes();
+          await aguardar(configAberta, 15000, 'as Configurações não abriram');
+          await avaliar(`[...document.querySelectorAll('dialog.painel--config [role=tab]')]
+            .find((b) => b.textContent.trim() === 'Decisões lembradas').click()`);
+          const linhaConfig = (c) =>
+            `[...document.querySelectorAll('dialog.painel--config tbody tr')].find((tr) => tr.textContent.includes('${c}'))`;
+          await aguardar(
+            `!!${linhaConfig('T21A')} && !!${linhaConfig('T21B')}`,
+            15000,
+            'as decisões do t21 não apareceram nas Configurações',
+          );
+          const textos = await avaliar(
+            `[${linhaConfig('T21A')}.children[4].textContent, ${linhaConfig('T21B')}.children[4].textContent]`,
+          );
+          confere(
+            JSON.stringify(textos) ===
+              JSON.stringify([
+                'Sem ST: decisão da pessoa; não é do segmento Autopecas · Revenda',
+                'CFOP manual 2403: teste inventado (decisão da pessoa) · Revenda',
+              ]),
+            `decisões nas Configurações: ${JSON.stringify(textos)}`,
+          );
+          for (const c of ['T21A', 'T21B']) {
+            await avaliar(
+              `${linhaConfig(c)}.querySelector('button[aria-label="Apagar a decisão de ${c}"]').click()`,
+            );
+            await aguardar(
+              `!${linhaConfig(c)}`,
+              15000,
+              `a decisão do ${c} não foi apagada`,
+            );
+          }
+          await avaliar(
+            `document.querySelector('dialog.painel--config .painel__cabecalho > button[aria-label="Fechar"]').click()`,
+          );
+          await aguardar(`!${configNaPagina}`, 15000, 'o X não fechou');
+          await abrirFerramenta();
+          e1 = await estado(1);
+          e2b = await estado(2);
+          confere(
+            e1.st === 'Sim' &&
+              e1.cfop === '2403' &&
+              e1.pessoa === null &&
+              e1.lembrado === null &&
+              e2b.st === 'Não' &&
+              e2b.cfop === '2102' &&
+              e2b.pessoa === null,
+            `de volta ao app (${w}): ${JSON.stringify([e1, e2b])}`,
           );
           await fecharFerramenta();
           await inicio();

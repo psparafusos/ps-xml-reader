@@ -147,21 +147,35 @@ const listaE = (xs: string[]) =>
     ? (xs[0] ?? '')
     : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`;
 
+/** Motivo de quem mudou um item que o app tinha decidido sozinho. */
+export const MOTIVO_DECISAO_PESSOA = 'decisão da pessoa';
+
 /**
  * Motivo guardado com a escolha da linha ou do "Sem ST": "é do segmento X"
  * ou "não é do segmento X" (com mais de um segmento entre as linhas, "não é
- * dos segmentos X e Y"). Nas outras escolhas, undefined.
+ * dos segmentos X e Y"). `mudouOApp`: o app tinha decidido sozinho (Sim ou
+ * Não) e a pessoa escolheu por cima; o motivo começa com "decisão da
+ * pessoa". Sem nada a dizer, undefined.
  */
 export function motivoDaEscolha(
   a: Pick<AnaliseItem, 'candidatos'>,
   e: EscolhaST | null,
+  mudouOApp = false,
 ): string | undefined {
-  if (e?.tipo === 'candidato') return `é do segmento ${e.segmento}`;
-  if (e?.tipo !== 'sem-st' || a.candidatos.length === 0) return undefined;
-  const segs = [...new Set(a.candidatos.map((c) => c.segmento))];
-  return segs.length === 1
-    ? `não é do segmento ${segs[0]}`
-    : `não é dos segmentos ${listaE(segs)}`;
+  if (e === null) return undefined;
+  let segmento: string | undefined;
+  if (e.tipo === 'candidato') segmento = `é do segmento ${e.segmento}`;
+  else if (e.tipo === 'sem-st' && a.candidatos.length > 0) {
+    const segs = [...new Set(a.candidatos.map((c) => c.segmento))];
+    segmento =
+      segs.length === 1
+        ? `não é do segmento ${segs[0]}`
+        : `não é dos segmentos ${listaE(segs)}`;
+  }
+  const partes = [mudouOApp ? MOTIVO_DECISAO_PESSOA : null, segmento].filter(
+    Boolean,
+  );
+  return partes.length ? partes.join('; ') : undefined;
 }
 
 /** Decisão guardada no arquivo de decisões lembradas. */
@@ -293,7 +307,7 @@ export function resolverItem(
       mva: escolha.mva,
       mvaTexto: escolha.mva === null ? '-' : fmtPct(escolha.mva),
       cfop: escolha.cfop,
-      motivo: `CFOP manual: ${escolha.motivo}`,
+      motivo: `CFOP manual: ${escolha.motivo}${decisao.motivo ? ` (${decisao.motivo})` : ''}`,
       detalhes: [...new Set([...a.motivos, ...pendencias])],
       observacoesTipi,
       precisaDeMim: false,
@@ -312,7 +326,7 @@ export function resolverItem(
     candidato = escolhido;
     motivo =
       escolha?.tipo === 'apendice-xiv'
-        ? motivoApendiceXIV(escolhido)
+        ? `${motivoApendiceXIV(escolhido)}${decisao.motivo ? ` (${decisao.motivo})` : ''}`
         : `linha escolhida: ${escolhido.segmento}, CEST ${escolhido.cest}${decisao.motivo ? ` (${decisao.motivo})` : ''}`;
   } else if (a.stSergipe === 'nao') {
     st = 'nao';

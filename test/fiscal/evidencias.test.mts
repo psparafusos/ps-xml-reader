@@ -288,7 +288,7 @@ describe('evidências: o caso da nota de material de construção', () => {
 
   it('quadro de uma linha: sem MVA nem alíquota interna antes de "Tem ST"', () => {
     const p = previaItem(analise({}), 'SP', revenda);
-    assert.ok(p.detalhes.some((d) => /^MVA /.test(d)));
+    assert.ok(p.detalhes.some((d) => d.startsWith('MVA ')));
     const quadro = detalhesDoQuadro(p.detalhes);
     assert.ok(
       quadro.every((d) => !/MVA|alíquota interna|^nota sem CEST/.test(d)),

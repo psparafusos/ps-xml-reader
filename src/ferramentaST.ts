@@ -12,7 +12,8 @@
 // src/previaST.ts.
 
 import { perguntar } from './dialogos';
-import { botao, botaoFecharPainel, el } from './dom';
+import { botao, botaoFecharPainel, el, icone } from './dom';
+import { ICONES } from './icones';
 import { criarMenuEscolha, type OpcaoMenu, type Seletor } from './menuEscolha';
 import {
   chaveDecisao,
@@ -32,8 +33,11 @@ import {
   type Finalidade,
 } from './fiscal/entrada';
 import {
+  decisaoDoApp,
   decisaoInicial,
+  pessoaMudouOApp,
   previaItem,
+  textoDecisaoApp,
   type DecisaoST,
   type LinhaPrevia,
 } from './previaST';
@@ -119,6 +123,10 @@ const DICAS = {
     'Escreve os valores nas colunas de anotação da nota. Não mexe no XML do fornecedor.',
   lembrado:
     'Você já decidiu este produto deste fornecedor antes. Clique em desfazer para escolher de novo.',
+  mudar:
+    'Mudar a decisão deste item: com ST, sem ST ou outro CFOP. A palavra final é sua.',
+  pessoa:
+    'O app tinha decidido outra coisa; vale a sua escolha. O que o app decidiu está logo abaixo.',
 };
 
 /** Texto com dica que não é controle: ganha o Tab para a dica abrir no foco. */
@@ -429,8 +437,11 @@ export function abrirFerramentaST(c: ContextoST): void {
     const mesmaEscolha = decisao.escolha === l.decisao.escolha;
     l.origem = origem ?? (mesmaEscolha ? l.origem : undefined);
     if (!mesmaEscolha) {
-      // "é do segmento X" / "não é do segmento X", guardado com a escolha.
-      const motivo = motivoDaEscolha(a, decisao.escolha);
+      // "é do segmento X" / "não é do segmento X", guardado com a escolha;
+      // "decisão da pessoa" quando o app tinha decidido sozinho.
+      const appDecidiu =
+        decisaoDoApp(a, uf, decisao.finalidade).st !== 'confirmar';
+      const motivo = motivoDaEscolha(a, decisao.escolha, appDecidiu);
       decisao = {
         escolha: decisao.escolha,
         finalidade: decisao.finalidade,
@@ -537,11 +548,26 @@ export function abrirFerramentaST(c: ContextoST): void {
       ROTULO_ST[r.st],
     );
     const celulaSt = el('td', '', st);
-    if (podeEscolher && (r.st === 'confirmar' || l.decisao.escolha !== null)) {
-      const b = botao(
-        'botao botao--claro botao--pequeno st__confirmar',
-        el('span', '', r.st === 'confirmar' ? 'Confirmar' : 'Trocar'),
-      );
+    const temApendice =
+      !podeEscolher && !!a.apendiceXIV && a.apendiceXIV.length > 0;
+    // "Confirmar" (texto) quando o app pede a escolha da linha; nos outros
+    // estados (Sim, Não, lembrado, decidido), o lápis "Mudar": a palavra
+    // final é da pessoa. O Apêndice XIV em aberto já tem o seletor dele.
+    const pedeConfirmar = podeEscolher && r.st === 'confirmar';
+    if (pedeConfirmar || !(temApendice && r.st === 'confirmar')) {
+      const b = pedeConfirmar
+        ? botao(
+            'botao botao--claro botao--pequeno st__confirmar',
+            el('span', '', 'Confirmar'),
+          )
+        : botao(
+            'botao botao--claro botao--pequeno botao--icone st__confirmar st__mudar',
+            icone(...ICONES.editar),
+          );
+      if (!pedeConfirmar) {
+        b.setAttribute('aria-label', `Mudar a decisão do item ${n}`);
+        ligarDica(b, DICAS.mudar);
+      }
       b.dataset.foco = `confirmar-${n}`;
       b.setAttribute('aria-expanded', String(confirmando === n));
       b.addEventListener('click', () => {
@@ -558,7 +584,7 @@ export function abrirFerramentaST(c: ContextoST): void {
     // NCM 2710/3403 fora da planilha, com o Apêndice XIV carregado: a pessoa
     // diz se é lubrificante. "Sim" pergunta se é derivado ou não derivado de
     // petróleo (a MVA vem da coluna do grupo); "Não" é sem ST.
-    if (!podeEscolher && a.apendiceXIV && a.apendiceXIV.length > 0) {
+    if (temApendice) {
       const esc = l.decisao.escolha;
       const selAp = menus.seletor({
         rotulo: `Apêndice XIV do item ${n}`,
@@ -629,6 +655,18 @@ export function abrirFerramentaST(c: ContextoST): void {
         })(),
       );
 
+    // A pessoa mudou o que o app tinha decidido sozinho: marca discreta e,
+    // no detalhe, o que o app tinha decidido.
+    const app = decisaoDoApp(a, uf, l.decisao.finalidade);
+    const mudou = l.decisao.escolha !== null && pessoaMudouOApp(app, r);
+    const marcaPessoa =
+      mudou &&
+      (() => {
+        const selo = alvoDica('sua decisão', DICAS.pessoa);
+        selo.classList.add('st__etiqueta', 'st__etiqueta--pessoa');
+        return selo;
+      })();
+
     // "segmento X lido com problemas" na cor do "confirmar"; observações em
     // itálico (protocolo, alíquota a confirmar), sem mudar o CFOP.
     const motivoEhSegmento = r.segmentoProblema === r.motivo;
@@ -640,6 +678,9 @@ export function abrirFerramentaST(c: ContextoST): void {
         r.segmentoProblema &&
         el('span', 'st__motivo-confirmar', r.segmentoProblema),
       marcaDecisao,
+      marcaPessoa,
+      mudou &&
+        el('span', 'st__obs st__app', `Pelo app: ${textoDecisaoApp(app)}`),
       ...r.observacoesTipi.map((o) => el('span', 'st__obs', `TIPI: ${o}`)),
       ...r.observacoes.map((o) => el('span', 'st__obs', o)),
       ...avisosAutomotiva(a).map((f) =>
@@ -650,7 +691,7 @@ export function abrirFerramentaST(c: ContextoST): void {
 
     const tr = el(
       'tr',
-      `st__linha${r.precisaDeMim ? ' st__linha--pendente' : ''}`,
+      `st__linha${r.precisaDeMim ? ' st__linha--pendente' : ''}${mudou ? ' st__linha--pessoa' : ''}`,
       el('td', 'st__marca', marca),
       el('td', 'num', n),
       el('td', 'st__descricao', l.item.xProd),
@@ -698,6 +739,27 @@ export function abrirFerramentaST(c: ContextoST): void {
     // as evidências da nota (CEST e ST retida) à vista.
     const umaLinha = !apendice.length && a.candidatos.length === 1;
     const segmentoLinha = umaLinha ? a.candidatos[0].segmento : '';
+    // NCM fora da planilha (e sem Apêndice XIV): sem "Tem ST", só "Sem ST"
+    // e "Outro".
+    const semLinha = !apendice.length && a.candidatos.length === 0;
+    // O que o app decide sozinho, para a pessoa comparar.
+    const app = decisaoDoApp(a, uf, l.decisao.finalidade);
+    const escolhaDoApp: EscolhaST | null =
+      app.st === 'nao'
+        ? { tipo: 'sem-st' }
+        : app.st === 'sim' && app.candidato && !app.candidato.lubrificante
+          ? {
+              tipo: 'candidato',
+              segmento: app.candidato.segmento,
+              linhaPlanilha: app.candidato.linhaPlanilha,
+              cest: app.candidato.cest,
+            }
+          : null;
+    const blocoApp = el(
+      'p',
+      'st__explicacao st__app-decidiu',
+      `Pelo app: ${textoDecisaoApp(app)}. Por quê: ${app.motivo}.`,
+    );
     // "Sem ST" pré-marcado só sem escolha feita: com uma linha, pela sugestão
     // do motor (sem CEST, tributação sem ST); com várias, quando nada liga o
     // produto às linhas.
@@ -705,7 +767,8 @@ export function abrirFerramentaST(c: ContextoST): void {
       !apendice.length &&
       atual === null &&
       (umaLinha ? a.sugestaoSemST === true : sugerirSemST(a, retido));
-    const explicacao = apendice.length ? null : explicacaoItem(a, retido);
+    const explicacao =
+      apendice.length || semLinha ? null : explicacaoItem(a, retido);
     // Pelo histórico do NCM: só sem escolha própria; nunca pré-marcada.
     const hist =
       atual === null
@@ -754,108 +817,126 @@ export function abrirFerramentaST(c: ContextoST): void {
           usarHist,
         );
       })();
+    const opcaoOutro = {
+      valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' } as EscolhaST,
+      rotulo: el(
+        'span',
+        'st__opcao-texto',
+        el('strong', '', 'Outro'),
+        ' Informar o CFOP (e a MVA, se houver) com o motivo.',
+      ),
+    };
     const opcoes: { valor: EscolhaST; rotulo: HTMLElement }[] = apendice.length
-      ? apendice.map((cand) => ({
-          valor: {
-            tipo: 'apendice-xiv' as const,
-            lubrificante: cand.lubrificante ?? 'derivado',
-          },
-          rotulo: el(
-            'span',
-            'st__opcao-texto',
-            el('strong', '', cand.descricao),
-            ` (${cand.segmentoOficial})`,
-            el(
+      ? [
+          ...apendice.map((cand) => ({
+            valor: {
+              tipo: 'apendice-xiv' as const,
+              lubrificante: cand.lubrificante ?? 'derivado',
+            },
+            rotulo: el(
               'span',
-              'st__cest',
-              ` MVA ${pct(cand.mvas[0]?.valor ?? null)} (${cand.colunaApendice ?? '-'})`,
+              'st__opcao-texto',
+              el('strong', '', cand.descricao),
+              ` (${cand.segmentoOficial})`,
+              el(
+                'span',
+                'st__cest',
+                ` MVA ${pct(cand.mvas[0]?.valor ?? null)} (${cand.colunaApendice ?? '-'})`,
+              ),
             ),
-          ),
-        }))
-      : umaLinha
+          })),
+          {
+            valor: { tipo: 'sem-st' },
+            rotulo: el(
+              'span',
+              'st__opcao-texto',
+              el('strong', '', 'Sem ST'),
+              ' Não é lubrificante do Apêndice XIV.',
+            ),
+          },
+          opcaoOutro,
+        ]
+      : semLinha
         ? [
-            {
-              valor: {
-                tipo: 'candidato' as const,
-                segmento: a.candidatos[0].segmento,
-                linhaPlanilha: a.candidatos[0].linhaPlanilha,
-                cest: a.candidatos[0].cest,
-              },
-              rotulo: el(
-                'span',
-                'st__opcao-texto',
-                el('strong', '', 'Tem ST (é deste segmento)'),
-                ` ${segmentoLinha}, CEST ${a.candidatos[0].cest}. A MVA e a alíquota interna da linha passam a valer.`,
-              ),
-            },
-            {
-              valor: { tipo: 'sem-st' },
-              rotulo: el(
-                'span',
-                'st__opcao-texto',
-                el('strong', '', 'Sem ST (não é deste segmento)'),
-                ` O produto não é de ${segmentoLinha}.`,
-                sugerido &&
-                  !juntos &&
-                  el('span', 'st__sugerido', textoSugestaoSemST(a) ?? ''),
-              ),
-            },
-            {
-              valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' },
-              rotulo: el(
-                'span',
-                'st__opcao-texto',
-                el('strong', '', 'Outro'),
-                ' Informar o CFOP (e a MVA, se houver) com o motivo.',
-              ),
-            },
-          ]
-        : [
-            ...a.candidatos.map((cand) => ({
-              valor: {
-                tipo: 'candidato' as const,
-                segmento: cand.segmento,
-                linhaPlanilha: cand.linhaPlanilha,
-                cest: cand.cest,
-              },
-              rotulo: el(
-                'span',
-                'st__opcao-texto',
-                el('strong', '', `${cand.segmento}, CEST ${cand.cest}`),
-                ` NCM ${cand.ncmPlanilha} na planilha (linha ${cand.linhaPlanilha}): ${cand.descricao}`,
-                el(
-                  'span',
-                  'st__cest',
-                  ` MVA: ${cand.mvas.map((m) => (m.valor === null ? '-' : `${(m.valor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`)).join(' / ')}${cand.cestConfere ? ' · CEST da nota confere' : ''}`,
-                ),
-              ),
-            })),
             {
               valor: { tipo: 'sem-st' },
               rotulo: el(
                 'span',
                 'st__opcao-texto',
                 el('strong', '', 'Sem ST'),
-                ' O produto não é nenhuma das linhas acima.',
-                sugerido &&
-                  !juntos &&
+                ' O NCM não está na planilha de ST de Sergipe.',
+              ),
+            },
+            opcaoOutro,
+          ]
+        : umaLinha
+          ? [
+              {
+                valor: {
+                  tipo: 'candidato' as const,
+                  segmento: a.candidatos[0].segmento,
+                  linhaPlanilha: a.candidatos[0].linhaPlanilha,
+                  cest: a.candidatos[0].cest,
+                },
+                rotulo: el(
+                  'span',
+                  'st__opcao-texto',
+                  el('strong', '', 'Tem ST (é deste segmento)'),
+                  ` ${segmentoLinha}, CEST ${a.candidatos[0].cest}. A MVA e a alíquota interna da linha passam a valer.`,
+                ),
+              },
+              {
+                valor: { tipo: 'sem-st' },
+                rotulo: el(
+                  'span',
+                  'st__opcao-texto',
+                  el('strong', '', 'Sem ST (não é deste segmento)'),
+                  ` O produto não é de ${segmentoLinha}.`,
+                  sugerido &&
+                    !juntos &&
+                    el('span', 'st__sugerido', textoSugestaoSemST(a) ?? ''),
+                ),
+              },
+              opcaoOutro,
+            ]
+          : [
+              ...a.candidatos.map((cand) => ({
+                valor: {
+                  tipo: 'candidato' as const,
+                  segmento: cand.segmento,
+                  linhaPlanilha: cand.linhaPlanilha,
+                  cest: cand.cest,
+                },
+                rotulo: el(
+                  'span',
+                  'st__opcao-texto',
+                  el('strong', '', `${cand.segmento}, CEST ${cand.cest}`),
+                  ` NCM ${cand.ncmPlanilha} na planilha (linha ${cand.linhaPlanilha}): ${cand.descricao}`,
                   el(
                     'span',
-                    'st__sugerido',
-                    'Sugerido: o produto não parece ser nenhuma das linhas',
+                    'st__cest',
+                    ` MVA: ${cand.mvas.map((m) => (m.valor === null ? '-' : `${(m.valor * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`)).join(' / ')}${cand.cestConfere ? ' · CEST da nota confere' : ''}`,
                   ),
-              ),
-            },
-            {
-              valor: { tipo: 'manual', cfop: '', mva: null, motivo: '' },
-              rotulo: el(
-                'span',
-                'st__opcao-texto',
-                el('strong', '', 'Outro'),
-                ' Informar o CFOP (e a MVA, se houver) com o motivo.',
-              ),
-            },
-          ];
+                ),
+              })),
+              {
+                valor: { tipo: 'sem-st' },
+                rotulo: el(
+                  'span',
+                  'st__opcao-texto',
+                  el('strong', '', 'Sem ST'),
+                  ' O produto não é nenhuma das linhas acima.',
+                  sugerido &&
+                    !juntos &&
+                    el(
+                      'span',
+                      'st__sugerido',
+                      'Sugerido: o produto não parece ser nenhuma das linhas',
+                    ),
+                ),
+              },
+              opcaoOutro,
+            ];
     const igual = (x: EscolhaST, y: EscolhaST) =>
       x.tipo === y.tipo &&
       (x.tipo === 'sem-st' ||
@@ -872,7 +953,9 @@ export function abrirFerramentaST(c: ContextoST): void {
       r2.checked =
         atual !== null
           ? igual(o.valor, atual)
-          : sugerido && o.valor.tipo === 'sem-st';
+          : sugerido
+            ? o.valor.tipo === 'sem-st'
+            : escolhaDoApp !== null && igual(o.valor, escolhaDoApp);
       if (i === 0) r2.dataset.foco = `escolha-${n}`;
       const lbl = el('label', 'st__opcao', r2, o.rotulo);
       lbl.htmlFor = r2.id;
@@ -955,10 +1038,12 @@ export function abrirFerramentaST(c: ContextoST): void {
       if (!marcada) {
         mostrarErro(
           apendice.length
-            ? 'Escolha: derivado ou não derivado de petróleo.'
-            : umaLinha
-              ? 'Escolha "Tem ST", "Sem ST" ou "Outro".'
-              : 'Escolha uma linha da planilha, "Sem ST" ou "Outro".',
+            ? 'Escolha: derivado, não derivado, "Sem ST" ou "Outro".'
+            : semLinha
+              ? 'Escolha "Sem ST" ou "Outro".'
+              : umaLinha
+                ? 'Escolha "Tem ST", "Sem ST" ou "Outro".'
+                : 'Escolha uma linha da planilha, "Sem ST" ou "Outro".',
         );
         return;
       }
@@ -986,7 +1071,7 @@ export function abrirFerramentaST(c: ContextoST): void {
       confirmando = null;
       desenhar();
       d.querySelector<HTMLElement>(
-        `[data-foco="${apendice.length ? 'apendice' : 'confirmar'}-${n}"]`,
+        `[data-foco="${apendice.length && r.st === 'confirmar' ? 'apendice' : 'confirmar'}-${n}"]`,
       )?.focus();
     });
     const grupo = el(
@@ -997,10 +1082,13 @@ export function abrirFerramentaST(c: ContextoST): void {
         '',
         apendice.length
           ? `Item ${n}: o lubrificante é derivado de petróleo?`
-          : umaLinha
-            ? `Item ${n}: o produto é do segmento ${segmentoLinha}?`
-            : `Item ${n}: qual linha da planilha vale?`,
+          : semLinha
+            ? `Item ${n}: mudar a decisão`
+            : umaLinha
+              ? `Item ${n}: o produto é do segmento ${segmentoLinha}?`
+              : `Item ${n}: qual linha da planilha vale?`,
       ),
+      blocoApp,
       blocoHistorico,
       explicacao?.linhaTipi && el('p', 'st__tipi', explicacao.linhaTipi),
       explicacao && !umaLinha && el('p', 'st__explicacao', explicacao.texto),
@@ -1031,7 +1119,7 @@ export function abrirFerramentaST(c: ContextoST): void {
         ),
       ),
       ...radios.map((x) => x.lbl),
-      !apendice.length && camposManual,
+      camposManual,
       el('div', 'documento__acoes', usar, voltar),
     );
     return el(
@@ -1189,7 +1277,10 @@ export function abrirFerramentaST(c: ContextoST): void {
   desenhar();
   document.body.append(d);
   d.showModal();
-  (d.querySelector<HTMLElement>('.st__confirmar') ?? filtro).focus();
+  // Foco no primeiro "Confirmar" (o lápis abriria a dica ao receber o foco).
+  (
+    d.querySelector<HTMLElement>('.st__confirmar:not(.st__mudar)') ?? filtro
+  ).focus();
 }
 
 /** Itens da nota no formato do pedido de análise. */

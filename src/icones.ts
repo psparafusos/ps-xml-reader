@@ -85,6 +85,8 @@ export const ICONES = {
    */
   /** Pessoa (botão e menu do perfil). */
   pessoa: ['M16 8a4 4 0 1 1-8 0a4 4 0 0 1 8 0z', 'M4 21c0-4 4-6 8-6s8 2 8 6'],
+  /** Lápis: mudar a decisão de um item (ferramenta ST). */
+  editar: ['M4 20h4L19 9l-4-4L4 16v4z', 'M14 6l4 4'],
   /** Marca do item escolhido num menu. */
   marcado: ['M5 12l5 5 9-10'],
   engrenagem: [

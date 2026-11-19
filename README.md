@@ -1051,6 +1051,15 @@ observação, não como erro.
   segmento)**; a MVA e a alíquota interna só valem depois de "Tem ST". A
   escolha vira decisão lembrada com o motivo ("é do segmento X" ou "não é
   do segmento X").
+- **Mudar**: a palavra final é da pessoa. Todo item que não está em
+  "Confirmar" (Sim, Não, lembrado, decidido) tem o lápis **Mudar**, que abre
+  a mesma caixa de escolha, com "Pelo app: ..." (o que o app decidiu e por
+  quê) e a escolha do app já marcada. **Tem ST** só aparece quando o NCM tem
+  linha na planilha (com mais de uma, a pessoa escolhe a linha); **Sem ST**
+  e **Outro** sempre. A troca vira decisão lembrada com o motivo "decisão da
+  pessoa" (e o do segmento, quando houver); a linha ganha a marca **sua
+  decisão** e "Pelo app: ..." com o valor original. "Precisam de você" e o
+  CFOP do Aplicar seguem a escolha da pessoa.
 - **Confirmar**: quando mais de uma linha da planilha serve, a caixa "Item
   N: qual linha da planilha vale?" mostra a linha da TIPI e uma explicação
   montada com a TIPI, as linhas candidatas e a nota (CEST e ST retido). A

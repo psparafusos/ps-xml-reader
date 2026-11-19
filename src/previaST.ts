@@ -204,3 +204,46 @@ export function gravacoesAliquota(
 export function baseSemProtocolos(linhas: readonly object[]): boolean {
   return linhas.length > 0 && !linhas.some((l) => 'protocolos' in l);
 }
+
+// ---------- decisão do app x decisão da pessoa ----------
+
+/** O que o app decide sozinho para o item, na finalidade dada (sem escolha). */
+export function decisaoDoApp(
+  a: AnaliseItem,
+  ufEmitente: string,
+  finalidade: DecisaoST['finalidade'],
+): LinhaPrevia {
+  return previaItem(a, ufEmitente, { escolha: null, finalidade });
+}
+
+const ROTULO_ST_APP: Record<LinhaPrevia['st'], string> = {
+  sim: 'Sim',
+  nao: 'Não',
+  confirmar: 'Confirmar',
+};
+
+/**
+ * Resumo curto da decisão do app: "Sim, CFOP 2403, MVA 48,5%", "Não, CFOP
+ * 2102", "Confirmar (o app não decidiu sozinho)".
+ */
+export function textoDecisaoApp(p: LinhaPrevia): string {
+  if (p.st === 'confirmar') return 'Confirmar (o app não decidiu sozinho)';
+  return [
+    ROTULO_ST_APP[p.st],
+    p.cfop ? `CFOP ${p.cfop}` : null,
+    p.st === 'sim' && p.mva !== null ? `MVA ${textoMva(p.mva)}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * A pessoa mudou o que o app tinha decidido sozinho: o app disse Sim ou Não
+ * e a decisão em uso dá outra ST ou outro CFOP. Com o app em "Confirmar",
+ * a escolha é a confirmação pedida, não uma mudança.
+ */
+export function pessoaMudouOApp(app: LinhaPrevia, atual: LinhaPrevia): boolean {
+  return (
+    app.st !== 'confirmar' && (app.st !== atual.st || app.cfop !== atual.cfop)
+  );
+}
