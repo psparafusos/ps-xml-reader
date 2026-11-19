@@ -841,6 +841,7 @@
   .painel__anotacoes,
   .painel__previa,
   .colunas-lista,
+  .campos__grupos,
   .st__rolagem {
     border: var(--borda) solid var(--cartao-borda);
     border-radius: var(--cartao-raio);

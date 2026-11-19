@@ -7,7 +7,24 @@
 // Exportar perfil ativo). Essas ações e o Restaurar padrão agem direto nos
 // perfis salvos e recarregam o painel com o resultado.
 
-import { classeColuna, colunasDaConfig, type ColunaItem } from './nfe/colunas';
+import {
+  classeColuna,
+  colunaExiste,
+  colunaPorId,
+  colunasDaConfig,
+  colunasDoCatalogo,
+  COLUNAS_ITENS,
+  type ColunaItem,
+} from './nfe/colunas';
+import {
+  combinaBusca,
+  GRUPOS,
+  ROTULO_GRUPO,
+  textoDeBusca,
+  type CampoFora,
+  type IdGrupo,
+} from './nfe/catalogo';
+import { ligarDica, type Dica } from './tooltip';
 import {
   ANOTACOES_PRONTAS,
   idDaAnotacao,
@@ -75,6 +92,11 @@ export interface AcoesEditor {
     exemplo: Item[],
     anotacoesExemplo: Anotacoes,
   ): { plano: PlanoFolha; daNota: boolean };
+  /**
+   * Campos da nota aberta: os caminhos que existem em algum item e os que
+   * não estão no catálogo. null sem nota (ou nota sem itens).
+   */
+  campos(): { presentes: Set<string> | null; fora: CampoFora[] } | null;
   /** Cópia da tabela para a folha com estes itens e anotações. */
   tabelaFolha(
     config: ConfigConferencia,
@@ -343,8 +365,25 @@ const ITENS_PREVIA: Item[] = [
     xPed: `PED-${4500 + Number(nItem)}`,
     vIBS: '',
     vCBS: '',
+    // Campos fiscais de exemplo para as colunas novas da prévia: ICMS a
+    // 12% e IPI a 5% nos itens que têm IPI.
+    campos: {
+      'imposto/ICMS/orig': ['0'],
+      'imposto/ICMS/CST': ['00'],
+      'imposto/ICMS/vBC': [vProd],
+      'imposto/ICMS/pICMS': ['12.00'],
+      'imposto/ICMS/vICMS': [vICMS],
+      ...(Number(vIPI) > 0
+        ? { 'imposto/IPI/pIPI': ['5.00'], 'imposto/IPI/vIPI': [vIPI] }
+        : {}),
+      'prod/uTrib': [uCom],
+      'prod/qTrib': [qCom],
+    },
   }),
 );
+
+/** Texto da coluna ligada cujo campo não existe na nota aberta. */
+export const TEXTO_CAMPO_AUSENTE = 'Campo não existe neste documento';
 
 /** Itens da prévia de cima; a miniatura da folha usa todos. */
 const ITENS_TOPO = 8;
@@ -461,7 +500,41 @@ export function abrirEditorColunas(
   avisoPainel.hidden = true;
 
   const lista = el('ol', 'colunas-lista');
-  lista.setAttribute('aria-label', 'Colunas');
+  lista.setAttribute('aria-label', 'Ordem das colunas na tabela');
+  lista.id = 'colunas-ordem';
+
+  // Campos da nota aberta (presentes e fora do catálogo), lidos ao abrir.
+  const dadosNota = acoes.campos();
+  const presentes = dadosNota?.presentes ?? null;
+  const existe = (c: ColunaItem) => colunaExiste(c, presentes);
+  /** Dicas "Campo não existe neste documento" ligadas na lista. */
+  let dicas: Dica[] = [];
+
+  // ---------- Campos do XML: busca, filtro e grupos ----------
+  const busca = el('input', 'painel__campo campos__busca');
+  busca.type = 'search';
+  busca.id = 'campos-busca';
+  busca.placeholder = 'Buscar por nome, sigla ou tag';
+  busca.setAttribute('aria-label', 'Buscar campo');
+  busca.spellcheck = false;
+  const soDaNota = el('input', 'colunas-lista__marca');
+  soDaNota.type = 'checkbox';
+  soDaNota.id = 'campos-so-da-nota';
+  soDaNota.disabled = !presentes;
+  const rotuloSoDaNota = el(
+    'label',
+    'campos__filtro-rotulo',
+    'Só os campos desta nota',
+  );
+  rotuloSoDaNota.htmlFor = soDaNota.id;
+  const filtro = el('div', 'campos__filtro', soDaNota, rotuloSoDaNota);
+  if (!presentes) filtro.classList.add('campos__filtro--desligado');
+  const grupos = el('div', 'campos__grupos');
+  grupos.id = 'campos-grupos';
+  const camposVazio = el('p', 'campos__vazio', 'Nenhum campo encontrado.');
+  camposVazio.hidden = true;
+  /** Grupos abertos (recolhidos por padrão). */
+  const gruposAbertos = new Set<IdGrupo>();
   const prontas = el('div', 'painel__prontas');
   const campoTitulo = el('input', 'painel__campo');
   campoTitulo.type = 'text';
@@ -550,7 +623,7 @@ export function abrirEditorColunas(
       el(
         'p',
         'painel__dica',
-        'Marque as colunas que aparecem e arraste para mudar a ordem. Vale para todas as notas, na tela, na impressão e no PDF, e fica salvo no perfil ativo.',
+        'Marque os campos em Campos do XML e arraste em Ordem na tabela para mudar a ordem. Vale para todas as notas, na tela, na impressão e no PDF, e fica salvo no perfil ativo. Campo de Outros campos do XML vale só para a nota aberta.',
       ),
       // X: o mesmo que Cancelar e o Esc.
       botaoFecharPainel(() => {
@@ -563,7 +636,26 @@ export function abrirEditorColunas(
       el(
         'div',
         'painel__lado',
-        lista,
+        el(
+          'section',
+          'painel__ordem',
+          el('h3', 'painel__subtitulo', 'Ordem na tabela'),
+          lista,
+        ),
+        el(
+          'section',
+          'painel__campos campos',
+          el('h3', 'painel__subtitulo', 'Campos do XML'),
+          el(
+            'p',
+            'painel__dica',
+            'Todos os campos de item da NF-e, por grupo. Marque para ver na tabela.',
+          ),
+          busca,
+          filtro,
+          grupos,
+          camposVazio,
+        ),
         el(
           'section',
           'painel__anotacoes',
@@ -610,19 +702,44 @@ export function abrirEditorColunas(
 
   // ---------- lista de colunas ----------
 
+  /** Liga ou desliga a coluna `id` (entra no fim da ordem, se não estava). */
+  function marcarColuna(id: string, visivel: boolean): void {
+    const cfg = rascunho.colunas.find((x) => x.id === id);
+    if (cfg) cfg.visivel = visivel;
+    else if (visivel) rascunho.colunas.push({ id, visivel: true });
+    mostrarErro(null);
+  }
+
+  /** Texto secundário da linha: o nome amigável e a tag, quando ajudam. */
+  function detalheColuna(c: ColunaItem): string {
+    const partes: string[] = [];
+    if (c.nome && c.nome !== c.rotulo) partes.push(c.nome);
+    if (c.tecnico && !c.foraDoCatalogo)
+      partes.push(c.local ? `${c.tecnico} (${c.local})` : c.tecnico);
+    return partes.join(' · ');
+  }
+
   function linha(c: ColunaItem): HTMLLIElement {
+    const ausente = !existe(c);
     const marca = el('input', 'colunas-lista__marca');
     marca.type = 'checkbox';
     marca.checked = c.visivel;
     marca.id = `coluna-${c.id}`;
     marca.addEventListener('change', () => {
-      const cfg = rascunho.colunas.find((x) => x.id === c.id);
-      if (cfg) cfg.visivel = marca.checked;
-      mostrarErro(null);
+      marcarColuna(c.id, marca.checked);
+      desenharCampos();
       desenharPrevia();
     });
-    const rotulo = el('label', 'colunas-lista__rotulo', c.rotulo);
+    const detalhe = detalheColuna(c);
+    const rotulo = el(
+      'label',
+      'colunas-lista__rotulo',
+      el('span', 'colunas-lista__nome', c.rotulo),
+      detalhe && el('span', 'colunas-lista__detalhe', detalhe),
+    );
     rotulo.htmlFor = marca.id;
+    if (ausente)
+      marca.setAttribute('aria-label', `${c.rotulo}. ${TEXTO_CAMPO_AUSENTE}`);
 
     const alca = botao(
       'colunas-lista__alca',
@@ -642,13 +759,16 @@ export function abrirEditorColunas(
 
     const li = el(
       'li',
-      'colunas-lista__item',
+      `colunas-lista__item${ausente ? ' colunas-lista__item--ausente' : ''}`,
       alca,
       marca,
       rotulo,
       c.anotacao && seletorLargura(c),
     );
     li.dataset.id = c.id;
+    // Exceção à regra das dicas: a coluna ligada que não existe nesta nota
+    // diz por que está apagada.
+    if (ausente) dicas.push(ligarDica(li, TEXTO_CAMPO_AUSENTE));
 
     const extra = rascunho.anotacoes.find((a) => a.id === c.id);
     if (extra) {
@@ -879,7 +999,8 @@ export function abrirEditorColunas(
   // ---------- prévia ----------
 
   function desenharPrevia(): void {
-    const visiveis = colunas().filter((c) => c.visivel);
+    // Como na tabela: coluna ligada sem o campo na nota aberta não aparece.
+    const visiveis = colunas().filter((c) => c.visivel && existe(c));
     const classe = classeColuna;
     const tabela = el(
       'table',
@@ -1220,18 +1341,184 @@ export function abrirEditorColunas(
     }, 2500);
   }
 
+  function desenharLista(): void {
+    for (const x of dicas) x.remover();
+    dicas = [];
+    lista.replaceChildren(...colunas().map(linha));
+  }
+
   function desenhar(): void {
     fecharMenuLargura();
     desenharPerfis();
-    lista.replaceChildren(...colunas().map(linha));
+    desenharLista();
+    desenharCampos();
     desenharProntas();
     desenharPrevia();
   }
+
+  // ---------- Campos do XML ----------
+
+  /**
+   * Todas as colunas que dá para escolher, com o grupo: Nº, os campos do
+   * catálogo, as anotações e os campos da nota fora do catálogo.
+   */
+  function colunasEscolhiveis(): ColunaItem[] {
+    const numero = COLUNAS_ITENS.find((c) => c.id === 'nItem');
+    const anotacoes = colunasDaConfig(rascunho).filter((c) => c.anotacao);
+    const fora = (dadosNota?.fora ?? [])
+      .map((x) => colunaPorId(x.id))
+      .filter((c): c is ColunaItem => Boolean(c));
+    const grupoNumero: IdGrupo = 'produto';
+    const grupoAnotacao: IdGrupo = 'anotacoes';
+    return [
+      ...(numero
+        ? [
+            {
+              ...numero,
+              grupo: grupoNumero,
+              nome: 'Número do item',
+              tecnico: 'nItem',
+              local: 'det',
+            },
+          ]
+        : []),
+      ...colunasDoCatalogo(),
+      ...anotacoes.map((c) => ({ ...c, grupo: grupoAnotacao })),
+      ...fora,
+    ];
+  }
+
+  /** Um campo na lista do grupo: a marca, o nome e a tag. */
+  function linhaCampo(c: ColunaItem, marcada: boolean): HTMLLIElement {
+    const ausente = !existe(c);
+    const marca = el('input', 'colunas-lista__marca');
+    marca.type = 'checkbox';
+    marca.checked = marcada;
+    marca.id = `campo-${c.id}`;
+    marca.dataset.id = c.id;
+    const nome = c.foraDoCatalogo ? c.rotulo : (c.nome ?? c.rotulo);
+    if (ausente)
+      marca.setAttribute('aria-label', `${nome}. ${TEXTO_CAMPO_AUSENTE}`);
+    marca.addEventListener('change', () => {
+      marcarColuna(c.id, marca.checked);
+      desenharLista();
+      desenharCampos();
+      desenharPrevia();
+      grupos
+        .querySelector<HTMLElement>(`[data-id="${CSS.escape(c.id)}"]`)
+        ?.focus();
+    });
+    const tag = c.local ? `${c.tecnico} (${c.local})` : (c.tecnico ?? '');
+    const rotulo = el(
+      'label',
+      'campos__nome',
+      el('span', '', nome),
+      !c.foraDoCatalogo && tag && el('span', 'colunas-lista__detalhe', tag),
+    );
+    rotulo.htmlFor = marca.id;
+    return el(
+      'li',
+      `campos__campo${ausente ? ' campos__campo--ausente' : ''}`,
+      marca,
+      rotulo,
+    );
+  }
+
+  /** true se o campo passa pela busca digitada. */
+  function passaNaBusca(c: ColunaItem, termo: string): boolean {
+    if (!termo) return true;
+    const texto = textoDeBusca({
+      nome: c.nome ?? c.rotulo,
+      rotulo: c.rotulo,
+      tecnico: c.tecnico ?? '',
+      local: c.local ?? '',
+      grupo: c.grupo ?? 'outros',
+    });
+    return combinaBusca(texto, c.tecnico ?? '', termo);
+  }
+
+  /** Grupos com os campos que passam pela busca e pelo filtro. */
+  function desenharCampos(): void {
+    const termo = busca.value.trim();
+    const marcadas = new Set(
+      rascunho.colunas.filter((c) => c.visivel).map((c) => c.id),
+    );
+    const porGrupo = new Map<IdGrupo, ColunaItem[]>();
+    for (const c of colunasEscolhiveis()) {
+      if (soDaNota.checked && !existe(c)) continue;
+      if (!passaNaBusca(c, termo)) continue;
+      const g = c.grupo ?? 'outros';
+      let l = porGrupo.get(g);
+      if (!l) porGrupo.set(g, (l = []));
+      l.push(c);
+    }
+    const blocos: HTMLElement[] = [];
+    for (const g of GRUPOS) {
+      const campos = porGrupo.get(g);
+      if (!campos?.length) continue;
+      // Com busca, os grupos que acharam algo ficam abertos.
+      const aberto = Boolean(termo) || gruposAbertos.has(g);
+      const n = campos.filter((c) => marcadas.has(c.id)).length;
+      const total = `${campos.length} campo${campos.length === 1 ? '' : 's'}`;
+      const contagem = el(
+        'span',
+        'campos__contagem',
+        n > 0
+          ? `${n} de ${campos.length} marcad${n === 1 ? 'o' : 'os'}`
+          : total,
+      );
+      const listaId = `campos-grupo-${g}`;
+      const titulo = botao(
+        'campos__grupo-titulo',
+        icone(...(aberto ? ICONES.setaBaixo : ICONES.setaDireita)),
+        el('span', 'campos__grupo-nome', ROTULO_GRUPO[g]),
+        contagem,
+      );
+      titulo.dataset.grupo = g;
+      titulo.setAttribute('aria-expanded', String(aberto));
+      titulo.setAttribute('aria-controls', listaId);
+      titulo.addEventListener('click', () => {
+        if (termo) return;
+        if (gruposAbertos.has(g)) gruposAbertos.delete(g);
+        else gruposAbertos.add(g);
+        desenharCampos();
+        grupos
+          .querySelector<HTMLElement>(
+            `.campos__grupo-titulo[data-grupo="${g}"]`,
+          )
+          ?.focus();
+      });
+      const listaCampos = el(
+        'ul',
+        'campos__lista',
+        ...(aberto ? campos.map((c) => linhaCampo(c, marcadas.has(c.id))) : []),
+      );
+      listaCampos.id = listaId;
+      listaCampos.hidden = !aberto;
+      listaCampos.setAttribute('aria-label', ROTULO_GRUPO[g]);
+      blocos.push(el('div', 'campos__grupo', titulo, listaCampos));
+    }
+    grupos.replaceChildren(...blocos);
+    camposVazio.hidden = blocos.length > 0;
+  }
+
+  busca.addEventListener('input', () => desenharCampos());
+  soDaNota.addEventListener('change', () => desenharCampos());
+  // Esc na busca com texto só limpa a busca (o painel fica aberto).
+  busca.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !busca.value) return;
+    e.preventDefault();
+    e.stopPropagation();
+    busca.value = '';
+    desenharCampos();
+  });
 
   // ---------- ações ----------
 
   function fechar(): void {
     fecharMenuLargura();
+    for (const x of dicas) x.remover();
+    dicas = [];
     d.close();
     d.remove();
     if (dialogo === d) {

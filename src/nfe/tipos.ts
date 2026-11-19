@@ -1,6 +1,8 @@
 // Todos os campos guardam o texto bruto do XML. String vazia significa que o
 // campo não existe no arquivo. A formatação acontece só na hora de exibir.
 
+import type { CamposItem } from './catalogo';
+
 export interface Endereco {
   xLgr: string;
   nro: string;
@@ -83,6 +85,11 @@ export interface Item {
   cstIPI?: string;
   /** Alíquota do IPI (pIPI, em IPITrib). */
   pIPI?: string;
+  /**
+   * Todos os campos simples do det, pelo caminho (nfe/catalogo.ts): as
+   * colunas fiscais da Conferência. Só o parser preenche.
+   */
+  campos?: CamposItem;
 }
 
 export interface Totais {

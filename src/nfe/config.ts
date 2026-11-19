@@ -14,6 +14,7 @@
 //                 dígitos do CNPJ). Nesta versão fica sempre {}.
 
 import { COLUNAS_ITENS, ID_ANOTACAO } from './colunas';
+import { CATALOGO, campoDoCatalogo, PREFIXO_XML } from './catalogo';
 import { ORIENTACOES_CONFIG, type OrientacaoConfig } from './folha';
 
 export const VERSAO_CONFIG = 1;
@@ -107,10 +108,29 @@ export const LIMITE_ANOTACOES = 10;
 const PREFIXO_ANOTACAO = 'anotacao-';
 const ID_ANOTACAO_VALIDO = /^anotacao-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** Alíquotas do padrão, logo depois do valor do imposto (id da coluna). */
+const ALIQUOTAS_PADRAO: Record<string, string> = {
+  ipi: `${PREFIXO_XML}imposto/IPI/pIPI`,
+  icms: `${PREFIXO_XML}imposto/ICMS/pICMS`,
+};
+
+/**
+ * Colunas do perfil padrão: as de antes do catálogo e as alíquotas do IPI e
+ * do ICMS ao lado dos valores. Perfil já gravado não ganha as alíquotas
+ * sozinho (validarColunas só completa as colunas de antes).
+ */
+function colunasPadrao(): ColunaConfig[] {
+  return COLUNAS_ITENS.flatMap((c) => {
+    const col = { id: c.id, visivel: c.visivel };
+    const aliquota = ALIQUOTAS_PADRAO[c.id];
+    return aliquota ? [col, { id: aliquota, visivel: true }] : [col];
+  });
+}
+
 export function configPadrao(): ConfigConferencia {
   return {
     versao: VERSAO_CONFIG,
-    colunas: COLUNAS_ITENS.map((c) => ({ id: c.id, visivel: c.visivel })),
+    colunas: colunasPadrao(),
     anotacoes: [],
     layout: {
       blocos: BLOCOS.map((id) => ({
@@ -162,7 +182,12 @@ export function problemaTitulo(
   const chave = semAcento(t);
   if (!chave) return 'O título precisa ter letras ou números.';
   const existentes = [
-    ...(comColunas ? COLUNAS_ITENS.map((c) => c.rotulo) : []),
+    ...(comColunas
+      ? [
+          ...COLUNAS_ITENS.map((c) => c.rotulo),
+          ...CATALOGO.map((c) => c.rotulo),
+        ]
+      : []),
     ...anotacoes.map((a) => a.titulo),
   ];
   if (existentes.some((e) => semAcento(e) === chave))
@@ -224,7 +249,11 @@ function validarColunas(
       typeof c.visivel !== 'boolean'
     )
       falha('Uma coluna está sem id ou sem a marca de visível.');
-    if (!conhecidas.has(c.id)) falha(`Coluna desconhecida: ${c.id}.`);
+    // Campo do XML fora do catálogo (de uma versão mais nova do app, ou
+    // escolhido só para uma nota): não fica no perfil.
+    if (c.id.startsWith(PREFIXO_XML) && !campoDoCatalogo(c.id)) continue;
+    if (!conhecidas.has(c.id) && !campoDoCatalogo(c.id))
+      falha(`Coluna desconhecida: ${c.id}.`);
     if (vistas.has(c.id)) falha(`A coluna ${c.id} aparece duas vezes.`);
     vistas.add(c.id);
     if (c.largura === undefined) {

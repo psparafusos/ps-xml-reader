@@ -1638,8 +1638,133 @@ ul {
 }
 
 .colunas-lista__rotulo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   color: var(--cor-texto-forte);
   cursor: pointer;
+}
+
+/* Nome amigável e tag, embaixo do título da coluna (e do nome do campo). */
+.colunas-lista__detalhe {
+  color: var(--cor-texto);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+/* Coluna ligada cujo campo não existe na nota aberta: apagada (cinza claro),
+   mas marca, desmarca e muda de lugar como as outras. */
+.colunas-lista__item--ausente .colunas-lista__rotulo,
+.colunas-lista__item--ausente .colunas-lista__detalhe,
+.campos__campo--ausente .campos__nome,
+.campos__campo--ausente .colunas-lista__detalhe {
+  color: var(--cor-icone);
+}
+
+.colunas-lista__item--ausente .colunas-lista__marca,
+.campos__campo--ausente .colunas-lista__marca {
+  opacity: 0.5;
+}
+
+/* ---------- Campos do XML (editor de colunas) ---------- */
+
+.campos__busca {
+  width: 100%;
+  margin-top: var(--esp-2);
+}
+
+.campos__filtro {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  margin: var(--esp-2) 0;
+}
+
+.campos__filtro-rotulo {
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.campos__filtro--desligado .campos__filtro-rotulo {
+  color: var(--cor-icone);
+  cursor: default;
+}
+
+.campos__grupos {
+  border: var(--borda) solid var(--cor-borda-suave);
+  border-radius: var(--raio);
+}
+
+.campos__grupo + .campos__grupo {
+  border-top: var(--borda) solid var(--cor-borda-suave);
+}
+
+.campos__grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: var(--esp-2);
+  border: none;
+  background: var(--ps-branco);
+  color: var(--cor-texto-forte);
+  font: inherit;
+  font-weight: var(--peso-forte);
+  text-align: left;
+  cursor: pointer;
+}
+
+.campos__grupo-titulo:hover {
+  background: var(--cor-destaque-suave);
+}
+
+.campos__grupo-titulo:focus-visible {
+  outline: var(--botao-foco-espessura) solid var(--botao-foco);
+  outline-offset: calc(-1 * var(--botao-foco-espessura));
+}
+
+.campos__grupo-titulo .icone {
+  width: 14px;
+  height: 14px;
+}
+
+.campos__contagem {
+  margin-left: auto;
+  color: var(--cor-texto);
+  font-size: var(--fs-xs);
+  font-weight: normal;
+}
+
+.campos__lista {
+  margin: 0;
+  padding: 0 0 var(--esp-1);
+  list-style: none;
+}
+
+.campos__campo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding: var(--esp-1) var(--esp-2) var(--esp-1) var(--esp-5);
+}
+
+.campos__campo .colunas-lista__marca {
+  margin-top: 2px;
+}
+
+.campos__nome {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.campos__vazio {
+  margin: var(--esp-2) 0 0;
+  font-size: var(--fs-sm);
 }
 
 /* Largura da caixa, só nas colunas de anotação (marca que é anotação):

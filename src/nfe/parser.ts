@@ -6,6 +6,7 @@
 // ou sem infNFe.
 
 import { ArquivoRecusadoError, verificarXmlSeguro } from '../seguranca/xml';
+import { lerCamposItem } from './catalogo';
 import { ehColunaAnotacao } from './config';
 import { ID_ANOTACAO } from './colunas';
 import type {
@@ -155,6 +156,7 @@ function lerItem(det: Element): Item {
     pMVAST: texto(grupoIcms, 'pMVAST'),
     cstIPI: texto(grupoIpi, 'CST'),
     pIPI: texto(grupoIpi, 'pIPI'),
+    campos: lerCamposItem(det),
   };
 }
 

@@ -50,6 +50,10 @@ class ElementoMinimo {
     return this.atributos.get(nome) ?? null;
   }
 
+  getAttributeNames(): string[] {
+    return [...this.atributos.keys()];
+  }
+
   private descendentes(cond: (e: ElementoMinimo) => boolean): ElementoMinimo[] {
     const r: ElementoMinimo[] = [];
     const pilha = [...this.children].reverse();

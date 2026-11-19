@@ -5,10 +5,16 @@
 
 import {
   classeColuna,
-  colunasDaConfig,
+  colunasDaNota,
   ID_ANOTACAO,
   type ColunaItem,
 } from './nfe/colunas';
+import {
+  caminhosPresentes,
+  campoDoCatalogo,
+  camposForaDoCatalogo,
+  PREFIXO_XML,
+} from './nfe/catalogo';
 import { configPadrao, idDaAnotacao, problemaTitulo } from './nfe/config';
 import type { FerramentaJanela } from './nfe/ferramentas';
 import {
@@ -344,16 +350,46 @@ function blocoDadosNota(n: Nota): HTMLElement | null {
  */
 let configAtual: ConfigConferencia = configPadrao();
 
-/** Todas as colunas da tabela de itens, na ordem e visibilidade da configuração. */
-const colunasAtuais = (): ColunaItem[] => colunasDaConfig(configAtual);
+/**
+ * Configuração com campos do XML fora do catálogo escolhidos no editor: vale
+ * só para a nota aberta (`dono`) e não vai para o perfil. Outra nota, outro
+ * perfil ou Restaurar padrão: deixa de valer.
+ */
+let configNota: { dono: object; config: ConfigConferencia } | null = null;
+
+/** A configuração em uso na nota aberta (com os campos só dela, se houver). */
+function configEmUso(): ConfigConferencia {
+  return configNota && aberto && configNota.dono === aberto
+    ? configNota.config
+    : configAtual;
+}
+
+/** Itens da nota aberta (para saber que campos ela tem), ou null. */
+const itensAbertos = () => aberto?.lido.nota.itens ?? null;
+
+/**
+ * Todas as colunas da tabela de itens, na ordem e visibilidade da
+ * configuração; as ligadas cujo campo não existe na nota ficam escondidas.
+ */
+const colunasAtuais = (): ColunaItem[] =>
+  colunasDaNota(configEmUso(), itensAbertos());
+
+/** true se a coluna é de um campo do XML que não está no catálogo. */
+const foraDoCatalogo = (id: string) =>
+  id.startsWith(PREFIXO_XML) && !campoDoCatalogo(id);
 
 /**
  * Passa a usar `nova`: a ordem que dependia de uma coluna escondida volta à
  * ordem da nota, e a conferência aberta é montada de novo (as anotações
  * digitadas ficam, inclusive as de colunas escondidas ou removidas).
+ * `daNota`: a configuração com campos fora do catálogo, só para a nota.
  */
-function aplicarConfig(nova: ConfigConferencia): void {
+function aplicarConfig(
+  nova: ConfigConferencia,
+  daNota: ConfigConferencia | null = null,
+): void {
   configAtual = nova;
+  configNota = daNota && aberto ? { dono: aberto, config: daNota } : null;
   if (!criterioValido(ordemAtual.criterio, colunasAtuais()))
     ordemAtual = ORDEM_NOTA;
   if (!aberto || !conferenciaMontada || notaEl.hidden) {
@@ -458,14 +494,36 @@ async function restaurarPadrao(): Promise<
  */
 async function editarColunas(nosPerfis = false): Promise<void> {
   const estado = perfisAtual ?? (await window.psApi.perfis());
+  // O painel abre com o que está na tela: com os campos fora do catálogo
+  // escolhidos para esta nota, se houver.
   abrirEditorColunas(
-    estado,
+    { ...estado, config: structuredClone(configEmUso()) },
     {
       aplicar: async (nova) => {
-        const r = aoGravar(await window.psApi.gravarConfigConferencia(nova));
-        if (r.status === 'ok')
+        // Campo fora do catálogo vale só para a nota aberta: o perfil grava
+        // sem ele, e a tela usa a configuração inteira.
+        const doPerfil = {
+          ...nova,
+          colunas: nova.colunas.filter((c) => !foraDoCatalogo(c.id)),
+        };
+        const temDaNota = doPerfil.colunas.length !== nova.colunas.length;
+        const r = aoGravar(
+          await window.psApi.gravarConfigConferencia(doPerfil),
+        );
+        if (r.status === 'ok') {
+          if (temDaNota) aplicarConfig(r.estado.config, nova);
           mostrarSucesso(`Alterações salvas no perfil ${r.estado.nomeAtivo}`);
+        }
         return r;
+      },
+      campos: () => {
+        const itens = itensAbertos();
+        return itens && itens.length > 0
+          ? {
+              presentes: caminhosPresentes(itens),
+              fora: camposForaDoCatalogo(itens),
+            }
+          : null;
       },
       ativar: async (id) => aoGravar(await window.psApi.ativarPerfil(id)),
       criar: async (nome) => aoGravar(await window.psApi.criarPerfil(nome)),
@@ -479,7 +537,14 @@ async function editarColunas(nosPerfis = false): Promise<void> {
       plano: planoComConfig,
       tabelaFolha: (config, itens, exemplo) =>
         copiaParaFolha(
-          montarTabelaItens(colunasDaConfig(config), itens, false, exemplo),
+          // As colunas que a nota aberta tem (a tabela, com os itens de
+          // exemplo, é só para a miniatura).
+          montarTabelaItens(
+            colunasDaNota(config, itensAbertos()),
+            itens,
+            false,
+            exemplo,
+          ),
         ),
     },
     nosPerfis,
@@ -1208,9 +1273,10 @@ function planoComConfig(
   anotacoesExemplo: Anotacoes,
 ): { plano: PlanoFolha; daNota: boolean } {
   const daNota = Boolean(aberto && aberto.lido.nota.itens.length > 0);
+  const itens = daNota && aberto ? aberto.lido.nota.itens : exemplo;
   const tabela = montarTabelaItens(
-    colunasDaConfig(config),
-    daNota && aberto ? aberto.lido.nota.itens : exemplo,
+    colunasDaNota(config, itensAbertos()),
+    itens,
     false,
     daNota ? anotacoes : anotacoesExemplo,
   );

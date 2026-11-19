@@ -637,11 +637,15 @@ export function recuperarConteudo(p: Objeto): {
     'anotações extras',
     (a) => !!tentar({ colunas: [], anotacoes: a, layout: padrao.layout }),
   );
-  const colunas = lista(
-    p.colunas,
-    'colunas',
-    (c) => !!tentar({ colunas: c, anotacoes, layout: padrao.layout }),
-  );
+  // Sem a lista de colunas: as do padrão (com as alíquotas, que a validação
+  // não acrescenta sozinha).
+  const colunas = Array.isArray(p.colunas)
+    ? lista(
+        p.colunas,
+        'colunas',
+        (c) => !!tentar({ colunas: c, anotacoes, layout: padrao.layout }),
+      )
+    : (partes.push('colunas'), padrao.colunas);
   const config = tentar({ colunas, anotacoes, layout: { blocos }, orientacao });
   if (config) return { config, partes };
   return { config: configPadrao(), partes: ['configuração inteira'] };

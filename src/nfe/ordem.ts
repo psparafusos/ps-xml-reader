@@ -5,7 +5,10 @@
 //   'nota'           ordem do XML (nItem)
 //   'cst'            agrupado pelo CST do ICMS (orig + CST ou CSOSN), grupos em
 //                    ordem crescente e, dentro do grupo, a ordem da nota
-//   '<id da coluna>' a coluna, como texto ou número (ColunaItem.ordenacao)
+//   '<id da coluna>' a coluna, como texto, número ou data
+//                    (ColunaItem.ordenacao); campo fora do catálogo ('auto'):
+//                    número se todos os valores da nota são números, data
+//                    se todos são datas, senão texto
 //   'codigo-texto'   código do produto comparado como texto
 //   'codigo-numero'  código do produto comparado pelos dígitos, como número
 // A ordenação é estável: empate mantém a ordem da nota. Valor vazio fica no
@@ -27,6 +30,13 @@ const colador = new Intl.Collator('pt-BR');
 
 function compararTexto(a: string, b: string): number {
   return colador.compare(a, b);
+}
+
+/** Data do XML (aaaa-mm-dd, com ou sem hora) em milissegundos; null se não for. */
+function data(bruto: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(bruto)) return null;
+  const n = Date.parse(bruto.length === 10 ? `${bruto}T00:00:00Z` : bruto);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Número do XML; null quando vazio ou inválido. */
@@ -84,6 +94,7 @@ function valorDe(
   criterio: string,
   anotacoes: Anotacoes,
   colunas: ColunaItem[],
+  modoAuto?: 'numero' | 'data' | 'texto',
 ): Valor {
   if (criterio === 'codigo-texto')
     return i.cProd ? { tipo: 'texto', v: i.cProd } : null;
@@ -98,11 +109,33 @@ function valorDe(
     return t.trim() ? { tipo: 'texto', v: t } : null;
   }
   const bruto = col.chave ? col.chave(i) : col.valor(i);
-  if (col.ordenacao === 'numero') {
+  const modo = col.ordenacao === 'auto' ? (modoAuto ?? 'texto') : col.ordenacao;
+  if (modo === 'numero') {
     const n = numero(bruto);
     return n === null ? null : { tipo: 'numero', v: n };
   }
+  if (modo === 'data') {
+    const n = data(bruto);
+    return n === null ? null : { tipo: 'numero', v: n };
+  }
   return bruto.trim() ? { tipo: 'texto', v: bruto } : null;
+}
+
+/**
+ * Como ordenar um campo fora do catálogo nestes itens: número se todo valor
+ * preenchido é número, data se todo valor é data, senão texto.
+ */
+function modoDosValores(
+  itens: Item[],
+  col: ColunaItem,
+): 'numero' | 'data' | 'texto' {
+  const brutos = itens
+    .map((i) => (col.chave ? col.chave(i) : col.valor(i)).trim())
+    .filter(Boolean);
+  if (brutos.length === 0) return 'texto';
+  if (brutos.every((b) => /^-?\d+(\.\d+)?$/.test(b))) return 'numero';
+  if (brutos.every((b) => data(b) !== null)) return 'data';
+  return 'texto';
 }
 
 function compararValores(a: Valor, b: Valor): number {
@@ -137,10 +170,13 @@ export function ordenarItens(
       .map((x) => x.item);
   }
   const sinal = ordem.direcao === 'desc' ? -1 : 1;
+  const col = colunas.find((c) => c.id === ordem.criterio);
+  const modoAuto =
+    col?.ordenacao === 'auto' ? modoDosValores(itens, col) : undefined;
   const valores = new Map(
     comIndice.map((x) => [
       x.indice,
-      valorDe(x.item, ordem.criterio, anotacoes, colunas),
+      valorDe(x.item, ordem.criterio, anotacoes, colunas, modoAuto),
     ]),
   );
   return comIndice

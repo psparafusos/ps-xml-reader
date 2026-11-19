@@ -21,8 +21,9 @@
 // (rascunhos.cjs: fechamento à força e recuperar), a tela de boas-vindas
 // (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas) e o
 // cadastro do sistema de gestão nos Documentos de referência
-// (cadastro.cjs) e o modo Documento com os documentos fiscais que não são
-// NF-e de produto (documentos.cjs). Com
+// (cadastro.cjs), o modo Documento com os documentos fiscais que não são
+// NF-e de produto (documentos.cjs) e as colunas fiscais da Conferência
+// (colunasFiscais.cjs, com capturas em 1366 e 1920). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14, as
 // do painel, as das telas na largura mínima e a do cartão do cadastro.
 'use strict';
@@ -36,6 +37,7 @@ const { casosNavegacao } = require('./navegacao.cjs');
 const { casosServico } = require('./servico.cjs');
 const { casosConfigSeguro } = require('./configSeguro.cjs');
 const { casosPerfis } = require('./perfis.cjs');
+const { casosColunasFiscais } = require('./colunasFiscais.cjs');
 const { casosRascunhos } = require('./rascunhos.cjs');
 const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
@@ -2431,6 +2433,7 @@ async function principal() {
     primeiro,
     visivel,
     abrirNota,
+    irParaConferencia,
     inicio,
     capturar,
     tmp,
@@ -2464,6 +2467,10 @@ async function principal() {
   // Perfis: renomear, cópia antes de excluir ou substituir, importar e
   // exportar (perfis.cjs).
   await casosPerfis({ ...contexto, dados, tmp });
+
+  // Colunas fiscais da Conferência: catálogo no editor, coluna que some na
+  // nota sem o campo, ordenação e PDF com muitas colunas (colunasFiscais.cjs).
+  await casosColunasFiscais(contexto);
 
   // Cadastro do sistema de gestão na aba Documentos de referência
   // (cadastro.cjs): carregar, recusar sem trocar o carregado, remover.
