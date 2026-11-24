@@ -46,6 +46,7 @@ const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
 const { casosDocumentos, casosSaida } = require('./documentos.cjs');
 const { casosDanfeHtml } = require('./danfeHtml.cjs');
+const { casosImagensReadme, perfisReadme } = require('./imagensReadme.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -71,7 +72,12 @@ for (const p of [dados, notas, destino]) fs.mkdirSync(p, { recursive: true });
 fs.writeFileSync(
   path.join(dados, 'config.json'),
   JSON.stringify(
-    { pastaDestino: destino, cnpjEmpresa: '12345678000195' },
+    {
+      pastaDestino: destino,
+      cnpjEmpresa: '12345678000195',
+      // Rodada das imagens do README: os perfis delas (imagensReadme.cjs).
+      ...(process.env.PS_JANELA_README ? { perfis: perfisReadme() } : {}),
+    },
     null,
     2,
   ),
@@ -123,7 +129,8 @@ app.whenReady().then(() => {
 
 // O primeiro arquivo vai pela linha de comando, como num duplo clique.
 const primeiro = copia('t06-xml-stylesheet.xml');
-process.argv.push(primeiro);
+// Na rodada das imagens do README, o app abre vazio.
+if (!process.env.PS_JANELA_README) process.argv.push(primeiro);
 require(MAIN);
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -409,6 +416,24 @@ async function principal() {
   const preparar = `window.__alertas = 0; window.alert = () => { window.__alertas++; }; true`;
   await avaliar(preparar);
   const base = await avaliar(SONDA);
+
+  // PS_JANELA_README: só as imagens do README (imagensReadme.cjs).
+  if (process.env.PS_JANELA_README) {
+    await casosImagensReadme({
+      caso,
+      avaliar,
+      aguardar,
+      espera,
+      janela: () => janela,
+      abrirNota,
+      irParaConferencia,
+      inicio,
+      tmp,
+      carregarPlanilhaST,
+      estadoLimpo,
+    });
+    return;
+  }
 
   await caso(
     'app://: a tela vem do protocolo próprio e nada sai da pasta',
