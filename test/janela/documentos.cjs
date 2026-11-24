@@ -73,6 +73,35 @@ const DOCUMENTOS = [
     pdf: 'TRANSPORTADORA-INVEN_CTe4567_DACTE.pdf',
   },
   {
+    // Sem xMun, xMunIni e xMunFim: os nomes saem da tabela do IBGE.
+    fixture: 'd08-cte-sem-municipio.xml',
+    nome: 'DACTE',
+    folha: 'folha--dacte',
+    textos: [
+      'Documento Auxiliar do Conhecimento de Transporte Eletrônico',
+      'Joinville - SC',
+      'Aracaju - SE',
+      'FOLHA 1/1',
+    ],
+    titulo: ['Transportadora Inventada Ltda', 'CT-e nº 4567 série 1'],
+    qr: true,
+    psxml: false,
+    captura: 'dacte-sem-municipio',
+    pdf: 'TRANSPORTADORA-INVEN_CTe4567_DACTE.pdf',
+  },
+  {
+    // Sem xLocEmi, xLocPrestacao e xLocIncid: os nomes saem da tabela do IBGE.
+    fixture: 'd09-nfse-sem-municipio.xml',
+    nome: 'DANFSe',
+    folha: 'folha--danfse',
+    textos: ['DANFSe v2.0', 'Município: Aracaju / SE', 'São Paulo / SP'],
+    titulo: ['Prestadora Inventada de Servicos Ltda', 'NFS-e nº 123'],
+    qr: true,
+    psxml: false,
+    captura: 'danfse-sem-municipio',
+    pdf: 'PRESTADORA-INVENTADA_NFSe123_DANFSe.pdf',
+  },
+  {
     fixture: 'd04-evento-cce.xml',
     nome: 'Evento',
     folha: 'folha--evento',

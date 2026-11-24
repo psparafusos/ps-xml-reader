@@ -10,6 +10,7 @@
 // lerCte e modeloDacte são puros (testados fora do app); montarDacte desenha.
 
 import { registrarMontador } from './documento';
+import { nomeMunicipioIbge } from './municipiosIbge';
 import { saidaDacte } from './nomeArquivo';
 import { barrasSvg, el, montarFolhas, qrSvg } from './folha';
 import {
@@ -148,6 +149,18 @@ const MOD_DOC: Record<string, string> = {
   '55': 'NF-e',
 };
 
+/**
+ * Nome do município: o do XML (tag de nome); sem ele, o da tabela do IBGE pelo
+ * código (tag de código).
+ */
+function nomeMunicipio(
+  e: ElementoXml | null,
+  tagNome: string,
+  tagCodigo: string,
+): string {
+  return textoXml(e, tagNome) || nomeMunicipioIbge(textoXml(e, tagCodigo));
+}
+
 const papel = (d: string) => descrever(d, TOMADOR, false);
 
 function parte(e: ElementoXml | null, enderTag: string): ParteCte | null {
@@ -163,7 +176,7 @@ function parte(e: ElementoXml | null, enderTag: string): ParteCte | null {
       ],
       ' - ',
     ),
-    municipio: textoXml(end, 'xMun'),
+    municipio: nomeMunicipio(end, 'xMun', 'cMun'),
     uf: textoXml(end, 'UF'),
     cep: f.cep(textoXml(end, 'CEP')),
     documento: documento(textoXml(e, 'CNPJ'), textoXml(e, 'CPF')),
@@ -329,8 +342,14 @@ export function lerCte(raiz: ElementoXml): DadosCte {
     tomadorPapel: papel(codTomador),
     globalizado: textoXml(ide, 'indGlobalizado') === '1' ? 'Sim' : '',
     cfop: juntar([textoXml(ide, 'CFOP'), textoXml(ide, 'natOp')], ' - '),
-    inicio: juntar([textoXml(ide, 'xMunIni'), textoXml(ide, 'UFIni')], ' - '),
-    termino: juntar([textoXml(ide, 'xMunFim'), textoXml(ide, 'UFFim')], ' - '),
+    inicio: juntar(
+      [nomeMunicipio(ide, 'xMunIni', 'cMunIni'), textoXml(ide, 'UFIni')],
+      ' - ',
+    ),
+    termino: juntar(
+      [nomeMunicipio(ide, 'xMunFim', 'cMunFim'), textoXml(ide, 'UFFim')],
+      ' - ',
+    ),
     emitente: parte(filhoXml(inf, 'emit'), 'enderEmit') ?? {
       nome: '',
       endereco: '',
