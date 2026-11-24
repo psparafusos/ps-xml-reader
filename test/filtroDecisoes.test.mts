@@ -80,6 +80,7 @@ describe('decisões lembradas: filtro por tipo', () => {
       manual: 1,
       'apendice-xiv': 1,
       historico: 1,
+      'codigo-casa': 0,
     });
   });
 });

@@ -2,6 +2,7 @@
 // padrão; a tabela segue a configuração do usuário (nfe/config.ts), que diz
 // a ordem, quais aparecem e as anotações extras (colunasDaConfig).
 
+import { ID_CODIGO_CASA, TITULO_CODIGO_CASA } from '../cadastro/codigoCasa';
 import type { ConfigConferencia, LarguraAnotacao } from './config';
 import type { Item } from './tipos';
 import * as f from './formato';
@@ -46,6 +47,11 @@ export interface ColunaItem {
   grupo?: IdGrupo;
   /** Campo do XML que não está no catálogo (vale só para a nota aberta). */
   foraDoCatalogo?: boolean;
+  /**
+   * Coluna que vem do cadastro do sistema de gestão (Código da casa): sem
+   * cadastro carregado, fica apagada no editor e escondida na tabela.
+   */
+  doCadastro?: boolean;
 }
 
 /** A coluna com este id vira o campo de anotação do item. */
@@ -76,6 +82,20 @@ export const COLUNAS_ITENS: ColunaItem[] = [
     visivel: true,
     valor: (i) => i.xProd,
     ordenacao: 'texto',
+  },
+  {
+    // Texto da célula, ordenação e impressão vêm do renderer (o estado do
+    // código da casa da nota aberta); aqui fica vazio.
+    id: ID_CODIGO_CASA,
+    rotulo: TITULO_CODIGO_CASA,
+    alinhamento: 'esquerda',
+    visivel: false,
+    valor: () => '',
+    ordenacao: 'texto',
+    nome: TITULO_CODIGO_CASA,
+    tecnico: 'cadastro do sistema de gestão',
+    grupo: 'cadastro',
+    doCadastro: true,
   },
   {
     id: ID_ANOTACAO,
@@ -315,12 +335,15 @@ export function colunasDaConfig(config: ConfigConferencia): ColunaItem[] {
 /**
  * true se a coluna existe nestes itens: as que não são do XML (Nº e
  * anotações) sempre; as do XML, se algum item tem o campo. Sem a lista
- * dos campos (null: itens de exemplo), todas existem.
+ * dos campos (null: itens de exemplo), todas existem. A do cadastro (Código
+ * da casa) só existe com o cadastro carregado.
  */
 export function colunaExiste(
   c: ColunaItem,
   presentes: Set<string> | null,
+  comCadastro = false,
 ): boolean {
+  if (c.doCadastro) return comCadastro;
   if (!presentes || !c.caminhos) return true;
   return c.caminhos.some((k) => presentes.has(k));
 }
@@ -334,10 +357,13 @@ export function colunaExiste(
 export function colunasDaNota(
   config: ConfigConferencia,
   itens: readonly Item[] | null | undefined,
+  comCadastro = false,
 ): ColunaItem[] {
   const presentes = itens ? caminhosPresentes(itens) : null;
   return colunasDaConfig(config).map((c) =>
-    c.visivel && !colunaExiste(c, presentes) ? { ...c, visivel: false } : c,
+    c.visivel && !colunaExiste(c, presentes, comCadastro)
+      ? { ...c, visivel: false }
+      : c,
   );
 }
 

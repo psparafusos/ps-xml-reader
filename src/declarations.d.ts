@@ -265,6 +265,8 @@ type ResultadoVerificacao = import('./fiscal/online').ResultadoVerificacao;
 interface PreferenciasDocumentos {
   verificacaoOnline: boolean;
   verificarAoAbrir: boolean;
+  /** Já perguntou se a coluna Código da casa entra no perfil ativo. */
+  colunaCodigoCasaPerguntada: boolean;
 }
 
 type LeituraDocumento = import('./leituraDocumentos').LeituraDocumento;
@@ -289,9 +291,33 @@ interface EstadoDocumentos {
   stSemProtocolos: boolean;
   /** Decisões lembradas da ferramenta ST, MVA e CFOP. */
   decisoes: DecisaoLembrada[];
+  /** Decisões lembradas do código da casa (coluna Código da casa). */
+  codigosCasa: DecisaoCodigoCasa[];
   /** Cadastro do sistema de gestão (opcional; src/cadastroGestao.ts). */
   cadastro: EstadoCadastro;
 }
+
+type DecisaoCodigoCasa = import('./cadastro/codigoCasa').DecisaoCodigoCasa;
+
+/** Sugestões do motor para os itens da nota (coluna Código da casa). */
+type ResultadoSugestaoCasa =
+  | { status: 'sem-cadastro' }
+  | {
+      status: 'ok';
+      itens: import('./cadastro/casamento').SugestaoItem[];
+      /** Código de barras de cada candidato, pelo código da casa. */
+      barras: Record<string, string>;
+      emitenteConhecido: boolean;
+    };
+
+/** Produto achado na busca do quadro de escolha, com o fator do par. */
+type ProdutoBuscaCasa = import('./cadastro/codigoCasa').ProdutoBusca & {
+  fator: import('./cadastro/casamento').FatorSugerido | null;
+};
+
+type ResultadoBuscaCasa =
+  | { status: 'sem-cadastro' }
+  | { status: 'ok'; produtos: ProdutoBuscaCasa[] };
 
 type EstadoCadastro = import('./cadastro/documento').EstadoCadastro;
 type InfoCadastro = import('./cadastro/documento').InfoCadastro;
@@ -442,6 +468,32 @@ interface PsApi {
   lembrarDecisao(d: DecisaoLembrada): Promise<boolean>;
   /** Apaga a decisão lembrada (chave: raiz do CNPJ + "|" + código do produto). */
   esquecerDecisao(chave: string): Promise<boolean>;
+  /** Coluna Código da casa: o motor para os itens da nota aberta. */
+  sugerirCodigosCasa(pedido: {
+    cnpj: string;
+    cpf: string;
+    chave: string;
+    itens: {
+      nItem: string;
+      cProd: string;
+      cEAN: string;
+      xProd: string;
+      NCM: string;
+      uCom: string;
+      vUnCom: string;
+    }[];
+  }): Promise<ResultadoSugestaoCasa>;
+  /** Busca no cadastro (código, descrição ou código de barras), ou um código direto. */
+  buscarCadastro(pedido: {
+    texto: string;
+    codigo?: string;
+    emitente: string;
+    uCom: string;
+  }): Promise<ResultadoBuscaCasa>;
+  /** Guarda (ou troca) o código da casa do produto deste fornecedor. */
+  lembrarCodigoCasa(d: DecisaoCodigoCasa): Promise<boolean>;
+  /** Apaga a decisão do código da casa (chave: raiz do CNPJ + "|" + código do item). */
+  esquecerCodigoCasa(chave: string): Promise<boolean>;
   /** Abre o diálogo de arquivo (.xml ou .psxml) e decide onde ele abre. */
   abrirArquivo(): Promise<ResultadoAbrir>;
   /** Arquivo solto na janela (arrastar e soltar): mesmas regras do botão. */

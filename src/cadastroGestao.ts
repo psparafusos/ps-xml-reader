@@ -6,7 +6,11 @@
 // validador, gravado ao lado e trocado por rename.
 //
 // O formato, o validador e os metadados são de src/cadastro (sem
-// Electron). A sugestão na Conferência ainda não usa o cadastro.
+// Electron). Aqui também fica o cadastro em memória para a coluna "Código
+// da casa" da Conferência: lido do disco e indexado na primeira vez que uma
+// nota pede a sugestão (o cadastro real de 17 MB leva menos de 1 s),
+// guardado enquanto o arquivo não muda, e os canais da sugestão (o motor,
+// src/cadastro/casamento.ts) e da busca do quadro de escolha.
 
 import { BrowserWindow, dialog, type WebContents } from 'electron';
 import { readFile, rename, rm, stat, writeFile, mkdir } from 'node:fs/promises';
@@ -21,6 +25,17 @@ import {
   type InfoCadastro,
   type LeituraCadastro,
 } from './cadastro/documento';
+import {
+  filiaisDo,
+  fatorDoPar,
+  prepararCadastro,
+  sugerirNota,
+  type IndiceCadastro,
+  type ItemNota,
+  type SugestaoItem,
+} from './cadastro/casamento';
+import { buscarProdutos } from './cadastro/codigoCasa';
+import { validarTextoCadastro, type ProdutoCadastro } from './cadastro/formato';
 import { lerCadastroNoServico } from './servico/principal';
 import { mensagemDoDesfecho } from './servico/supervisor';
 
@@ -132,7 +147,161 @@ export async function importarCadastro(
   return { status: 'ok', info };
 }
 
+// ---------- o cadastro em memória (Código da casa) ----------
+
+interface CadastroEmMemoria {
+  /** importadoEm da info: muda a cada importação. */
+  chave: string;
+  indice: IndiceCadastro;
+  produtos: ProdutoCadastro[];
+}
+
+let emMemoria: CadastroEmMemoria | null = null;
+let carregando: Promise<CadastroEmMemoria | null> | null = null;
+
+/** O cadastro carregado, lido e indexado uma vez; null sem cadastro. */
+async function cadastroEmMemoria(
+  pasta: string,
+): Promise<CadastroEmMemoria | null> {
+  const info = await lerInfo(pasta);
+  if (!info) {
+    emMemoria = null;
+    return null;
+  }
+  if (emMemoria?.chave === info.importadoEm) return emMemoria;
+  if (carregando) return carregando;
+  carregando = (async () => {
+    try {
+      const dados = await readFile(path.join(pasta, ARQ_CADASTRO));
+      const texto = new TextDecoder('utf-8').decode(dados);
+      const r = validarTextoCadastro(texto);
+      if (!r.ok) return null;
+      emMemoria = {
+        chave: info.importadoEm,
+        indice: prepararCadastro(r.cadastro),
+        produtos: r.cadastro.produtos,
+      };
+      return emMemoria;
+    } catch (erro) {
+      console.error(erro);
+      return null;
+    } finally {
+      carregando = null;
+    }
+  })();
+  return carregando;
+}
+
+const texto = (v: unknown) => (typeof v === 'string' ? v : '');
+const documento = (v: unknown) => texto(v).replace(/\D/g, '');
+
+/** O pedido da tela, conferido campo a campo. */
+function lerNota(v: unknown): {
+  cnpj: string | null;
+  cpf: string | null;
+  chave: string | null;
+  itens: ItemNota[];
+} | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const o = v as Record<string, unknown>;
+  if (!Array.isArray(o.itens) || o.itens.length > 2000) return null;
+  const itens: ItemNota[] = [];
+  for (const i of o.itens) {
+    if (typeof i !== 'object' || i === null) return null;
+    const x = i as Record<string, unknown>;
+    const nItem = Number(x.nItem);
+    if (!Number.isInteger(nItem)) return null;
+    const v = Number(texto(x.vUnCom));
+    itens.push({
+      nItem,
+      cProd: texto(x.cProd),
+      cEAN: texto(x.cEAN),
+      xProd: texto(x.xProd),
+      NCM: texto(x.NCM),
+      uCom: texto(x.uCom),
+      vUnCom: Number.isFinite(v) && v > 0 ? v : null,
+    });
+  }
+  const cnpj = documento(o.cnpj);
+  const cpf = documento(o.cpf);
+  const chave = documento(o.chave);
+  return {
+    cnpj: cnpj.length === 14 ? cnpj : null,
+    cpf: cpf.length === 11 ? cpf : null,
+    chave: chave.length === 44 ? chave : null,
+    itens,
+  };
+}
+
+/** O que a coluna Código da casa recebe: o motor item a item. */
+export async function sugerirCodigosCasa(
+  pasta: string,
+  pedido: unknown,
+): Promise<ResultadoSugestaoCasa> {
+  const nota = lerNota(pedido);
+  if (!nota) return { status: 'sem-cadastro' };
+  const c = await cadastroEmMemoria(pasta);
+  if (!c) return { status: 'sem-cadastro' };
+  const r = sugerirNota(c.indice, {
+    cnpjEmitente: nota.cnpj,
+    cpfEmitente: nota.cpf,
+    chave: nota.chave,
+    itens: nota.itens,
+  });
+  const barras: Record<string, string> = {};
+  for (const s of r.itens)
+    for (const x of s.candidatos) {
+      const b = c.indice.produtos.get(x.codigo)?.codigoBarras;
+      if (b) barras[x.codigo] = b;
+    }
+  return {
+    status: 'ok',
+    itens: r.itens satisfies SugestaoItem[],
+    barras,
+    emitenteConhecido: r.emitenteConhecido,
+  };
+}
+
+/** Busca do quadro de escolha, com o fator do par para cada produto achado. */
+export async function buscarNoCadastro(
+  pasta: string,
+  pedido: unknown,
+): Promise<ResultadoBuscaCasa> {
+  const o =
+    typeof pedido === 'object' && pedido !== null
+      ? (pedido as Record<string, unknown>)
+      : {};
+  const c = await cadastroEmMemoria(pasta);
+  if (!c) return { status: 'sem-cadastro' };
+  const termo = texto(o.texto).slice(0, 200);
+  const emitente = documento(o.emitente) || null;
+  const filiais = filiaisDo(c.indice, emitente);
+  const uCom = texto(o.uCom);
+  // Um código pedido direto (candidato do motor): só ele, se existir.
+  const codigo = texto(o.codigo);
+  const achados = codigo
+    ? c.produtos.filter((p) => p.codigo === codigo).slice(0, 1)
+    : null;
+  const lista = achados
+    ? achados.map((p) => ({
+        codigo: p.codigo,
+        descricao: p.descricao,
+        unidade: p.unidade,
+        codigoBarras: p.codigoBarras,
+        ativo: p.ativo,
+      }))
+    : buscarProdutos(c.produtos, termo);
+  return {
+    status: 'ok',
+    produtos: lista.map((p) => ({
+      ...p,
+      fator: fatorDoPar(c.indice, emitente, filiais, p.codigo, uCom),
+    })),
+  };
+}
+
 export async function removerCadastro(pasta: string): Promise<void> {
+  emMemoria = null;
   // A info primeiro: sem ela o cadastro já conta como removido.
   await rm(path.join(pasta, ARQ_INFO_CADASTRO), { force: true });
   await rm(path.join(pasta, ARQ_CADASTRO), { force: true });
@@ -201,6 +370,14 @@ export function registrarCadastro(
     avisar();
     return estado();
   });
+
+  tratar('sugerir-codigos-casa', (_event, pedido: unknown) =>
+    sugerirCodigosCasa(pasta(), pedido),
+  );
+
+  tratar('buscar-cadastro', (_event, pedido: unknown) =>
+    buscarNoCadastro(pasta(), pedido),
+  );
 
   // Aviso de erro fechado: a recusa some e o cartão volta a "Opcional".
   tratar('descartar-recusa-cadastro', async (): Promise<EstadoDocumentos> => {

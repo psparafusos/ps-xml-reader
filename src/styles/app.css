@@ -82,6 +82,7 @@ ul {
   .st__app,
   .st__nota-info,
   .conferencia__citacao,
+  .casa-quadro__dado,
   .config__tabela td {
     user-select: text;
   }
@@ -1352,6 +1353,205 @@ ul {
 /* Espelho do campo, só para impressão. */
 .anotacao__impressao {
   display: none;
+}
+
+/* ---------- Código da casa (src/codigoCasaTela.ts) ---------- */
+
+/* Na tela: o ícone (confiança ou escolha), o código e a descrição curta, a
+   conversão do fator embaixo e o botão de escolher. Na folha, só o texto. */
+.codigo-casa__tela {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+}
+
+.codigo-casa__impressao {
+  display: none;
+}
+
+.codigo-casa__icone {
+  flex: none;
+  display: inline-flex;
+  margin-top: calc((1lh - var(--icone-estado)) / 2);
+}
+
+/* Sem encolher abaixo do conteúdo: a descrição tem largura mínima e não
+   pode passar por baixo do botão. */
+.codigo-casa__textos {
+  display: grid;
+}
+
+.codigo-casa__produto {
+  display: flex;
+  gap: var(--esp-1);
+}
+
+.codigo-casa__codigo {
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-medio);
+  white-space: nowrap;
+}
+
+.codigo-casa__descricao {
+  min-width: var(--largura-descricao-casa-minima);
+  max-width: var(--largura-descricao-casa);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codigo-casa__conversao,
+.codigo-casa__ambiguo {
+  color: var(--cor-texto);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.codigo-casa__nenhum {
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.codigo-casa__escolher {
+  flex: none;
+  margin-left: auto;
+}
+
+.tabela--folha .codigo-casa__impressao {
+  display: inline;
+}
+
+/* Quadro de escolha: item da nota, candidatos, busca e o fator embaixo. */
+.casa-quadro {
+  width: min(var(--largura-caixa-casa), calc(100vw - 2 * var(--esp-5)));
+}
+
+.casa-quadro__rolagem {
+  display: grid;
+  gap: var(--esp-4);
+  max-height: var(--altura-lista-casa);
+  margin-top: var(--esp-4);
+  padding-right: var(--esp-2);
+  overflow-y: auto;
+}
+
+.casa-quadro__subtitulo {
+  margin-bottom: var(--esp-2);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-xs);
+  font-weight: var(--peso-forte);
+  letter-spacing: var(--espaco-letras-rotulo);
+  text-transform: uppercase;
+}
+
+.casa-quadro__dados {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--esp-1) var(--esp-3);
+}
+
+.casa-quadro__campo {
+  display: contents;
+}
+
+.casa-quadro__campo dt {
+  color: var(--cor-texto);
+}
+
+.casa-quadro__campo dd {
+  color: var(--cor-texto-forte);
+  overflow-wrap: anywhere;
+}
+
+.casa-quadro__opcoes {
+  display: grid;
+  gap: var(--esp-1);
+}
+
+.casa-opcao {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding: var(--esp-2);
+  border: var(--borda) solid var(--cor-borda-suave);
+  border-radius: var(--raio);
+  cursor: pointer;
+}
+
+.casa-opcao:has(input:checked) {
+  border-color: var(--ps-preto);
+  background: var(--cor-destaque-suave);
+}
+
+.casa-opcao__marca {
+  margin-top: calc((1lh - 1em) / 2);
+}
+
+.casa-opcao__textos {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.casa-opcao__nome {
+  color: var(--cor-texto-forte);
+  overflow-wrap: anywhere;
+}
+
+.casa-opcao__detalhe,
+.casa-opcao__motivo,
+.casa-quadro__nota {
+  color: var(--cor-texto);
+  font-size: var(--fs-sm);
+}
+
+.casa-opcao__inativo {
+  color: var(--aviso-erro-fundo);
+}
+
+.casa-quadro__aviso {
+  margin-top: var(--esp-2);
+  color: var(--cor-texto-forte);
+  font-size: var(--fs-sm);
+}
+
+.casa-quadro__busca {
+  display: block;
+  width: 100%;
+}
+
+.casa-quadro__status {
+  margin: var(--esp-1) 0;
+}
+
+.casa-quadro__bloco-fator {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 9rem);
+  align-items: center;
+  gap: var(--esp-1) var(--esp-3);
+  margin-top: var(--esp-4);
+  padding-top: var(--esp-3);
+  border-top: var(--borda) solid var(--cor-borda-suave);
+}
+
+.casa-quadro__bloco-fator .casa-quadro__nota {
+  grid-column: 1 / -1;
+}
+
+.casa-quadro__esquecer {
+  margin-right: auto;
+}
+
+/* Painel: a linha do código da casa, antes das divergências. */
+.conferencia__casa--ok {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-2);
+  padding: var(--esp-2);
+}
+
+.conferencia__casa-bloco {
+  margin-bottom: var(--esp-2);
 }
 
 .item__linha-adicional td {

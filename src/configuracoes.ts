@@ -18,13 +18,16 @@ import {
   type OpcoesAreaDocumentos,
 } from './areaDocumentos';
 import { botao, botaoFecharPainel, el, icone } from './dom';
-import { chaveDecisao, type DecisaoLembrada } from './fiscal/entrada';
 import {
-  contagemPorTipo,
-  filtrarDecisoes,
+  chaveSemTipo,
+  contagemItens,
+  filtrarItensDecisao,
+  juntarDecisoes,
+  ncmItemDecisao,
   ROTULO_TIPO_DECISAO,
-  textoDecisao,
+  textoItemDecisao,
   TIPOS_DECISAO,
+  type ItemDecisao,
   type TipoDecisao,
 } from './filtroDecisoes';
 import { ICONES } from './icones';
@@ -864,7 +867,7 @@ function abaFerramentas({ area, status }: Hospede): void {
 // ---------- Decisões lembradas ----------
 
 function abaDecisoes({ area, status }: Hospede): void {
-  let decisoes: DecisaoLembrada[] = [];
+  let decisoes: ItemDecisao[] = [];
   let busca = '';
   let tipo: TipoDecisao | null = null;
   const selecionadas = new Set<string>();
@@ -893,7 +896,9 @@ function abaDecisoes({ area, status }: Hospede): void {
     desenhar();
   });
 
-  const visiveis = () => filtrarDecisoes(decisoes, { busca, tipo });
+  const visiveis = () => filtrarItensDecisao(decisoes, { busca, tipo });
+  const ler = (e: EstadoDocumentos) =>
+    juntarDecisoes(e.decisoes, e.codigosCasa);
 
   async function apagar(chaves: string[], mensagem: string): Promise<void> {
     if (ocupado) return;
@@ -901,7 +906,9 @@ function abaDecisoes({ area, status }: Hospede): void {
     mostrarErro(erro, null);
     try {
       for (const c of chaves) {
-        const ok = await window.psApi.esquecerDecisao(c);
+        const ok = c.startsWith('casa:')
+          ? await window.psApi.esquecerCodigoCasa(chaveSemTipo(c))
+          : await window.psApi.esquecerDecisao(chaveSemTipo(c));
         if (!ok) throw new Error(c);
         selecionadas.delete(c);
       }
@@ -911,21 +918,19 @@ function abaDecisoes({ area, status }: Hospede): void {
     } finally {
       ocupado = false;
       confirmando = false;
-      decisoes = (await window.psApi.documentos()).decisoes;
+      decisoes = ler(await window.psApi.documentos());
       desenhar();
     }
   }
 
   function desenhar(foco?: string): void {
     if (!area.isConnected) return;
-    const chaves = new Set(
-      decisoes.map((d) => chaveDecisao(d.raizCnpj, d.cProd)),
-    );
+    const chaves = new Set(decisoes.map((i) => i.chave));
     for (const c of selecionadas) if (!chaves.has(c)) selecionadas.delete(c);
     const lista = visiveis();
     titulo.textContent = `Decisões lembradas (${decisoes.length})`;
 
-    const n = contagemPorTipo(decisoes);
+    const n = contagemItens(decisoes);
     const chip = (t: TipoDecisao | null, rotulo: string, qtd: number) => {
       const b = botao(
         'config__filtro',
@@ -948,7 +953,7 @@ function abaDecisoes({ area, status }: Hospede): void {
     const marcarTodas = el('input', '');
     marcarTodas.type = 'checkbox';
     marcarTodas.setAttribute('aria-label', 'Marcar todas as decisões da lista');
-    const chavesVisiveis = lista.map((d) => chaveDecisao(d.raizCnpj, d.cProd));
+    const chavesVisiveis = lista.map((i) => i.chave);
     marcarTodas.checked =
       chavesVisiveis.length > 0 &&
       chavesVisiveis.every((c) => selecionadas.has(c));
@@ -995,8 +1000,8 @@ function abaDecisoes({ area, status }: Hospede): void {
                 el(
                   'tbody',
                   '',
-                  ...lista.map((d) => {
-                    const chave = chaveDecisao(d.raizCnpj, d.cProd);
+                  ...lista.map((item) => {
+                    const { d, chave } = item;
                     const marca = el('input', '');
                     marca.type = 'checkbox';
                     marca.checked = selecionadas.has(chave);
@@ -1034,8 +1039,8 @@ function abaDecisoes({ area, status }: Hospede): void {
                         el('span', 'documento__quando', ` (${d.raizCnpj})`),
                       ),
                       el('td', 'documento__valor', `${d.cProd}: ${d.xProd}`),
-                      el('td', 'config__nowrap', d.ncm),
-                      el('td', '', textoDecisao(d)),
+                      el('td', 'config__nowrap', ncmItemDecisao(item)),
+                      el('td', '', textoItemDecisao(item)),
                       el('td', 'config__nowrap', data(d.atualizadaEm)),
                       el('td', '', apagarUma),
                     );
@@ -1108,7 +1113,7 @@ function abaDecisoes({ area, status }: Hospede): void {
             '',
             `Apagar ${k} ${k === 1 ? 'decisão lembrada' : 'decisões lembradas'}?`,
           ),
-          ' Na próxima nota desses produtos a ferramenta "ST, MVA e CFOP" volta a perguntar. Não dá para desfazer.',
+          ' Na próxima nota desses produtos a ferramenta "ST, MVA e CFOP" e a coluna Código da casa voltam a perguntar. Não dá para desfazer.',
         ),
         el('div', 'documento__acoes', nao, sim),
       );
@@ -1127,7 +1132,7 @@ function abaDecisoes({ area, status }: Hospede): void {
       el(
         'p',
         'documento__nota',
-        'Escolhas feitas na ferramenta "ST, MVA e CFOP", por fornecedor (raiz do CNPJ) e código do produto. Na próxima nota o item já vem resolvido.',
+        'Escolhas feitas na ferramenta "ST, MVA e CFOP" e na coluna Código da casa, por fornecedor (raiz do CNPJ) e código do produto. Na próxima nota o item já vem resolvido.',
       ),
       el('div', 'config__campo config__campo--linha', rotBusca, campoBusca),
       filtros,
@@ -1140,7 +1145,7 @@ function abaDecisoes({ area, status }: Hospede): void {
   const carregar = () =>
     void window.psApi.documentos().then((e) => {
       if (ocupado) return;
-      decisoes = e.decisoes;
+      decisoes = ler(e);
       desenhar();
     });
   carregar();

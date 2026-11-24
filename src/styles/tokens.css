@@ -202,6 +202,12 @@
   --largura-caixa-dialogo: 520px;
   /* Aviso de recuperar anotações: cabe a linha com os dados e dois botões. */
   --largura-caixa-rascunhos: 640px;
+  /* Quadro de escolha do código da casa: o item, os candidatos e a busca. */
+  --largura-caixa-casa: 720px;
+  --altura-lista-casa: 46vh;
+  /* Descrição curta do produto na coluna Código da casa. */
+  --largura-descricao-casa: 26ch;
+  --largura-descricao-casa-minima: 14ch;
   /* Painel Editar colunas */
   --largura-painel: 1280px;
   /* Área Documentos de referência. */

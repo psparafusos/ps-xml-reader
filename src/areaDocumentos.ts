@@ -39,6 +39,13 @@ export function aoFecharErroDocumento(fn: (tipo: TipoDocumento) => void): void {
   aoFecharErro = fn;
 }
 
+let aoCadastro: ((info: InfoCadastro) => void) | null = null;
+
+/** Cadastro carregado com sucesso nesta janela (a tela pergunta da coluna). */
+export function aoCarregarCadastro(fn: (info: InfoCadastro) => void): void {
+  aoCadastro = fn;
+}
+
 export function areaDocumentosAberta(): boolean {
   return montada;
 }
@@ -777,6 +784,7 @@ export function montarAreaDocumentos(
           ? `${NOME_CADASTRO}: carregado.`
           : `${NOME_CADASTRO}: carregado com ${n} ${n === 1 ? 'ponto de atenção' : 'pontos de atenção'}.`;
       relatorioCadastro = n > 0;
+      aoCadastro?.(r.info);
     } else {
       erroCadastro = { mensagem: r.mensagem, erros: r.erros };
       status.textContent = '';

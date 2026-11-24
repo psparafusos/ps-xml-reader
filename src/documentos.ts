@@ -42,6 +42,13 @@ import {
   type DecisaoLembrada,
 } from './fiscal/entrada';
 import {
+  chaveCodigoCasa,
+  decisaoCodigoCasaValida,
+  lerDecisoesCodigoCasa,
+  limparDecisaoCodigoCasa,
+  type DecisaoCodigoCasa,
+} from './cadastro/codigoCasa';
+import {
   NOME_DOCUMENTO,
   type InfoDocumento,
   type TipoDocumento,
@@ -96,6 +103,7 @@ export function pastaDocumentos(): string {
 const PREFERENCIAS_PADRAO: PreferenciasDocumentos = {
   verificacaoOnline: false,
   verificarAoAbrir: false,
+  colunaCodigoCasaPerguntada: false,
 };
 
 async function lerPreferencias(): Promise<PreferenciasDocumentos> {
@@ -106,6 +114,7 @@ async function lerPreferencias(): Promise<PreferenciasDocumentos> {
     return {
       verificacaoOnline: p.verificacaoOnline === true,
       verificarAoAbrir: p.verificarAoAbrir === true,
+      colunaCodigoCasaPerguntada: p.colunaCodigoCasaPerguntada === true,
     };
   } catch {
     return { ...PREFERENCIAS_PADRAO };
@@ -127,6 +136,7 @@ let verificando: Promise<void> | null = null;
 
 async function estado(): Promise<EstadoDocumentos> {
   const docs = lerDocumentos(pastaDocumentos());
+  const arquivoDecisoes = await lerArquivoTodo();
   return {
     st: docs.st,
     tipi: docs.tipi,
@@ -149,7 +159,10 @@ async function estado(): Promise<EstadoDocumentos> {
     verificando: verificando !== null,
     // Base gravada antes da leitura das colunas de estados: pede reimportar.
     stSemProtocolos: docs.st !== null && stSemProtocolos(),
-    decisoes: Object.values(await lerArquivoDecisoes()).sort((a, b) =>
+    decisoes: Object.values(arquivoDecisoes.decisoes).sort((a, b) =>
+      `${a.fornecedor} ${a.xProd}`.localeCompare(`${b.fornecedor} ${b.xProd}`),
+    ),
+    codigosCasa: Object.values(arquivoDecisoes.codigosCasa).sort((a, b) =>
       `${a.fornecedor} ${a.xProd}`.localeCompare(`${b.fornecedor} ${b.xProd}`),
     ),
     cadastro: await estadoCadastro(pastaDocumentos()),
@@ -158,46 +171,81 @@ async function estado(): Promise<EstadoDocumentos> {
 
 // ---------- decisões lembradas ----------
 
-async function lerArquivoDecisoes(): Promise<Record<string, DecisaoLembrada>> {
+/** As duas seções do decisoes.json: as da ST e as do código da casa. */
+interface ArquivoDecisoes {
+  decisoes: Record<string, DecisaoLembrada>;
+  codigosCasa: Record<string, DecisaoCodigoCasa>;
+}
+
+async function lerArquivoTodo(): Promise<ArquivoDecisoes> {
   try {
-    return lerDecisoes(
-      JSON.parse(
-        await readFile(path.join(pastaDocumentos(), ARQ_DECISOES), 'utf8'),
-      ),
+    const v: unknown = JSON.parse(
+      await readFile(path.join(pastaDocumentos(), ARQ_DECISOES), 'utf8'),
     );
+    return { decisoes: lerDecisoes(v), codigosCasa: lerDecisoesCodigoCasa(v) };
   } catch {
-    return {};
+    return { decisoes: {}, codigosCasa: {} };
   }
 }
 
-/** Grava ao lado e troca, para um arquivo pela metade nunca ficar no lugar. */
-async function gravarArquivoDecisoes(
-  decisoes: Record<string, DecisaoLembrada>,
-): Promise<void> {
+async function lerArquivoDecisoes(): Promise<Record<string, DecisaoLembrada>> {
+  return (await lerArquivoTodo()).decisoes;
+}
+
+/**
+ * Grava ao lado e troca, para um arquivo pela metade nunca ficar no lugar.
+ * Sem decisão do código da casa, a seção fica de fora (o arquivo continua
+ * igual ao das versões de antes).
+ */
+async function gravarArquivoDecisoes(a: ArquivoDecisoes): Promise<void> {
   await mkdir(pastaDocumentos(), { recursive: true });
   const destino = path.join(pastaDocumentos(), ARQ_DECISOES);
+  const conteudo =
+    Object.keys(a.codigosCasa).length > 0
+      ? { versao: 1, decisoes: a.decisoes, codigosCasa: a.codigosCasa }
+      : { versao: 1, decisoes: a.decisoes };
   await writeFile(
     `${destino}.novo`,
-    `${JSON.stringify({ versao: 1, decisoes }, null, 2)}
+    `${JSON.stringify(conteudo, null, 2)}
 `,
     'utf8',
   );
-  await rename(`${destino}.novo`, destino);
+  await trocarArquivo(`${destino}.novo`, destino);
+}
+
+/**
+ * rename com novas tentativas: no Windows ele falha (EPERM, EBUSY) se outra
+ * leitura do arquivo estiver aberta naquele instante (a tela relê as
+ * decisões logo depois de cada gravação).
+ */
+async function trocarArquivo(de: string, para: string): Promise<void> {
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      await rename(de, para);
+      return;
+    } catch (erro) {
+      const codigo = (erro as NodeJS.ErrnoException).code;
+      if (tentativa >= 8 || (codigo !== 'EPERM' && codigo !== 'EBUSY'))
+        throw erro;
+      await new Promise((r) => setTimeout(r, 25 * (tentativa + 1)));
+    }
+  }
 }
 
 /** Pedidos de gravar em fila: dois cliques seguidos não se atropelam. */
 let filaDecisoes: Promise<unknown> = Promise.resolve();
-function mudarDecisoes(
-  mudar: (d: Record<string, DecisaoLembrada>) => void,
-): Promise<void> {
+function mudarArquivo(mudar: (a: ArquivoDecisoes) => void): Promise<void> {
   const r = filaDecisoes.then(async () => {
-    const d = await lerArquivoDecisoes();
-    mudar(d);
-    await gravarArquivoDecisoes(d);
+    const a = await lerArquivoTodo();
+    mudar(a);
+    await gravarArquivoDecisoes(a);
   });
   filaDecisoes = r.catch(() => undefined);
   return r;
 }
+
+const mudarDecisoes = (mudar: (d: Record<string, DecisaoLembrada>) => void) =>
+  mudarArquivo((a) => mudar(a.decisoes));
 
 // ---------- análise (ferramenta ST, MVA e CFOP) ----------
 
@@ -570,6 +618,25 @@ export function registrarDocumentos(): void {
     return true;
   });
 
+  tratar('lembrar-codigo-casa', async (_event, d: unknown) => {
+    if (!decisaoCodigoCasaValida(d)) return false;
+    await mudarArquivo((a) => {
+      a.codigosCasa[chaveCodigoCasa(d.raizCnpj, d.cProd)] =
+        limparDecisaoCodigoCasa(d);
+    });
+    avisarJanelas();
+    return true;
+  });
+
+  tratar('esquecer-codigo-casa', async (_event, chave: unknown) => {
+    if (typeof chave !== 'string') return false;
+    await mudarArquivo((a) => {
+      delete a.codigosCasa[chave];
+    });
+    avisarJanelas();
+    return true;
+  });
+
   tratar(
     'importar-documento',
     async (event, tipo: unknown): Promise<ResultadoImportarDocumento> => {
@@ -698,6 +765,10 @@ export function registrarDocumentos(): void {
           typeof novo.verificarAoAbrir === 'boolean'
             ? novo.verificarAoAbrir
             : atual.verificarAoAbrir,
+        // Só vira true: a pergunta da coluna Código da casa é feita uma vez.
+        colunaCodigoCasaPerguntada:
+          novo.colunaCodigoCasaPerguntada === true ||
+          atual.colunaCodigoCasaPerguntada,
       };
       await gravarPreferencias(prefs);
       // Desligado, o resultado antigo some junto: nada de internet à mostra.

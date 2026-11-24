@@ -85,6 +85,23 @@ export const ICONES = {
    */
   /** Pessoa (botão e menu do perfil). */
   pessoa: ['M16 8a4 4 0 1 1-8 0a4 4 0 0 1 8 0z', 'M4 21c0-4 4-6 8-6s8 2 8 6'],
+  /**
+   * Confiança da sugestão do código da casa: o círculo dos ícones de estado
+   * com três, duas ou uma barra (alta, média, baixa). Mesmo tamanho e traço
+   * dos ícones de estado; a cor vem de .icone-estado--ok, --aviso e --erro.
+   */
+  confiancaAlta: [
+    'M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z',
+    'M8 16v-2',
+    'M12 16v-5',
+    'M16 16v-8',
+  ],
+  confiancaMedia: [
+    'M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z',
+    'M8 16v-2',
+    'M12 16v-5',
+  ],
+  confiancaBaixa: ['M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z', 'M8 16v-2'],
   /** Lápis: mudar a decisão de um item (ferramenta ST). */
   editar: ['M4 20h4L19 9l-4-4L4 16v4z', 'M14 6l4 4'],
   /** Marca do item escolhido num menu. */

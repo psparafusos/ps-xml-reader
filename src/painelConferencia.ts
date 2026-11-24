@@ -25,6 +25,7 @@ import {
   type PreviaFerramenta,
 } from './nfe/ferramentas';
 import type { ResumoCfop } from './nfe/resumoCfop';
+import { proximoPendente, type ResumoCodigoCasa } from './cadastro/codigoCasa';
 import { ICONES, type SinalEstado } from './icones';
 
 export interface AcoesPainel {
@@ -39,6 +40,13 @@ export interface AcoesPainel {
   ferramentasJanela(): readonly FerramentaJanela[];
   /** CFOPs de entrada da nota (coluna "CFOP de entrada"); null sem a coluna. */
   resumoCfop(): ResumoCfop | null;
+  /**
+   * Código da casa da nota aberta (quantos itens definidos e os que precisam
+   * da pessoa); null sem cadastro carregado. Sem a função: sem a linha.
+   */
+  codigoCasa?(): ResumoCodigoCasa | null;
+  /** Leva ao item na coluna Código da casa. */
+  irParaCodigoCasa?(nItem: string): void;
   /**
    * Ids das ferramentas à mostra, na ordem do perfil (as de janela própria
    * pelo id e "cfops-entrada" para o resumo). Sem a função: todas, na ordem
@@ -314,6 +322,7 @@ export function criarPainel(
           );
 
     const ferramentas = blocosFerramentas();
+    const casa = linhaCodigoCasa();
     corpo.replaceChildren(
       cabecalho,
       resultado,
@@ -321,12 +330,57 @@ export function criarPainel(
         'Verificações automáticas',
         el('ul', 'conferencia__lista', ...r.verificacoes.map(linhaVerificacao)),
       ),
-      secao('Precisa de você', pendencias),
+      secao('Precisa de você', casa, pendencias),
       ...(ferramentas.length > 0 ? [secao('Ferramentas', ...ferramentas)] : []),
       ...(acoes.folhaPdf
         ? [secao('Ao imprimir e no PDF', acoes.folhaPdf())]
         : []),
     );
+  }
+
+  /** Último item pendente do código da casa aberto pelo painel. */
+  let casaAtual: string | null = null;
+
+  /**
+   * "Código da casa: N de M itens definidos", com quantos precisam da pessoa
+   * (confiança média ou baixa, ambíguos, sem sugestão). Clicar leva ao
+   * próximo pendente, um de cada vez, dando a volta.
+   */
+  function linhaCodigoCasa(): HTMLElement | false {
+    const r = acoes.codigoCasa?.() ?? null;
+    if (!r) return false;
+    const n = r.pendentes.length;
+    const titulo = `Código da casa: ${r.definidos} de ${r.total} ${r.total === 1 ? 'item definido' : 'itens definidos'}`;
+    if (n === 0)
+      return el(
+        'div',
+        'conferencia__casa conferencia__casa--ok',
+        sinal('ok'),
+        el('span', 'conferencia__linha-titulo', titulo),
+      );
+    const b = botao(
+      'conferencia__pendencia conferencia__casa',
+      sinal('leve'),
+      el(
+        'span',
+        'conferencia__pendencia-textos',
+        el('span', 'conferencia__linha-titulo', titulo),
+        el(
+          'span',
+          'conferencia__pendencia-detalhe',
+          `${n} ${n === 1 ? 'precisa' : 'precisam'} de você. Clique para ir ao próximo.`,
+        ),
+      ),
+    );
+    b.dataset.casa = '';
+    b.addEventListener('click', () => {
+      const proximo = proximoPendente(r.pendentes, casaAtual);
+      if (!proximo) return;
+      casaAtual = proximo;
+      if (!aoLado) recolher(false);
+      acoes.irParaCodigoCasa?.(proximo);
+    });
+    return el('div', 'conferencia__casa-bloco', b);
   }
 
   /**

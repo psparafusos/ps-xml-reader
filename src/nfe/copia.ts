@@ -2,6 +2,10 @@
 // alteração, mais as anotações dos itens. Usa só DOM: o texto do usuário entra
 // por createTextNode e setAttribute, nunca concatenado em string XML.
 
+import {
+  atributosEscolha,
+  type EscolhaCodigoCasa,
+} from '../cadastro/codigoCasa';
 import { ID_ANOTACAO } from './colunas';
 import { lerDocumento, localizarOriginal, NS_PS } from './parser';
 import type { Anotacoes } from './tipos';
@@ -21,13 +25,16 @@ const INVALIDOS_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
  * continua lendo essa coluna); cada anotação extra vai num
  * <coluna id="..." titulo="...">, na ordem de `titulos` (id -> título de
  * todas as colunas de `anotacoes`). A ordem dos itens na tela vai em
- * <ordem criterio="..." direcao="..."/>.
+ * <ordem criterio="..." direcao="..."/>. O código da casa de cada item
+ * (produto, origem e fator) vai em <codigosCasa><item nItem .../>; sem
+ * nenhum, o elemento fica de fora (como nas cópias de antes).
  */
 export function montarCopia(
   textoArquivo: string,
   anotacoes: Anotacoes,
   titulos: Map<string, string>,
   ordem: { criterio: string; direcao: 'asc' | 'desc' },
+  codigosCasa: ReadonlyMap<string, EscolhaCodigoCasa> = new Map(),
 ): string {
   const { original } = localizarOriginal(lerDocumento(textoArquivo));
 
@@ -92,6 +99,22 @@ export function montarCopia(
   elOrdem.setAttribute('criterio', ordem.criterio);
   elOrdem.setAttribute('direcao', ordem.direcao);
 
+  const casa: Node[] = [];
+  if (codigosCasa.size > 0) {
+    const elCasa = elemento('codigosCasa');
+    for (const [nItem, e] of [...codigosCasa].sort(
+      ([a], [b]) => Number(a) - Number(b),
+    )) {
+      const item = elemento('item');
+      item.setAttribute('nItem', nItem);
+      for (const [k, v] of atributosEscolha(e))
+        item.setAttribute(k, v.replace(INVALIDOS_XML, ''));
+      elCasa.append(quebra('    '), item);
+    }
+    elCasa.append(quebra('  '));
+    casa.push(quebra('  '), elCasa);
+  }
+
   raiz.append(
     quebra('  '),
     aviso,
@@ -101,6 +124,7 @@ export function montarCopia(
     elAnotacoes,
     quebra('  '),
     elOrdem,
+    ...casa,
     quebra(''),
   );
 

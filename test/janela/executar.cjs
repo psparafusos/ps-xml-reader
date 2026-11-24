@@ -23,9 +23,10 @@
 // (rascunhos.cjs: fechamento à força e recuperar), a tela de boas-vindas
 // (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas) e o
 // cadastro do sistema de gestão nos Documentos de referência
-// (cadastro.cjs), o modo Documento com os documentos fiscais que não são
-// NF-e de produto (documentos.cjs, com o CT-e e a NFS-e sem nome de
-// município), o DANFE da NF-e emitida em contingência (contingencia.cjs,
+// (cadastro.cjs), a coluna Código da casa da Conferência (codigoCasa.cjs,
+// com capturas em 1366 e 1920), o modo Documento com os documentos fiscais
+// que não são NF-e de produto (documentos.cjs, com o CT-e e a NFS-e sem nome
+// de município), o DANFE da NF-e emitida em contingência (contingencia.cjs,
 // um por tipo de emissão, com capturas em 1366 e 1920), as colunas
 // fiscais da Conferência (colunasFiscais.cjs, com capturas em 1366 e
 // 1920) e a área do documento com zoom, rolagem e o cartão de destino
@@ -48,6 +49,7 @@ const { casosColunasFiscais } = require('./colunasFiscais.cjs');
 const { casosRascunhos } = require('./rascunhos.cjs');
 const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
+const { casosCodigoCasa } = require('./codigoCasa.cjs');
 const { casosDocumentos, casosSaida } = require('./documentos.cjs');
 const { casosDanfeHtml } = require('./danfeHtml.cjs');
 const { casosZoomRolagem } = require('./zoomRolagem.cjs');
@@ -2514,6 +2516,12 @@ async function principal() {
   // Colunas fiscais da Conferência: catálogo no editor, coluna que some na
   // nota sem o campo, ordenação e PDF com muitas colunas (colunasFiscais.cjs).
   await casosColunasFiscais(contexto);
+
+  // Coluna Código da casa da Conferência (codigoCasa.cjs): coluna apagada
+  // sem cadastro, a pergunta do primeiro cadastro, quadro de escolha, busca,
+  // contador do painel, .psxml e decisões lembradas. Antes do cadastro.cjs:
+  // responde a pergunta do primeiro cadastro e tira o cadastro no fim.
+  await casosCodigoCasa(contexto);
 
   // Cadastro do sistema de gestão na aba Documentos de referência
   // (cadastro.cjs): carregar, recusar sem trocar o carregado, remover.

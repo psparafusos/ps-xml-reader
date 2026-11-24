@@ -336,6 +336,33 @@ describe('backup: arquivo de origem desconhecida', () => {
     assert.equal(await digital(pasta), original);
   });
 
+  it('as decisões do código da casa vão junto e também são conferidas', async () => {
+    const casa = {
+      raizCnpj: '11222333',
+      fornecedor: 'Fornecedor inventado',
+      cProd: 'PAR-001',
+      xProd: 'PARAFUSO',
+      codigo: '1001',
+      descricao: 'PARAFUSO SEXTAVADO',
+      unidade: 'UN',
+      fator: 12,
+      unidadeCompra: 'CX',
+      atualizadaEm: '2026-11-24T10:00:00.000Z',
+    };
+    const b = await valido();
+    (b.decisoes as Record<string, unknown>).codigosCasa = {
+      '11222333|PAR-001': casa,
+    };
+    assert.deepEqual(
+      (lerBackup(json(b)).decisoes as Record<string, unknown>).codigosCasa,
+      { '11222333|PAR-001': casa },
+    );
+    (b.decisoes as Record<string, unknown>).codigosCasa = {
+      '11222333|PAR-001': { ...casa, fator: 0 },
+    };
+    assert.throws(() => lerBackup(json(b)), /decisões lembradas.*inválida/);
+  });
+
   it('cada parte da configuração passa pelo seu validador', async () => {
     const original = await digital(pasta);
     const casos: [string, (c: Record<string, unknown>) => void, RegExp][] = [

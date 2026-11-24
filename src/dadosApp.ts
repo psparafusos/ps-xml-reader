@@ -28,6 +28,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
+import { lerDecisoesCodigoCasa } from './cadastro/codigoCasa';
 import { lerDecisoes } from './fiscal/entrada';
 import { cnpjDaConfig, diasDaConfig } from './nfe/avisos';
 import { validarFerramentasPorPerfil } from './nfe/ferramentasPerfil';
@@ -127,7 +128,7 @@ function oQueEDocumento(nome: string): string {
   if (nome === 'preferencias.json')
     return 'Preferências: verificação online e "verificar ao abrir".';
   if (nome === 'decisoes.json')
-    return 'Decisões lembradas da ferramenta "ST, MVA e CFOP".';
+    return 'Decisões lembradas da ferramenta "ST, MVA e CFOP" e do código da casa.';
   if (nome === 'cadastro.json')
     return 'Cadastro do sistema de gestão, como foi importado.';
   if (nome === 'cadastro-info.json')
@@ -347,6 +348,16 @@ export function lerBackup(texto: string): Backup {
     const total = Object.keys(decisoes.decisoes).length;
     if (Object.keys(lerDecisoes(decisoes)).length !== total)
       falha('Uma das decisões lembradas do backup é inválida.');
+    const casa = decisoes.codigosCasa;
+    if (casa !== undefined) {
+      if (!objeto(casa))
+        falha('As decisões lembradas do backup são inválidas.');
+      if (
+        Object.keys(lerDecisoesCodigoCasa(decisoes)).length !==
+        Object.keys(casa).length
+      )
+        falha('Uma das decisões lembradas do backup é inválida.');
+    }
   }
   return {
     formato: FORMATO_BACKUP,
@@ -493,7 +504,10 @@ export function resumoBackup(b: Backup): ResumoBackup {
     valor.preferencias =
       b.preferencias.verificacaoOnline === true ? 'ligada' : 'desligada';
   if (b.decisoes)
-    valor.decisoes = String(Object.keys(lerDecisoes(b.decisoes)).length);
+    valor.decisoes = String(
+      Object.keys(lerDecisoes(b.decisoes)).length +
+        Object.keys(lerDecisoesCodigoCasa(b.decisoes)).length,
+    );
   return {
     criadoEm: b.criadoEm,
     versaoApp: b.versaoApp,

@@ -1,8 +1,17 @@
-// Decisões lembradas da ferramenta "ST, MVA e CFOP" na aba Decisões das
-// Configurações: o texto de cada decisão, o tipo (para o filtro) e a busca
-// por fornecedor, produto e NCM. Lógica pura (sem DOM, sem Electron).
+// Decisões lembradas na aba Decisões das Configurações: as da ferramenta
+// "ST, MVA e CFOP" e as do código da casa (coluna Código da casa). O texto
+// de cada decisão, o tipo (para o filtro) e a busca por fornecedor, produto
+// e NCM. Lógica pura (sem DOM, sem Electron).
 
 import {
+  chaveCodigoCasa,
+  escolhaDaDecisao,
+  TEXTO_NENHUM,
+  textoConversao,
+  type DecisaoCodigoCasa,
+} from './cadastro/codigoCasa';
+import {
+  chaveDecisao,
   ROTULO_FINALIDADE,
   ROTULO_LUBRIFICANTE,
   textoMva,
@@ -16,6 +25,7 @@ export const TIPOS_DECISAO = [
   'manual',
   'apendice-xiv',
   'historico',
+  'codigo-casa',
 ] as const;
 export type TipoDecisao = (typeof TIPOS_DECISAO)[number];
 
@@ -25,6 +35,7 @@ export const ROTULO_TIPO_DECISAO: Record<TipoDecisao, string> = {
   manual: 'CFOP manual',
   'apendice-xiv': 'Apêndice XIV',
   historico: 'Histórico',
+  'codigo-casa': 'Código da casa',
 };
 
 /** Os tipos em que a decisão entra (uma do histórico entra também no da escolha). */
@@ -107,5 +118,92 @@ export function contagemPorTipo(
     number
   >;
   for (const d of lista) for (const t of tiposDaDecisao(d)) r[t]++;
+  return r;
+}
+
+// ---------- as duas listas juntas (ST e código da casa) ----------
+
+/** Uma linha da lista: a chave (com o tipo na frente) e a decisão. */
+export type ItemDecisao =
+  | { tipo: 'st'; chave: string; d: DecisaoLembrada }
+  | { tipo: 'casa'; chave: string; d: DecisaoCodigoCasa };
+
+/** As duas listas numa só, por fornecedor e produto. */
+export function juntarDecisoes(
+  st: readonly DecisaoLembrada[],
+  casa: readonly DecisaoCodigoCasa[],
+): ItemDecisao[] {
+  const itens: ItemDecisao[] = [
+    ...st.map((d): ItemDecisao => ({
+      tipo: 'st',
+      chave: `st:${chaveDecisao(d.raizCnpj, d.cProd)}`,
+      d,
+    })),
+    ...casa.map((d): ItemDecisao => ({
+      tipo: 'casa',
+      chave: `casa:${chaveCodigoCasa(d.raizCnpj, d.cProd)}`,
+      d,
+    })),
+  ];
+  return itens.sort((a, b) =>
+    `${a.d.fornecedor} ${a.d.xProd}`.localeCompare(
+      `${b.d.fornecedor} ${b.d.xProd}`,
+    ),
+  );
+}
+
+/** A chave que o processo principal conhece (sem o tipo na frente). */
+export const chaveSemTipo = (chave: string) => chave.replace(/^(st|casa):/, '');
+
+/** "1001 · PARAFUSO SEXTAVADO · 12 UN por CX", ou o "nenhum". */
+export function textoDecisaoCodigoCasa(d: DecisaoCodigoCasa): string {
+  if (d.codigo === null) return `Código da casa: ${TEXTO_NENHUM}`;
+  const conv = textoConversao(escolhaDaDecisao(d));
+  return [`Código da casa ${d.codigo}`, d.descricao, conv]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+export const textoItemDecisao = (i: ItemDecisao) =>
+  i.tipo === 'st' ? textoDecisao(i.d) : textoDecisaoCodigoCasa(i.d);
+
+export const ncmItemDecisao = (i: ItemDecisao) =>
+  i.tipo === 'st' ? i.d.ncm : '';
+
+const tiposDoItem = (i: ItemDecisao): TipoDecisao[] =>
+  i.tipo === 'st' ? tiposDaDecisao(i.d) : ['codigo-casa'];
+
+/** filtrarDecisoes para a lista junta. */
+export function filtrarItensDecisao(
+  lista: readonly ItemDecisao[],
+  filtro: FiltroDecisoes,
+): ItemDecisao[] {
+  const palavras = normalizar(filtro.busca).split(' ').filter(Boolean);
+  return lista.filter((i) => {
+    if (filtro.tipo && !tiposDoItem(i).includes(filtro.tipo)) return false;
+    if (palavras.length === 0) return true;
+    const alvo = normalizar(
+      [
+        i.d.fornecedor,
+        i.d.raizCnpj,
+        i.d.cProd,
+        i.d.xProd,
+        ncmItemDecisao(i),
+        i.tipo === 'casa' ? `${i.d.codigo ?? ''} ${i.d.descricao}` : '',
+      ].join(' '),
+    );
+    return palavras.every((p) => alvo.includes(p));
+  });
+}
+
+/** contagemPorTipo para a lista junta. */
+export function contagemItens(
+  lista: readonly ItemDecisao[],
+): Record<TipoDecisao, number> {
+  const r = Object.fromEntries(TIPOS_DECISAO.map((t) => [t, 0])) as Record<
+    TipoDecisao,
+    number
+  >;
+  for (const i of lista) for (const t of tiposDoItem(i)) r[t]++;
   return r;
 }

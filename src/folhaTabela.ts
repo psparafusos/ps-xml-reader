@@ -27,6 +27,9 @@ export function copiaParaFolha(
   copia.removeAttribute('style');
   for (const campo of copia.querySelectorAll('.anotacao__campo'))
     campo.remove();
+  // Código da casa: na folha só o texto (sem ícone e sem botão).
+  for (const tela of copia.querySelectorAll('.codigo-casa__tela'))
+    tela.remove();
   for (const th of copia.querySelectorAll('th')) {
     th.removeAttribute('tabindex');
     th.removeAttribute('title');

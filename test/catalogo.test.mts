@@ -115,8 +115,11 @@ describe('catálogo dos campos de item', () => {
       assert.ok(caminhoNoCatalogo(k), k);
   });
 
-  it('cada grupo do editor (menos anotações e outros) tem campos', () => {
-    for (const g of GRUPOS.filter((x) => x !== 'anotacoes' && x !== 'outros'))
+  it('cada grupo do editor (menos cadastro, anotações e outros) tem campos', () => {
+    // O grupo Cadastro tem só a coluna Código da casa, que não é do XML.
+    for (const g of GRUPOS.filter(
+      (x) => x !== 'anotacoes' && x !== 'outros' && x !== 'cadastro',
+    ))
       assert.ok(
         CATALOGO.some((c) => c.grupo === g),
         `grupo ${g} vazio`,

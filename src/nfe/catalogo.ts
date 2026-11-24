@@ -37,6 +37,7 @@ export const GRUPOS = [
   'issqn',
   'ibscbsis',
   'informacoes',
+  'cadastro',
   'anotacoes',
   'outros',
 ] as const;
@@ -55,6 +56,7 @@ export const ROTULO_GRUPO: Record<IdGrupo, string> = {
   issqn: 'ISSQN',
   ibscbsis: 'IBS, CBS e IS',
   informacoes: 'Informações do item',
+  cadastro: 'Cadastro',
   anotacoes: 'Anotações',
   outros: 'Outros campos do XML',
 };

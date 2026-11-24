@@ -5,6 +5,10 @@
 // arquivo não é uma NF-e: raiz diferente de nfeProc, NFe ou psCopiaEditada,
 // ou sem infNFe.
 
+import {
+  escolhaDeAtributos,
+  type EscolhaCodigoCasa,
+} from '../cadastro/codigoCasa';
 import { ArquivoRecusadoError, verificarXmlSeguro } from '../seguranca/xml';
 import { lerCamposItem } from './catalogo';
 import { ehColunaAnotacao } from './config';
@@ -332,6 +336,24 @@ function lerOrdem(
   return { criterio, direcao };
 }
 
+/**
+ * Código da casa gravado numa cópia editada, por nItem
+ * (<codigosCasa><item nItem .../>). Vazio nas cópias de antes; item que não
+ * serve fica de fora.
+ */
+function lerCodigosCasa(copia: Element | null): Map<string, EscolhaCodigoCasa> {
+  const r = new Map<string, EscolhaCodigoCasa>();
+  const el = filho(copia, 'codigosCasa');
+  if (!el) return r;
+  for (const item of filhos(el, 'item')) {
+    const nItem = item.getAttribute('nItem')?.trim() ?? '';
+    if (!nItem || r.has(nItem)) continue;
+    const e = escolhaDeAtributos((n) => item.getAttribute(n));
+    if (e) r.set(nItem, e);
+  }
+  return r;
+}
+
 export interface ArquivoLido {
   nota: Nota;
   /** true quando o arquivo é uma cópia editada (raiz psCopiaEditada). */
@@ -341,6 +363,8 @@ export interface ArquivoLido {
   titulosAnotacoes: Map<string, string>;
   /** Ordem dos itens gravada na cópia editada, ou null. */
   ordem: { criterio: string; direcao: 'asc' | 'desc' } | null;
+  /** Código da casa de cada item gravado na cópia editada (vazio se não há). */
+  codigosCasa: Map<string, EscolhaCodigoCasa>;
 }
 
 /**
@@ -356,6 +380,7 @@ export function lerArquivo(xml: string): ArquivoLido {
     anotacoes,
     titulosAnotacoes: titulos,
     ordem: lerOrdem(copia),
+    codigosCasa: lerCodigosCasa(copia),
   };
 }
 

@@ -50,6 +50,18 @@ contextBridge.exposeInMainWorld('psApi', {
     ipcRenderer.invoke('lembrar-decisao', d),
   esquecerDecisao: (chave: string): Promise<boolean> =>
     ipcRenderer.invoke('esquecer-decisao', chave),
+  sugerirCodigosCasa: (
+    pedido: Parameters<PsApi['sugerirCodigosCasa']>[0],
+  ): Promise<ResultadoSugestaoCasa> =>
+    ipcRenderer.invoke('sugerir-codigos-casa', pedido),
+  buscarCadastro: (
+    pedido: Parameters<PsApi['buscarCadastro']>[0],
+  ): Promise<ResultadoBuscaCasa> =>
+    ipcRenderer.invoke('buscar-cadastro', pedido),
+  lembrarCodigoCasa: (d: DecisaoCodigoCasa): Promise<boolean> =>
+    ipcRenderer.invoke('lembrar-codigo-casa', d),
+  esquecerCodigoCasa: (chave: string): Promise<boolean> =>
+    ipcRenderer.invoke('esquecer-codigo-casa', chave),
   aoMudarDocumentos: (callback: () => void): void => {
     ipcRenderer.on('documentos-mudou', () => callback());
   },

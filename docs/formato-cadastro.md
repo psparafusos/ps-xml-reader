@@ -225,6 +225,55 @@ ambíguos, quando só um candidato está ativo.
 **Nota já lançada**: a chave de acesso está em `notas_lancadas` (com a data
 da entrada, se veio).
 
+## Na Conferência: coluna "Código da casa"
+
+A coluna fica no grupo **Cadastro** do editor de colunas. Sem cadastro
+carregado ela aparece apagada, com o motivo; na primeira vez que um cadastro
+é carregado, o app pergunta uma vez se ela entra no perfil ativo, logo
+depois da Descrição (o perfil só muda com o "Mostrar a coluna").
+
+Os campos do formato que ela usa, todos já na versão 1 (nenhum campo novo
+foi preciso):
+
+| Na tela                                     | Campo do cadastro                         |
+| ------------------------------------------- | ----------------------------------------- |
+| código e descrição do produto               | `produtos.codigo`, `produtos.descricao`   |
+| unidade de venda (o "UN" de "12 UN por CX") | `produtos.unidade`                        |
+| código de barras (candidatos e busca)       | `produtos.codigo_barras`                  |
+| fator e unidade de compra                   | `fatores.fator`, `fatores.unidade_compra` |
+
+Em cada item, a célula mostra o código e a descrição curta do produto, o
+ícone da confiança (alta, média ou baixa; ou o de escolha feita, para a
+decisão lembrada e a escolha da pessoa) e, quando o fator é diferente de 1,
+a conversão ("12 UN por CX"). O botão da célula abre o quadro de escolha:
+o item da nota, os candidatos do motor com o motivo de cada um, a busca no
+cadastro (código, descrição ou código de barras), "Nenhum (vincular no
+sistema de gestão)" e o fator, sugerido pelo cadastro e editável.
+
+**Quem vale num item**, nesta ordem: a escolha gravada no `.psxml` (ou feita
+agora), a decisão lembrada (raiz do CNPJ do emitente mais o código do item,
+no arquivo de decisões lembradas, seção `codigosCasa`; aparece em
+Configurações, Decisões lembradas, com o tipo "Código da casa") e o motor.
+Toda escolha feita no quadro fica lembrada. Contam como **definidos** a
+escolha da pessoa, a decisão lembrada, o "nenhum" e o motor com confiança
+alta; **precisam de você** o motor com confiança média ou baixa, os
+ambíguos e os sem sugestão. O painel da Conferência mostra "Código da casa:
+N de M itens definidos" e leva ao próximo pendente.
+
+**No `.psxml`**, depois de `<ordem>`:
+
+```xml
+<codigosCasa>
+  <item nItem="1" codigo="1001" origem="motor" confianca="alta" fator="100" unidadeCompra="CX" descricao="PARAFUSO SEXTAVADO 1/4 X 2 ZINCADO" unidade="UN"/>
+  <item nItem="2" nenhum="true" origem="pessoa" unidadeCompra="UN"/>
+</codigosCasa>
+```
+
+`origem` é `motor` (com `confianca`), `lembrada` ou `pessoa`. `.psxml` sem
+`<codigosCasa>` (os de antes) abrem normalmente. Na impressão e no PDF a
+coluna sai como texto ("1001 · PARAFUSO ... · 100 UN por CX"), sem ícones
+nem botões.
+
 ## Exemplo
 
 Inventado, com o mínimo de cada seção:

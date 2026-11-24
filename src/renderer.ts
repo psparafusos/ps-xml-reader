@@ -79,6 +79,7 @@ import {
 import { criarPainel } from './painelConferencia';
 import {
   abrirAreaDocumentos,
+  aoCarregarCadastro,
   aoFecharErroDocumento,
   atualizarAreaDocumentos,
   progressoAreaDocumentos,
@@ -163,6 +164,8 @@ import {
   ligarConfiguracoes,
 } from './configuracoes';
 import { mostrarBoasVindas } from './boasVindas';
+import { criarCodigoCasa } from './codigoCasaTela';
+import { ID_CODIGO_CASA } from './cadastro/codigoCasa';
 import {
   ferramentasPadrao,
   ferramentasVisiveis,
@@ -373,8 +376,50 @@ const itensAbertos = () => aberto?.lido.nota.itens ?? null;
  * Todas as colunas da tabela de itens, na ordem e visibilidade da
  * configuração; as ligadas cujo campo não existe na nota ficam escondidas.
  */
-const colunasAtuais = (): ColunaItem[] =>
-  colunasDaNota(configEmUso(), itensAbertos());
+const colunasAtuais = (): ColunaItem[] => colunasComCasa(configEmUso());
+
+/**
+ * As colunas da configuração para a nota aberta, com a do Código da casa
+ * (que só existe com o cadastro carregado) lendo o estado da nota.
+ */
+function colunasComCasa(config: ConfigConferencia): ColunaItem[] {
+  return colunasDaNota(config, itensAbertos(), codigoCasa.comCadastro()).map(
+    (c) =>
+      c.id === ID_CODIGO_CASA
+        ? { ...c, valor: (i: Item) => codigoCasa.texto(i) }
+        : c,
+  );
+}
+
+/**
+ * Código da casa (src/codigoCasaTela.ts): mudou um item, redesenha a célula
+ * dele; mudou tudo (o motor respondeu, o cadastro chegou ou saiu), remonta a
+ * tabela se a coluna apareceu ou sumiu, senão as células. O painel e a
+ * marca de alteração não salva acompanham.
+ */
+let casaComCadastro = false;
+const codigoCasa = criarCodigoCasa({
+  mudou(nItem) {
+    if (codigoCasa.comCadastro() !== casaComCadastro) {
+      casaComCadastro = codigoCasa.comCadastro();
+      aplicarConfig(configAtual, configNota?.config ?? null);
+    } else if (aberto && conferenciaMontada) {
+      const itens = aberto.lido.nota.itens.filter(
+        (i) => nItem === null || i.nItem === nItem,
+      );
+      for (const i of itens) {
+        const td = corposItens
+          .get(i.nItem)
+          ?.querySelector<HTMLTableCellElement>(
+            `td.col-${CSS.escape(ID_CODIGO_CASA)}`,
+          );
+        if (td) codigoCasa.celula(i, td, true);
+      }
+    }
+    if (aberto) atualizarAvisos();
+    atualizarPendentes();
+  },
+});
 
 /** true se a coluna é de um campo do XML que não está no catálogo. */
 const foraDoCatalogo = (id: string) =>
@@ -527,6 +572,7 @@ async function editarColunas(nosPerfis = false): Promise<void> {
             }
           : null;
       },
+      cadastroCarregado: () => codigoCasa.comCadastro(),
       ativar: async (id) => aoGravar(await window.psApi.ativarPerfil(id)),
       criar: async (nome) => aoGravar(await window.psApi.criarPerfil(nome)),
       renomear: async (id, nome) =>
@@ -541,12 +587,7 @@ async function editarColunas(nosPerfis = false): Promise<void> {
         copiaParaFolha(
           // As colunas que a nota aberta tem (a tabela, com os itens de
           // exemplo, é só para a miniatura).
-          montarTabelaItens(
-            colunasDaNota(config, itensAbertos()),
-            itens,
-            false,
-            exemplo,
-          ),
+          montarTabelaItens(colunasComCasa(config), itens, false, exemplo),
         ),
     },
     nosPerfis,
@@ -676,8 +717,9 @@ function copiarAnotacoes(origem: Anotacoes, destino: Anotacoes): void {
   for (const [id, m] of origem) destino.set(id, new Map(m));
 }
 
-/** true se alguma anotação mudou desde o último abrir ou salvar. */
+/** true se alguma anotação (ou código da casa) mudou desde o último abrir ou salvar. */
 function haAlteracoes(): boolean {
+  if (codigoCasa.alterado()) return true;
   const ids = new Set([...anotacoes.keys(), ...anotacoesGravadas.keys()]);
   for (const id of ids) {
     const atual = anotacoes.get(id) ?? new Map<string, string>();
@@ -762,6 +804,7 @@ function gravarRascunho(): void {
       anotacoes,
       titulosParaCopia(),
       ordemAtual,
+      codigoCasa.paraSalvar(),
     );
   } catch (erro) {
     // Sem rascunho desta vez; a próxima alteração tenta de novo.
@@ -792,6 +835,7 @@ window.addEventListener('blur', gravarRascunho);
 /** O estado atual passa a ser o gravado (depois de abrir ou salvar). */
 function marcarGravadas(): void {
   copiarAnotacoes(anotacoes, anotacoesGravadas);
+  codigoCasa.marcarSalvas();
   atualizarPendentes();
 }
 
@@ -1207,9 +1251,11 @@ function montarTabelaItens(
         ...colunas.map((c) =>
           c.anotacao
             ? celulaAnotacao(i, c, celula('td', c), fonte)
-            : guardar && c.id === 'descricao'
-              ? celulaDescricao(celula('td', c), c.valor(i))
-              : celula('td', c, c.valor(i)),
+            : c.id === ID_CODIGO_CASA
+              ? codigoCasa.celula(i, celula('td', c), guardar)
+              : guardar && c.id === 'descricao'
+                ? celulaDescricao(celula('td', c), c.valor(i))
+                : celula('td', c, c.valor(i)),
         ),
       ),
     );
@@ -1277,7 +1323,7 @@ function planoComConfig(
   const daNota = Boolean(aberto && aberto.lido.nota.itens.length > 0);
   const itens = daNota && aberto ? aberto.lido.nota.itens : exemplo;
   const tabela = montarTabelaItens(
-    colunasDaNota(config, itensAbertos()),
+    colunasComCasa(config),
     itens,
     false,
     daNota ? anotacoes : anotacoesExemplo,
@@ -1493,6 +1539,8 @@ const painel = criarPainel(painelEl, notaEl, {
     atualizarPendentes();
   },
   ferramentasJanela: () => [ferramentaST],
+  codigoCasa: () => codigoCasa.resumo(),
+  irParaCodigoCasa: (nItem) => irParaItem(nItem, ID_CODIGO_CASA),
   folhaPdf: () => seletorFolhaPdf(),
   ordemFerramentas: () => ferramentasVisiveis(ferramentasAtivas()),
   resumoCfop: () => {
@@ -2617,7 +2665,9 @@ function irParaItem(nItem: string, coluna = ID_QTD_RECEBIDA): void {
     DURACAO_DESTAQUE_MS,
   );
   tbody
-    .querySelector<HTMLInputElement>(`td.col-${CSS.escape(coluna)} input`)
+    .querySelector<HTMLElement>(
+      `td.col-${CSS.escape(coluna)} :is(input, button)`,
+    )
     ?.focus({ preventScroll: true });
 }
 
@@ -2752,6 +2802,7 @@ function aplicarRascunho(r: RascunhoNaAbertura): boolean {
   }
   copiarAnotacoes(lido.anotacoes, anotacoes);
   for (const [id, t] of lido.titulosAnotacoes) titulosLidos.set(id, t);
+  codigoCasa.recuperar(lido.codigosCasa, r.semOriginal === true);
   if (r.semOriginal) anotacoesGravadas.clear();
   if (lido.ordem && criterioValido(lido.ordem.criterio, colunasAtuais()))
     ordemAtual = lido.ordem;
@@ -2827,6 +2878,7 @@ function carregar(
     copiarAnotacoes(lido.anotacoes, anotacoes);
     titulosLidos.clear();
     for (const [id, t] of lido.titulosAnotacoes) titulosLidos.set(id, t);
+    codigoCasa.abrirNota(lido.nota, lido.codigosCasa);
     marcarGravadas();
     void prepararAvisos(lido.nota);
     // Ordem gravada na cópia editada; cópia antiga (sem <ordem>) ou critério
@@ -2869,6 +2921,7 @@ function carregar(
     // pode mais ser salva, então volta para a tela inicial.
     window.psApi.informarSemNota();
     aberto = null;
+    codigoCasa.abrirNota(null, new Map());
     conferenciaMontada = false;
     danfeMontado = false;
     danfeEl.replaceChildren();
@@ -3376,6 +3429,7 @@ function montarTextoCopia(): { texto: string; gravadas: Anotacoes } | null {
       anotacoes,
       titulosParaCopia(),
       ordemAtual,
+      codigoCasa.paraSalvar(),
     );
     const gravadas: Anotacoes = new Map();
     copiarAnotacoes(anotacoes, gravadas);
@@ -3401,6 +3455,7 @@ function concluirPsxml(
 ): boolean {
   if (r.status === 'salvo') {
     copiarAnotacoes(gravadas, anotacoesGravadas);
+    codigoCasa.marcarSalvas();
     atualizarPendentes();
     // O .psxml salvo passa a ser o arquivo da nota nas recentes.
     salvoAgora = r.copia;
@@ -3751,6 +3806,7 @@ async function irParaInicio(): Promise<void> {
 /** Tira a nota desta janela e volta para a tela inicial (sem perguntar). */
 function limparNota(): void {
   aberto = null;
+  codigoCasa.abrirNota(null, new Map());
   novoDocumento();
   // Respostas atrasadas da busca de avisos não valem mais.
   geracaoAvisos++;
@@ -4333,6 +4389,7 @@ function atualizarDocumentos(): void {
     .documentos()
     .then((e) => {
       estadoDocumentos = e;
+      codigoCasa.atualizarDocumentos(e);
       desenharListaDocumentos(e);
       atualizarAreaDocumentos(e);
       // As decisões lembradas marcam os CFOPs manuais no resumo do painel.
@@ -4348,6 +4405,51 @@ window.psApi.aoProgressoDocumento((p) => {
   if (estadoDocumentos) desenharListaDocumentos(estadoDocumentos);
 });
 window.psApi.aoMudarDocumentos(atualizarDocumentos);
+
+/**
+ * Primeiro cadastro carregado: pergunta uma vez se a coluna Código da casa
+ * entra no perfil ativo, logo depois da Descrição. O perfil só muda com o
+ * "Mostrar a coluna"; qualquer resposta (ou Esc) conta como perguntado.
+ */
+async function perguntarColunaCasa(): Promise<void> {
+  try {
+    const docs = await window.psApi.documentos();
+    if (docs.preferencias.colunaCodigoCasaPerguntada) return;
+    const perfis = perfisAtual ?? (await window.psApi.perfis());
+    const ligada = perfis.config.colunas.some(
+      (c) => c.id === ID_CODIGO_CASA && c.visivel,
+    );
+    const r = ligada
+      ? 'ja'
+      : await perguntar({
+          titulo: 'Coluna Código da casa',
+          texto: `O cadastro do sistema de gestão foi carregado. Mostrar a coluna "Código da casa" no perfil ${perfis.nomeAtivo}, logo depois da Descrição? Ela sugere o produto da loja para cada item da nota.`,
+          botoes: [
+            { rotulo: 'Agora não', valor: 'nao' },
+            { rotulo: 'Mostrar a coluna', valor: 'sim', principal: true },
+          ],
+          cancelar: 'nao',
+        });
+    await window.psApi.gravarPreferenciasDocumentos({
+      colunaCodigoCasaPerguntada: true,
+    });
+    if (r !== 'sim') return;
+    const nova = structuredClone(perfis.config);
+    const colunas = nova.colunas.filter((c) => c.id !== ID_CODIGO_CASA);
+    const i = colunas.findIndex((c) => c.id === 'descricao');
+    colunas.splice(i < 0 ? colunas.length : i + 1, 0, {
+      id: ID_CODIGO_CASA,
+      visivel: true,
+    });
+    nova.colunas = colunas;
+    const g = aoGravar(await window.psApi.gravarConfigConferencia(nova));
+    if (g.status === 'ok')
+      mostrarSucesso(`Coluna Código da casa no perfil ${g.estado.nomeAtivo}`);
+  } catch (erro) {
+    console.error(erro);
+  }
+}
+aoCarregarCadastro(() => void perguntarColunaCasa());
 
 // ---------- Configurações (menu do perfil) ----------
 

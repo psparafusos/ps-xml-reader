@@ -55,6 +55,7 @@ import { perguntar, pedirTexto } from './dialogos';
 import { nomeLivre, problemaNomePerfil } from './nfe/perfis';
 import { textoExcluirPerfil, textoPerfilExportado } from './nfe/textosPerfis';
 import { ICONES } from './icones';
+import { TEXTO_SEM_CADASTRO } from './cadastro/codigoCasa';
 
 /**
  * O que o painel pede ao resto da tela. Cada ação grava nos perfis salvos e,
@@ -97,6 +98,8 @@ export interface AcoesEditor {
    * não estão no catálogo. null sem nota (ou nota sem itens).
    */
   campos(): { presentes: Set<string> | null; fora: CampoFora[] } | null;
+  /** Há cadastro do sistema de gestão carregado (coluna Código da casa). */
+  cadastroCarregado?(): boolean;
   /** Cópia da tabela para a folha com estes itens e anotações. */
   tabelaFolha(
     config: ConfigConferencia,
@@ -506,7 +509,11 @@ export function abrirEditorColunas(
   // Campos da nota aberta (presentes e fora do catálogo), lidos ao abrir.
   const dadosNota = acoes.campos();
   const presentes = dadosNota?.presentes ?? null;
-  const existe = (c: ColunaItem) => colunaExiste(c, presentes);
+  const comCadastro = acoes.cadastroCarregado?.() ?? false;
+  const existe = (c: ColunaItem) => colunaExiste(c, presentes, comCadastro);
+  /** Por que a coluna está apagada: sem o campo na nota ou sem o cadastro. */
+  const motivoAusente = (c: ColunaItem) =>
+    c.doCadastro ? TEXTO_SEM_CADASTRO : TEXTO_CAMPO_AUSENTE;
   /** Dicas "Campo não existe neste documento" ligadas na lista. */
   let dicas: Dica[] = [];
 
@@ -739,7 +746,7 @@ export function abrirEditorColunas(
     );
     rotulo.htmlFor = marca.id;
     if (ausente)
-      marca.setAttribute('aria-label', `${c.rotulo}. ${TEXTO_CAMPO_AUSENTE}`);
+      marca.setAttribute('aria-label', `${c.rotulo}. ${motivoAusente(c)}`);
 
     const alca = botao(
       'colunas-lista__alca',
@@ -767,8 +774,8 @@ export function abrirEditorColunas(
     );
     li.dataset.id = c.id;
     // Exceção à regra das dicas: a coluna ligada que não existe nesta nota
-    // diz por que está apagada.
-    if (ausente) dicas.push(ligarDica(li, TEXTO_CAMPO_AUSENTE));
+    // (ou sem o cadastro) diz por que está apagada.
+    if (ausente) dicas.push(ligarDica(li, motivoAusente(c)));
 
     const extra = rascunho.anotacoes.find((a) => a.id === c.id);
     if (extra) {
@@ -1383,6 +1390,7 @@ export function abrirEditorColunas(
           ]
         : []),
       ...colunasDoCatalogo(),
+      ...COLUNAS_ITENS.filter((c) => c.doCadastro),
       ...anotacoes.map((c) => ({ ...c, grupo: grupoAnotacao })),
       ...fora,
     ];
@@ -1398,7 +1406,7 @@ export function abrirEditorColunas(
     marca.dataset.id = c.id;
     const nome = c.foraDoCatalogo ? c.rotulo : (c.nome ?? c.rotulo);
     if (ausente)
-      marca.setAttribute('aria-label', `${nome}. ${TEXTO_CAMPO_AUSENTE}`);
+      marca.setAttribute('aria-label', `${nome}. ${motivoAusente(c)}`);
     marca.addEventListener('change', () => {
       marcarColuna(c.id, marca.checked);
       desenharLista();
@@ -1408,7 +1416,13 @@ export function abrirEditorColunas(
         .querySelector<HTMLElement>(`[data-id="${CSS.escape(c.id)}"]`)
         ?.focus();
     });
-    const tag = c.local ? `${c.tecnico} (${c.local})` : (c.tecnico ?? '');
+    const tag = c.doCadastro
+      ? ausente
+        ? motivoAusente(c)
+        : (c.tecnico ?? '')
+      : c.local
+        ? `${c.tecnico} (${c.local})`
+        : (c.tecnico ?? '');
     const rotulo = el(
       'label',
       'campos__nome',
