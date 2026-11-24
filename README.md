@@ -1254,10 +1254,21 @@ nome do tipo. Na instalação e na atualização, o app também apaga os atalhos
 `Leitor NF-e PS.lnk` que sobraram do nome antigo, só no menu Iniciar (pasta
 "PS Parafusos e Segurança LTDA" e raiz de Programas) e na área de trabalho do
 usuário, e só se o atalho aponta para dentro de `%LocalAppData%\PSXmlReader\`.
+Ainda na instalação e na atualização, antes do aviso ao Explorer, o app tira
+do "Abrir com" o que sobrou de versões antigas (`src/abrirComAntigo.ts`): as
+subchaves de `HKCU\Software\Classes\Applications` com nome
+`PS Reader-*Setup.exe` (o instalador, que escolhido por engano reinstalava a
+versão antiga) ou `Leitor NF-e PS*.exe` (o executável da 1.0.0), e os valores
+de uma letra com esses nomes no `OpenWithList` do `.xml` e do `.psxml`
+(`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts`), com a
+letra tirada do `MRUList`. Nada mais: o `UserChoice`, o `MuiCache` e as
+entradas de outros programas ficam como estão. A limpeza tem prazo de 3 s;
+um erro vai para o log e a instalação segue.
 Cada instalação, atualização ou desinstalação sobrescreve um log curto em
 `%TEMP%\ps-reader-associacao.log` (evento, resultado de cada chamada ao
-`reg.exe`, cópia dos ícones, saída do aviso ao Explorer, atalhos antigos
-apagados ou mantidos e tempo total). Se o Explorer mesmo
+`reg.exe`, cópia dos ícones, registros antigos apagados do "Abrir com" e o
+tempo da limpeza, saída do aviso ao Explorer, atalhos antigos apagados ou
+mantidos e tempo total). Se o Explorer mesmo
 assim não mostrar o ícone novo, reinicie o Explorer ou saia e entre no Windows.
 
 O ícone em Configurações > Aplicativos vem de `iconUrl` (`forge.config.mts`): o
@@ -1297,6 +1308,7 @@ src/
   preload.ts         contextBridge com a API psApi (abrir, pasta, salvar, imprimir, copiar)
   impressoras.ts     lista de nomes de impressora de cupom (aviso antes de imprimir)
   associacao.ts      associação do .psxml no registro do usuário (eventos do Squirrel)
+  abrirComAntigo.ts  o que a limpeza do "Abrir com" apaga (instalador e executável antigos)
   renderer.ts        monta a tela a partir do objeto Nota
   editorColunas.ts   painel Editar colunas (lista, arrastar, anotações extras, prévia)
   dom.ts             utilitários de DOM (el, icone, botao)
