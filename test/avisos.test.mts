@@ -7,6 +7,7 @@ import {
   dataHoraArquivo,
   diferencasTotais,
   divergenciasQtd,
+  ehEmitidaPelaLoja,
   ehOutraEmpresa,
   ID_QTD_RECEBIDA,
   nomePodeSerConferencia,
@@ -16,6 +17,7 @@ import {
   diasDaConfig,
   distanciaVencimento,
   idadeNota,
+  situacaoDestino,
   situacaoParcelas,
 } from '../src/nfe/avisos.ts';
 import {
@@ -205,6 +207,46 @@ describe('outra empresa', () => {
     n.destinatario.CNPJ = '';
     n.destinatario.CPF = '12345678909';
     assert.equal(ehOutraEmpresa(n, CNPJ_LOJA), true);
+  });
+
+  it('nota emitida pela loja não é de outra empresa', () => {
+    const n = nota();
+    n.emitente.CNPJ = CNPJ_LOJA;
+    n.destinatario.CNPJ = '11222333000181';
+    n.destinatario.xNome = 'CLIENTE INVENTADO LTDA';
+    assert.equal(ehEmitidaPelaLoja(n, '12.345.678/0001-95'), true);
+    assert.equal(ehOutraEmpresa(n, CNPJ_LOJA), false);
+    assert.deepEqual(
+      avisosDaNota({
+        nota: n,
+        anotacoes: new Map(),
+        comQtdRecebida: false,
+        cnpjEmpresa: CNPJ_LOJA,
+        conferidos: [],
+      }).map((a) => a.tipo),
+      [],
+    );
+  });
+
+  it('cartão de destino: outra empresa, emitida pela loja ou nada', () => {
+    const n = nota();
+    assert.equal(situacaoDestino(n, CNPJ_LOJA), null);
+    assert.equal(situacaoDestino(n, null), null);
+    n.destinatario.CNPJ = '11222333000181';
+    n.destinatario.xNome = 'OUTRA INVENTADA LTDA';
+    const outra = situacaoDestino(n, CNPJ_LOJA);
+    assert.equal(outra?.tipo, 'outra-empresa');
+    assert.equal(outra?.titulo, 'Nota de outra empresa');
+    assert.match(
+      outra?.detalhe ?? '',
+      /OUTRA INVENTADA LTDA \(CNPJ 11\.222\.333\/0001-81\)/,
+    );
+    assert.match(outra?.detalhe ?? '', /CNPJ da loja é 12\.345\.678\/0001-95/);
+    n.emitente.CNPJ = CNPJ_LOJA;
+    const loja = situacaoDestino(n, CNPJ_LOJA);
+    assert.equal(loja?.tipo, 'emitida-loja');
+    assert.equal(loja?.titulo, 'Nota emitida pela loja');
+    assert.match(loja?.detalhe ?? '', /emitente é a própria loja/);
   });
 
   it('CNPJ da configuração: 14 dígitos, com ou sem máscara, com o dígito verificador', () => {

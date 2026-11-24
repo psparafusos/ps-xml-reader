@@ -219,6 +219,17 @@ describe('resumoConferencia', () => {
     assert.equal(r.titulo, '4 pontos para olhar');
   });
 
+  it('nota emitida pela loja: linha de informação, não de outra empresa', () => {
+    const n = nota();
+    n.emitente.CNPJ = CNPJ_LOJA;
+    n.destinatario.CNPJ = '11222333000181';
+    const r = resumoConferencia(dados({ nota: n }));
+    const v = ver(r, 'destinatario');
+    assert.equal(v.titulo, 'Nota emitida pela loja');
+    assert.equal(v.nivel, 'info');
+    assert.equal(v.ok, true);
+  });
+
   it('um ponto só, no singular', () => {
     const n = nota();
     n.totais.vProd = '10.00';

@@ -7,7 +7,9 @@ import {
   centavos,
   diferencasTotais,
   divergenciasQtd,
+  ehEmitidaPelaLoja,
   ehOutraEmpresa,
+  situacaoDestino,
   idadeNota,
   reais,
   situacaoParcelas,
@@ -171,7 +173,16 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
 
   verificacoes.push(verificacaoVencimentos(nota, d));
 
-  if (d.cnpjEmpresa !== null) {
+  if (d.cnpjEmpresa !== null && ehEmitidaPelaLoja(nota, d.cnpjEmpresa)) {
+    // Venda, devolução a fornecedor ou ao cliente: não é de outra empresa.
+    verificacoes.push({
+      id: 'destinatario',
+      ok: true,
+      nivel: 'info',
+      titulo: 'Nota emitida pela loja',
+      detalhe: situacaoDestino(nota, d.cnpjEmpresa)?.detalhe ?? '',
+    });
+  } else if (d.cnpjEmpresa !== null) {
     const cnpj = d.cnpjEmpresa;
     const outra = ehOutraEmpresa(nota, cnpj);
     verificacoes.push({

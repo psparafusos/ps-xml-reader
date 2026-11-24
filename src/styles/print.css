@@ -26,7 +26,8 @@
   .painel,
   .caixa-dialogo,
   .rolagem__seta,
-  .rolagem-pagina {
+  .rolagem-pagina,
+  .rolagem-area {
     display: none !important;
   }
 

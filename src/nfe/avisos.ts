@@ -102,9 +102,67 @@ export function diferencasTotais(n: Nota): DiferencaTotal[] {
   return lista;
 }
 
-/** true se o destinatário não é a empresa (CNPJ diferente, ou CPF). */
+/**
+ * true se o emitente é a própria loja (mesmo CNPJ configurado): venda,
+ * devolução a fornecedor, devolução de mercadoria ao cliente e afins.
+ */
+export function ehEmitidaPelaLoja(n: Nota, cnpjEmpresa: string): boolean {
+  const loja = soDigitos(cnpjEmpresa);
+  return loja !== '' && soDigitos(n.emitente.CNPJ) === loja;
+}
+
+/**
+ * true se o destinatário não é a empresa (CNPJ diferente, ou CPF). A nota
+ * emitida pela própria loja não é de outra empresa (ehEmitidaPelaLoja).
+ */
 export function ehOutraEmpresa(n: Nota, cnpjEmpresa: string): boolean {
-  return soDigitos(n.destinatario.CNPJ) !== soDigitos(cnpjEmpresa);
+  return (
+    soDigitos(n.destinatario.CNPJ) !== soDigitos(cnpjEmpresa) &&
+    !ehEmitidaPelaLoja(n, cnpjEmpresa)
+  );
+}
+
+/** Destinatário para a tela: "NOME (CNPJ 00.000.000/0000-00)". */
+function quemEhDestinatario(n: Nota): string {
+  const d = n.destinatario;
+  const doc = d.CNPJ
+    ? `CNPJ ${f.cnpj(d.CNPJ)}`
+    : d.CPF
+      ? `CPF ${f.cpf(d.CPF)}`
+      : 'sem CNPJ';
+  return `${d.xNome || 'sem nome'} (${doc})`;
+}
+
+/**
+ * Cartão do painel Leitura (aba XML) sobre para quem é a nota: de outra
+ * empresa (aviso) ou emitida pela loja (informação). null quando a nota é
+ * para a loja ou sem CNPJ da loja configurado.
+ */
+export interface SituacaoDestino {
+  tipo: 'outra-empresa' | 'emitida-loja';
+  titulo: string;
+  detalhe: string;
+}
+
+export function situacaoDestino(
+  n: Nota,
+  cnpjEmpresa: string | null,
+): SituacaoDestino | null {
+  if (cnpjEmpresa === null || soDigitos(cnpjEmpresa) === '') return null;
+  const loja = f.cnpj(soDigitos(cnpjEmpresa));
+  if (ehEmitidaPelaLoja(n, cnpjEmpresa))
+    return {
+      tipo: 'emitida-loja',
+      titulo: 'Nota emitida pela loja',
+      detalhe: `O emitente é a própria loja (CNPJ ${loja}). O destinatário é ${quemEhDestinatario(n)}.`,
+    };
+  if (ehOutraEmpresa(n, cnpjEmpresa))
+    return {
+      tipo: 'outra-empresa',
+      titulo: 'Nota de outra empresa',
+      detalhe: `O destinatário é ${quemEhDestinatario(n)}, não a loja. O CNPJ da loja é ${loja}.`,
+    };
+  return null;
 }
 
 /**

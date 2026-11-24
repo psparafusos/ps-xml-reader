@@ -25,7 +25,8 @@
 // cadastro do sistema de gestão nos Documentos de referência
 // (cadastro.cjs), o modo Documento com os documentos fiscais que não são
 // NF-e de produto (documentos.cjs) e as colunas fiscais da Conferência
-// (colunasFiscais.cjs, com capturas em 1366 e 1920). Com
+// (colunasFiscais.cjs, com capturas em 1366 e 1920), a área do documento
+// com zoom, rolagem e o cartão de destino (zoomRolagem.cjs, t22 e t23). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e no
 // t20, as
 // do painel, as das telas na largura mínima e a do cartão do cadastro.
@@ -46,6 +47,7 @@ const { casosBoasVindas } = require('./boasVindas.cjs');
 const { casosCadastro } = require('./cadastro.cjs');
 const { casosDocumentos, casosSaida } = require('./documentos.cjs');
 const { casosDanfeHtml } = require('./danfeHtml.cjs');
+const { casosZoomRolagem } = require('./zoomRolagem.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -1217,7 +1219,8 @@ async function principal() {
       );
       const rec = await leitura(`return {
         estado: p.dataset.estado,
-        botoes: [...p.querySelectorAll('.conferencia__trilho button')].map((b) => b.getAttribute('aria-label') || b.textContent.trim()),
+        // O ícone do cartão de destino (nota de outra empresa) tem caso próprio.
+        botoes: [...p.querySelectorAll('.conferencia__trilho button:not(.leitura__destino-trilho)')].map((b) => b.getAttribute('aria-label') || b.textContent.trim()),
         corpo: !p.querySelector('.conferencia__corpo').hidden,
       };`);
       confere(
@@ -2459,6 +2462,11 @@ async function principal() {
   // Janelas por cima da nota (Configurações, ferramenta ST) e a rolagem.
   await casosJanelasPorCima();
 
+  // Área do documento: só ela rola em qualquer zoom, zoom pelo cursor e
+  // pelo centro, barras de rolagem, fundo em 50% e o cartão de destino
+  // (outra empresa e emitida pela loja, t22 e t23) (zoomRolagem.cjs).
+  await casosZoomRolagem(contexto);
+
   // Janela na largura mínima (680): não aceita menos, e as telas cabem.
   // Depois da ferramenta ST, que já carregou a planilha inventada.
   await casosLarguraMinima(variasFolhas);
@@ -2644,7 +2652,7 @@ async function casosJanelasPorCima() {
   );
 
   await caso(
-    'Rolagem: atrás da ferramenta ST a página não rola; ao fechar, volta a rolar da mesma posição',
+    'Rolagem: atrás da ferramenta ST a área do documento não rola; ao fechar, volta a rolar da mesma posição',
     async () => {
       await carregarPlanilhaST();
       const [largura, altura] = janela.getContentSize();
@@ -2675,13 +2683,24 @@ async function casosJanelasPorCima() {
         janela.setContentSize(1100, 600);
         await abrirNota(copia('t09-xprod-html.xml'));
         await irParaConferencia();
-        // Página mais alta que a janela, rolada um pouco para baixo.
+        // A Conferência mais alta que a área do documento, rolada um pouco
+        // para baixo. Só a área rola: a página fica parada.
+        const AREA = `document.getElementById('area-documento')`;
         const sobra = await avaliar(
-          `document.documentElement.scrollHeight - document.documentElement.clientHeight`,
+          `${AREA}.scrollHeight - ${AREA}.clientHeight`,
         );
-        confere(sobra > 150, `a página não rola (sobra ${sobra} px)`);
-        await avaliar(`window.scrollTo(0, 100); true`);
-        await aguardar(`window.scrollY === 100`);
+        confere(
+          sobra > 150,
+          `a área do documento não rola (sobra ${sobra} px)`,
+        );
+        confere(
+          (await avaliar(
+            `document.documentElement.scrollHeight - document.documentElement.clientHeight`,
+          )) <= 0,
+          'a página rola junto com a área do documento',
+        );
+        await avaliar(`${AREA}.scrollTo(0, 100); true`);
+        await aguardar(`${AREA}.scrollTop === 100`);
         const comBarra = await avaliar(LARGURA_UTIL);
         // Rodar a ferramenta ST pelo painel.
         await avaliar(`[...document.querySelectorAll('.conferencia__ferramenta')]
@@ -2693,10 +2712,8 @@ async function casosJanelasPorCima() {
           'a ferramenta ST não abriu',
         );
         confere(
-          (await avaliar(
-            `getComputedStyle(document.documentElement).overflowY`,
-          )) === 'hidden',
-          'a página continua rolável com a ferramenta aberta',
+          (await avaliar(`getComputedStyle(${AREA}).overflowY`)) === 'hidden',
+          'a área do documento continua rolável com a ferramenta aberta',
         );
         // A trava vale a partir do quadro desenhado com a janela aberta.
         await avaliar(DOIS_QUADROS);
@@ -2716,10 +2733,10 @@ async function casosJanelasPorCima() {
         })()`);
         for (const [x, y] of pontos) {
           await rodaDoMouse(x, y);
-          const y2 = await avaliar('window.scrollY');
+          const y2 = await avaliar(`${AREA}.scrollTop`);
           confere(
             y2 === 100,
-            `a página rolou atrás da ferramenta (${x}, ${y}): ${y2}`,
+            `a área rolou atrás da ferramenta (${x}, ${y}): ${y2}`,
           );
         }
         // Fecha pelo X: a página fica onde estava e volta a rolar.
@@ -2732,8 +2749,8 @@ async function casosJanelasPorCima() {
           'o X não fechou a ferramenta',
         );
         confere(
-          (await avaliar('window.scrollY')) === 100,
-          'a posição da página mudou ao fechar',
+          (await avaliar(`${AREA}.scrollTop`)) === 100,
+          'a posição da área mudou ao fechar',
         );
         await avaliar(DOIS_QUADROS);
         const [lx, ly] = await avaliar(
@@ -2741,9 +2758,9 @@ async function casosJanelasPorCima() {
         );
         await rodaDoMouse(lx, ly);
         await aguardar(
-          `window.scrollY > 100`,
+          `${AREA}.scrollTop > 100`,
           10000,
-          'a página não voltou a rolar depois de fechar',
+          'a área não voltou a rolar depois de fechar',
         );
       } finally {
         janela.setContentSize(largura, altura);

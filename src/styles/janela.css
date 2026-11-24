@@ -69,6 +69,121 @@
     background: rgb(22 22 22 / 0.55);
   }
 
+  /* ---------- área do documento (Conferência e Documento) ---------- */
+
+  /* Só ela rola, na vertical e na horizontal, em qualquer zoom: a barra de
+     título, a barra preta, as abas e os painéis ficam parados. O fundo
+     preenche a área toda (com zoom pequeno, o documento fica menor que
+     ela). A barra nativa não ocupa espaço: as barras são as de
+     src/rolagemArea.ts, por cima do conteúdo. */
+  .area-documento {
+    position: fixed;
+    top: var(--altura-barra, 0px);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    overflow: auto;
+    overflow-anchor: none;
+    overscroll-behavior: contain;
+    background: var(--bancada-fundo);
+    scrollbar-width: none;
+  }
+
+  .area-documento::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .area-documento:has(> #danfe:not([hidden])) {
+    background: var(--cor-borda-suave);
+  }
+
+  /* Janela por cima: a área de baixo não rola (a posição fica guardada). */
+  html:has(dialog:modal) .area-documento {
+    overflow: hidden;
+  }
+
+  .rolagem-area {
+    position: fixed;
+    z-index: 9;
+    display: flex;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    transition: background-color var(--transicao);
+  }
+
+  .rolagem-area--v {
+    justify-content: flex-end;
+  }
+
+  .rolagem-area--h {
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .rolagem-area[hidden] {
+    display: none;
+  }
+
+  /* Em repouso: fino e claro. Com o mouse em cima, rolando ou arrastando:
+     mais grosso e escuro, no visual do polegar da página. */
+  .rolagem-area__polegar {
+    flex: none;
+    border-radius: 4px;
+    background: var(--rolagem-polegar);
+    cursor: default;
+    transition:
+      width var(--transicao),
+      height var(--transicao),
+      background-color var(--transicao);
+  }
+
+  .rolagem-area--v .rolagem-area__polegar {
+    width: 5px;
+    margin-right: 3px;
+  }
+
+  .rolagem-area--h .rolagem-area__polegar {
+    height: 5px;
+    margin-bottom: 3px;
+  }
+
+  .rolagem-area:hover,
+  .rolagem-area--sobre,
+  .rolagem-area--arrastando {
+    background: var(--rolagem-trilho-ativo);
+  }
+
+  .rolagem-area:hover .rolagem-area__polegar,
+  .rolagem-area--sobre .rolagem-area__polegar,
+  .rolagem-area--ativa .rolagem-area__polegar,
+  .rolagem-area--arrastando .rolagem-area__polegar {
+    background: var(--rolagem-polegar-ativo);
+  }
+
+  .rolagem-area--v:hover .rolagem-area__polegar,
+  .rolagem-area--v.rolagem-area--sobre .rolagem-area__polegar,
+  .rolagem-area--v.rolagem-area--ativa .rolagem-area__polegar,
+  .rolagem-area--v.rolagem-area--arrastando .rolagem-area__polegar {
+    width: 10px;
+    margin-right: 2px;
+  }
+
+  .rolagem-area--h:hover .rolagem-area__polegar,
+  .rolagem-area--h.rolagem-area--sobre .rolagem-area__polegar,
+  .rolagem-area--h.rolagem-area--ativa .rolagem-area__polegar,
+  .rolagem-area--h.rolagem-area--arrastando .rolagem-area__polegar {
+    height: 10px;
+    margin-bottom: 2px;
+  }
+
+  .rolagem-area__polegar:hover,
+  .rolagem-area--arrastando .rolagem-area__polegar {
+    background: var(--rolagem-polegar-forte);
+  }
+
   /* O conteúdo começa abaixo da barra de título (fixa no alto). A altura
      mínima desconta a faixa, para a tela inicial não rolar. */
   body {
@@ -823,6 +938,18 @@
     margin: 6px 0 0;
     color: var(--cor-texto);
     font-size: 12px;
+    user-select: text;
+  }
+
+  /* Cartão de destino (nota de outra empresa ou emitida pela loja), no alto
+     do painel: o detalhe (nomes e CNPJ) é dado e seleciona. Só na tela: o
+     painel não vai para o PDF nem para a impressão. */
+  .leitura__destino {
+    display: grid;
+  }
+
+  .leitura__destino-detalhe {
+    overflow-wrap: anywhere;
     user-select: text;
   }
 

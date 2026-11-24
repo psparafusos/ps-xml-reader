@@ -66,6 +66,7 @@ import {
   DIAS_AVISO_VENCIMENTO_PADRAO,
   DIAS_NOTA_ANTIGA_PADRAO,
   ID_QTD_RECEBIDA,
+  situacaoDestino,
   textoAviso,
   type Aviso,
   type Conferido,
@@ -130,6 +131,7 @@ import {
 import { desenharMiniatura } from './miniaturaFolha';
 import { criarPainelLeitura, type ModoLeitura } from './painelLeitura';
 import './rolagemPagina';
+import { criarRolagemArea } from './rolagemArea';
 import {
   aoLerXml,
   arquivoXml,
@@ -396,11 +398,11 @@ function aplicarConfig(
     conferenciaMontada = false;
     return;
   }
-  const y = window.scrollY;
+  const y = areaDoc.scrollTop;
   notaEl.replaceChildren(...conteudoNota(aberto.lido.nota));
   aplicarOrdem();
   atualizarAvisos();
-  window.scrollTo(window.scrollX, y);
+  areaDoc.scrollTop = y;
 }
 
 /** Abre o painel Editar colunas; Aplicar salva e remonta a tabela. */
@@ -1475,6 +1477,8 @@ const barraPerfil = $('barra-perfil');
 const areaSoltar = $('area-soltar');
 const barra = $('barra');
 const notaEl = $('nota');
+/** A área que rola, com a Conferência e o Documento dentro (index.html). */
+const areaDoc = $('area-documento');
 const painelEl = $('painel-conferencia');
 const painel = criarPainel(painelEl, notaEl, {
   abrirConferido: (c) => void abrirConferido(c),
@@ -1587,6 +1591,11 @@ const btnInicio = $('btn-inicio') as HTMLButtonElement;
 const btnAbaPsxml = $('btn-aba-psxml') as HTMLButtonElement;
 const btnAbaXml = $('btn-aba-xml') as HTMLButtonElement;
 const painelLeituraEl = $('painel-leitura');
+/** Barras de rolagem da área do documento (src/rolagemArea.ts). */
+const rolagemArea = criarRolagemArea(areaDoc, {
+  inicioVisivel: inicioVisivelArea,
+  observar: [painelEl, painelLeituraEl],
+});
 const btnImprimir = $('btn-imprimir') as HTMLButtonElement;
 const btnSalvar = $('btn-salvar') as HTMLButtonElement;
 const btnSalvarTexto = $('btn-salvar-texto');
@@ -1748,6 +1757,7 @@ function mostrarTela(tela: Tela): void {
   barra.hidden = tela === 'vazio';
   notaEl.hidden = tela !== 'nota';
   danfeEl.hidden = tela !== 'documento';
+  areaDoc.hidden = notaEl.hidden && danfeEl.hidden;
   painelEl.hidden = tela !== 'nota';
   painelLeituraEl.hidden = !naAbaXml;
   if (tela === 'xml') mostrarXml();
@@ -1771,6 +1781,7 @@ function mostrarTela(tela: Tela): void {
   atualizarAcoesSaida();
   atualizarLeitura();
   window.scrollTo(0, 0);
+  areaDoc.scrollTo(0, 0);
   aplicarFolhas();
   aplicarZoom();
   painel.ajustarLayout();
@@ -1820,6 +1831,10 @@ function atualizarLeitura(): void {
     folhas: arranjoFolhas,
     folhasSemEfeito: folhasSemEfeito(),
     arquivo: cartaoArquivo(),
+    destino:
+      !generico && aberto && avisosProntos
+        ? situacaoDestino(aberto.lido.nota, configAvisos.cnpjEmpresa)
+        : null,
   });
 }
 
@@ -2244,11 +2259,71 @@ function aplicarZoom(): void {
   btnZoom.setAttribute('aria-label', `Zoom em ${pct}. Restaurar 100%`);
   // O zoom muda a largura da nota: o painel pode deixar de caber ao lado.
   painel.ajustarLayout();
+  rolagemArea.atualizar();
 }
 
-/** passo 1: próximo nível; -1: anterior; 0: volta a 100%. */
-function mudarZoom(passo: -1 | 0 | 1): void {
-  if (!areaZoom()) return;
+/**
+ * Borda esquerda (na janela) da parte da área do documento que não fica
+ * atrás do painel: o painel aberto ao lado ocupa a altura toda; recolhido ou
+ * por cima (passageiro), não conta.
+ */
+function inicioVisivelArea(): number {
+  let esquerda = areaDoc.getBoundingClientRect().left;
+  for (const p of [painelEl, painelLeituraEl]) {
+    if (
+      p.hidden ||
+      p.dataset.estado !== 'aberto' ||
+      p.dataset.layout === 'sobre'
+    )
+      continue;
+    esquerda = Math.max(esquerda, p.getBoundingClientRect().right);
+  }
+  return esquerda;
+}
+
+/** Centro da parte visível da área do documento (fora do painel). */
+function centroVisivelArea(): { x: number; y: number } {
+  const r = areaDoc.getBoundingClientRect();
+  const esquerda = inicioVisivelArea();
+  return {
+    x: (esquerda + r.left + areaDoc.clientWidth) / 2,
+    y: r.top + areaDoc.clientHeight / 2,
+  };
+}
+
+/**
+ * O ponto do documento que está em (x, y): o elemento embaixo dele e a
+ * posição dentro desse elemento, em fração. Uma folha do Documento tem
+ * tamanho fixo e cresce por igual com o zoom: com ela, o ponto volta ao
+ * mesmo lugar. Fora de uma folha, vale o menor elemento embaixo do ponto
+ * (na Conferência, que se rearranja com a largura, fica perto).
+ */
+function pontoDoDocumento(
+  alvo: HTMLElement,
+  x: number,
+  y: number,
+): { el: Element; fx: number; fy: number } {
+  const debaixo = document.elementFromPoint(x, y);
+  const el =
+    debaixo && alvo.contains(debaixo)
+      ? (debaixo.closest('.folha') ?? debaixo)
+      : alvo;
+  const r = el.getBoundingClientRect();
+  return {
+    el,
+    fx: r.width > 0 ? (x - r.left) / r.width : 0,
+    fy: r.height > 0 ? (y - r.top) / r.height : 0,
+  };
+}
+
+/**
+ * passo 1: próximo nível; -1: anterior; 0: volta a 100%. `ancora`: o ponto
+ * da janela que fica parado (o cursor, no Ctrl + roda); sem ele, o centro
+ * da parte visível da área (teclado e o botão de restaurar).
+ */
+function mudarZoom(passo: -1 | 0 | 1, ancora?: { x: number; y: number }): void {
+  const alvo = areaZoom();
+  if (!alvo) return;
   // Zoom à mão no "Ajustar à largura": volta para Uma de cada vez.
   if (modoAtual === 'danfe' && arranjoFolhas === 'largura') {
     arranjoFolhas = 'uma';
@@ -2265,15 +2340,22 @@ function mudarZoom(passo: -1 | 0 | 1): void {
   else if (passo === -1)
     novo = [...NIVEIS_ZOOM].reverse().find((n) => n < atual - 1e-9) ?? atual;
   if (novo === guardado) return;
-  // Mantém mais ou menos o mesmo trecho do documento no alto da tela.
-  const y = window.scrollY;
+  const { x, y } = ancora ?? centroVisivelArea();
+  const ponto = pontoDoDocumento(alvo, x, y);
   zoomPorModo[modoAtual] = novo;
   aplicarZoom();
-  const visto = modoAtual === 'danfe' ? zoomDanfeNaTela() : novo;
-  window.scrollTo(window.scrollX, (y * visto) / atual);
+  // O mesmo ponto do documento volta para (x, y). Onde o documento é menor
+  // que a área (não rola naquele sentido), ele fica centralizado.
+  const r = ponto.el.getBoundingClientRect();
+  areaDoc.scrollLeft += r.left + ponto.fx * r.width - x;
+  areaDoc.scrollTop += r.top + ponto.fy * r.height - y;
 }
 
-/** Roda do mouse (e pinça do touchpad) com Ctrl: um nível a cada "dente". */
+/**
+ * Roda do mouse (e pinça do touchpad, que chega como roda com Ctrl): um
+ * nível a cada "dente", com o ponto embaixo do cursor parado. O Ctrl + roda
+ * nunca muda o zoom da janela inteira: o padrão é sempre cancelado.
+ */
 const DELTA_POR_NIVEL = 50;
 let deltaAcumulado = 0;
 
@@ -2285,7 +2367,11 @@ window.addEventListener(
     if (!areaZoom() || editorAberto()) return;
     deltaAcumulado += e.deltaY;
     if (Math.abs(deltaAcumulado) < DELTA_POR_NIVEL) return;
-    mudarZoom(deltaAcumulado < 0 ? 1 : -1);
+    const sobreArea = areaDoc.contains(e.target as Node);
+    mudarZoom(
+      deltaAcumulado < 0 ? 1 : -1,
+      sobreArea ? { x: e.clientX, y: e.clientY } : undefined,
+    );
     deltaAcumulado = 0;
   },
   { passive: false },
@@ -2570,12 +2656,15 @@ async function prepararAvisos(n: Nota): Promise<void> {
   conferidosAtuais = conferidos;
   avisosProntos = true;
   atualizarAvisos();
+  // O cartão de destino do painel Leitura depende do CNPJ da loja.
+  atualizarLeitura();
   await avisarAoAbrir();
 }
 
 /**
- * Pop-ups da nota de outra empresa e da nota já conferida, uma vez por nota
- * aberta, quando a Conferência ou o DANFE aparece.
+ * Pop-up da nota já conferida, uma vez por nota aberta, quando a Conferência
+ * ou o DANFE aparece. A nota de outra empresa não abre janela: fica no
+ * cartão do painel Leitura (aba XML) e na linha do painel da Conferência.
  */
 async function avisarAoAbrir(): Promise<void> {
   if (!popupsPendentes || !avisosProntos) return;
@@ -2585,14 +2674,7 @@ async function avisarAoAbrir(): Promise<void> {
   for (const a of avisosAtuais()) {
     if (geracao !== geracaoAvisos) return;
     const { titulo, detalhe } = textoAviso(a);
-    if (a.tipo === 'outra-empresa') {
-      await perguntar({
-        titulo,
-        texto: `${detalhe} O CNPJ da empresa é ${f.cnpj(configAvisos.cnpjEmpresa ?? '')}.`,
-        botoes: [{ rotulo: 'Entendi', valor: 'ok', principal: true }],
-        cancelar: 'ok',
-      });
-    } else if (a.tipo === 'conferido') {
+    if (a.tipo === 'conferido') {
       const r = await perguntar({
         titulo,
         texto: detalhe,
@@ -4300,7 +4382,10 @@ window.psApi.aoMudarAvisos(() => {
     .configAvisos()
     .then((c) => {
       configAvisos = c;
-      if (aberto && avisosProntos) atualizarAvisos();
+      if (aberto && avisosProntos) {
+        atualizarAvisos();
+        atualizarLeitura();
+      }
     })
     .catch((erro: unknown) => console.error(erro));
 });

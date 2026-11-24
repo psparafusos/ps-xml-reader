@@ -6,13 +6,14 @@
 // para abrir e, embaixo, o ícone do modo de leitura atual. A tela da nota
 // (renderer.ts) decide o que cada botão faz; aqui só se desenha.
 
-import { botao, el, icone } from './dom';
+import { botao, el, icone, iconeSinal } from './dom';
 import { ICONES } from './icones';
 import {
   ARRANJOS_FOLHAS,
   ROTULO_FOLHAS,
   type ArranjoFolhas,
 } from './nfe/folhasDanfe';
+import type { SituacaoDestino } from './nfe/avisos';
 
 export type ModoLeitura = 'documento' | 'formato' | 'xml';
 
@@ -45,6 +46,11 @@ export interface EstadoLeitura {
   folhasSemEfeito: Partial<Record<ArranjoFolhas, string>>;
   /** Nome (em negrito) e as linhas do cartão Arquivo; null: sem cartão. */
   arquivo: { nome: string; linhas: string[] } | null;
+  /**
+   * Nota de outra empresa (aviso) ou emitida pela loja (informação): cartão
+   * no alto do painel, que abre o detalhe ao clicar. null: sem cartão.
+   */
+  destino: SituacaoDestino | null;
 }
 
 export interface AcoesLeitura {
@@ -126,6 +132,8 @@ export function criarPainelLeitura(
   let estaAberto = true;
   let aoLado = true;
   let estado: EstadoLeitura | null = null;
+  /** O detalhe do cartão de destino está aberto (fecha a cada nota nova). */
+  let destinoAberto = false;
 
   const corpo = el('div', 'conferencia__corpo leitura__corpo');
   corpo.id = 'leitura-corpo';
@@ -263,6 +271,8 @@ export function criarPainelLeitura(
           })()
         : null;
 
+    const destino = e.destino ? cartaoDestino(e.destino) : null;
+
     const arquivo = e.arquivo
       ? secao(
           'Arquivo',
@@ -277,6 +287,7 @@ export function criarPainelLeitura(
 
     corpo.replaceChildren(
       cabecalho,
+      ...(destino ? [destino] : []),
       secao('Modo de leitura', modos, aviso),
       ...(folhas ? [folhas] : []),
       ...(arquivo ? [arquivo] : []),
@@ -300,9 +311,67 @@ export function criarPainelLeitura(
       'aria-label',
       `Modo de leitura: ${ROTULO_MODO[e.modo]}${nome}`,
     );
-    for (const b of [expandir, modo])
-      b.addEventListener('click', () => abrir());
-    trilho.replaceChildren(expandir, modo);
+    // Recolhido, o aviso de destino fica à vista: o ícone dele abre o painel.
+    const sinalDestino = e.destino
+      ? botao(
+          'conferencia__icone-trilho conferencia__flutuante leitura__destino-trilho',
+          iconeSinal(e.destino.tipo === 'outra-empresa' ? 'aviso' : 'info'),
+        )
+      : null;
+    if (sinalDestino && e.destino)
+      sinalDestino.setAttribute('aria-label', e.destino.titulo);
+    for (const b of [expandir, modo, sinalDestino])
+      b?.addEventListener('click', () => abrir());
+    trilho.replaceChildren(
+      expandir,
+      modo,
+      ...(sinalDestino ? [sinalDestino] : []),
+    );
+  }
+
+  /**
+   * Cartão de destino: ícone (aviso ou informação) e o texto curto; o clique
+   * mostra o detalhe (quem é o destinatário, o CNPJ da loja). Mesmo visual
+   * das verificações do painel da Conferência.
+   */
+  function cartaoDestino(d: SituacaoDestino): HTMLElement {
+    const nivel = d.tipo === 'outra-empresa' ? 'leve' : 'info';
+    const detalheId = 'leitura-destino-detalhe';
+    const sinal = iconeSinal(d.tipo === 'outra-empresa' ? 'aviso' : 'info');
+    sinal.classList.add('conferencia__sinal');
+    const cabeca = botao(
+      'conferencia__linha',
+      sinal,
+      el('span', 'conferencia__linha-titulo', d.titulo),
+      icone(...(destinoAberto ? ICONES.setaCima : ICONES.setaBaixo)),
+    );
+    cabeca.id = 'leitura-destino';
+    cabeca.setAttribute('aria-expanded', String(destinoAberto));
+    cabeca.setAttribute('aria-controls', detalheId);
+    cabeca.setAttribute(
+      'aria-label',
+      `${d.titulo}: ${d.tipo === 'outra-empresa' ? 'aviso' : 'informação'}`,
+    );
+    const detalhe = el(
+      'div',
+      'conferencia__detalhe',
+      el('p', 'leitura__destino-detalhe', d.detalhe),
+    );
+    detalhe.id = detalheId;
+    detalhe.hidden = !destinoAberto;
+    cabeca.addEventListener('click', () => {
+      destinoAberto = !destinoAberto;
+      desenhar();
+      corpo.querySelector<HTMLElement>('#leitura-destino')?.focus();
+    });
+    const cartao = el(
+      'div',
+      `conferencia__verificacao conferencia__verificacao--${nivel} leitura__destino`,
+      cabeca,
+      detalhe,
+    );
+    cartao.dataset.tipo = d.tipo;
+    return cartao;
   }
 
   // Por cima da área: Esc ou um clique fora fecham.
@@ -330,6 +399,7 @@ export function criarPainelLeitura(
       aplicarEstado();
     },
     novoDocumento(): void {
+      destinoAberto = false;
       if (!aoLado) estaAberto = false;
       aplicarEstado();
     },

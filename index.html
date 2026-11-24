@@ -438,9 +438,15 @@
       </div>
     </section>
 
-    <main id="nota" class="nota" hidden></main>
+    <!-- Área do documento (Conferência e Documento): só ela rola, na
+         vertical e na horizontal, abaixo da barra preta. A barra de título,
+         a barra preta, as abas e os painéis ficam parados em qualquer zoom.
+         As barras de rolagem são as do app (src/rolagemArea.ts). -->
+    <div id="area-documento" class="area-documento" hidden>
+      <main id="nota" class="nota" hidden></main>
 
-    <main id="danfe" class="danfe" hidden></main>
+      <main id="danfe" class="danfe" hidden></main>
+    </div>
 
     <footer id="rodape-pdf" class="rodape-pdf">
       <p>

@@ -230,6 +230,13 @@
   --tamanho-seta-rolagem: 26px;
   --largura-sombra-rolagem: 28px;
   --sombra-rolagem: rgb(0 0 0 / 0.18);
+  /* Barras de rolagem da área do documento (src/rolagemArea.ts): polegar
+     em repouso, com o mouse em cima ou rolando, arrastado, e o trilho com
+     o mouse em cima. */
+  --rolagem-polegar: color-mix(in srgb, var(--ps-preto) 22%, transparent);
+  --rolagem-polegar-ativo: color-mix(in srgb, var(--ps-preto) 50%, transparent);
+  --rolagem-polegar-forte: color-mix(in srgb, var(--ps-preto) 62%, transparent);
+  --rolagem-trilho-ativo: color-mix(in srgb, var(--ps-preto) 6%, transparent);
   --altura-menu: 60vh;
 
   /* Impressão (A4, printToPDF) */
