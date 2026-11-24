@@ -2342,10 +2342,10 @@ function preencherBarra(n: Nota): void {
 
 /**
  * O DANFE só sai do XML original da NF-e: na cópia editada, numa NF-e sem
- * DANFE no PS Reader (contingência, outro modelo) e num XML que não é nota,
- * o botão do painel Leitura fica apagado (aria-disabled, não disabled),
- * com o motivo embaixo; clicar nele mostra o motivo num diálogo do app, sem
- * dica ao passar o mouse.
+ * DANFE no PS Reader (outro modelo, tipo de emissão fora da NF-e) e num XML
+ * que não é nota, o botão do painel Leitura fica apagado (aria-disabled, não
+ * disabled), com o motivo embaixo; clicar nele mostra o motivo num diálogo
+ * do app, sem dica ao passar o mouse.
  */
 function atualizarSeletorDanfe(): void {
   // XML genérico: o motivo vem da leitura (aoLerXml).
@@ -2364,8 +2364,8 @@ const AVISO_SEM_DOCUMENTO = {
 
 /**
  * Mostra o DANFE. Usa a nota do XML original. Cópia editada não gera DANFE.
- * Contingência ou modelo diferente de 55: não gera, mostra o motivo e fica
- * onde estava.
+ * Modelo diferente de 55 ou tipo de emissão fora da NF-e: não gera, mostra o
+ * motivo e fica onde estava.
  */
 function mostrarDanfe(): void {
   if (!aberto || aberto.lido.copiaEditada) return;
@@ -2719,7 +2719,8 @@ async function carregarArquivo(
  * (`arquivo.modoInicial`: XML da NF-e pelo "NF-e abre em" do perfil, cópia
  * editada na Conferência) ou em `modo`, como a nota já conferida que abre na
  * Conferência. O DANFE só sai do XML original. NF-e sem DANFE no PS Reader
- * (contingência ou outro modelo): abre na Conferência e diz o motivo.
+ * (outro modelo, tipo de emissão fora da NF-e): abre na Conferência e diz o
+ * motivo.
  */
 function carregar(
   arquivo: ArquivoAberto,

@@ -250,6 +250,13 @@
   height: 12mm;
 }
 
+/* Código de barras "Dados da NF-e" da contingência em formulário de segurança
+   (36 dígitos: 253 módulos de 0,25 mm; altura de 1 cm, MOC Anexo II 3.8.1). */
+.barras--dados {
+  width: 63.25mm;
+  height: 10mm;
+}
+
 .cab__chave-valor .dc__valor {
   font-weight: 700;
   text-align: center;
@@ -377,6 +384,11 @@
 
 .ad__par {
   margin: 0;
+}
+
+/* Expressão obrigatória da contingência, em destaque (MOC Anexo II, p. 8). */
+.ad__par--destaque {
+  font-weight: 700;
 }
 
 .dq--continuacao {

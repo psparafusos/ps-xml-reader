@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CT-e inventado sem o nome dos municípios (só os códigos IBGE; estrutura do leiaute 4.00, modal rodoviário; nenhum dado real). -->
+<cteProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/cte">
+  <CTe xmlns="http://www.portalfiscal.inf.br/cte">
+    <infCte versao="4.00" Id="CTe42261176543210000198570010000045671123456780">
+      <ide>
+        <cUF>42</cUF>
+        <cCT>12345678</cCT>
+        <CFOP>6353</CFOP>
+        <natOp>PRESTACAO DE SERVICO DE TRANSPORTE A ESTABELECIMENTO COMERCIAL</natOp>
+        <mod>57</mod>
+        <serie>1</serie>
+        <nCT>4567</nCT>
+        <dhEmi>2026-11-05T14:20:31-03:00</dhEmi>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>0</cDV>
+        <tpAmb>1</tpAmb>
+        <tpCTe>0</tpCTe>
+        <procEmi>0</procEmi>
+        <verProc>Teste 1.0</verProc>
+        <cMunEnv>4209102</cMunEnv>
+        <UFEnv>SC</UFEnv>
+        <modal>01</modal>
+        <tpServ>0</tpServ>
+        <cMunIni>4209102</cMunIni>
+        <UFIni>SC</UFIni>
+        <cMunFim>2800308</cMunFim>
+        <UFFim>SE</UFFim>
+        <retira>1</retira>
+        <indIEToma>1</indIEToma>
+        <toma3>
+          <toma>3</toma>
+        </toma3>
+      </ide>
+      <compl>
+        <xObs>Carga inventada para teste. Entrega em horario comercial.</xObs>
+        <ObsCont xCampo="Pedido">
+          <xTexto>PED-9876</xTexto>
+        </ObsCont>
+      </compl>
+      <emit>
+        <CNPJ>76543210000198</CNPJ>
+        <IE>255555555</IE>
+        <xNome>Transportadora Inventada Ltda</xNome>
+        <xFant>Transportadora Inventada</xFant>
+        <enderEmit>
+          <xLgr>Rodovia de Teste</xLgr>
+          <nro>KM 10</nro>
+          <xBairro>Distrito Industrial</xBairro>
+          <cMun>4209102</cMun>
+          <CEP>89200000</CEP>
+          <UF>SC</UF>
+          <fone>4733334444</fone>
+        </enderEmit>
+        <CRT>3</CRT>
+      </emit>
+      <rem>
+        <CNPJ>87654321000198</CNPJ>
+        <IE>254444444</IE>
+        <xNome>Fabrica Inventada de Fixadores S.A.</xNome>
+        <fone>4732221111</fone>
+        <enderReme>
+          <xLgr>Rua da Fabrica</xLgr>
+          <nro>500</nro>
+          <xBairro>Industrial</xBairro>
+          <cMun>4209102</cMun>
+          <CEP>89200001</CEP>
+          <UF>SC</UF>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderReme>
+      </rem>
+      <dest>
+        <CNPJ>12345678000195</CNPJ>
+        <IE>270000000</IE>
+        <xNome>Loja Inventada de Parafusos Ltda</xNome>
+        <enderDest>
+          <xLgr>Avenida de Teste</xLgr>
+          <nro>2000</nro>
+          <xCpl>Sala 1</xCpl>
+          <xBairro>Bairro Inventado</xBairro>
+          <cMun>2800308</cMun>
+          <CEP>49000001</CEP>
+          <UF>SE</UF>
+          <cPais>1058</cPais>
+          <xPais>BRASIL</xPais>
+        </enderDest>
+      </dest>
+      <vPrest>
+        <vTPrest>850.40</vTPrest>
+        <vRec>850.40</vRec>
+        <Comp>
+          <xNome>FRETE PESO</xNome>
+          <vComp>700.00</vComp>
+        </Comp>
+        <Comp>
+          <xNome>GRIS</xNome>
+          <vComp>50.40</vComp>
+        </Comp>
+        <Comp>
+          <xNome>PEDAGIO</xNome>
+          <vComp>100.00</vComp>
+        </Comp>
+      </vPrest>
+      <imp>
+        <ICMS>
+          <ICMS00>
+            <CST>00</CST>
+            <vBC>850.40</vBC>
+            <pICMS>12.00</pICMS>
+            <vICMS>102.05</vICMS>
+          </ICMS00>
+        </ICMS>
+      </imp>
+      <infCTeNorm>
+        <infCarga>
+          <vCarga>15230.55</vCarga>
+          <proPred>PARAFUSOS E PORCAS</proPred>
+          <infQ>
+            <cUnid>01</cUnid>
+            <tpMed>PESO BRUTO</tpMed>
+            <qCarga>1250.5000</qCarga>
+          </infQ>
+          <infQ>
+            <cUnid>01</cUnid>
+            <tpMed>PESO BASE DE CALCULO</tpMed>
+            <qCarga>1300.0000</qCarga>
+          </infQ>
+          <infQ>
+            <cUnid>03</cUnid>
+            <tpMed>VOLUMES</tpMed>
+            <qCarga>42.0000</qCarga>
+          </infQ>
+        </infCarga>
+        <infDoc>
+          <infNFe>
+            <chave>42261187654321000198550010000012341123456789</chave>
+          </infNFe>
+          <infNFe>
+            <chave>42261187654321000198550010000012351123456788</chave>
+          </infNFe>
+          <infNFe>
+            <chave>42261187654321000198550010000012361123456787</chave>
+          </infNFe>
+        </infDoc>
+        <infModal versaoModal="4.00">
+          <rodo>
+            <RNTRC>12345678</RNTRC>
+          </rodo>
+        </infModal>
+      </infCTeNorm>
+    </infCte>
+    <infCTeSupl>
+      <qrCodCTe>https://dfe-portal.svrs.rs.gov.br/cte/qrCode?chCTe=42261176543210000198570010000045671123456780&amp;tpAmb=1</qrCodCTe>
+    </infCTeSupl>
+  </CTe>
+  <protCTe versao="4.00">
+    <infProt>
+      <tpAmb>1</tpAmb>
+      <verAplic>Teste</verAplic>
+      <chCTe>42261176543210000198570010000045671123456780</chCTe>
+      <dhRecbto>2026-11-05T14:21:02-03:00</dhRecbto>
+      <nProt>342260000123456</nProt>
+      <digVal>AAAA</digVal>
+      <cStat>100</cStat>
+      <xMotivo>Autorizado o uso do CT-e</xMotivo>
+    </infProt>
+  </protCTe>
+</cteProc>
