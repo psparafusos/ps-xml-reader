@@ -9,6 +9,12 @@
 // .xml, nem o UserChoice do Explorer). Na desinstalação sai só o que é do PS
 // Reader: o valor PSReader.xml em OpenWithProgids e a chave PSReader.xml.
 //
+// Na instalação e na atualização, antes do aviso ao Explorer, sai também do
+// "Abrir com" o que sobrou de versões antigas: o instalador ("PS
+// Reader-1.2.3 Setup.exe", que, escolhido por engano, reinstalava a versão
+// antiga) e o executável da 1.0.0 ("Leitor NF-e PS.exe"). Ver
+// limparAbrirComAntigo e src/abrirComAntigo.ts.
+//
 // O Squirrel instala em %LocalAppData%\PSXmlReader\: cada versão fica em
 // app-<versão>\ (que muda a cada atualização) e na raiz fica um executável
 // fixo, com o mesmo nome do executável do app, que abre a versão atual. O
@@ -30,6 +36,15 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  CHAVE_APPLICATIONS,
+  CHAVES_OPEN_WITH_LIST,
+  ehNomeAntigoDoPsReader,
+  mruSemLetras,
+  planoOpenWithList,
+  subchavesNaSaida,
+  valoresNaSaida,
+} from './abrirComAntigo';
 
 export const EXTENSAO = '.psxml';
 const PROGID = 'PSReader.psxml';
@@ -369,19 +384,110 @@ function removerAbrirComXml(): void {
   }
 }
 
+/**
+ * Tempo máximo da limpeza do "Abrir com": passou disso, as próximas chamadas
+ * ficam para a próxima atualização. O normal é bem menos (cada reg.exe leva
+ * dezenas de milissegundos), e o evento inteiro fica dentro dos 10 s.
+ */
+const LIMITE_LIMPEZA_MS = 3000;
+
+/**
+ * Apaga os registros de PS Reader antigo do "Abrir com" (src/abrirComAntigo.ts):
+ * as subchaves de HKCU\Software\Classes\Applications com o nome do
+ * instalador antigo ou do executável da 1.0.0, e os valores de uma letra com
+ * esses nomes no OpenWithList do .xml e do .psxml (e a letra no MRUList).
+ * Mais nada: UserChoice, MuiCache e entradas de outros programas ficam. Cada
+ * remoção vai para o log; um erro registra e segue para o próximo passo.
+ */
+function limparAbrirComAntigo(): void {
+  const inicio = Date.now();
+  const noPrazo = () => {
+    if (Date.now() - inicio <= LIMITE_LIMPEZA_MS) return true;
+    log('limpeza do abrir com: prazo esgotado, o resto fica para depois');
+    return false;
+  };
+
+  let subchaves: string[] = [];
+  try {
+    subchaves = subchavesNaSaida(
+      reg('query', CHAVE_APPLICATIONS),
+      CHAVE_APPLICATIONS,
+    );
+  } catch {
+    // Sem a chave Applications: nada a apagar ali.
+  }
+  for (const nome of subchaves.filter(ehNomeAntigoDoPsReader)) {
+    if (!noPrazo()) break;
+    try {
+      reg('delete', `${CHAVE_APPLICATIONS}\\${nome}`, '/f');
+      log(`  apagada a chave Applications\\${nome}`);
+    } catch {
+      log(`  não apagada a chave Applications\\${nome}`);
+    }
+  }
+
+  for (const chave of CHAVES_OPEN_WITH_LIST) {
+    if (!noPrazo()) break;
+    let saida = '';
+    try {
+      saida = reg('query', chave);
+    } catch {
+      continue; // Extensão sem OpenWithList.
+    }
+    const plano = planoOpenWithList(valoresNaSaida(saida));
+    const apagadas: string[] = [];
+    for (const { letra, dado } of plano.apagar) {
+      if (!noPrazo()) break;
+      try {
+        reg('delete', chave, '/v', letra, '/f');
+        apagadas.push(letra);
+        log(`  apagado o valor ${letra} (${dado}) de ${chave}`);
+      } catch {
+        log(`  não apagado o valor ${letra} (${dado}) de ${chave}`);
+      }
+    }
+    // O MRUList perde só as letras que de fato saíram.
+    const mru = valoresNaSaida(saida).find(
+      (v) => v.nome.toLowerCase() === 'mrulist',
+    );
+    if (!mru || apagadas.length === 0) continue;
+    const novo = mruSemLetras(mru.dado, apagadas);
+    if (novo === mru.dado || !noPrazo()) continue;
+    try {
+      reg('add', chave, '/v', 'MRUList', '/t', 'REG_SZ', '/d', novo, '/f');
+      log(`  MRUList de ${chave}: ${mru.dado} -> ${novo}`);
+    } catch {
+      log(`  MRUList de ${chave} não atualizado (${mru.dado})`);
+    }
+  }
+  log(`limpeza do abrir com: ${Date.now() - inicio} ms`);
+}
+
 /** Grava a associação do .psxml (instalação e atualização). */
 export function registrarAssociacao(): void {
   const exe = executavelDaRaiz();
   log(`executável da raiz: ${exe}`);
   // Os ícones vão para a raiz (não muda entre versões); sem eles, o do app.
   const icones = instalarIcones(process.resourcesPath, path.dirname(exe));
-  for (const args of comandosAssociacaoPsxml(exe, icones?.psxml ?? exe))
-    reg(...args);
+  // Cada parte segue mesmo se a anterior falhar.
+  try {
+    for (const args of comandosAssociacaoPsxml(exe, icones?.psxml ?? exe))
+      reg(...args);
+  } catch {
+    log('associação do .psxml: interrompida');
+  }
   // O .xml no "Abrir com": um erro aqui não desfaz o .psxml já gravado.
   try {
     registrarAbrirComXml(exe, icones?.xml ?? exe);
   } catch {
     log('abrir com do .xml: interrompido');
+  }
+  try {
+    limparAbrirComAntigo();
+  } catch (erro) {
+    log(
+      `limpeza do abrir com: interrompida (${resumo(erro instanceof Error ? erro.message : erro)})`,
+    );
   }
   avisarExplorer();
 }

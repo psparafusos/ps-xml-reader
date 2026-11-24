@@ -24,9 +24,12 @@
 // (boasVindas.cjs: primeira abertura, CNPJ e sugestão das notas) e o
 // cadastro do sistema de gestão nos Documentos de referência
 // (cadastro.cjs), o modo Documento com os documentos fiscais que não são
-// NF-e de produto (documentos.cjs) e as colunas fiscais da Conferência
-// (colunasFiscais.cjs, com capturas em 1366 e 1920), a área do documento
-// com zoom, rolagem e o cartão de destino (zoomRolagem.cjs, t22 e t23). Com
+// NF-e de produto (documentos.cjs, com o CT-e e a NFS-e sem nome de
+// município), o DANFE da NF-e emitida em contingência (contingencia.cjs,
+// um por tipo de emissão, com capturas em 1366 e 1920), as colunas
+// fiscais da Conferência (colunasFiscais.cjs, com capturas em 1366 e
+// 1920) e a área do documento com zoom, rolagem e o cartão de destino
+// (zoomRolagem.cjs, t22 e t23). Com
 // PS_JANELA_CAPTURAS (uma pasta), grava a captura da ferramenta no t14 e no
 // t20, as
 // do painel, as das telas na largura mínima e a do cartão do cadastro.
@@ -48,6 +51,8 @@ const { casosCadastro } = require('./cadastro.cjs');
 const { casosDocumentos, casosSaida } = require('./documentos.cjs');
 const { casosDanfeHtml } = require('./danfeHtml.cjs');
 const { casosZoomRolagem } = require('./zoomRolagem.cjs');
+const { casosImagensReadme, perfisReadme } = require('./imagensReadme.cjs');
+const { casosContingencia } = require('./contingencia.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -73,7 +78,12 @@ for (const p of [dados, notas, destino]) fs.mkdirSync(p, { recursive: true });
 fs.writeFileSync(
   path.join(dados, 'config.json'),
   JSON.stringify(
-    { pastaDestino: destino, cnpjEmpresa: '12345678000195' },
+    {
+      pastaDestino: destino,
+      cnpjEmpresa: '12345678000195',
+      // Rodada das imagens do README: os perfis delas (imagensReadme.cjs).
+      ...(process.env.PS_JANELA_README ? { perfis: perfisReadme() } : {}),
+    },
     null,
     2,
   ),
@@ -125,7 +135,8 @@ app.whenReady().then(() => {
 
 // O primeiro arquivo vai pela linha de comando, como num duplo clique.
 const primeiro = copia('t06-xml-stylesheet.xml');
-process.argv.push(primeiro);
+// Na rodada das imagens do README, o app abre vazio.
+if (!process.env.PS_JANELA_README) process.argv.push(primeiro);
 require(MAIN);
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -412,6 +423,24 @@ async function principal() {
   await avaliar(preparar);
   const base = await avaliar(SONDA);
 
+  // PS_JANELA_README: só as imagens do README (imagensReadme.cjs).
+  if (process.env.PS_JANELA_README) {
+    await casosImagensReadme({
+      caso,
+      avaliar,
+      aguardar,
+      espera,
+      janela: () => janela,
+      abrirNota,
+      irParaConferencia,
+      inicio,
+      tmp,
+      carregarPlanilhaST,
+      estadoLimpo,
+    });
+    return;
+  }
+
   await caso(
     'app://: a tela vem do protocolo próprio e nada sai da pasta',
     async () => {
@@ -593,14 +622,14 @@ async function principal() {
   );
 
   await caso(
-    '2A: nota sem DANFE (contingência) abre na Conferência com o motivo',
+    '2A: nota sem DANFE (tipo de emissão 9, só da NFC-e) abre na Conferência com o motivo',
     async () => {
       const contingencia = path.join(notas, 't2a-contingencia.xml');
       fs.writeFileSync(
         contingencia,
         fs
           .readFileSync(primeiro, 'utf8')
-          .replace('<tpEmis>1</tpEmis>', '<tpEmis>5</tpEmis>'),
+          .replace('<tpEmis>1</tpEmis>', '<tpEmis>9</tpEmis>'),
       );
       abrir(contingencia);
       await aguardar(visivel('nota'));
@@ -610,7 +639,7 @@ async function principal() {
       const msg = await avaliar(
         `document.getElementById('mensagem-texto').textContent`,
       );
-      confere(/contingência/.test(msg), `mensagem: ${msg}`);
+      confere(/Tipo de emissão 9/.test(msg), `mensagem: ${msg}`);
       await avaliar(
         `document.getElementById('mensagem-fechar')?.click(); true`,
       );
@@ -2453,6 +2482,9 @@ async function principal() {
   await casosDocumentos(contexto);
   // Salvar PDF e Imprimir de cada documento do modo Documento.
   await casosSaida(contexto);
+  // DANFE da NF-e emitida em contingência, um por tipo de emissão
+  // (contingencia.cjs, com capturas em 1366 e 1920).
+  await casosContingencia(contexto);
   // Só com PS_JANELA_DANFE: o HTML do DANFE de cada NF-e inventada, para
   // comparar duas versões do app (danfeHtml.cjs).
   await casosDanfeHtml(contexto);

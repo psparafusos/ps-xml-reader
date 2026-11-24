@@ -3,7 +3,9 @@
 //
 // Regras do MOC (DANFE e Código de Barras): nenhuma informação fora do XML no
 // corpo do DANFE; campo sem valor fica em branco com o quadro presente; os
-// únicos textos fixos são os rótulos do modelo.
+// únicos textos fixos são os rótulos do modelo. Na NF-e em contingência
+// (contingencia.ts), os campos abaixo da chave e as expressões que o MOC
+// manda imprimir mudam conforme o tipo de emissão.
 //
 // Paginação: cada folha é um bloco de 210 x 297 mm. Os itens são colocados um
 // a um na folha já renderizada e a altura real é medida; o item que não cabe
@@ -11,6 +13,12 @@
 // imprimir, e só então "FOLHA X/Y" é escrito.
 
 import { barrasCode128C } from './code128';
+import {
+  camposVariaveis,
+  dadosNfeContingencia,
+  expressaoContingencia,
+  linhaEntradaContingencia,
+} from './contingencia';
 import type { DadosDanfe, EnderecoDanfe, ItemDanfe } from './dados';
 import * as f from '../nfe/formato';
 
@@ -211,7 +219,11 @@ function canhoto(d: DadosDanfe): HTMLElement {
   );
 }
 
-function codigoBarras(chave: string): SVGSVGElement | null {
+function codigoBarras(
+  chave: string,
+  rotulo = 'Código de barras da chave de acesso',
+  classe = 'barras',
+): SVGSVGElement | null {
   let b: ReturnType<typeof barrasCode128C>;
   try {
     b = barrasCode128C(chave);
@@ -221,12 +233,12 @@ function codigoBarras(chave: string): SVGSVGElement | null {
   }
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('class', 'barras');
+  svg.setAttribute('class', classe);
   svg.setAttribute('viewBox', `0 0 ${b.total} 1`);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('shape-rendering', 'crispEdges');
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'Código de barras da chave de acesso');
+  svg.setAttribute('aria-label', rotulo);
   const fundo = document.createElementNS(ns, 'rect');
   fundo.setAttribute('x', '0');
   fundo.setAttribute('y', '0');
@@ -245,6 +257,55 @@ function codigoBarras(chave: string): SVGSVGElement | null {
   }
   svg.append(fundo, g);
   return svg;
+}
+
+/**
+ * Campos 1 e 2 de conteúdo variável (MOC 7.0, Anexo II, 3.9): na emissão
+ * normal, SCAN e SVC, a consulta de autenticidade e o protocolo de
+ * autorização de uso; no FS-IA e FS-DA, o código de barras "Dados da NF-e" e
+ * os 36 dígitos dele; no EPEC, a consulta no portal da NF-e e o protocolo do
+ * EPEC (que não vem no XML da NF-e: fica em branco).
+ */
+function camposDaEmissao(
+  d: DadosDanfe,
+  protocolo: string,
+): { campo1: HTMLElement; campo2: HTMLElement } {
+  const tipo = camposVariaveis(d.tpEmis);
+  if (tipo === 'formulario') {
+    const dados = dadosNfeContingencia(d) ?? '';
+    return {
+      campo1: el(
+        'div',
+        'dc cab__consulta',
+        dados
+          ? codigoBarras(
+              dados,
+              'Código de barras dos dados da NF-e',
+              'barras barras--dados',
+            )
+          : null,
+      ),
+      campo2: campo('DADOS DA NF-E', f.chaveAcesso(dados), 'cab__chave-valor'),
+    };
+  }
+  if (tipo === 'epec') {
+    return {
+      campo1: el(
+        'div',
+        'dc cab__consulta',
+        'Consulta de autenticidade no portal da NF-e www.nfe.fazenda.gov.br/portal',
+      ),
+      campo2: campo('PROTOCOLO DE AUTORIZAÇÃO DO EPEC', ''),
+    };
+  }
+  return {
+    campo1: el(
+      'div',
+      'dc cab__consulta',
+      'Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizada',
+    ),
+    campo2: campo('PROTOCOLO DE AUTORIZAÇÃO DE USO', protocolo),
+  };
 }
 
 /**
@@ -294,6 +355,7 @@ function cabecalho(d: DadosDanfe, folha: HTMLElement): HTMLElement {
   const protocolo = p.nProt
     ? juntar([p.nProt, dataHoraSegundos(p.dhRecbto)], ' - ')
     : '';
+  const { campo1, campo2 } = camposDaEmissao(d, protocolo);
 
   // Grade: emitente e bloco DANFE ocupam as linhas 1 a 3; à direita, barras,
   // chave e consulta. Linhas 4 e 5: natureza/protocolo e inscrições.
@@ -328,19 +390,12 @@ function cabecalho(d: DadosDanfe, folha: HTMLElement): HTMLElement {
           x1: 200,
           r0: 3,
           r1: 4,
-          el: el(
-            'div',
-            'dc cab__consulta',
-            'Consulta de autenticidade no portal nacional da NF-e www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizada',
-          ),
+          el: campo1,
         },
         ...linha(
           4,
           [114, 86],
-          [
-            campo('NATUREZA DA OPERAÇÃO', d.ide.natOp),
-            campo('PROTOCOLO DE AUTORIZAÇÃO DE USO', protocolo),
-          ],
+          [campo('NATUREZA DA OPERAÇÃO', d.ide.natOp), campo2],
         ),
         ...linha(
           5,
@@ -710,14 +765,23 @@ function corpoItem(i: ItemDanfe, cols: Coluna[]): HTMLTableSectionElement {
 
 // ---------- informações complementares ----------
 
-/** Palavras das informações complementares, com o parágrafo de cada uma. */
+/**
+ * Palavras das informações complementares, com o parágrafo de cada uma;
+ * `destaque` na expressão obrigatória da contingência.
+ */
 interface Palavra {
   par: number;
   texto: string;
+  destaque?: true;
 }
 
 function palavrasComplementares(d: DadosDanfe): Palavra[] {
+  // Contingência: a expressão do MOC e a entrada em contingência antes de
+  // tudo. Na emissão normal as duas ficam vazias.
+  const expressao = expressaoContingencia(d.tpEmis) ?? '';
   const paragrafos = [
+    expressao,
+    linhaEntradaContingencia(d),
     d.infAdFisco,
     d.infCpl,
     ...d.obsCont.map((o) => juntar([o.xCampo, o.xTexto], ': ')),
@@ -726,22 +790,36 @@ function palavrasComplementares(d: DadosDanfe): Palavra[] {
     p
       .split(/\s+/)
       .filter((t) => t !== '')
-      .map((texto) => ({ par, texto })),
+      .map((texto): Palavra =>
+        par === 0 && p === expressao
+          ? { par, texto, destaque: true }
+          : { par, texto },
+      ),
   );
 }
 
 function escreverPalavras(alvo: HTMLElement, palavras: Palavra[]): void {
   const pars: HTMLElement[] = [];
   let atual = -1;
+  let destaque = false;
   let buffer: string[] = [];
   const fechar = () => {
-    if (buffer.length > 0) pars.push(el('p', 'ad__par', buffer.join(' ')));
+    if (buffer.length > 0) {
+      pars.push(
+        el(
+          'p',
+          destaque ? 'ad__par ad__par--destaque' : 'ad__par',
+          buffer.join(' '),
+        ),
+      );
+    }
     buffer = [];
   };
   for (const p of palavras) {
     if (p.par !== atual) {
       fechar();
       atual = p.par;
+      destaque = p.destaque === true;
     }
     buffer.push(p.texto);
   }

@@ -5,6 +5,7 @@
 // Mesma regra do parser: campo ausente vira string vazia.
 
 import { descendente, filho, filhos, texto } from '../nfe/parser';
+import { TIPOS_EMISSAO_NFE } from './contingencia';
 
 export interface EnderecoDanfe {
   xLgr: string;
@@ -54,6 +55,8 @@ export interface DadosDanfe {
   mod: string;
   tpEmis: string;
   tpAmb: string;
+  /** Entrada em contingência (ide/dhCont e ide/xJust); '' na emissão normal. */
+  contingencia: { dhCont: string; xJust: string };
   ide: {
     nNF: string;
     serie: string;
@@ -210,6 +213,10 @@ export function lerDanfe(raiz: Element): DadosDanfe {
     mod: texto(ide, 'mod'),
     tpEmis: texto(ide, 'tpEmis'),
     tpAmb: texto(ide, 'tpAmb'),
+    contingencia: {
+      dhCont: texto(ide, 'dhCont'),
+      xJust: texto(ide, 'xJust'),
+    },
     ide: {
       nNF: texto(ide, 'nNF'),
       serie: texto(ide, 'serie'),
@@ -305,11 +312,17 @@ export function lerDanfe(raiz: Element): DadosDanfe {
   };
 }
 
-/** Motivo para não gerar o DANFE, ou null se esta versão suporta a nota. */
+/**
+ * Motivo para não gerar o DANFE, ou null se esta versão suporta a nota. Todos
+ * os tipos de emissão da NF-e modelo 55 (normal e as contingências) têm
+ * DANFE; o 9 (contingência off-line) só existe na NFC-e.
+ */
 export function motivoNaoSuportado(d: DadosDanfe): string | null {
-  const emissaoSuportada = ['1', '6', '7'].includes(d.tpEmis);
-  if (d.mod !== '55' || !emissaoSuportada) {
-    return 'DANFE em contingência ou de outro modelo não é suportado nesta versão.';
+  if (d.mod !== '55') {
+    return 'DANFE de outro modelo não é suportado nesta versão.';
+  }
+  if (!(TIPOS_EMISSAO_NFE as readonly string[]).includes(d.tpEmis)) {
+    return `Tipo de emissão ${d.tpEmis || 'ausente'} não é previsto para a NF-e modelo 55: o DANFE não é gerado.`;
   }
   return null;
 }

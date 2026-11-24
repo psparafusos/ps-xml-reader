@@ -12,7 +12,7 @@ contribuição precisa manter isso.
   usa.
 - **Dados e regras de um sistema vão para formatos genéricos documentados.**
   Se um sistema precisa de um arquivo num certo formato, ou de uma regra
-  própria, o app oferece um formato aberto e descrito no README (por exemplo,
+  própria, o app oferece um formato aberto e descrito em `docs/` (por exemplo,
   um perfil exportado em JSON), e cada loja ajusta do lado dela.
 - **Nada fixo de uma loja.** CNPJ, pastas, nomes de perfil e preferências
   ficam na configuração de quem usa (pasta de dados do app), nunca no código.

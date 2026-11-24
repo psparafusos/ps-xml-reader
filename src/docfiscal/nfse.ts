@@ -7,8 +7,9 @@
 //
 // O nome do município não vem nos endereços: só o código IBGE. O DANFSe
 // mostra o nome quando o código é um dos municípios com nome no próprio XML
-// (emissão, prestação, incidência); senão, "IBGE nnnnnnn" e a UF (pelos dois
-// primeiros dígitos do código).
+// (emissão, prestação, incidência); senão, o nome da tabela do IBGE embutida
+// no app; só fora dela, "IBGE nnnnnnn". A UF sai dos dois primeiros dígitos
+// do código.
 
 import {
   filhoXml,
@@ -17,6 +18,7 @@ import {
   todosXml,
   type ElementoXml,
 } from './tipo';
+import { nomeMunicipioIbge } from './municipiosIbge';
 import { descrever, documento, f, juntar } from './modelo';
 
 export interface PessoaNfse {
@@ -264,12 +266,15 @@ function somar(...brutos: string[]): string {
 
 const positivo = (b: string) => b !== '' && Number(b) > 0;
 
-/** Município pelo código IBGE, com o nome se o XML trouxe esse código com nome. */
+/**
+ * Município pelo código IBGE: o nome que o XML trouxe para esse código, senão
+ * o da tabela do IBGE, senão "IBGE nnnnnnn".
+ */
 function municipio(cMun: string, nomes: Map<string, string>, uf = ''): string {
   if (!cMun) return uf;
   const sigla = uf || UF_IBGE[cMun.slice(0, 2)] || '';
-  const nome = nomes.get(cMun);
-  return juntar([nome ?? `IBGE ${cMun}`, sigla], ' / ');
+  const nome = nomes.get(cMun) || nomeMunicipioIbge(cMun) || `IBGE ${cMun}`;
+  return juntar([nome, sigla], ' / ');
 }
 
 // ---------- NFS-e Nacional ----------
@@ -423,7 +428,9 @@ function lerNacional(raiz: ElementoXml): DadosNfse {
     codigoVerificacao: '',
     municipioEmissor: textoXml(inf, 'xLocEmi')
       ? `Município: ${juntar([textoXml(inf, 'xLocEmi'), textoXml(enderEmit, 'UF')], ' / ')}`
-      : '',
+      : textoXml(dps, 'cLocEmi')
+        ? `Município: ${municipio(textoXml(dps, 'cLocEmi'), nomes, textoXml(enderEmit, 'UF'))}`
+        : '',
     ambienteGerador: descrever(
       textoXml(inf, 'ambGer'),
       AMBIENTE_GERADOR,

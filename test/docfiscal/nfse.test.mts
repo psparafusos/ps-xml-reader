@@ -48,7 +48,7 @@ describe('NFS-e ABRASF 2.02', () => {
     assert.equal(d.numeroDps, '321');
     assert.equal(d.prestador.documento, '98.765.432/0001-98');
     assert.equal(d.prestador.nome, 'Locadora Inventada de Veiculos Ltda');
-    assert.equal(d.prestador.municipio, 'IBGE 2800308 / SE');
+    assert.equal(d.prestador.municipio, 'Aracaju / SE');
     assert.equal(d.prestador.codigoCep, '2800308 / 49000-000');
     assert.equal(d.prestador.telefone, '(79) 3333-4444');
     assert.equal(d.prestador.simples, 'Não Optante');
@@ -58,7 +58,7 @@ describe('NFS-e ABRASF 2.02', () => {
       'Avenida de Teste, 2000, Sala 1, Bairro Inventado',
     );
     assert.equal(d.intermediario, null);
-    assert.equal(d.municipioEmissor, 'Município: IBGE 2800308 / SE');
+    assert.equal(d.municipioEmissor, 'Município: Aracaju / SE');
   });
 
   it('serviço, ISS e retenções', () => {
