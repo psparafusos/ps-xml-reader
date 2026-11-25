@@ -188,6 +188,34 @@ describe('ServicoPesado', () => {
     assert.equal(m.reservas.length, 2);
   });
 
+  it('laço travado além da espera com o "spawn" já na fila: usa o filho, sem reserva', async () => {
+    // A falha intermitente do primeiro teste com a máquina carregada: o
+    // executar roda na fase de setImmediate, o "spawn" fica para a volta
+    // seguinte, depois dos timers, e o laço trava mais que a espera.
+    const m = montar({ esperaSubidaMs: 20 });
+    const exec = await new Promise<ReturnType<ServicoPesado['executar']>>((r) =>
+      setImmediate(() => {
+        const e = m.servico.executar(TAREFA);
+        const ate = Date.now() + 60;
+        while (Date.now() < ate) {
+          // trava o laço, como uma máquina carregada
+        }
+        r(e);
+      }),
+    );
+    const f = await pedidoRecebido(() => m.filhos[0]);
+    f.responder({
+      id: exec.id,
+      tipo: 'resultado',
+      resultado: { ok: true, texto: 'x' },
+    });
+    assert.equal((await exec.desfecho).status, 'ok');
+    assert.equal(m.reservas.length, 0);
+    assert.equal(m.servico.emReserva, false);
+    assert.equal(f.morto, false);
+    m.servico.encerrar();
+  });
+
   it('filho que sai antes de subir, ou demora demais: reserva', async () => {
     const saiu = montar({
       criarFilho: () => {
