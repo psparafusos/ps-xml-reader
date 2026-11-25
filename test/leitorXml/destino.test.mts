@@ -211,4 +211,78 @@ describe('destinoDoArquivo', () => {
     );
     assert.ok(Date.now() - inicio < 5000, 'esperou demais');
   });
+
+  it('começo sem resposta e acima do limite da NF-e: leitor (a nota só recusaria)', async () => {
+    const MB = 1024 * 1024;
+    // Arquivo grande recém-gravado: o antivírus segura a abertura.
+    const semResposta = () => new Promise<Uint8Array>(() => {});
+    assert.equal(
+      await destinoDoArquivo(XML, semResposta, async () => 61 * MB),
+      'leitor',
+    );
+    assert.equal(
+      await destinoDoArquivo(
+        XML,
+        () => Promise.reject(new Error('EBUSY')),
+        async () => 61 * MB,
+      ),
+      'leitor',
+    );
+    const emUso = () => Promise.reject(new Error('EBUSY'));
+    // No limite ou abaixo, a nota (a leitura de sempre explica).
+    assert.equal(
+      await destinoDoArquivo(XML, emUso, async () => 50 * MB),
+      'nota',
+    );
+    // Tamanho que também não vem (sumiu ou não responde): nota.
+    assert.equal(
+      await destinoDoArquivo(XML, emUso, () =>
+        Promise.reject(new Error('ENOENT')),
+      ),
+      'nota',
+    );
+    const inicio = Date.now();
+    assert.equal(
+      await destinoDoArquivo(XML, semResposta, () => new Promise(() => {})),
+      'nota',
+    );
+    assert.ok(Date.now() - inicio < 6000, 'esperou demais');
+  });
+
+  it('começo lento dentro do limite da NF-e: espera e decide pela raiz', async () => {
+    // XML que não é NF-e, de 40 MB, cujo começo chega depois de 2,5 s.
+    const lento = () =>
+      new Promise<Uint8Array>((r) =>
+        setTimeout(() => r(bytes('<lote><item/></lote>')), 2500),
+      );
+    assert.equal(
+      await destinoDoArquivo(XML, lento, async () => 40 * 1024 * 1024),
+      'leitor',
+    );
+    // A NF-e lenta continua indo para a nota.
+    const nfeLenta = () =>
+      new Promise<Uint8Array>((r) =>
+        setTimeout(() => r(bytes('<nfeProc>')), 2500),
+      );
+    assert.equal(
+      await destinoDoArquivo(XML, nfeLenta, async () => 40 * 1024 * 1024),
+      'nota',
+    );
+  });
+
+  it('com o começo lido, o tamanho nem é consultado', async () => {
+    let consultou = false;
+    assert.equal(
+      await destinoDoArquivo(
+        XML,
+        async () => bytes('<nfeProc>'),
+        async () => {
+          consultou = true;
+          return 61 * 1024 * 1024;
+        },
+      ),
+      'nota',
+    );
+    assert.equal(consultou, false);
+  });
 });

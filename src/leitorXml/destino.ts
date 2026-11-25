@@ -7,13 +7,18 @@
 //
 // .psxml sempre vai para a nota. Na dúvida (arquivo que não abre, que não
 // responde ou com começo estranho que tem cara de NF-e), também: a leitura
-// de sempre da NF-e dá a mensagem certa. Funções puras, mais a leitura do
-// começo com prazo.
+// de sempre da NF-e dá a mensagem certa. Começo que só demora (arquivo
+// grande recém-gravado, que o antivírus examina inteiro na primeira
+// abertura) não é dúvida: acima do limite da NF-e vai para o leitor
+// genérico, o único que o abre; dentro dele, o começo é esperado mais um
+// pouco (ver destinoDoArquivo). Funções puras, mais a leitura do começo e
+// do tamanho com prazo.
 
-import { open } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { tipoPeloComeco } from '../docfiscal/tipo';
 import { comLimite, ESPERA_CAMINHO_MS } from '../seguranca/arquivo';
+import { LIMITE_NFE_BYTES } from '../seguranca/xml';
 
 export type Destino = 'nota' | 'documento' | 'leitor';
 
@@ -76,13 +81,19 @@ export function raizDoComeco(texto: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Destino pelo nome do arquivo e pelo começo dele (null: não deu para ler). */
+/**
+ * Destino pelo nome do arquivo e pelo começo dele (null: não deu para ler).
+ * Sem o começo, decide pelo tamanho (null: também não se sabe): acima do
+ * limite da NF-e, o leitor genérico; senão, a nota.
+ */
 export function destinoPeloComeco(
   caminho: string,
   comeco: Uint8Array | null,
+  tamanho: number | null = null,
 ): Destino {
   if (path.extname(caminho).toLowerCase() !== '.xml') return 'nota';
-  if (comeco === null) return 'nota';
+  if (comeco === null)
+    return tamanho !== null && tamanho > LIMITE_NFE_BYTES ? 'leitor' : 'nota';
   const texto = textoDoComeco(comeco);
   const raiz = raizDoComeco(texto);
   if (raiz === null) return 'leitor';
@@ -102,19 +113,50 @@ async function lerComeco(caminho: string): Promise<Uint8Array> {
   }
 }
 
+/** Tamanho do arquivo em bytes (só os dados do arquivo, sem abrir o conteúdo). */
+async function lerTamanho(caminho: string): Promise<number> {
+  return (await stat(caminho)).size;
+}
+
 /**
- * Destino do arquivo, lendo o começo com prazo (pasta de rede que não
- * responde, arquivo em uso ou sumido: 'nota', e a leitura de sempre explica).
+ * Quanto mais o começo pode demorar quando o arquivo respondeu ao tamanho e
+ * está dentro do limite da NF-e: o mesmo tempo máximo da leitura da NF-e no
+ * serviço (TEMPO_MAXIMO_MS.nfe em src/servico/principal.ts), que leria o
+ * arquivo inteiro de qualquer jeito se ele fosse para a nota.
+ */
+export const ESPERA_COMECO_LENTO_MS = 15_000;
+
+/** Marca de prazo esgotado (diferente de null, que é erro na leitura). */
+const ESGOTOU = Symbol('esgotou');
+
+/**
+ * Destino do arquivo, lendo o começo com prazo. Arquivo em uso ou sumido
+ * (a leitura falha): 'nota', e a leitura de sempre explica. Começo que não
+ * chega em ESPERA_CAMINHO_MS: o tamanho decide (também com prazo). Acima do
+ * limite da NF-e, o leitor genérico (a nota só recusaria); dentro dele, o
+ * começo ainda é esperado por ESPERA_COMECO_LENTO_MS, para um XML que não é
+ * NF-e não ir para a nota e ser recusado. Arquivo grande recém-gravado cai
+ * aqui: o antivírus examina o arquivo inteiro na primeira abertura (de 1,2 a
+ * 4 s medidos com 60 MB). Sem o tamanho (pasta que não responde): 'nota'.
  */
 export async function destinoDoArquivo(
   caminho: string,
   ler: (caminho: string) => Promise<Uint8Array> = lerComeco,
+  tamanho: (caminho: string) => Promise<number> = lerTamanho,
 ): Promise<Destino> {
   if (path.extname(caminho).toLowerCase() !== '.xml') return 'nota';
-  const comeco = await comLimite(
-    ler(caminho).catch(() => null),
+  const leitura = ler(caminho).catch(() => null);
+  const comeco = await comLimite(leitura, ESPERA_CAMINHO_MS, ESGOTOU);
+  if (comeco !== ESGOTOU && comeco !== null)
+    return destinoPeloComeco(caminho, comeco);
+  const bytes = await comLimite(
+    tamanho(caminho).catch(() => null),
     ESPERA_CAMINHO_MS,
     null,
   );
-  return destinoPeloComeco(caminho, comeco);
+  if (comeco === ESGOTOU && bytes !== null && bytes <= LIMITE_NFE_BYTES) {
+    const tarde = await comLimite(leitura, ESPERA_COMECO_LENTO_MS, null);
+    return destinoPeloComeco(caminho, tarde, bytes);
+  }
+  return destinoPeloComeco(caminho, null, bytes);
 }

@@ -112,7 +112,11 @@ a Conferência, se o perfil estiver com **NF-e abre em: PSXML**); um `.psxml`
 abre direto na aba **PSXML**. Se a nota não tem DANFE no PS Reader
 (contingência ou outro modelo), ela abre na Conferência com o motivo numa
 mensagem. Um XML que não é NF-e abre na aba **XML**, no **Formato
-original**.
+original**. O PS Reader decide pelo começo do arquivo. Se o começo demora
+mais de 2 segundos (por exemplo, um XML grande recém-baixado, que o
+antivírus examina inteiro ao abrir), um XML acima de 50 MB vai direto para a
+aba **XML**, a única que o abre; até 50 MB, o PS Reader espera o começo por
+até 15 segundos e decide por ele.
 
 ### Abas PSXML e XML
 
@@ -1094,15 +1098,17 @@ não faz chamada de rede.
 
 ## Outros comandos
 
-| Comando                                                                          | O que faz                                                                                                                                                                                                           |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run typecheck`                                                              | Verifica os tipos TypeScript                                                                                                                                                                                        |
-| `npm run lint`                                                                   | Roda oxlint e confere a formatação                                                                                                                                                                                  |
-| `npm test`                                                                       | Roda os testes automáticos                                                                                                                                                                                          |
-| `npm run test:janela`                                                            | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal. No fim, apaga as pastas temporárias que criou no `%TEMP%` (test/janela/rodar.cjs) |
-| `PS_JANELA_README=<pasta> npm run test:janela`                                   | Gera as imagens do README (as de `docs/imagens/`) com nota, perfis e cadastro inventados (test/janela/imagensReadme.cjs)                                                                                            |
-| `node scripts/medir-cadastro.mjs <pasta de XMLs> <cadastro.json> [gabarito.csv]` | Mede o motor de casamento do cadastro sobre uma pasta de NF-e; grava `medicao.md` e `nao-casados.csv` na pasta atual ([docs/medidor-cadastro.md](medidor-cadastro.md))                                              |
-| `node scripts/cadastro-csv-para-json.mjs <pasta com os CSV> <cadastro.json>`     | Converte o modelo de planilha do cadastro (`docs/modelo-cadastro`) para o JSON, só se passar no validador                                                                                                           |
+| Comando                                                                          | O que faz                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                                              | Verifica os tipos TypeScript                                                                                                                                                                                                                                                      |
+| `npm run lint`                                                                   | Roda oxlint e confere a formatação                                                                                                                                                                                                                                                |
+| `npm test`                                                                       | Roda os testes automáticos                                                                                                                                                                                                                                                        |
+| `npm run test:janela`                                                            | Gera o pacote e roda o app numa janela oculta com NF-e inventadas de ataque (test/janela): o texto delas tem de aparecer literal. Empacota e roda numa pasta `ps-janela-*` só da rodada (duas worktrees podem rodar ao mesmo tempo) e no fim apaga só ela (test/janela/rodar.cjs) |
+| `PS_JANELA_README=<pasta> npm run test:janela`                                   | Gera as imagens do README (as de `docs/imagens/`) com nota, perfis e cadastro inventados (test/janela/imagensReadme.cjs)                                                                                                                                                          |
+| `PS_JANELA_CASOS=<expressão> npm run test:janela`                                | Roda só os casos cujo nome casa com a expressão regular; com `PS_JANELA_SEM_EMPACOTAR=1`, reaproveita o build que já está em `.vite/`                                                                                                                                             |
+| `PS_JANELA_FALHAS=<pasta> npm run test:janela`                                   | Em cada caso que falhar, grava a captura da janela, o HTML da página e o log do app (o estado da tela e as últimas linhas do log sempre vão para a saída)                                                                                                                         |
+| `node scripts/medir-cadastro.mjs <pasta de XMLs> <cadastro.json> [gabarito.csv]` | Mede o motor de casamento do cadastro sobre uma pasta de NF-e; grava `medicao.md` e `nao-casados.csv` na pasta atual ([docs/medidor-cadastro.md](medidor-cadastro.md))                                                                                                            |
+| `node scripts/cadastro-csv-para-json.mjs <pasta com os CSV> <cadastro.json>`     | Converte o modelo de planilha do cadastro (`docs/modelo-cadastro`) para o JSON, só se passar no validador                                                                                                                                                                         |
 
 ## Estrutura
 

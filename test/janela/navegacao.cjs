@@ -38,6 +38,20 @@ function gerarLote(alvo, mb) {
 }
 
 /**
+ * Apaga um arquivo grande do teste. Logo depois de cancelar a leitura, o
+ * processo do serviço que lia o arquivo pode ainda estar saindo e prender o
+ * arquivo (EPERM no Windows): tenta de novo e, se continuar preso, deixa para
+ * a limpeza da pasta da rodada (rodar.cjs).
+ */
+function apagarTolerante(arquivo) {
+  try {
+    fs.rmSync(arquivo, { force: true, maxRetries: 20, retryDelay: 250 });
+  } catch {
+    // Fica para o fim da rodada.
+  }
+}
+
+/**
  * @param {object} c contexto de executar.cjs: notas, caso, avaliar,
  *   aguardar, confere, espera, rede, abrir, janela (função), primeiro,
  *   visivel, abrirNota, inicio.
@@ -222,7 +236,58 @@ async function casosNavegacao(c) {
         );
         await fecharLeitor();
       } finally {
-        fs.rmSync(grande, { force: true });
+        apagarTolerante(grande);
+      }
+    },
+  );
+
+  // O app decide entre a nota e o leitor pelo começo do arquivo. Arquivo
+  // grande recém-gravado demora a abrir (o antivírus examina o arquivo
+  // inteiro na primeira abertura: de 1,2 a 4 s medidos com 60 MB), e antes
+  // o app desistia em 2 s e mandava para a nota, que recusava ("grande
+  // demais para uma NF-e" acima de 50 MB, "não é uma NF-e" abaixo). Aqui a
+  // abertura do começo é atrasada de propósito, acima e abaixo do limite.
+  await caso(
+    'Navegação: XML grande cujo começo demora a abrir vai para o leitor, acima e abaixo do limite da NF-e',
+    async () => {
+      const fsp = require('node:fs/promises');
+      const original = fsp.open;
+      for (const mb of [55, 40]) {
+        const grande = gerarLote(
+          path.join(notas, `lote-lento-${mb}mb.xml`),
+          mb,
+        );
+        let atrasadas = 0;
+        fsp.open = async (p, ...resto) => {
+          if (path.resolve(String(p)) === path.resolve(grande)) {
+            atrasadas++;
+            await espera(2500);
+          }
+          return original(p, ...resto);
+        };
+        try {
+          c.abrir(grande);
+          await aguardar(cartaoVisivel, 30000, 'a leitura não começou').catch(
+            async (e) => {
+              throw new Error(
+                `${mb} MB: ${e.message}; mensagem: ${await avaliar(`document.getElementById('mensagem-texto')?.textContent ?? ''`)}`,
+              );
+            },
+          );
+          confere(
+            atrasadas > 0,
+            `${mb} MB: a abertura do começo não passou pelo atraso`,
+          );
+          await fecharLeitor();
+          await aguardar(
+            `!${cartaoVisivel}`,
+            10000,
+            'o cartão continuou: a leitura não foi cancelada',
+          );
+        } finally {
+          fsp.open = original;
+          apagarTolerante(grande);
+        }
       }
     },
   );
