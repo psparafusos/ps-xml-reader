@@ -994,7 +994,7 @@ export function montarAreaDocumentos(
       el(
         'p',
         'documento__para-que',
-        'Opcional. Arquivo .json exportado do sistema de gestão da loja no formato "Cadastro do sistema de gestão" (versão 1): fornecedores, produtos, vínculos de código, fatores de conversão e notas já lançadas. Ainda não muda a Conferência: vai servir para sugerir, em cada item da nota, o produto da casa e o fator.',
+        'Opcional. Arquivo .json exportado do sistema de gestão da loja no formato "Cadastro do sistema de gestão" (versão 1): fornecedores, produtos, vínculos de código, fatores de conversão e notas já lançadas. Com ele, a coluna Código da casa da Conferência sugere, em cada item da nota, o produto da casa e o fator.',
       ),
       info &&
         el(
@@ -1030,7 +1030,9 @@ export function montarAreaDocumentos(
       el(
         'p',
         'documento__nota',
-        `${n === 0 ? 'Nenhuma' : n} ${n === 1 ? 'decisão lembrada' : 'decisões lembradas'}`,
+        n === 0
+          ? 'Nenhuma decisão lembrada'
+          : `${n} ${n === 1 ? 'decisão lembrada' : 'decisões lembradas'}`,
         ' · ',
         gerenciar,
       ),

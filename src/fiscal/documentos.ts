@@ -312,7 +312,9 @@ export function resumoTipi(t: TabelaTipi, tipoArquivo: 'xlsx' | 'txt'): Resumo {
   const observacoes: string[] = [];
   for (const g of r.ignoradas) {
     if (IGNORADAS_ESPERADAS.has(g.motivo)) {
-      observacoes.push(`${g.total} linhas ignoradas: ${g.motivo}.`);
+      observacoes.push(
+        `${g.total} ${g.total === 1 ? 'linha ignorada' : 'linhas ignoradas'}: ${g.motivo}.`,
+      );
       continue;
     }
     total += g.total;

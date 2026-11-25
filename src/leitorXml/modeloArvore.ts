@@ -239,7 +239,10 @@ function cortar(s: string, limite: number): [string, number] {
 
 const sobra = (n: number): PedacoArvore => ({
   classe: 'info',
-  texto: ` … mais ${n.toLocaleString('pt-BR')} caracteres (veja na vista Texto)`,
+  texto:
+    n === 1
+      ? ' … mais 1 caractere (veja na vista Texto)'
+      : ` … mais ${n.toLocaleString('pt-BR')} caracteres (veja na vista Texto)`,
 });
 
 /** Pedaços coloridos da linha de um nó. Nunca HTML: a tela põe como texto. */

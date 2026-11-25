@@ -46,6 +46,9 @@ de commit (`git log`).
   trocar a decisão do app, que fica lembrada como "decisão da pessoa".
 - O aviso "Letra reduzida para N pt" da miniatura da folha não quebra mais
   uma palavra por linha.
+- Textos da tela corrigidos: o cartão do cadastro diz que ele alimenta a
+  coluna Código da casa, e as contagens de um saem no singular ("Nenhuma
+  decisão lembrada", "1 sem CFOP (precisa de você) fica como está").
 - README novo, mais curto, com imagens; o texto detalhado foi para o
   manual (`docs/manual.md`) e o histórico para este arquivo.
 

@@ -281,7 +281,10 @@ function tabelaEl(
     }
     mais.hidden = feitas >= linhas.length;
     const faltam = linhas.length - feitas;
-    mais.textContent = `Mostrar mais ${Math.min(faltam, LINHAS_POR_VEZ)} de ${faltam} linhas`;
+    mais.textContent =
+      faltam === 1
+        ? 'Mostrar mais 1 linha'
+        : `Mostrar mais ${Math.min(faltam, LINHAS_POR_VEZ)} de ${faltam} linhas`;
   };
   mais.addEventListener('click', () => {
     desenharMais();
