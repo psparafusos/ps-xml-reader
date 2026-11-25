@@ -14,6 +14,13 @@ const config: ForgeConfig = {
     // Ícones dos arquivos .xml e .psxml (src/associacao.ts): vão para
     // resources\ e, na instalação, para a raiz (PSXmlReader\icones\).
     extraResource: ['./assets/icone-xml.ico', './assets/icone-psxml.ico'],
+    // O test:janela (test/janela/rodar.cjs) empacota numa pasta temporária
+    // só da rodada: o empacotador apaga a sua pasta temporária inteira ao
+    // começar, e a padrão (%TEMP%\electron-packager) é a mesma para todas
+    // as worktrees.
+    ...(process.env.PS_EMPACOTAR_TMP
+      ? { tmpdir: process.env.PS_EMPACOTAR_TMP }
+      : {}),
   },
   rebuildConfig: {},
   makers: [
