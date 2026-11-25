@@ -34,7 +34,8 @@ pontos olhar.
 
 ### DANFE e documentos fiscais fiéis ao XML
 
-O DANFE sai em A4, como pede o manual da NF-e, só com o que está no XML.
+O DANFE sai em A4, como pede o manual da NF-e, só com o que está no XML,
+também quando a nota foi emitida em contingência.
 Também abre NFC-e, CT-e (DACTE), NFS-e Nacional e ABRASF (DANFSe) e eventos
 (carta de correção, cancelamento). Imprima ou salve em PDF.
 
@@ -53,10 +54,13 @@ que você carrega; hoje, com as regras de Sergipe.
 ### Produto da casa pelo cadastro
 
 Importe o cadastro do seu sistema de gestão num formato aberto, em JSON ou
-numa planilha CSV ([docs/formato-cadastro.md](docs/formato-cadastro.md)). O
-motor que liga cada item da nota ao produto da casa e ao fator de conversão
-já está pronto e medido; a sugestão na tela da Conferência vem numa próxima
-versão.
+numa planilha CSV ([docs/formato-cadastro.md](docs/formato-cadastro.md)).
+Com ele, a coluna **Código da casa** mostra em cada item da nota o produto da
+loja e o fator ("12 UN por CX"), com um ícone de confiança. Você confirma ou
+escolhe outro no quadro do item, o app lembra a escolha na próxima nota do
+mesmo fornecedor, e o painel conta quantos itens ainda precisam de você.
+
+![Coluna Código da casa na Conferência, com o produto da loja e a confiança de cada item](docs/imagens/codigo-casa.png)
 
 ![Cadastro do sistema de gestão carregado nos Documentos de referência](docs/imagens/cadastro.png)
 
@@ -117,5 +121,6 @@ the columns you choose, get warned about received quantities, totals that
 don't match, overdue installments or invoices addressed to another company,
 and save your check as a PDF. It also renders the DANFE and other fiscal
 documents (NFC-e, CT-e, NFS-e, events) exactly as in the XML, suggests ST,
-MVA and entry CFOP for each item, and keeps per-user profiles. Nothing
+MVA and entry CFOP for each item, matches each item to the store's own
+product from an imported product catalog, and keeps per-user profiles. Nothing
 leaves your computer. Built with Electron and TypeScript; MIT license.

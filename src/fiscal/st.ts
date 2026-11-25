@@ -326,7 +326,9 @@ function lerAba(
   }
   if (colunas.ncm === undefined) {
     notas.push(
-      `aba sem coluna NCM: ${relatorio.linhasProduto} linhas de produto ficam fora da busca por NCM`,
+      relatorio.linhasProduto === 1
+        ? 'aba sem coluna NCM: 1 linha de produto fica fora da busca por NCM'
+        : `aba sem coluna NCM: ${relatorio.linhasProduto} linhas de produto ficam fora da busca por NCM`,
     );
   }
   return { linhas, relatorio, versao, vigencia };
@@ -392,7 +394,7 @@ function acharColunas(
       if (valores.length > 0 && parecem.length / valores.length >= 0.8) {
         colunas.ncm = c;
         notas.push(
-          `coluna ${letraColuna(c)} sem título tratada como NCM (${parecem.length} de ${valores.length} células com cara de NCM)`,
+          `coluna ${letraColuna(c)} sem título tratada como NCM (${parecem.length} de ${valores.length} ${valores.length === 1 ? 'célula' : 'células'} com cara de NCM)`,
         );
         break;
       }

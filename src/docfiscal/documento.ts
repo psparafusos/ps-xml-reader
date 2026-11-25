@@ -77,7 +77,7 @@ export function prepararDocumento(
   if (!montador)
     return {
       documento: null,
-      motivo: `O PS Reader ainda não monta o ${NOME_AUXILIAR[id.tipo]} deste arquivo. Veja o arquivo no Formato original.`,
+      motivo: `O PS Reader não monta o ${NOME_AUXILIAR[id.tipo]} deste arquivo neste modo. Veja o arquivo no Formato original.`,
     };
   try {
     return {

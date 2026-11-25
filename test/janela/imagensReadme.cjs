@@ -1,6 +1,7 @@
 // Só com PS_JANELA_README (uma pasta): grava as imagens do README
 // (docs/imagens/) a partir do app empacotado, com uma nota inventada de
-// ferragens, o perfil "Recebimento" e o cadastro inventado. Nada real: nota,
+// ferragens, o perfil "Recebimento" e o cadastro inventado (com a nota
+// inventada dele para a coluna Código da casa). Nada real: nota,
 // fornecedor, CNPJ e produtos são inventados. Os PNG saem com paleta de 256
 // cores (ver pngOtimizado), com menos da metade do tamanho. Com a variável,
 // o executar.cjs roda só este passo, com o app aberto vazio e os perfis de
@@ -20,6 +21,14 @@ const CADASTRO = path.join(
   'fixtures',
   'cadastro',
   'cadastro.json',
+);
+/** Nota inventada do cadastro, com sugestões de confiança alta e média. */
+const NOTA_CADASTRO = path.join(
+  __dirname,
+  '..',
+  'fixtures',
+  'cadastro',
+  'nfe-1-alfa-matriz.xml',
 );
 const PERFIL = 'Recebimento';
 
@@ -241,6 +250,9 @@ function perfisReadme() {
     'nItem',
     'codigo',
     'descricao',
+    // Sem cadastro carregado a coluna não entra na tabela; com ele, é a da
+    // imagem codigo-casa.png.
+    'codigoCasa',
     'ncm',
     'cfop',
     'un',
@@ -456,6 +468,48 @@ async function casosImagensReadme(ctx) {
         await espera(300);
         await avaliar(`${cartao}.scrollIntoView({ block: 'start' }); true`);
         await gravar('cadastro.png');
+
+        // Coluna Código da casa, com o cadastro carregado e a nota inventada
+        // dele (destinatário trocado pelo CNPJ inventado da loja, para o
+        // painel não mostrar nota de outra empresa).
+        await estadoLimpo();
+        const notaCasa = path.join(tmp, 'Ferragens-Alfa-NF1201.xml');
+        fs.writeFileSync(
+          notaCasa,
+          fs
+            .readFileSync(NOTA_CADASTRO, 'utf8')
+            .replace(
+              '<dest><CNPJ>99999999000191</CNPJ>',
+              '<dest><CNPJ>12345678000195</CNPJ>',
+            ),
+          'utf8',
+        );
+        await tamanho(1920, 1040);
+        await abrirNota(notaCasa);
+        await irParaConferencia();
+        await aguardar(
+          `!!document.querySelector('#nota td.col-codigoCasa .codigo-casa__codigo')`,
+          15000,
+          'a coluna Código da casa não respondeu',
+        );
+        // O painel e a tabela se refazem quando o motor responde: a rolagem
+        // só depois de assentar.
+        await espera(1500);
+        await avaliar('document.activeElement?.blur(); true');
+        await avaliar(
+          `document.querySelector('.conferencia__expandir')?.click(); true`,
+        );
+        await espera(500);
+        await avaliar(`(() => {
+          const t = document.querySelector('#nota table.tabela--itens');
+          t.scrollIntoView({ block: 'start' });
+          let r = t.parentElement;
+          while (r && !(r.scrollHeight > r.clientHeight && /auto|scroll/.test(getComputedStyle(r).overflowY))) r = r.parentElement;
+          r = r || document.scrollingElement;
+          r.scrollTop = Math.max(0, r.scrollTop - 150);
+          return true;
+        })()`);
+        await gravar('codigo-casa.png');
       } finally {
         await estadoLimpo();
         await avaliar('window.psApi.removerCadastro()').catch(() => null);

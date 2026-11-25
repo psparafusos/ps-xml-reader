@@ -1152,10 +1152,12 @@ export function abrirFerramentaST(c: ContextoST): void {
     const semCfop = resolvidos.length - comCfop;
     const destino = selCfop.valor;
     resumoAplicar.textContent =
-      `${comCfop} de ${resolvidos.length} itens com CFOP para gravar` +
-      (semCfop > 0
-        ? `; ${semCfop} sem CFOP (precisam de você) ficam como estão.`
-        : '.');
+      `${comCfop} de ${resolvidos.length} ${resolvidos.length === 1 ? 'item' : 'itens'} com CFOP para gravar` +
+      (semCfop === 1
+        ? '; 1 sem CFOP (precisa de você) fica como está.'
+        : semCfop > 1
+          ? `; ${semCfop} sem CFOP (precisam de você) ficam como estão.`
+          : '.');
     // O porquê de estar desligado já está no resumo ao lado; a dica é fixa.
     btnAplicar.disabled = !destino || comCfop === 0;
   }

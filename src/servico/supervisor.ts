@@ -203,7 +203,14 @@ export class ServicoPesado {
         }
         resolve(ok);
       };
-      const espera = setTimeout(() => decidir(false), this.o.esperaSubidaMs);
+      // Acabado o prazo, ainda uma volta ao laço antes de desistir: se o
+      // processo principal ficou travado (máquina carregada), o "spawn" pode
+      // já estar na fila, atrás deste timer. Decidir na hora mataria um
+      // filho que subiu e mandaria tudo para a reserva até fechar o app.
+      const espera = setTimeout(
+        () => setImmediate(() => decidir(false)),
+        this.o.esperaSubidaMs,
+      );
       filho.on('spawn', () => decidir(true));
       filho.on('exit', () => {
         decidir(false);
