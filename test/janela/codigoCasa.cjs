@@ -72,6 +72,21 @@ async function casosCodigoCasa(ctx) {
       `document.querySelector('.conferencia__casa')?.innerText.replace(/\\s+/g, ' ').trim() ?? ''`,
     );
 
+  /**
+   * Espera o painel do Código da casa ter todos os `trechos`. O painel
+   * chega depois da tabela (o motor e o contador respondem à parte): com a
+   * máquina ocupada, conferir na hora pegava o contador antigo.
+   */
+  async function aguardarPainel(...trechos) {
+    await aguardar(
+      `(() => { const p = document.querySelector('.conferencia__casa')?.innerText.replace(/\\s+/g, ' ') ?? ''; return ${JSON.stringify(trechos)}.every((t) => p.includes(t)); })()`,
+      15000,
+      `painel com ${trechos.join(' e ')}`,
+    ).catch(async (e) => {
+      throw new Error(`${e.message}; painel: ${await painelCasa()}`);
+    });
+  }
+
   async function abrirQuadro(nItem) {
     await avaliar(
       `document.querySelector('[aria-label="Escolher o produto da casa do item ${nItem}"]').click()`,
@@ -265,11 +280,9 @@ async function casosCodigoCasa(ctx) {
         `[...new Set([...document.querySelectorAll('#nota .codigo-casa__sinal')].map((s) => Math.round(s.getBoundingClientRect().width)))]`,
       );
       confere(tamanhos.length === 1, `tamanhos dos ícones: ${tamanhos}`);
-      const p = await painelCasa();
-      confere(
-        p.includes('Código da casa: 2 de 5 itens definidos') &&
-          p.includes('3 precisam de você'),
-        `painel: ${p}`,
+      await aguardarPainel(
+        'Código da casa: 2 de 5 itens definidos',
+        '3 precisam de você',
       );
       const foco = async () => {
         await avaliar(
@@ -336,11 +349,7 @@ async function casosCodigoCasa(ctx) {
       await usar();
       await aguardar(`!${quadro}`, 5000, 'o quadro não fechou');
       confere((await celula(4)).includes('Sua escolha'), 'item 4');
-      const p = await painelCasa();
-      confere(
-        p.includes('Código da casa: 5 de 5 itens definidos'),
-        `painel: ${p}`,
-      );
+      await aguardarPainel('Código da casa: 5 de 5 itens definidos');
       // A gravação da decisão não espera pela tela: aguarda as três.
       await aguardar(
         `window.psApi.documentos().then((e) => e.codigosCasa.length === 3)`,
@@ -358,53 +367,80 @@ async function casosCodigoCasa(ctx) {
     { limpar: false },
   );
 
-  let psxml = null;
-  await caso(
-    'Código da casa: o .psxml grava as escolhas e reabre com elas',
-    async () => {
-      const desde = Date.now() - 1000;
-      // Sem pasta de destino nesta janela, o app pede a pasta: responde com
-      // a de destino do teste (o diálogo do Windows nunca aparece).
-      const original = dialog.showOpenDialog;
-      dialog.showOpenDialog = async () => ({
-        canceled: false,
-        filePaths: [destino],
-      });
+  /**
+   * Clica no Salvar da Conferência e espera o .psxml novo e o Salvar
+   * terminar (o botão volta a "Salvar"). O arquivo vai para a pasta que a
+   * janela usa (a de destino, ou a da sessão se um .psxml foi aberto por
+   * duplo clique nela); sem pasta, o app abre o seletor, que aqui responde
+   * `escolhida` (o diálogo do Windows nunca aparece). Conta as aberturas do
+   * seletor. Se o app perguntar (arquivo com o mesmo nome),
+   * substitui. Sem o arquivo, a falha diz o que a tela e o app mostravam.
+   */
+  async function salvarPsxml(escolhida = destino) {
+    const desde = Date.now() - 1000;
+    const original = dialog.showOpenDialog;
+    let seletor = 0;
+    dialog.showOpenDialog = async () => {
+      seletor++;
+      return { canceled: false, filePaths: [escolhida] };
+    };
+    const pastaAntes = {
+      principal: await avaliar('window.psApi.pastaDestino()'),
+      tela: await avaliar(
+        `document.getElementById('menu-pasta-caminho').textContent`,
+      ),
+    };
+    const pasta = pastaAntes.principal.caminho ?? escolhida;
+    let gravado = null;
+    try {
       confere(
         !(await avaliar(`document.getElementById('btn-salvar').disabled`)),
         'o Salvar está desabilitado',
       );
       await avaliar(`document.getElementById('btn-salvar').click()`);
       const limite = Date.now() + 15000;
-      while (!psxml && Date.now() < limite) {
-        // Se o app perguntar (arquivo com o mesmo nome), substitui.
-        await avaliar(`(() => {
+      while (Date.now() < limite) {
+        const livre = await avaliar(`(() => {
           const b = [...document.querySelectorAll('dialog[open] button')].find((x) => x.textContent.trim() === 'Substituir');
           if (b) b.click();
-          return true;
+          const s = document.getElementById('btn-salvar');
+          return !s.disabled && document.getElementById('btn-salvar-texto').textContent === 'Salvar';
         })()`);
-        // A pasta de destino, ou a da sessão (a do .psxml aberto antes).
-        psxml = [destino, notas]
-          .flatMap((d) =>
-            fs
-              .readdirSync(d)
-              .filter((n) => n.endsWith('.psxml'))
-              .map((n) => path.join(d, n)),
-          )
-          .find((p) => fs.statSync(p).mtimeMs >= desde);
+        gravado =
+          fs
+            .readdirSync(pasta)
+            .filter((n) => n.endsWith('.psxml'))
+            .map((n) => path.join(pasta, n))
+            .find((p) => fs.statSync(p).mtimeMs >= desde) ?? null;
+        if (gravado && livre) break;
         await espera(200);
       }
+    } finally {
       dialog.showOpenDialog = original;
-      if (!psxml)
-        throw new Error(
-          `o .psxml não foi gravado; tela: ${JSON.stringify(
-            await avaliar(
-              `({ mensagem: document.getElementById('mensagem-texto')?.textContent, dialogos: [...document.querySelectorAll('dialog[open]')].map((d) => d.innerText.slice(0, 300)), destino: ${JSON.stringify(destino)} })`,
-            ),
-          )}; arquivos: ${[...fs.readdirSync(destino), ...fs.readdirSync(notas)].join(', ')}`,
-        );
-      confere(psxml, 'o .psxml não foi gravado');
-      await espera(300);
+    }
+    if (!gravado)
+      throw new Error(
+        `o .psxml não foi gravado em ${pasta} (seletor de pasta aberto ${seletor} vez(es); pasta antes do Salvar: ${JSON.stringify(pastaAntes)}); tela: ${JSON.stringify(
+          await avaliar(
+            `({ mensagem: document.getElementById('mensagem-texto')?.textContent, dialogos: [...document.querySelectorAll('dialog[open]')].map((d) => d.innerText.slice(0, 300)) })`,
+          ),
+        )}; arquivos: ${[...fs.readdirSync(destino), ...fs.readdirSync(notas)].join(', ')}`,
+      );
+    return { psxml: gravado, seletor };
+  }
+
+  let psxml = null;
+  await caso(
+    'Código da casa: o .psxml grava as escolhas e reabre com elas',
+    async () => {
+      // A pasta de destino do teste está no config.json desde o começo: o
+      // Salvar grava sem abrir o seletor de pasta.
+      const r = await salvarPsxml();
+      psxml = r.psxml;
+      confere(
+        r.seletor === 0,
+        `com a pasta de destino definida, o Salvar abriu o seletor de pasta ${r.seletor} vez(es)`,
+      );
       const t = fs.readFileSync(psxml, 'utf8');
       confere(t.includes('<codigosCasa>'), 'sem codigosCasa');
       confere(
@@ -436,10 +472,8 @@ async function casosCodigoCasa(ctx) {
       );
       confere((await celula(5)).includes('12 UN por PCT'), 'item 5 reaberto');
       confere((await celula(3)).includes('Nenhum'), 'item 3 reaberto');
-      confere(
-        (await painelCasa()).includes('5 de 5'),
-        'contador do .psxml reaberto',
-      );
+      // Contador do .psxml reaberto.
+      await aguardarPainel('5 de 5');
     },
     { limpar: false },
   );
