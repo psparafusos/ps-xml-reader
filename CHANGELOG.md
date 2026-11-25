@@ -1,8 +1,159 @@
 # Histórico de mudanças
 
 O que mudou em cada versão do PS Reader, da mais nova para a mais antiga.
-Este histórico ficava no README até a versão 1.2.13; o das versões a partir
-da 1.2.6 está nas mensagens de commit (`git log`).
+O detalhe de cada mudança está no [manual](docs/manual.md) e nas mensagens
+de commit (`git log`).
+
+## Versão 1.2.13
+
+- **Coluna Código da casa** na Conferência: com o cadastro do sistema de
+  gestão carregado, cada item mostra o produto da loja, a descrição curta e
+  o fator ("12 UN por CX"), com um ícone de confiança (alta, média, baixa).
+- Quadro de escolha do Código da casa: o item da nota, as sugestões do app
+  com o motivo, a busca no cadastro, "Nenhum (vincular no sistema de
+  gestão)" e o fator, que dá para mudar.
+- Toda escolha do Código da casa fica lembrada por fornecedor e aparece em
+  Configurações, Decisões lembradas, com o tipo Código da casa.
+- O painel da Conferência mostra "Código da casa: N de M itens definidos",
+  e o clique leva ao próximo item que precisa de você.
+- O `.psxml` guarda o Código da casa de cada item; cópias antigas abrem
+  normalmente. No PDF e na impressão a coluna sai como texto.
+- Ao carregar o primeiro cadastro, o app pergunta uma vez se a coluna
+  Código da casa entra no perfil ativo.
+- A gravação das decisões lembradas tenta de novo quando o Windows recusa
+  por um instante (arquivo aberto pelo antivírus ou pela indexação).
+- **DANFE em contingência**: a NF-e emitida em FS-IA, FS-DA, EPEC, SCAN,
+  SVC-AN ou SVC-RS passa a ter DANFE, com os campos e as expressões que o
+  manual da NF-e pede para cada caso.
+- DACTE e DANFSe mostram o nome do município pela tabela do IBGE quando o
+  XML traz só o código, sem internet.
+- A instalação tira do "Abrir com" do `.xml` e do `.psxml` o instalador e o
+  executável de versões antigas.
+- Só a área do documento rola: a barra de título, a barra preta, as abas e
+  os painéis ficam parados em qualquer zoom.
+- Ctrl + roda e a pinça do touchpad aproximam no ponto embaixo do cursor;
+  Ctrl +, Ctrl - e Ctrl+0 mantêm o centro da parte à vista.
+- Barras de rolagem novas na área do documento: finas em repouso, mais
+  grossas com o mouse em cima, com polegar arrastável e clique no trilho.
+- Nota de outra empresa: um cartão de aviso no painel Leitura no lugar da
+  janela que abria por cima da nota.
+- Nota emitida pela própria loja: cartão de informação e a linha "Nota
+  emitida pela loja" na Conferência, em vez do alerta de outra empresa.
+- Ferramenta ST, MVA e CFOP: o NCM bater com a planilha não basta para o
+  "Sim"; é preciso o CEST da linha ou ST retida na nota, senão o item vai
+  para Confirmar.
+- Ferramenta ST, MVA e CFOP: o lápis **Mudar** em todo item deixa a pessoa
+  trocar a decisão do app, que fica lembrada como "decisão da pessoa".
+- O aviso "Letra reduzida para N pt" da miniatura da folha não quebra mais
+  uma palavra por linha.
+- README novo, mais curto, com imagens; o texto detalhado foi para o
+  manual (`docs/manual.md`) e o histórico para este arquivo.
+
+## Versão 1.2.12
+
+- O editor de colunas oferece todos os campos de item da NF-e, agrupados,
+  com busca por nome, tag e sigla e o filtro "Só os campos desta nota".
+- Coluna ligada cujo campo não existe na nota some da tabela e do PDF e
+  volta na próxima nota que tiver o campo.
+- Campos que o app não conhece aparecem em "Outros campos do XML".
+- Padrão novo com Alíq. IPI e Alíq. ICMS ao lado dos valores; perfis
+  gravados não mudam.
+- Números ordenam como número e datas como data.
+
+## Versão 1.2.11
+
+- **Documentos fiscais**: o modo Documento da aba XML mostra o DACTE do
+  CT-e, o DANFSe da NFS-e Nacional e ABRASF, o DANFE NFC-e e os eventos da
+  NF-e (carta de correção, cancelamento e outros).
+- Imprimir e Salvar PDF nesses documentos, com a mesma pasta de destino e
+  as mesmas perguntas da NF-e, e nome de arquivo no padrão do app.
+- NF-e dos leiautes 1.10 e 2.00 abrem com a data de emissão.
+- NF-e gravada com BOM UTF-8 abre como nota, e não no leitor de XML.
+- **Cadastro do sistema de gestão**: cartão novo nos Documentos de
+  referência para carregar o cadastro da loja num formato aberto (JSON ou
+  planilha CSV convertida), com o relatório da leitura.
+- Tela de boas-vindas na primeira abertura, que pede o CNPJ da loja.
+- O CNPJ da loja deixa de vir no app: sem CNPJ gravado, a verificação de
+  nota de outra empresa não roda.
+- Telas e textos sem nome de nenhum sistema de gestão.
+- Projeto aberto, com licença MIT.
+
+## Versão 1.2.10
+
+- Rascunho contínuo das anotações: com alteração não salva, a nota é
+  guardada sozinha, e ao abrir o app depois de um fechamento inesperado
+  aparece a opção de recuperar, descartar ou decidir depois.
+
+## Versão 1.2.9
+
+- A janela pode ficar mais estreita, até 680 px, para caber ao lado de
+  outro programa numa tela de 1366; a barra da nota fica numa linha só e
+  os botões viram só ícone quando falta espaço.
+- Tamanho salvo abaixo do mínimo sobe para o mínimo sem perder a posição.
+
+## Versão 1.2.8
+
+- Antes de excluir um perfil, substituir por importação ou restaurar o
+  padrão, o app guarda uma cópia do perfil em `perfis-excluidos`, que volta
+  pelo Importar.
+- Importar e exportar perfis mais claros: o caminho do arquivo exportado
+  aparece com Abrir pasta, e a importação com nome repetido oferece
+  Importar como cópia.
+- Renomear perfil com os botões de confirmar e cancelar; o Aplicar grava o
+  nome que está sendo editado.
+- Painel da Conferência: linha do frete (CIF ou FOB e como lançar).
+- Painel da Conferência: vencimentos escritos nas informações
+  complementares, quando a nota não tem duplicatas.
+- Painel da Conferência: lembrete na nota de devolução para não deixar o
+  preço de venda virar custo no sistema de gestão.
+- Títulos curtos nas linhas do frete e da devolução, com a explicação no
+  detalhe.
+- Ferramenta ST: reconhece "não destinados ao uso automotivo" nas
+  informações da nota.
+- Gravação mais segura do `config.json`: arquivo temporário, cópia `.bak`,
+  recuperação dos perfis e gravação garantida mesmo com o arquivo aberto
+  por outro programa.
+- Ícone novo dos arquivos `.xml` no Explorer, legível nos tamanhos
+  pequenos.
+
+## Versão 1.2.7
+
+- **Abas PSXML e XML**: a Conferência numa aba e o arquivo original na
+  outra, com o painel Leitura (modo de leitura, folhas do DANFE e dados do
+  arquivo).
+- Modo **Formato original** da aba XML: o XML montado em seções, tabelas e
+  pares rótulo e valor, com busca em todas as linhas.
+- Barra de título própria e barra preta nova, com os menus do Salvar e do
+  perfil.
+- Sai a leitura protegida; cada perfil escolhe em **NF-e abre em** se o XML
+  abre no DANFE ou na Conferência.
+- Finalidade **Devolução de cliente** na ferramenta ST, MVA e CFOP, e a
+  linha "Nota de devolução" no painel.
+- "Ao imprimir e no PDF": a miniatura da folha no painel da Conferência.
+- Lado a lado fica apagado quando o DANFE tem uma folha só.
+- Barra de rolagem fina por cima do conteúdo, sem a faixa da barra nativa.
+- Animação das abas PSXML e XML (sem movimento com as animações desligadas
+  no Windows).
+- Ícones próprios dos arquivos `.xml` e `.psxml` no Explorer.
+
+## Versão 1.2.6
+
+- XML abre direto: NF-e no DANFE, `.psxml` na Conferência, sem a tela "Como
+  deseja abrir a nota?"; com uma nota aberta, o arquivo novo vai para uma
+  janela nova.
+- XML que não é NF-e abre no leitor de XML (Árvore e Texto, com busca).
+- XML grande e planilhas são lidos num processo à parte, com andamento e
+  Cancelar.
+- O PS Reader aparece no "Abrir com" do `.xml`, sem mudar o programa
+  padrão.
+- Leitura protegida da NF-e, com a opção por perfil (retirada na 1.2.7).
+- DANFE indisponível explicado num diálogo do app.
+- Barra da nota em dois grupos e X no canto das janelas grandes; a página
+  de baixo não rola nem pula com uma janela aberta por cima.
+- Ferramenta ST: aviso de outras linhas da planilha com o mesmo começo de
+  NCM e da frase "não é da linha automotiva" nas informações da nota.
+- Segurança: a tela carrega pelo protocolo próprio do app, que só serve os
+  arquivos do próprio app.
 
 ## Versão 1.2.5
 

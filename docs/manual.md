@@ -109,10 +109,12 @@ com as notas recentes embaixo.
 
 Um XML da NF-e abre direto na aba **XML**, no **DANFE** (ou na aba **PSXML**,
 a Conferência, se o perfil estiver com **NF-e abre em: PSXML**); um `.psxml`
-abre direto na aba **PSXML**. Se a nota não tem DANFE no PS Reader
-(contingência ou outro modelo), ela abre na Conferência com o motivo numa
-mensagem. Um XML que não é NF-e abre na aba **XML**, no **Formato
-original**.
+abre direto na aba **PSXML**. Se a nota não tem DANFE no PS Reader (tipo de
+emissão que não existe na NF-e modelo 55, ou outro modelo), ela abre na
+Conferência com o motivo numa mensagem. NF-e emitida em contingência tem
+DANFE (veja Modo DANFE). CT-e, NFS-e e eventos da NF-e abrem na aba **XML**,
+no modo **Documento** (veja Documentos fiscais); outro XML abre na aba
+**XML**, no **Formato original**.
 
 ### Abas PSXML e XML
 
@@ -125,8 +127,10 @@ com a miniatura do ícone dela:
 - **XML**: o arquivo original, só leitura, com o painel **Leitura** à
   esquerda (mesmo visual e mesmo jeito de recolher do painel da Conferência;
   recolhido, fica a seta para abrir e o ícone do modo de leitura atual):
-  - **Modo de leitura**: **DANFE**, **Formato original** e **.XML** (o
-    leitor de XML de antes: Árvore e Texto, busca, Abrir no Bloco de Notas).
+  - **Modo de leitura**: **Documento** (o DANFE da NF-e, ou o documento
+    auxiliar de outro documento fiscal, veja Documentos fiscais),
+    **Formato original** e **.XML** (o leitor de XML de antes: Árvore e
+    Texto, busca, Abrir no Bloco de Notas).
     O **Formato original** é montado pelo app a partir do próprio XML, sem
     executar nada do arquivo e sem folha de estilo (`xml-stylesheet` é só
     texto): grupos viram seções com título, que recolhem; elementos
@@ -147,10 +151,17 @@ com a miniatura do ícone dela:
     Usa a mesma leitura do .XML, no serviço de leitura pesada; acima do
     limite do modo leve (20 MB, sem árvore) ou com mais de 200 mil
     elementos, mostra o aviso e o botão **Ver no .XML**.
-    O DANFE fica apagado, com o motivo embaixo, num XML que não é nota ("XML
-    incompatível com a visualização em DANFE"), no `.psxml` ("O DANFE só é
-    gerado a partir do XML original da nota.") e numa NF-e sem DANFE no PS
-    Reader; clicar nele mostra o motivo num diálogo (só OK).
+    O Documento fica apagado, com o motivo embaixo, num XML que não é
+    documento fiscal conhecido, no `.psxml` ("O DANFE só é gerado a partir
+    do XML original da nota.") e numa NF-e sem DANFE no PS Reader; clicar
+    nele mostra o motivo num diálogo (só OK).
+  - **Para quem é a nota**: numa NF-e de outra empresa, um cartão de aviso
+    (triângulo amarelo) "Nota de outra empresa"; numa nota que a própria
+    loja emitiu (o CNPJ do emitente é o da loja), um cartão de informação
+    "Nota emitida pela loja". Clicar no cartão mostra o detalhe: quem é o
+    destinatário e o CNPJ da loja. Com o painel recolhido, o ícone do cartão
+    continua à vista e abre o painel. Não abre janela por cima da nota e não
+    sai no PDF nem na impressão.
   - **Folhas** (só no DANFE): **Uma de cada vez**, **Lado a lado** (quantas
     couberem na largura) e **Ajustar à largura** (uma folha ocupando a
     largura da área, acompanhando a janela). Mudar o zoom à mão volta para
@@ -463,9 +474,9 @@ visibilidade padrão.
 
 A janela tem tamanho mínimo de 680 x 560: encaixa na metade de uma tela de
 1366 x 768 a 100%, ao lado de outra janela, e cabe maximizada num 1366 x 768
-com escala de 125% (a conta está em `src/tamanhoJanela.ts`). Sem rolagem
-horizontal na janela: só a tabela de itens rola na horizontal, dentro do
-próprio quadro. Abaixo de 1024 a barra da nota continua numa linha só (abaixo
+com escala de 125% (a conta está em `src/tamanhoJanela.ts`). A janela em si
+nunca rola: só a área do documento rola (veja Zoom e rolagem), e a
+tabela de itens rola na horizontal dentro do próprio quadro. Abaixo de 1024 a barra da nota continua numa linha só (abaixo
 de 960, Início, Abrir outro XML e Imprimir ficam só com o ícone), e o DANFE
 em 100% encolhe até caber na largura (a partir de uns 880 px a folha cabe em
 tamanho real). Ao fechar, a janela guarda em `config.json` (chave `janela`) o
@@ -480,24 +491,45 @@ tela inicial.
 
 ### Atalhos
 
-| Atalho                      | O que faz                                          |
-| --------------------------- | -------------------------------------------------- |
-| Ctrl+O                      | Abrir arquivo (tela inicial e barra da nota)       |
-| Ctrl+S                      | Salvar (.psxml na Conferência, PDF no DANFE)       |
-| Ctrl+P                      | Imprimir, com o mesmo aviso de impressora de cupom |
-| Ctrl + / Ctrl - / Ctrl+roda | Zoom da conferência ou do DANFE                    |
-| Ctrl+0                      | Zoom de volta a 100%                               |
+| Atalho             | O que faz                                          |
+| ------------------ | -------------------------------------------------- |
+| Ctrl+O             | Abrir arquivo (tela inicial e barra da nota)       |
+| Ctrl+S             | Salvar (.psxml na Conferência, PDF no DANFE)       |
+| Ctrl+P             | Imprimir, com o mesmo aviso de impressora de cupom |
+| Ctrl + / Ctrl -    | Zoom do documento, pelo centro da parte à vista    |
+| Ctrl+roda ou pinça | Zoom do documento, pelo ponto embaixo do cursor    |
+| Ctrl+0             | Zoom de volta a 100%                               |
 
 O atalho aparece no texto de ajuda do botão. Se o botão não está na tela ou está
 desabilitado (por exemplo Ctrl+S na tela inicial, ou durante um salvamento), o
 atalho não faz nada. Na anotação, Ctrl+C, Ctrl+V e Ctrl+X seguem normais.
 
-O zoom vale só na área do documento (conferência e DANFE), não na barra nem na
-tela inicial, nos níveis do navegador (50% a 200%). Fora de 100%
+### Zoom e rolagem
+
+O zoom vale só na área do documento (Conferência e Documento), não na barra
+nem na tela inicial, nos níveis do navegador (50% a 200%). Fora de 100%
 aparece no canto o botão **Restaurar 100%**. Cada modo guarda o seu zoom
 enquanto o app está aberto. A impressão e o PDF saem sempre em 100%, e o DANFE
-é sempre paginado em 100%. Com zoom alto o DANFE pode rolar na horizontal, como
-numa página da web.
+é sempre paginado em 100%.
+
+- **Ctrl + roda do mouse** e a **pinça do touchpad** aproximam e afastam
+  mantendo no lugar o ponto que está embaixo do cursor: dá para mirar um
+  campo do DANFE e chegar nele direto.
+- **Ctrl +**, **Ctrl -**, **Ctrl+0** e o botão **Restaurar 100%** mantêm o
+  centro da parte que está à vista.
+
+Só a área do documento rola, na vertical e, quando o documento fica mais
+largo que a área, na horizontal. A barra de título, a barra preta, as abas e
+os painéis da esquerda ficam parados em qualquer zoom, e a janela nunca rola
+de lado. Com pouco zoom, o fundo da área continua preenchendo a tela.
+
+As barras de rolagem da área são do próprio app: finas enquanto nada
+acontece, mais grossas com o mouse em cima ou durante a rolagem. O polegar
+pode ser arrastado, e um clique no trilho rola uma página para aquele lado.
+A barra horizontal só aparece quando há o que rolar de lado. Elas não saem
+no PDF nem na impressão.
+
+### Barra da nota
 
 No alto, a **barra de título própria** (36 px, preta, arrastável; o duplo
 clique maximiza; minimizar, maximizar e fechar são os do Windows): a logo, o
@@ -622,8 +654,27 @@ sempre na ordem do XML.
   folhas repetem o cabeçalho com "FOLHA X/Y".
 - Código de barras CODE-128C da chave desenhado em SVG, sem biblioteca.
 - `tpAmb = 2`: marca d'água "SEM VALOR FISCAL".
-- Contingência (`tpEmis` diferente de 1, 6 e 7) ou modelo diferente de 55: o
-  DANFE não é gerado; a conferência continua funcionando.
+- Todos os tipos de emissão da NF-e modelo 55 têm DANFE (`tpEmis` 1 a 7),
+  conforme o Manual de Orientação do Contribuinte. Na emissão normal o DANFE
+  é o de sempre. Em contingência:
+  - **FS-IA e FS-DA** (formulário de segurança, `tpEmis` 2 e 5): abaixo da
+    chave de acesso entra um segundo código de barras, "Dados da NF-e" (36
+    dígitos), e os mesmos dígitos aparecem em "DADOS DA NF-E", no lugar do
+    protocolo de autorização. A expressão "DANFE em Contingência - impresso
+    em decorrência de problemas técnicos" sai em negrito.
+  - **EPEC** (`tpEmis` 4): a consulta indica o portal da NF-e, e o campo
+    "PROTOCOLO DE AUTORIZAÇÃO DO EPEC" fica em branco, porque esse protocolo
+    não vem no XML da NF-e. A expressão "DANFE impresso em contingência -
+    EPEC regularmente recebida pela Receita Federal do Brasil" sai em
+    negrito.
+  - **SCAN, SVC-AN e SVC-RS** (`tpEmis` 3, 6 e 7): como a emissão normal.
+  - Em todos, as Informações Complementares começam pela expressão
+    obrigatória (quando há) e pela entrada em contingência: a data e a hora
+    e a justificativa, como vieram no XML.
+- Uma NF-e modelo 55 com `tpEmis` 9 (tipo de emissão que só existe na
+  NFC-e) fica sem DANFE, com o motivo na tela; a NFC-e (modelo 65) tem o
+  DANFE NFC-e (veja Documentos fiscais). Nesses casos a conferência continua
+  funcionando.
 - O DANFE só é gerado de um XML original, nunca de um `.psxml`.
 
 O app nunca grava em uma NF-e original (raiz `nfeProc` ou `NFe`): qualquer
@@ -639,6 +690,30 @@ Início ou fechar a janela mostra uma caixa no visual do app com **Salvar**,
 **Salvar cópia...**, **Descartar** e **Cancelar** (Esc). Salvar cópia abre a
 caixa do nome; concluída, a ação pedida segue (fechar, abrir o outro arquivo
 etc.). Cancelar, ali ou na caixa do nome, deixa tudo como estava.
+
+### Documentos fiscais
+
+Além da NF-e, o modo **Documento** da aba XML mostra:
+
+- **NFC-e**: o DANFE NFC-e na bobina de 80 mm, com o QR Code da nota. A
+  NFC-e abre pela tela da nota, com a Conferência, como a NF-e.
+- **CT-e**: o DACTE.
+- **NFS-e Nacional e ABRASF**: o DANFSe. A ABRASF não tem modelo oficial de
+  impressão; o rodapé diz que o documento foi montado pelo PS Reader a
+  partir do XML.
+- **Eventos da NF-e** (carta de correção, cancelamento e outros): uma
+  visualização simples, montada a partir do XML.
+
+**Imprimir** e **Salvar PDF** funcionam neles como na NF-e; a cópia editada
+(`.psxml`) é só da NF-e e da NFC-e.
+
+**Nome do município**: quando o XML do CT-e ou da NFS-e traz só o código
+IBGE do município, sem o nome, o app mostra o nome pela tabela de municípios
+do IBGE que vem dentro dele, sem acessar a internet. No DANFSe, onde antes
+saía "IBGE 2800308 / SE", sai "Aracaju / SE"; no DACTE, o município do
+remetente, do destinatário e das outras partes e os do início e do fim da
+prestação. O nome que vem no XML vale primeiro; um código que não está na
+tabela continua aparecendo como "IBGE" e o número.
 
 ### Avisos da nota (modo Conferência)
 
@@ -658,9 +733,10 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
   conferida em 28/10". Aviso leve e alerta
   forte contam como pontos para olhar. A "já conferida" tem **Abrir em nova
   janela**.
-- **Precisa de você**: cada item com a Qtd recebida diferente da nota; clicar
-  rola a tabela até a linha, destaca a linha por um instante e põe o foco na
-  caixa Qtd recebida dela.
+- **Precisa de você**: com o cadastro carregado, a linha "Código da casa: N
+  de M itens definidos" (veja Coluna Código da casa); e cada item com a Qtd
+  recebida diferente da nota: clicar rola a tabela até a linha, destaca a
+  linha por um instante e põe o foco na caixa Qtd recebida dela.
 - **Ferramentas**: ações sobre a nota aberta, que mostram a prévia antes de
   mudar alguma coisa. A primeira é **ST, MVA e CFOP** (veja abaixo).
   Embaixo, **CFOPs de entrada**: a contagem por valor da coluna de anotação
@@ -706,7 +782,12 @@ modo DANFE.
   detalhe já abre à mostra. Parcela que vence em até 15 dias: aviso leve. Os
   15 dias vêm da chave `diasAvisoVencimento` do `config.json`.
 - **Nota de outra empresa**: o CNPJ do destinatário não é o da loja. Avisa
-  no painel e num pop-up ao abrir. O CNPJ da loja fica na chave
+  no painel da Conferência e, na aba XML, no cartão de aviso do painel
+  Leitura (veja Abas PSXML e XML); nenhuma janela abre por cima da nota.
+- **Nota emitida pela loja**: o CNPJ do emitente é o da loja (uma venda ou
+  uma devolução que a própria loja emitiu). Não é nota de outra empresa: a
+  linha do destinatário vira "Nota emitida pela loja", só como informação,
+  e na aba XML aparece o cartão de informação. O CNPJ da loja fica na chave
   `cnpjEmpresa` do `config.json`, gravada na tela de boas-vindas ou na aba
   Geral das Configurações (conferido com os dígitos verificadores,
   `src/nfe/cnpj.ts`). Não há CNPJ no código: sem CNPJ gravado, esta
@@ -749,8 +830,9 @@ cartão por documento:
   mostra a origem, a data da extração, a data da importação, as quantidades
   e o relatório da leitura (pontos de atenção e observações). Arquivo que
   não segue o formato é recusado com a lista do que falhou, e o cadastro
-  carregado continua valendo; limite de 30 MB. Por enquanto só é carregado:
-  a sugestão do produto da casa e do fator na Conferência vem depois.
+  carregado continua valendo; limite de 30 MB. Com ele carregado, a coluna
+  **Código da casa** da Conferência sugere o produto da loja para cada item
+  (veja Coluna Código da casa).
 
 Cada cartão mostra o ícone e o rótulo da situação, o nome do arquivo em
 uso com um **X** para remover o documento (com confirmação; sem a planilha de
@@ -922,7 +1004,10 @@ observação, não como erro.
   documentos. Na próxima nota o item já vem resolvido, marcado **lembrado**,
   com **desfazer**. Vale para o mesmo NCM e enquanto a linha escolhida
   existir na planilha. A lista fica nas Configurações, aba Decisões
-  lembradas.
+  lembradas. Se o Windows recusar por um instante a gravação do
+  `decisoes.json` (o arquivo aberto pelo antivírus ou pela indexação, por
+  exemplo), o app tenta de novo algumas vezes antes de desistir, e a decisão
+  não se perde por isso.
 - **Aplicar**: grava o CFOP numa coluna de anotação, por padrão **CFOP de
   entrada**; se ela não existir no perfil, o app oferece criar na hora. Sem
   coluna de destino, não aplica. No rodapé, opcionais: **Gravar a MVA em** e
@@ -931,6 +1016,67 @@ observação, não como erro.
   é gravado. Célula já preenchida com outro valor: o app pergunta antes
   (padrão: não substituir). Item sem CFOP definido fica como está. Grava só
   nas anotações (o `.psxml` ao salvar); o XML original nunca muda.
+
+### Coluna Código da casa (modo Conferência)
+
+Com o cadastro do sistema de gestão carregado (veja Documentos de
+referência), a coluna **Código da casa** diz, para cada item da nota, qual é
+o produto da loja: o código como está no cadastro, a descrição curta e,
+quando a unidade da nota não é a de venda, o fator ("12 UN por CX": uma
+caixa da nota são 12 unidades na loja). Ela fica no grupo **Cadastro** do
+**Editar colunas**. Sem cadastro carregado, a coluna aparece apagada no
+editor, com o motivo: "Carregue o cadastro do sistema de gestão em
+Documentos de referência".
+
+**Na primeira vez que um cadastro é carregado**, o app pergunta uma vez se a
+coluna entra no perfil ativo, logo depois da Descrição: **Mostrar a coluna**
+ou **Agora não**. O perfil só muda com o "Mostrar a coluna"; depois, a
+coluna se liga e desliga no Editar colunas, como as outras.
+
+**Ícone de confiança**: ao lado de cada sugestão do app, um círculo com três
+barras (confiança alta), duas (média) ou uma (baixa), em verde, amarelo ou
+vermelho. A confiança diz quanto o caminho que o app usou é seguro: o
+código do fornecedor vinculado ao produto no cadastro é alta; um código
+parecido, de uma filial ou só pelo código de barras é mais baixa (o detalhe
+está em [docs/formato-cadastro.md](formato-cadastro.md)). Escolha da pessoa e
+decisão lembrada levam o check verde.
+
+**Quadro de escolha**: o botão da célula abre o quadro do item, com:
+
+- o item da nota (código, descrição, código de barras e unidade);
+- **Sugestões do app**: os produtos que o app achou, cada um com o motivo
+  (quando acha mais de um pelo mesmo caminho, ele não escolhe e lista
+  todos);
+- **Buscar no cadastro**, por código, descrição ou código de barras;
+- **Nenhum (vincular no sistema de gestão)**, para o item que ainda não tem
+  produto na loja;
+- o **Fator**: quantas unidades de venda há em uma unidade da nota, sugerido
+  pelo cadastro e editável (aceita vírgula, como 0,5).
+
+**Usar** grava a escolha, **Cancelar** deixa como estava e **Voltar ao
+automático** (quando o item tem escolha da pessoa ou decisão lembrada) volta
+para a sugestão do app.
+
+**Decisões lembradas**: toda escolha feita no quadro fica lembrada por
+fornecedor (raiz do CNPJ do emitente) e código do item, e na próxima nota
+desse fornecedor o item já vem com ela, na frente da sugestão do app. Elas
+aparecem nas Configurações, aba **Decisões lembradas**, com o tipo **Código
+da casa**, e podem ser apagadas ali.
+
+**Contador no painel**: na seção **Precisa de você** do painel da
+Conferência, a linha "Código da casa: N de M itens definidos". Contam como
+definidos a escolha da pessoa, a decisão lembrada, o "nenhum" e a sugestão
+de confiança alta; precisam de você as sugestões de confiança média ou
+baixa, os itens com mais de um produto possível e os sem sugestão. Clicar na
+linha leva ao próximo item pendente, um de cada vez; com tudo definido, a
+linha fica com o check verde.
+
+**No `.psxml`**: ao salvar, a cópia leva o produto escolhido para cada item,
+de onde veio (sugestão do app, decisão lembrada ou escolha da pessoa) e o
+fator, e abre de novo do mesmo jeito (veja Cópia editada). Cópias salvas
+antes desta coluna abrem normalmente, sem ela. No PDF e na impressão a
+coluna sai como texto ("1001 · PARAFUSO ... · 100 UN por CX"), sem ícones
+nem botões.
 
 ## Configurações
 
@@ -959,10 +1105,11 @@ para o cartão. Seis abas:
   entrada dele.
 - **Documentos de referência**: os cartões dos documentos e a verificação
   online (ver Documentos de referência).
-- **Decisões lembradas**: as escolhas feitas na ferramenta, com busca
-  (fornecedor, produto ou NCM), filtro por tipo, **Apagar** em cada uma e
-  **Apagar as selecionadas**, com confirmação na própria página. Apagada, a
-  ferramenta volta a perguntar na próxima nota daquele produto.
+- **Decisões lembradas**: as escolhas feitas na ferramenta ST, MVA e CFOP e
+  na coluna Código da casa (tipo **Código da casa**), com busca (fornecedor,
+  produto ou NCM), filtro por tipo, **Apagar** em cada uma e **Apagar as
+  selecionadas**, com confirmação na própria página. Apagada, a ferramenta
+  ou a coluna volta a perguntar na próxima nota daquele produto.
 - **Dados do app**: a pasta dos dados (`%APPDATA%\PS Reader`), com **Abrir
   pasta dos dados**, a tabela **O que o app guarda** e o **Backup**.
 
@@ -995,6 +1142,9 @@ que não veio fica como está.
     </coluna>
   </anotacoes>
   <ordem criterio="vTotal" direcao="desc"/>
+  <codigosCasa>
+    <item nItem="5" codigo="1001" origem="pessoa" fator="100" unidadeCompra="CX" descricao="PARAFUSO SEXTAVADO 1/4 X 2 ZINCADO" unidade="UN"/>
+  </codigosCasa>
 </psCopiaEditada>
 ```
 
@@ -1012,6 +1162,12 @@ configuração é regravada como veio, com o título lido do arquivo.
 ou de uma anotação extra), e `direcao` é `asc` ou `desc`. Cópia antiga, sem
 esse elemento, ou com o critério de uma coluna escondida, abre na ordem da
 nota.
+
+`<codigosCasa>` guarda o que a coluna Código da casa tem para cada item: o
+produto (ou `nenhum="true"`), a `origem` (`motor`, com a `confianca`;
+`lembrada`; ou `pessoa`) e o fator. Cópia sem ele, como as salvas antes
+desta coluna, abre normalmente (o formato está em
+[docs/formato-cadastro.md](formato-cadastro.md)).
 
 A raiz não é `nfeProc` nem `NFe`, então a cópia não é aceita como NF-e por
 nenhum sistema fiscal. Ao abrir uma cópia, o app lê a nota de dentro de
@@ -1054,11 +1210,15 @@ falhar, o ícone fica o do app, como antes, e o log diz o motivo. Na
 desinstalação, a pasta `icones` sai junto com as chaves. Depois de gravar ou apagar as chaves, o app avisa o
 Explorer (SHChangeNotify com SHCNE_ASSOCCHANGED) para atualizar o ícone e o
 nome do tipo. Na instalação e na atualização, o app também apaga os atalhos
-`Leitor NF-e PS.lnk` que sobraram do nome antigo, só no menu Iniciar (pasta
-"PS Parafusos e Segurança LTDA" e raiz de Programas) e na área de trabalho do
+`Leitor NF-e PS.lnk` que sobraram do nome antigo, só no menu Iniciar (a pasta
+antiga do app e a raiz de Programas) e na área de trabalho do
 usuário, e só se o atalho aponta para dentro de `%LocalAppData%\PSXmlReader\`.
 Ainda na instalação e na atualização, antes do aviso ao Explorer, o app tira
-do "Abrir com" o que sobrou de versões antigas (`src/abrirComAntigo.ts`): as
+do "Abrir com" o que sobrou de versões antigas. Para quem usa, o efeito é
+que o "Abrir com" do `.xml` e do `.psxml` deixa de oferecer o instalador
+(que, escolhido por engano, reinstalava a versão antiga) e o executável da
+primeira versão, e passa a mostrar só o PS Reader atual. O que sai, em
+detalhe (`src/abrirComAntigo.ts`): as
 subchaves de `HKCU\Software\Classes\Applications` com nome
 `PS Reader-*Setup.exe` (o instalador, que escolhido por engano reinstalava a
 versão antiga) ou `Leitor NF-e PS*.exe` (o executável da 1.0.0), e os valores
@@ -1149,6 +1309,9 @@ src/
   cadastro/csv.ts       modelo de planilha do cadastro: leitura e conversão para o JSON
   cadastro/casamento.ts motor de casamento: produto da casa, caminho, confiança, fator e avisos
   cadastro/documento.ts o cadastro como documento: leitura, cadastro-info.json e o selo
+  cadastro/codigoCasa.ts coluna Código da casa: escolha de cada item, resumo e texto (puro)
+  codigoCasaTela.ts  célula e quadro de escolha da coluna Código da casa
+  rolagemArea.ts     rolagem da área do documento: barras próprias e zoom pelo cursor
   fiscal/xlsx.ts     leitor mínimo de .xlsx (com fiscal/zip.ts)
   fiscal/st.ts       planilha de ST de Sergipe (Portal ST do CONFAZ)
   fiscal/tipi.ts     TIPI: texto do PDF e tipi.xlsx
@@ -1183,6 +1346,8 @@ src/
   danfe/dados.ts     XML -> campos do DANFE (separado do Nota da conferência)
   danfe/danfe.ts     montagem dos quadros e paginação do DANFE
   danfe/code128.ts   código de barras CODE-128C (tabela, DV, barras)
+  danfe/contingencia.ts o que muda no DANFE emitido em contingência
+  docfiscal/         DANFE NFC-e, DACTE, DANFSe, eventos e a tabela de municípios do IBGE
   danfe/danfe.css    layout do DANFE em mm/pt, tela e impressão
   ipcSeguro.ts       envoltório de todos os canais do IPC (confere o remetente)
   seguranca/argumentos.ts opções de linha de comando perigosas recusadas no app instalado
