@@ -39,6 +39,21 @@ function gerarXml(alvo, mb) {
   return alvo;
 }
 
+/**
+ * Apaga um arquivo do teste. Depois de um filho encerrado ou morto no meio
+ * da leitura, o processo pode levar segundos para sair e ainda prende o
+ * arquivo (EPERM no Windows): tenta de novo e, se continuar preso, deixa
+ * para a limpeza da pasta da rodada (rodar.cjs). Um erro aqui derrubaria
+ * todos os casos seguintes.
+ */
+function apagarTolerante(arquivo) {
+  try {
+    fs.rmSync(arquivo, { force: true, maxRetries: 20, retryDelay: 250 });
+  } catch {
+    // Fica para o fim da rodada.
+  }
+}
+
 async function casosServico(c) {
   const { notas, caso, avaliar, aguardar, confere, espera, rede } = c;
   const { app: electronApp } = require('electron');
@@ -54,10 +69,6 @@ async function casosServico(c) {
     electronApp
       .getAppMetrics()
       .find((m) => m.type === 'Utility' && m.name === NOME_SERVICO);
-  const filhosDoServico = () =>
-    electronApp
-      .getAppMetrics()
-      .filter((m) => m.type === 'Utility' && m.name === NOME_SERVICO);
   // Como num duplo clique (XML que não é NF-e vai para o leitor).
   const abrir = (caminho) => c.abrir(caminho);
   const fechar = async () => {
@@ -260,7 +271,7 @@ async function casosServico(c) {
           );
         } finally {
           dialog.showOpenDialog = original;
-          fs.rmSync(tipi, { force: true });
+          apagarTolerante(tipi);
         }
       },
     );
@@ -288,33 +299,59 @@ async function casosServico(c) {
 
     await caso('Serviço: filho morto no meio da leitura', async () => {
       abrir(xml90);
-      // O app.getAppMetrics() ainda pode listar o filho encerrado no caso
-      // anterior: tenta cada processo do serviço até achar o vivo.
-      let morto = false;
+      // O filho que está lendo é o que o app criou por último e não mandou
+      // encerrar. Não serve procurar pelo pid no app.getAppMetrics(): os
+      // filhos que o app encerrou nos casos anteriores ainda aparecem lá por
+      // até 1,5 s com a máquina ocupada (o kill() já foi chamado, o processo
+      // ainda não saiu), e matar um deles deixava a leitura de verdade
+      // terminar normalmente.
+      const lendo = () =>
+        c.filhosServico
+          .filter(
+            (r) => !r.saiu && r.encerrar.length === 0 && r.pid !== undefined,
+          )
+          .at(-1) ?? null;
+      let alvo = null;
       const limite = Date.now() + 20000;
-      while (!morto && Date.now() < limite) {
-        if (await avaliar(cartaoVisivel)) {
-          for (const m of filhosDoServico()) {
-            try {
-              process.kill(m.pid);
-              morto = true;
-              break;
-            } catch {
-              // Já tinha saído: tenta o próximo.
-            }
-          }
-        }
-        if (!morto) await espera(50);
+      while (!alvo && Date.now() < limite) {
+        if (await avaliar(cartaoVisivel)) alvo = lendo();
+        if (!alvo) await espera(50);
       }
-      confere(morto, 'o filho não apareceu durante a leitura');
-      const t = await aguardarEstado('parou no meio', 15000);
+      const filhos = () =>
+        JSON.stringify(
+          c.filhosServico.map((r) => ({
+            pid: r.pid,
+            encerrado: r.encerrar.length > 0,
+            saiu: r.saiu,
+          })),
+        );
+      confere(alvo, `o filho não apareceu durante a leitura: ${filhos()}`);
+      // Como uma queda: o processo some sem passar pelo app. O pid é do
+      // filho vivo (o app ainda não recebeu a saída dele).
+      const morto = Date.now();
+      process.kill(alvo.pid);
+      // O app só fica sabendo quando o processo sai de fato. Um processo no
+      // meio da leitura do arquivo só termina quando essa leitura do disco
+      // volta; com outras rodadas gravando e lendo arquivos grandes ao mesmo
+      // tempo, isso levou mais de 15 s. O prazo da mensagem conta da saída.
+      const limiteSaida = Date.now() + 60000;
+      while (!alvo.saiu && Date.now() < limiteSaida) await espera(50);
+      confere(
+        alvo.saiu,
+        `o processo ${alvo.pid} não terminou em 60 s depois do kill; filhos: ${filhos()}`,
+      );
+      const t = await aguardarEstado('parou no meio', 15000).catch((e) => {
+        throw new Error(
+          `${e.message}; filho morto: ${alvo.pid} (saiu ${Date.now() - morto} ms depois do kill); filhos: ${filhos()}`,
+        );
+      });
       confere(t.includes('A leitura parou no meio. Tente de novo.'), t);
       await fechar();
       await pequenoFunciona();
       confere(rede.length === 0, `pedidos de rede: ${rede.join(' ')}`);
     });
   } finally {
-    for (const f of [xml40, xml90]) fs.rmSync(f, { force: true });
+    for (const f of [xml40, xml90]) apagarTolerante(f);
   }
 }
 

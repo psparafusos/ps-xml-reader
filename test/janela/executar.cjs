@@ -135,6 +135,43 @@ app.whenReady().then(() => {
   });
 });
 
+// Processos do serviço de leitura pesada que o app cria (utilityProcess),
+// com a hora em que nasceram, os pedidos de encerrar do app (kill) e a
+// saída. O caso "filho morto" acha aqui o filho que está lendo: na lista de
+// processos do app.getAppMetrics() os filhos já encerrados ainda aparecem
+// até saírem de fato: de 1 a 1,5 s com a máquina ocupada, até 34 s com
+// várias rodadas pesadas ao mesmo tempo (medido).
+const filhosServico = [];
+{
+  const { utilityProcess } = require('electron');
+  const fork = utilityProcess.fork.bind(utilityProcess);
+  utilityProcess.fork = (...args) => {
+    const filho = fork(...args);
+    const registro = {
+      filho,
+      pid: undefined,
+      saiu: false,
+      criado: Date.now(),
+      encerrar: [],
+      saida: null,
+    };
+    filho.on('spawn', () => {
+      registro.pid = filho.pid;
+    });
+    filho.on('exit', () => {
+      registro.saiu = true;
+      registro.saida = Date.now();
+    });
+    const kill = filho.kill.bind(filho);
+    filho.kill = () => {
+      registro.encerrar.push(Date.now());
+      return kill();
+    };
+    filhosServico.push(registro);
+    return filho;
+  };
+}
+
 // O primeiro arquivo vai pela linha de comando, como num duplo clique.
 const primeiro = copia('t06-xml-stylesheet.xml');
 // Na rodada das imagens do README, o app abre vazio.
@@ -366,7 +403,9 @@ const SONDA = `(() => ({
  * volta ao estado limpo, para o caso seguinte não falhar junto.
  */
 async function caso(nome, fn, { limpar = true } = {}) {
+  if (filtroCasos && !filtroCasos.test(nome)) return;
   const inicioMs = Date.now();
+  marcarLog(`início do caso: ${nome}`);
   try {
     if (limpar) await estadoLimpo();
     await fn();
@@ -375,10 +414,122 @@ async function caso(nome, fn, { limpar = true } = {}) {
   } catch (erro) {
     resultados.push({ nome, ok: false, erro: String(erro && erro.stack) });
     console.log(`FALHA ${nome}\n  ${String(erro && erro.message)}`);
+    await registrarFalha(nome, erro).catch((e) =>
+      console.log(`  (registro da falha falhou: ${String(e && e.message)})`),
+    );
     await estadoLimpo().catch((e) =>
       console.log(`  (estado limpo falhou: ${String(e && e.message)})`),
     );
   }
+}
+
+// ---------- diagnóstico das falhas ----------
+// Com PS_JANELA_CASOS (expressão regular), roda só os casos cujo nome casa
+// (para repetir um caso isolado; os que dependem de casos anteriores podem
+// precisar deles no filtro também).
+const filtroCasos = process.env.PS_JANELA_CASOS
+  ? new RegExp(process.env.PS_JANELA_CASOS)
+  : null;
+
+/**
+ * Últimas linhas do log do app: o console da página e os avisos e erros do
+ * processo principal, com a hora desde o início da rodada. Vão para a saída
+ * quando um caso falha.
+ */
+const logApp = [];
+const inicioRodada = Date.now();
+function marcarLog(linha) {
+  logApp.push(`${String(Date.now() - inicioRodada).padStart(7)} ms ${linha}`);
+  if (logApp.length > 400) logApp.splice(0, logApp.length - 400);
+}
+for (const nivel of ['warn', 'error']) {
+  const original = console[nivel].bind(console);
+  console[nivel] = (...args) => {
+    marcarLog(`[principal ${nivel}] ${args.map(String).join(' ')}`);
+    original(...args);
+  };
+}
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('console-message', (e) => {
+    marcarLog(`[página ${e.level}] ${e.message}`);
+  });
+  wc.on('render-process-gone', (_ev, d) =>
+    marcarLog(`[página] o processo da tela saiu: ${JSON.stringify(d)}`),
+  );
+});
+
+/** Estado da tela no momento da falha (o que está visível e aberto). */
+const ESTADO_TELA = `(() => {
+  const vis = (e) => !!e && !e.hidden && e.getClientRects().length > 0;
+  const telas = ['vazio', 'danfe', 'nota', 'formato-original']
+    .filter((id) => vis(document.getElementById(id)));
+  const dialogos = [...document.querySelectorAll('dialog[open]')].map((d) =>
+    (d.id || d.className) + ': ' + d.innerText.replace(/\\s+/g, ' ').slice(0, 160));
+  const ativo = document.activeElement;
+  const msg = document.getElementById('mensagem');
+  const leitor = document.querySelector('.leitor-xml__estado');
+  const cartao = document.querySelector('.servico-progresso');
+  return {
+    url: location.href,
+    readyState: document.readyState,
+    telas,
+    dialogos,
+    menuPerfilOculto: document.getElementById('menu-perfil')?.hidden ?? null,
+    perfil: document.getElementById('perfil-nome')?.textContent ?? null,
+    foco: ativo ? ativo.tagName + '#' + ativo.id + '.' + ativo.className : null,
+    mensagem: vis(msg) ? msg.innerText.slice(0, 200) : '',
+    leitor: vis(leitor) ? leitor.innerText.slice(0, 200) : '',
+    cartao: vis(cartao) ? cartao.innerText.slice(0, 200) : '',
+    titulo: document.title,
+  };
+})()`;
+
+/**
+ * Registra o que for preciso para achar a causa de uma falha: o estado da
+ * tela, as janelas abertas, os processos do app e as últimas linhas do log
+ * vão para a saída; com PS_JANELA_FALHAS (uma pasta), grava também a
+ * captura da janela, o HTML da página e o log inteiro.
+ */
+async function registrarFalha(nome, erro) {
+  const { BrowserWindow } = require('electron');
+  const tela = await avaliar(ESTADO_TELA).catch((e) => ({
+    erro: String(e && e.message),
+  }));
+  const janelas = BrowserWindow.getAllWindows().map((w) => ({
+    titulo: w.getTitle(),
+    principal: w === janela,
+  }));
+  const processos = app
+    .getAppMetrics()
+    .map((m) => `${m.type}:${m.name ?? ''}:${m.pid}`);
+  console.log(`  estado da tela: ${JSON.stringify(tela)}`);
+  console.log(`  janelas: ${JSON.stringify(janelas)}`);
+  console.log(`  processos: ${processos.join(' ')}`);
+  console.log('  últimas linhas do log:');
+  for (const l of logApp.slice(-40)) console.log(`    ${l}`);
+  const pasta = process.env.PS_JANELA_FALHAS;
+  if (!pasta) return;
+  const base = path.join(
+    pasta,
+    `${Date.now()}-${nome.replace(/[^\w-]+/g, '_').slice(0, 60)}`,
+  );
+  fs.mkdirSync(pasta, { recursive: true });
+  const img = await janela.webContents.capturePage().catch(() => null);
+  if (img) fs.writeFileSync(`${base}.png`, img.toPNG());
+  const html = await avaliar('document.documentElement.outerHTML').catch(
+    () => '',
+  );
+  fs.writeFileSync(`${base}.html`, html);
+  fs.writeFileSync(
+    `${base}.txt`,
+    [
+      nome,
+      String(erro && erro.stack),
+      JSON.stringify({ tela, janelas, processos }, null, 2),
+      ...logApp,
+    ].join('\n'),
+  );
+  console.log(`  registro gravado em ${base}.*`);
 }
 
 function confere(cond, msg) {
@@ -424,6 +575,12 @@ async function principal() {
   const preparar = `window.__alertas = 0; window.alert = () => { window.__alertas++; }; true`;
   await avaliar(preparar);
   const base = await avaliar(SONDA);
+  // Com o filtro, o caso que roda primeiro pode não ser o que espera a nota
+  // da linha de comando: ela abre antes, para não abrir no meio dele.
+  if (filtroCasos && !process.env.PS_JANELA_README) {
+    await aguardar(visivel('danfe'), 30000, 'a nota inicial não abriu');
+    await fecharAvisosDaNota();
+  }
 
   // PS_JANELA_README: só as imagens do README (imagensReadme.cjs).
   if (process.env.PS_JANELA_README) {
@@ -2478,6 +2635,7 @@ async function principal() {
     pdfNoDestino,
     paginasDoPdf,
     apagarPdfs,
+    filhosServico,
   };
   await casosLeitorXml(contexto);
   // Modo Documento: DANFSe, DACTE, Evento e DANFE NFC-e (documentos.cjs).
