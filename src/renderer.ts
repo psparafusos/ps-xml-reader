@@ -4518,6 +4518,14 @@ window.psApi
 const configCarregada = window.psApi
   .perfis()
   .then((estado) => {
+    // O menu do perfil aberto logo no começo (ou a mudança vinda de outra
+    // janela) já leu os perfis, depois deste pedido: vale a leitura dele, e
+    // o menu aberto não fecha. As duas leituras não voltam em ordem certa.
+    if (perfisAtual) {
+      configAtual = perfisAtual.config;
+      perfilNome.textContent = perfisAtual.nomeAtivo;
+      return;
+    }
     perfisAtual = estado;
     configAtual = estado.config;
     atualizarSeletorPerfil();

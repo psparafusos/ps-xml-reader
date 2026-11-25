@@ -70,12 +70,24 @@ async function casosPerfis(ctx) {
       30000,
       'a tela inicial não voltou',
     );
-    await avaliar(`document.getElementById('btn-perfil').click()`);
+    await avaliar(`(() => {
+      window.__menuLog = [];
+      const m = document.getElementById('menu-perfil');
+      const t0 = performance.now();
+      new MutationObserver(() => window.__menuLog.push(Math.round(performance.now() - t0) + 'ms hidden=' + m.hidden + ' itens=' + m.children.length))
+        .observe(m, { attributes: true, attributeFilter: ['hidden'] });
+      document.getElementById('btn-perfil').click();
+      return true;
+    })()`);
     await aguardar(
       `!!document.querySelector('#menu-perfil:not([hidden]) .perfil-rapido__opcao--gerenciar')`,
       15000,
       'o menu do perfil não abriu',
-    );
+    ).catch(async (e) => {
+      throw new Error(
+        `${e.message}; mudanças do menu: ${JSON.stringify(await avaliar('window.__menuLog'))}`,
+      );
+    });
     await avaliar(
       `document.querySelector('#menu-perfil .perfil-rapido__opcao--gerenciar').click()`,
     );
@@ -181,6 +193,70 @@ async function casosPerfis(ctx) {
       dialog[nome] = original;
     }
   }
+
+  // ---------- menu do perfil logo depois de abrir a janela ----------
+
+  // A tela lê os perfis ao carregar e de novo ao abrir o menu, se a primeira
+  // leitura ainda não voltou. As duas leituras não têm ordem garantida (o
+  // processo principal lê o config.json sem fila): se a da carga voltar por
+  // último, o menu não pode fechar sozinho. Aqui a resposta da carga é
+  // atrasada de propósito e o clique vem antes dela.
+  await caso(
+    'Perfis: o menu do perfil continua aberto quando a carga inicial dos perfis responde depois do clique',
+    async () => {
+      const { ipcMain } = require('electron');
+      const original = ipcMain._invokeHandlers?.get('perfis');
+      confere(typeof original === 'function', 'sem o tratador do canal perfis');
+      let atrasar = true;
+      let pendentes = 0;
+      ipcMain.removeHandler('perfis');
+      ipcMain.handle('perfis', async (event, ...args) => {
+        if (atrasar) {
+          pendentes++;
+          await espera(2000);
+          pendentes--;
+        }
+        return original(event, ...args);
+      });
+      try {
+        await recarregar();
+        // O clique, com a leitura da carga ainda sem resposta.
+        atrasar = false;
+        confere(
+          pendentes > 0,
+          'a leitura da carga já tinha voltado antes do clique',
+        );
+        await avaliar(`document.getElementById('btn-perfil').click(); true`);
+        await aguardar(
+          `!document.getElementById('menu-perfil').hidden`,
+          5000,
+          'o menu do perfil não abriu',
+        );
+        // A resposta atrasada chega com o menu aberto.
+        const limite = Date.now() + 10000;
+        while (pendentes > 0 && Date.now() < limite) await espera(50);
+        confere(pendentes === 0, 'a leitura atrasada não voltou');
+        await espera(500);
+        confere(
+          await avaliar(`!document.getElementById('menu-perfil').hidden`),
+          'o menu do perfil fechou sozinho quando a carga dos perfis respondeu',
+        );
+        confere(
+          (await avaliar(
+            `document.getElementById('perfil-nome').textContent`,
+          )) === (await perfis()).nomeAtivo,
+          'o nome do perfil ativo não apareceu no botão',
+        );
+      } finally {
+        atrasar = false;
+        ipcMain.removeHandler('perfis');
+        ipcMain.handle('perfis', original);
+        await avaliar(
+          `(() => { const m = document.getElementById('menu-perfil'); if (!m.hidden) document.getElementById('btn-perfil').click(); return true; })()`,
+        ).catch(() => {});
+      }
+    },
+  );
 
   // ---------- renomear ----------
 
