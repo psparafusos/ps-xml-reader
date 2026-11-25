@@ -55,6 +55,7 @@ const { casosDanfeHtml } = require('./danfeHtml.cjs');
 const { casosZoomRolagem } = require('./zoomRolagem.cjs');
 const { casosImagensReadme, perfisReadme } = require('./imagensReadme.cjs');
 const { casosContingencia } = require('./contingencia.cjs');
+const { casosCatalogo } = require('./catalogo.cjs');
 
 const RAIZ = path.resolve(__dirname, '..', '..');
 const MAIN = path.join(RAIZ, '.vite', 'build', 'main.cjs');
@@ -83,8 +84,11 @@ fs.writeFileSync(
     {
       pastaDestino: destino,
       cnpjEmpresa: '12345678000195',
-      // Rodada das imagens do README: os perfis delas (imagensReadme.cjs).
-      ...(process.env.PS_JANELA_README ? { perfis: perfisReadme() } : {}),
+      // Rodada das imagens do README e do catálogo visual: os perfis
+      // inventados de imagensReadme.cjs.
+      ...(process.env.PS_JANELA_README || process.env.PS_JANELA_CATALOGO
+        ? { perfis: perfisReadme() }
+        : {}),
     },
     null,
     2,
@@ -137,8 +141,9 @@ app.whenReady().then(() => {
 
 // O primeiro arquivo vai pela linha de comando, como num duplo clique.
 const primeiro = copia('t06-xml-stylesheet.xml');
-// Na rodada das imagens do README, o app abre vazio.
-if (!process.env.PS_JANELA_README) process.argv.push(primeiro);
+// Na rodada das imagens do README e na do catálogo, o app abre vazio.
+if (!process.env.PS_JANELA_README && !process.env.PS_JANELA_CATALOGO)
+  process.argv.push(primeiro);
 require(MAIN);
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -424,6 +429,27 @@ async function principal() {
   const preparar = `window.__alertas = 0; window.alert = () => { window.__alertas++; }; true`;
   await avaliar(preparar);
   const base = await avaliar(SONDA);
+
+  // PS_JANELA_CATALOGO: só o catálogo visual (catalogo.cjs).
+  if (process.env.PS_JANELA_CATALOGO) {
+    await casosCatalogo({
+      caso,
+      avaliar,
+      aguardar,
+      espera,
+      janela: () => janela,
+      abrirNota,
+      irParaConferencia,
+      inicio,
+      tmp,
+      estadoLimpo,
+      abrir,
+      copia,
+      profundoNfe,
+      fecharDialogos,
+    });
+    return;
+  }
 
   // PS_JANELA_README: só as imagens do README (imagensReadme.cjs).
   if (process.env.PS_JANELA_README) {
