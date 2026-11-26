@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "versao": 1,
+    "origem": "Cadastro INVENTADO para os testes do XML de importação",
+    "extraido_em": "2026-11-20"
+  },
+  "fornecedores": [
+    {
+      "cnpj_cpf": "55555555000191",
+      "nome": "Distribuidora Epsilon Inventada",
+      "ativo": true
+    }
+  ],
+  "produtos": [
+    {
+      "codigo": "2001",
+      "descricao": "PARAFUSO FENDA 3 X 20",
+      "unidade": "UN",
+      "codigo_barras": "7890000020016",
+      "ativo": true
+    },
+    {
+      "codigo": "2002",
+      "descricao": "PORCA SEXTAVADA 1/4",
+      "unidade": "UN",
+      "codigo_barras": "000123456",
+      "ativo": true
+    },
+    {
+      "codigo": "2003",
+      "descricao": "ARRUELA LISA 1/4",
+      "unidade": "UN",
+      "ativo": true
+    },
+    {
+      "codigo": "2004",
+      "descricao": "BUCHA DE NYLON 6 MM",
+      "unidade": "UN",
+      "codigo_barras": "7890000020047",
+      "ativo": true
+    },
+    {
+      "codigo": "2005",
+      "descricao": "REBITE POP 4 X 10",
+      "unidade": "UN",
+      "codigo_barras": "7890000020054",
+      "ativo": true
+    },
+    {
+      "codigo": "2006",
+      "descricao": "FITA ISOLANTE 19 MM",
+      "unidade": "UN",
+      "codigo_barras": "7890000020061",
+      "ativo": true
+    },
+    {
+      "codigo": "2099",
+      "descricao": "FITA ISOLANTE ANTIGA",
+      "unidade": "UN",
+      "ativo": false
+    }
+  ],
+  "vinculos": [
+    {
+      "fornecedor": "55555555000191",
+      "codigo_fornecedor": "PF-320",
+      "produto": "2001"
+    },
+    {
+      "fornecedor": "55555555000191",
+      "codigo_fornecedor": "FT-1",
+      "produto": "2099"
+    },
+    {
+      "fornecedor": "55555555000191",
+      "codigo_fornecedor": "BC-6",
+      "produto": "2004"
+    },
+    {
+      "fornecedor": "55555555000191",
+      "codigo_fornecedor": "AR-14",
+      "produto": "2003"
+    },
+    {
+      "fornecedor": "55555555000191",
+      "codigo_fornecedor": "RB-410",
+      "produto": "2005"
+    }
+  ],
+  "fatores": [
+    {
+      "fornecedor": "55555555000191",
+      "produto": "2004",
+      "unidade_compra": "CX",
+      "fator": 12,
+      "ultima_entrada": "2026-10-01"
+    }
+  ],
+  "notas_lancadas": []
+}

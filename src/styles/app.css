@@ -2421,6 +2421,40 @@ ul {
   font-size: var(--fs-sm);
 }
 
+/* Resumo do XML de importação: a contagem e a lista dos itens. */
+.caixa-importacao {
+  width: min(52rem, calc(100vw - 2 * var(--esp-5)));
+}
+
+.importacao__contagem {
+  margin: var(--esp-3) 0;
+  padding-left: var(--esp-5);
+}
+
+.importacao__rolagem {
+  max-height: 40vh;
+  overflow: auto;
+  border: var(--borda) solid var(--cor-borda-suave);
+  border-radius: var(--raio);
+}
+
+.importacao__lista {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.importacao__lista th,
+.importacao__lista td {
+  padding: var(--esp-2);
+  border-bottom: var(--borda) solid var(--cor-borda-suave);
+  text-align: left;
+  vertical-align: top;
+}
+
+.importacao__detalhe {
+  display: block;
+}
+
 .caixa-dialogo__pasta {
   margin-top: var(--esp-2);
   font-size: var(--fs-sm);

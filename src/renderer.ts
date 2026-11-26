@@ -34,6 +34,18 @@ import {
   TITULO_FERRAMENTA_ST,
 } from './ferramentaST';
 import { montarCopia } from './nfe/copia';
+import {
+  AVISO_COPIA_IMPORTACAO,
+  montarImportacao,
+  planejarImportacao,
+  SUFIXO_IMPORTACAO,
+  type DadosCadastroItem,
+} from './nfe/importacao';
+import {
+  AJUDA_IMPORTACAO,
+  confirmarImportacao,
+  motivoSemImportacao,
+} from './importacaoTela';
 import { destinoAnotacao, type TeclaAnotacao } from './nfe/navegacao';
 import { nomeBaseArquivo, problemaNomeArquivo } from './nfe/nome';
 import {
@@ -165,7 +177,7 @@ import {
 } from './configuracoes';
 import { mostrarBoasVindas } from './boasVindas';
 import { criarCodigoCasa } from './codigoCasaTela';
-import { ID_CODIGO_CASA } from './cadastro/codigoCasa';
+import { ID_CODIGO_CASA, type EscolhaCodigoCasa } from './cadastro/codigoCasa';
 import {
   ferramentasPadrao,
   ferramentasVisiveis,
@@ -719,6 +731,8 @@ function copiarAnotacoes(origem: Anotacoes, destino: Anotacoes): void {
 
 /** true se alguma anotação (ou código da casa) mudou desde o último abrir ou salvar. */
 function haAlteracoes(): boolean {
+  // Cópia de importação: não salva .psxml, então nada fica "não salvo".
+  if (aberto?.lido.copiaImportacao) return false;
   if (codigoCasa.alterado()) return true;
   const ids = new Set([...anotacoes.keys(), ...anotacoesGravadas.keys()]);
   for (const id of ids) {
@@ -1654,6 +1668,8 @@ const btnMenuSalvar = $('btn-menu-salvar') as HTMLButtonElement;
 const menuSalvarAjuda = $('menu-salvar-ajuda');
 const menuPdfAjuda = $('menu-pdf-ajuda');
 const btnSalvarCopia = $('btn-salvar-copia') as HTMLButtonElement;
+const btnGerarImportacao = $('btn-gerar-importacao') as HTMLButtonElement;
+const menuImportacaoAjuda = $('menu-importacao-ajuda');
 const aviso = $('aviso');
 const avisoTexto = $('aviso-texto');
 const avisoArquivo = $('aviso-arquivo');
@@ -2464,6 +2480,8 @@ function preencherBarra(n: Nota): void {
   const resto = [textoNumeroSerie(n), aberto?.nome ?? ''].filter(Boolean);
   if (aberto?.lido.copiaEditada)
     resto.push('Cópia editada, sem validade fiscal');
+  if (aberto?.lido.copiaImportacao)
+    resto.push('Cópia para importação, não é a nota original');
   atualizarTituloJanela({ forte: n.emitente.xNome, resto });
   atualizarSeletorPerfil();
   // O nome do arquivo vem primeiro: depois do Salvar cópia, é o da cópia.
@@ -2485,7 +2503,8 @@ function atualizarSeletorDanfe(): void {
   // XML genérico: o motivo vem da leitura (aoLerXml).
   if (generico) return atualizarLeitura();
   if (!aberto) semDocumento = null;
-  else if (aberto.lido.copiaEditada) semDocumento = AVISO_SEM_DOCUMENTO.texto;
+  else if (aberto.lido.copiaEditada || aberto.lido.copiaImportacao)
+    semDocumento = AVISO_SEM_DOCUMENTO.texto;
   else semDocumento = lerDadosDanfe(aberto.texto).motivo;
   atualizarLeitura();
 }
@@ -2502,7 +2521,8 @@ const AVISO_SEM_DOCUMENTO = {
  * motivo e fica onde estava.
  */
 function mostrarDanfe(): void {
-  if (!aberto || aberto.lido.copiaEditada) return;
+  if (!aberto || aberto.lido.copiaEditada || aberto.lido.copiaImportacao)
+    return;
   if (danfeMontado) {
     mostrarTela('documento');
     return;
@@ -2894,9 +2914,14 @@ function carregar(
     if (
       recuperou ||
       lido.copiaEditada ||
+      lido.copiaImportacao ||
       (modo ?? arquivo.modoInicial) === 'conferencia'
     ) {
       mostrarConferencia();
+      if (lido.copiaImportacao) {
+        mostrarMensagem(AVISO_COPIA_IMPORTACAO, 'info');
+        return;
+      }
       if (recuperado?.semOriginal)
         mostrarMensagem(
           `O arquivo desta nota não está mais em ${recuperado.caminho}. A nota foi aberta com a cópia guardada junto das anotações; salve para não perder.`,
@@ -3475,6 +3500,20 @@ function concluirPsxml(
   return false;
 }
 
+/** Texto de por que a cópia de importação aberta não vira .psxml. */
+const SEM_PSXML_IMPORTACAO =
+  'Esta é uma cópia para importação: ela não vira .psxml. Para conferir e salvar a Conferência, abra o XML original da nota.';
+
+/**
+ * Cópia de importação aberta: o .psxml guardaria a cópia como se fosse a
+ * nota original. Mostra o motivo e devolve true (não grava).
+ */
+function recusarPsxmlDaImportacao(): boolean {
+  if (!aberto?.lido.copiaImportacao) return false;
+  mostrarMensagem(SEM_PSXML_IMPORTACAO, 'info');
+  return true;
+}
+
 /**
  * Salvar da Conferência: grava só o .psxml na pasta de destino do botão.
  * true se gravou. O .psxml aberto nessa mesma pasta é regravado sem
@@ -3484,6 +3523,7 @@ function concluirPsxml(
  */
 async function salvarConferencia(): Promise<boolean> {
   if (!aberto) return false;
+  if (recusarPsxmlDaImportacao()) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
   const montada = montarTextoCopia();
@@ -3543,6 +3583,7 @@ async function salvarPdfConferencia(): Promise<boolean> {
  */
 async function salvarCopia(): Promise<boolean> {
   if (!aberto) return false;
+  if (recusarPsxmlDaImportacao()) return false;
   esconderMensagem();
   if (!pastaDestino && !(await escolherPasta())) return false;
   const montada = montarTextoCopia();
@@ -3584,6 +3625,7 @@ const itensMenuSalvar = (): HTMLButtonElement[] =>
     btnMenuSalvar,
     btnSalvarPdf,
     btnSalvarCopia,
+    btnGerarImportacao,
     btnTrocarPasta,
     btnAbrirPasta,
   ].filter((b) => !b.disabled);
@@ -3598,8 +3640,120 @@ function atualizarMenuSalvar(): void {
   menuPdfAjuda.textContent = danfe
     ? `PDF do ${nome} na pasta de destino`
     : 'PDF da Conferência na pasta de destino';
-  // A cópia editada (.psxml) só existe para NF-e.
-  btnSalvarCopia.disabled = generico !== null;
+  // A cópia editada (.psxml) só existe para NF-e (e nunca de uma cópia de
+  // importação).
+  btnSalvarCopia.disabled =
+    generico !== null || aberto?.lido.copiaImportacao === true;
+  const motivo = motivoImportacao();
+  btnGerarImportacao.disabled = motivo !== null;
+  menuImportacaoAjuda.textContent = motivo ?? AJUDA_IMPORTACAO;
+}
+
+/** Por que "Gerar XML de importação" está apagado, ou null. */
+function motivoImportacao(): string | null {
+  return motivoSemImportacao({
+    nfe: aberto !== null && generico === null,
+    copiaImportacao: aberto?.lido.copiaImportacao === true,
+    comCadastro: codigoCasa.comCadastro(),
+    estados: aberto
+      ? aberto.lido.nota.itens.map((i) => codigoCasa.estado(i))
+      : [],
+  });
+}
+
+/** O texto do XML da NF-e aberta (de dentro do .psxml, se for uma cópia editada). */
+function textoDaNfe(): string {
+  if (!aberto) return '';
+  if (!aberto.lido.copiaEditada) return aberto.texto;
+  const { original } = localizarOriginal(lerDocumento(aberto.texto));
+  return new XMLSerializer().serializeToString(original);
+}
+
+/**
+ * "Gerar XML de importação": monta o plano item a item (o código da casa de
+ * cada item e o que o cadastro diz do produto), mostra o resumo e, no Gerar,
+ * grava <nome da nota> - importacao.xml na pasta de destino. Já existe:
+ * pergunta Substituir ou Cancelar, com o foco em Cancelar. O arquivo aberto
+ * e o XML original não mudam. true se gravou.
+ */
+async function gerarImportacao(): Promise<boolean> {
+  if (!aberto) return false;
+  const motivo = motivoImportacao();
+  if (motivo) {
+    mostrarMensagem(`${motivo}.`, 'info');
+    return false;
+  }
+  esconderMensagem();
+  if (!pastaDestino && !(await escolherPasta())) return false;
+  const nota = aberto.lido.nota;
+  const escolhas = new Map<string, EscolhaCodigoCasa>();
+  for (const i of nota.itens) {
+    const e = codigoCasa.estado(i);
+    if (e.situacao === 'definido' && e.escolha?.codigo)
+      escolhas.set(i.nItem, e.escolha);
+  }
+  try {
+    const r = await window.psApi.dadosImportacao({
+      emitente: nota.emitente.CNPJ,
+      itens: nota.itens
+        .filter((i) => escolhas.has(i.nItem))
+        .map((i) => ({
+          nItem: i.nItem,
+          cProd: i.cProd,
+          codigo: escolhas.get(i.nItem)!.codigo!,
+        })),
+    });
+    if (r.status !== 'ok') {
+      mostrarMensagem(
+        'Carregue o cadastro do sistema de gestão em Documentos de referência.',
+        'info',
+      );
+      return false;
+    }
+    const dados = new Map<string, DadosCadastroItem>(
+      r.itens.map(({ nItem, ...d }) => [nItem, d]),
+    );
+    const plano = planejarImportacao(nota.itens, escolhas, dados);
+    const base = nomeBaseArquivo(nota);
+    const nomeArquivo = `${base ?? aberto.nome.replace(/\.[^.]*$/, '').replace(/(-ps|_Conferencia)+$/i, '')}${SUFIXO_IMPORTACAO}`;
+    if (!(await confirmarImportacao(plano, nomeArquivo))) return false;
+    const texto = montarImportacao(textoDaNfe(), plano, new Date());
+    bloquearAcoes(true, true);
+    try {
+      let g = await window.psApi.salvarImportacao(texto, base);
+      if (g.status === 'existe') {
+        const resposta = await perguntar({
+          titulo: 'Arquivo já existe',
+          texto: `O arquivo ${g.nome} já existe em ${abreviarCaminho(g.pasta)}. Substituir pela cópia de importação de agora?`,
+          botoes: [
+            { rotulo: 'Cancelar', valor: 'cancelar' },
+            { rotulo: 'Substituir', valor: 'substituir', perigo: true },
+          ],
+          cancelar: 'cancelar',
+          foco: 'cancelar',
+        });
+        if (resposta === 'cancelar') return false;
+        g = await window.psApi.salvarImportacao(texto, base, {
+          substituir: true,
+        });
+      }
+      if (g.status === 'salvo') {
+        mostrarSucesso('XML de importação gerado', {
+          nome: nomeDoCaminho(g.caminho),
+          pasta: pastaDoCaminho(g.caminho),
+        });
+        return true;
+      }
+      if (g.status === 'erro') mostrarMensagem(g.mensagem, 'erro');
+      return false;
+    } finally {
+      bloquearAcoes(false);
+    }
+  } catch (erro) {
+    mostrarMensagem('Não foi possível gerar o XML de importação.', 'erro');
+    console.error(erro);
+    return false;
+  }
 }
 
 // ---------- arquivo vindo de fora (duplo clique num .psxml) ----------
@@ -3999,6 +4153,10 @@ btnSalvarPdf.addEventListener('click', () => {
 btnSalvarCopia.addEventListener('click', () => {
   fecharMenuSalvar();
   void salvarCopia();
+});
+btnGerarImportacao.addEventListener('click', () => {
+  fecharMenuSalvar();
+  void gerarImportacao();
 });
 btnMenuSalvar.addEventListener('click', () => {
   fecharMenuSalvar();

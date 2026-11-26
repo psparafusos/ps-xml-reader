@@ -628,6 +628,206 @@ async function casosCodigoCasa(ctx) {
     );
   });
 
+  // XML de importação pela tela, com a nota e o cadastro inventados de
+  // test/fixtures/importacao: a opção apagada sem cadastro, o resumo, a
+  // cópia gravada ao lado do .psxml (o original intacto), a pergunta de
+  // substituir com o foco em Cancelar e a cópia aberta com o aviso, sem
+  // DANFE e sem a opção. Independente dos casos de antes: carrega o próprio
+  // cadastro.
+  await caso('Código da casa: Gerar XML de importação pela tela', async () => {
+    const FIX_IMP = path.join(__dirname, '..', 'fixtures', 'importacao');
+    const notaImp = path.join(notas, 'imp-nfe-importacao.xml');
+    fs.copyFileSync(path.join(FIX_IMP, 'nfe-importacao.xml'), notaImp);
+    const bytesAntes = fs.readFileSync(notaImp);
+    // A pasta que a janela usa (a de destino, ou a da sessão se um .psxml
+    // foi aberto por duplo clique nela).
+    const pasta =
+      (await avaliar('window.psApi.pastaDestino()')).caminho ?? destino;
+    const copias = () =>
+      fs.readdirSync(pasta).filter((n) => n.endsWith(' - importacao.xml'));
+    for (const n of copias()) fs.rmSync(path.join(pasta, n));
+    const abrirMenu = async () => {
+      await avaliar(`document.getElementById('btn-salvar-mais').click()`);
+      await aguardar(`!document.getElementById('menu-salvar').hidden`);
+    };
+    const opcao = () =>
+      avaliar(`(() => {
+        const b = document.getElementById('btn-gerar-importacao');
+        return { apagada: b.disabled, ajuda: document.getElementById('menu-importacao-ajuda').textContent };
+      })()`);
+    const fecharMenu = () =>
+      avaliar(
+        `document.getElementById('menu-salvar').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`,
+      );
+    const titulos = () =>
+      avaliar(
+        `[...document.querySelectorAll('dialog[open] .caixa-dialogo__titulo')].map((t) => t.textContent)`,
+      );
+
+    // Sem cadastro: apagada, com o motivo.
+    await avaliar('window.psApi.removerCadastro()');
+    await abrirNota(notaImp);
+    await irParaConferencia();
+    await abrirMenu();
+    const sem = await opcao();
+    confere(
+      sem.apagada && sem.ajuda.startsWith('Carregue o cadastro'),
+      `sem cadastro: ${JSON.stringify(sem)}`,
+    );
+    await fecharMenu();
+
+    // Com o cadastro inventado: o motor define os itens 1, 4, 5 e 6.
+    const original = dialog.showOpenDialog;
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path.join(FIX_IMP, 'cadastro.json')],
+    });
+    try {
+      const r = await avaliar('window.psApi.importarCadastro()');
+      confere(r.status === 'ok', `cadastro: ${r.status}`);
+    } finally {
+      dialog.showOpenDialog = original;
+    }
+    // O motor responde à parte: abre o menu até a opção acender.
+    let com = null;
+    for (let i = 0; i < 60; i++) {
+      await abrirMenu();
+      com = await opcao();
+      if (!com.apagada) break;
+      await fecharMenu();
+      await espera(250);
+    }
+    confere(!com.apagada, `com cadastro: ${JSON.stringify(com)}`);
+    await avaliar(`document.getElementById('btn-gerar-importacao').click()`);
+    await aguardar(
+      `!!document.querySelector('dialog.caixa-importacao[open]')`,
+      15000,
+      'o resumo não abriu',
+    );
+    const resumo = await avaliar(`(() => {
+      const d = document.querySelector('dialog.caixa-importacao[open]');
+      return {
+        contagem: [...d.querySelectorAll('.importacao__contagem li')].map((l) => l.textContent),
+        situacoes: [...d.querySelectorAll('tbody tr')].map((t) => t.dataset.situacao),
+        foco: document.activeElement?.textContent.trim(),
+      };
+    })()`);
+    confere(
+      JSON.stringify(resumo.situacoes) ===
+        JSON.stringify([
+          'vinculado',
+          'sem-produto',
+          'sem-produto',
+          'sem-codigo-barras',
+          'convertido',
+          'sem-fator',
+          'sem-produto',
+        ]),
+      `situações: ${resumo.situacoes}`,
+    );
+    confere(
+      resumo.contagem[0].startsWith('2 itens vão vinculados') &&
+        resumo.contagem[1].startsWith('1 item convertido') &&
+        resumo.contagem[2].startsWith('5 itens ficam como vieram'),
+      `contagem: ${resumo.contagem.join(' | ')}`,
+    );
+    confere(resumo.foco === 'Gerar', `foco no resumo: ${resumo.foco}`);
+    await capturar('importacao-resumo.png');
+    await avaliar(`(() => {
+      const b = [...document.querySelectorAll('dialog.caixa-importacao[open] footer button')].find((x) => x.textContent.trim() === 'Gerar');
+      b.click();
+      return true;
+    })()`);
+    let nomes = [];
+    for (let i = 0; i < 150 && nomes.length === 0; i++) {
+      await espera(100);
+      nomes = copias();
+    }
+    if (nomes.length !== 1)
+      throw new Error(
+        `cópias em ${pasta}: ${nomes}; tela: ${JSON.stringify(
+          await avaliar(
+            `({ mensagem: document.getElementById('mensagem')?.hidden ? '' : document.getElementById('mensagem-texto')?.textContent, aviso: document.getElementById('aviso')?.innerText, dialogos: [...document.querySelectorAll('dialog[open]')].map((d) => d.innerText.slice(0, 300)) })`,
+          ),
+        )}; arquivos: ${fs.readdirSync(pasta).join(', ')}`,
+      );
+    const caminhoCopia = path.join(pasta, nomes[0]);
+    const texto = fs.readFileSync(caminhoCopia, 'utf8');
+    confere(
+      texto.includes('<?ps-reader copia="importacao"') &&
+        !texto.includes('Signature') &&
+        texto.includes('<cEAN>7890000020016</cEAN>') &&
+        texto.includes('<qCom>36.0000</qCom>') &&
+        texto.includes('<vNF>215.00</vNF>'),
+      'conteúdo da cópia',
+    );
+    confere(
+      Buffer.compare(fs.readFileSync(notaImp), bytesAntes) === 0,
+      'o XML original mudou',
+    );
+
+    // De novo: pergunta antes de substituir, com o foco em Cancelar.
+    const antesDeSubstituir = fs.statSync(caminhoCopia).mtimeMs;
+    await abrirMenu();
+    await avaliar(`document.getElementById('btn-gerar-importacao').click()`);
+    await aguardar(
+      `!!document.querySelector('dialog.caixa-importacao[open]')`,
+      15000,
+      'o resumo não abriu de novo',
+    );
+    await avaliar(
+      `[...document.querySelectorAll('dialog.caixa-importacao[open] footer button')].find((x) => x.textContent.trim() === 'Gerar').click()`,
+    );
+    await aguardar(
+      `[...document.querySelectorAll('dialog[open] .caixa-dialogo__titulo')].some((t) => t.textContent === 'Arquivo já existe')`,
+      15000,
+      'não perguntou antes de substituir',
+    );
+    const foco = await avaliar(`document.activeElement?.textContent.trim()`);
+    confere(foco === 'Cancelar', `foco na pergunta: ${foco}`);
+    await avaliar(`document.activeElement.click()`);
+    await espera(500);
+    confere(
+      fs.statSync(caminhoCopia).mtimeMs === antesDeSubstituir,
+      'substituiu depois do Cancelar',
+    );
+    confere((await titulos()).length === 0, 'ficou diálogo aberto');
+
+    // A cópia aberta: aviso, sem DANFE e sem a opção.
+    await inicio();
+    await abrirNota(caminhoCopia, 'nota');
+    const aviso = await avaliar(
+      `document.getElementById('mensagem').hidden ? '' : document.getElementById('mensagem-texto').textContent`,
+    );
+    confere(
+      aviso.includes('cópia gerada pelo PS Reader para importar') &&
+        aviso.includes('não a nota original'),
+      `aviso: ${aviso}`,
+    );
+    const titulo = await avaliar(
+      `document.getElementById('titulo-janela-textos').textContent`,
+    );
+    confere(
+      titulo.includes('Cópia para importação, não é a nota original'),
+      `título: ${titulo}`,
+    );
+    const leitura = await avaliar(
+      `document.getElementById('painel-leitura')?.textContent ?? ''`,
+    );
+    confere(
+      leitura.includes('O DANFE só é gerado a partir do XML original da nota.'),
+      'o painel Leitura não diz que a cópia não gera DANFE',
+    );
+    await abrirMenu();
+    const naCopia = await opcao();
+    confere(
+      naCopia.apagada && naCopia.ajuda.includes('já é uma cópia de importação'),
+      `na cópia: ${JSON.stringify(naCopia)}`,
+    );
+    await fecharMenu();
+    fs.rmSync(caminhoCopia, { force: true });
+  });
+
   // Volta o cadastro, as decisões e o perfil como estavam (os casos
   // seguintes começam sem cadastro).
   await caso('Código da casa: limpeza', async () => {

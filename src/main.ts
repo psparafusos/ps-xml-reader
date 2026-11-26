@@ -97,6 +97,7 @@ import {
 } from './leitorXml/principal';
 import { lerNfeNoServico } from './servico/principal';
 import { problemaNomeArquivo } from './nfe/nome';
+import { ehCopiaImportacao, SUFIXO_IMPORTACAO } from './nfe/importacao';
 import {
   ESPERA_CAMINHO_MS,
   comLimite,
@@ -2231,6 +2232,11 @@ interface OpcoesGravar {
   semPergunta?: (destino: string) => boolean;
   /** O renderer já perguntou e a pessoa escolheu Substituir. */
   substituir?: boolean;
+  /**
+   * Destino que já existe e não pode ser substituído nem com `substituir`:
+   * devolve o motivo (a gravação é recusada), ou null.
+   */
+  recusarExistente?: (destino: string) => Promise<string | null>;
 }
 
 /**
@@ -2288,6 +2294,13 @@ async function gravarSaidas(
       return { status: 'erro', mensagem };
     }
   }
+
+  if (opcoes.recusarExistente)
+    for (const destino of destinos) {
+      if (!(await existe(destino))) continue;
+      const motivo = await opcoes.recusarExistente(destino);
+      if (motivo) return { status: 'erro', mensagem: motivo };
+    }
 
   const existentes: string[] = [];
   for (const destino of destinos) {
@@ -2595,6 +2608,51 @@ tratar(
       if (!(await existe(path.join(pasta, `${nome}${extensao}`))))
         return { status: 'ok', pasta, nome };
     }
+  },
+);
+
+/**
+ * XML de importação (menu do Salvar): grava <base> - importacao.xml na pasta
+ * de destino, ao lado do .psxml. O texto tem de ser uma cópia de importação
+ * (com a marca do app). Já existe: volta 'existe' (o renderer pergunta) e,
+ * mesmo com Substituir, só grava por cima de outra cópia de importação,
+ * nunca de um XML que não tenha a marca (a nota original, por exemplo).
+ */
+tratar(
+  'salvar-importacao',
+  async (
+    event,
+    texto: unknown,
+    base: unknown,
+    opcoes: unknown,
+  ): Promise<ResultadoSalvarImportacao> => {
+    if (typeof texto !== 'string' || !ehCopiaImportacao(texto))
+      return { status: 'erro', mensagem: 'XML de importação inválido.' };
+    const r = await gravarSaidas(
+      event,
+      base,
+      (pasta, b) => [
+        { destino: path.join(pasta, `${b}${SUFIXO_IMPORTACAO}`), texto },
+      ],
+      {
+        substituir: opcoesDoRenderer(opcoes).substituir,
+        recusarExistente: async (destino) => {
+          let inicio = '';
+          try {
+            inicio = (await readFile(destino, 'utf8')).slice(0, 1000);
+          } catch {
+            // Sem conseguir ler, não dá para saber o que é: recusa.
+          }
+          return ehCopiaImportacao(inicio)
+            ? null
+            : `Já existe ${path.basename(destino)} na pasta de destino e ele não é uma cópia de importação gerada pelo app. Nada foi gravado; renomeie ou mova esse arquivo.`;
+        },
+      },
+    );
+    if (r.status === 'cancelado')
+      return { status: 'erro', mensagem: 'Gravação cancelada.' };
+    if (r.status !== 'salvo') return r;
+    return { status: 'salvo', caminho: r.destinos[0] };
   },
 );
 

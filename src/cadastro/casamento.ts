@@ -551,6 +551,22 @@ const formatarValor = (v: number) =>
     maximumFractionDigits: 4,
   });
 
+/**
+ * Produtos para os quais o emitente tem vínculo exato deste código (o
+ * caminho (a)), na ordem dos códigos. Usado no XML de importação: o cProd
+ * só muda quando aponta para outro produto.
+ */
+export function vinculosDoCodigo(
+  ind: IndiceCadastro,
+  emitente: string | null,
+  cProd: string,
+): string[] {
+  if (!emitente) return [];
+  return [
+    ...(ind.vinculoExato.get(emitente)?.get(chaveExata(cProd)) ?? []),
+  ].sort(compararCodigo);
+}
+
 /** CNPJs da mesma raiz do emitente, sem ele. */
 export function filiaisDo(ind: IndiceCadastro, cnpj: string | null): string[] {
   const r = cnpj ? raizCnpj(cnpj) : null;

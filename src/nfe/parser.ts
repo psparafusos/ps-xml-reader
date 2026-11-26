@@ -9,6 +9,7 @@ import {
   escolhaDeAtributos,
   type EscolhaCodigoCasa,
 } from '../cadastro/codigoCasa';
+import { ehCopiaImportacao } from './importacao';
 import { ArquivoRecusadoError, verificarXmlSeguro } from '../seguranca/xml';
 import { lerCamposItem } from './catalogo';
 import { ehColunaAnotacao } from './config';
@@ -365,6 +366,11 @@ export interface ArquivoLido {
   ordem: { criterio: string; direcao: 'asc' | 'desc' } | null;
   /** Código da casa de cada item gravado na cópia editada (vazio se não há). */
   codigosCasa: Map<string, EscolhaCodigoCasa>;
+  /**
+   * true quando o arquivo é uma cópia de importação gerada pelo app (marca no
+   * topo, src/nfe/importacao.ts): não é a nota original.
+   */
+  copiaImportacao: boolean;
 }
 
 /**
@@ -381,6 +387,7 @@ export function lerArquivo(xml: string): ArquivoLido {
     titulosAnotacoes: titulos,
     ordem: lerOrdem(copia),
     codigosCasa: lerCodigosCasa(copia),
+    copiaImportacao: copia === null && ehCopiaImportacao(xml),
   };
 }
 

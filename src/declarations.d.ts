@@ -319,6 +319,22 @@ type ResultadoBuscaCasa =
   | { status: 'sem-cadastro' }
   | { status: 'ok'; produtos: ProdutoBuscaCasa[] };
 
+/** O que o cadastro diz do produto escolhido em cada item (XML de importação). */
+type ResultadoDadosImportacao =
+  | { status: 'sem-cadastro' }
+  | {
+      status: 'ok';
+      itens: ({
+        nItem: string;
+      } & import('./nfe/importacao').DadosCadastroItem)[];
+    };
+
+/** Gravar o XML de importação. */
+type ResultadoSalvarImportacao =
+  | { status: 'salvo'; caminho: string }
+  | ArquivoExistente
+  | { status: 'erro'; mensagem: string };
+
 type EstadoCadastro = import('./cadastro/documento').EstadoCadastro;
 type InfoCadastro = import('./cadastro/documento').InfoCadastro;
 
@@ -492,6 +508,25 @@ interface PsApi {
     emitente: string;
     uCom: string;
   }): Promise<ResultadoBuscaCasa>;
+  /**
+   * Para o XML de importação: o código de barras e a unidade de venda do
+   * produto escolhido em cada item e os produtos para os quais o emitente
+   * tem vínculo exato do cProd.
+   */
+  dadosImportacao(pedido: {
+    emitente: string;
+    itens: { nItem: string; cProd: string; codigo: string }[];
+  }): Promise<ResultadoDadosImportacao>;
+  /**
+   * Grava <base> - importacao.xml na pasta de destino. Já existe: volta
+   * 'existe' (o renderer pergunta) e só substitui outra cópia de importação,
+   * nunca outro XML.
+   */
+  salvarImportacao(
+    texto: string,
+    base: string | null,
+    opcoes?: OpcoesSalvar,
+  ): Promise<ResultadoSalvarImportacao>;
   /** Guarda (ou troca) o código da casa do produto deste fornecedor. */
   lembrarCodigoCasa(d: DecisaoCodigoCasa): Promise<boolean>;
   /** Apaga a decisão do código da casa (chave: raiz do CNPJ + "|" + código do item). */

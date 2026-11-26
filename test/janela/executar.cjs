@@ -1144,7 +1144,7 @@ async function principal() {
       })()`);
       confere(
         menu.itens.join('|') ===
-          'Salvar|Salvar PDF|Salvar cópia...|Trocar pasta de destino...|Abrir pasta no Explorer',
+          'Salvar|Salvar PDF|Salvar cópia...|Gerar XML de importação|Trocar pasta de destino...|Abrir pasta no Explorer',
         `itens: ${menu.itens.join(', ')}`,
       );
       confere(menu.titulo === 'Salvando em', `título: ${menu.titulo}`);
