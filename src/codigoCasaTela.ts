@@ -8,25 +8,31 @@
 
 import {
   chaveCodigoCasa,
+  COR_CONFIANCA,
   estadoCodigoCasa,
   lerFator,
   MOTIVO_CAMINHO,
+  motivoConferir,
   raizDoDocumento,
   resumoCodigoCasa,
-  ROTULO_CONFIANCA,
   ROTULO_ORIGEM,
+  rotuloSinal,
   TEXTO_NENHUM,
   textoCodigoCasa,
   textoConversao,
   textoFator,
   textoOrigemFator,
-  type ConfiancaCasa,
+  type CorSinal,
   type DecisaoCodigoCasa,
   type EscolhaCodigoCasa,
   type EstadoCodigoCasa,
   type ResumoCodigoCasa,
 } from './cadastro/codigoCasa';
-import type { FatorSugerido, SugestaoItem } from './cadastro/casamento';
+import type {
+  Confianca,
+  FatorSugerido,
+  SugestaoItem,
+} from './cadastro/casamento';
 import { novaCaixa } from './dialogos';
 import { botao, el, icone, iconeSinal } from './dom';
 import { ICONES } from './icones';
@@ -75,46 +81,63 @@ export interface CodigoCasaTela {
   escolher(nItem: string): Promise<void>;
 }
 
-const CLASSE_SINAL: Record<ConfiancaCasa, string> = {
-  alta: 'ok',
-  media: 'aviso',
-  baixa: 'erro',
+// A cor diz o que fazer: verde, nada a conferir; amarelo, conferir a
+// sugestão; vermelho, escolher. As barras dizem o quanto bateu.
+const CLASSE_COR: Record<CorSinal, string> = {
+  verde: 'ok',
+  amarelo: 'aviso',
+  vermelho: 'erro',
 };
 const ICONE_CONFIANCA = {
   alta: ICONES.confiancaAlta,
   media: ICONES.confiancaMedia,
   baixa: ICONES.confiancaBaixa,
+  nenhuma: ICONES.confiancaNenhuma,
 } as const;
 
 /** Ícone da confiança: o tamanho e o traço dos ícones de estado. */
-export function iconeConfianca(c: ConfiancaCasa): SVGSVGElement {
+export function iconeConfianca(c: Confianca): SVGSVGElement {
   const svg = icone(...ICONE_CONFIANCA[c]);
   svg.classList.add(
     'icone-estado',
-    `icone-estado--${CLASSE_SINAL[c]}`,
+    `icone-estado--${CLASSE_COR[COR_CONFIANCA[c]]}`,
     'codigo-casa__sinal',
   );
+  svg.dataset.confianca = c;
   return svg;
 }
 
-/** Ícone do item na célula, com o texto para leitor de tela. */
-function sinalDoItem(e: EscolhaCodigoCasa): HTMLElement {
-  const texto =
-    e.origem === 'motor' && e.confianca
-      ? ROTULO_CONFIANCA[e.confianca]
-      : e.origem === 'lembrada'
-        ? 'Decisão lembrada'
-        : 'Sua escolha';
-  const svg =
-    e.origem === 'motor' && e.confianca
-      ? iconeConfianca(e.confianca)
-      : iconeSinal('ok');
+/** Ícone com o texto para leitor de tela. */
+function sinal(svg: SVGSVGElement, texto: string): HTMLElement {
   svg.classList.add('codigo-casa__sinal');
   return el(
     'span',
     'codigo-casa__icone',
     svg,
     el('span', 'conferencia__so-leitor', texto),
+  );
+}
+
+/**
+ * Ícone do item na célula. Sugestão do motor: as barras da confiança, e o
+ * motivo de conferir na média e na baixa (quando a sugestão do motor agora
+ * é a mesma da escolha). Decisão lembrada e escolha da pessoa: sem sinal de
+ * confiança, o ícone de escolha feita.
+ */
+function sinalDoItem(
+  e: EscolhaCodigoCasa,
+  sug: SugestaoItem | null,
+): HTMLElement {
+  if (e.origem === 'motor' && e.confianca) {
+    const motivo =
+      sug && sug.codigo === e.codigo && sug.confianca === e.confianca
+        ? motivoConferir(sug)
+        : '';
+    return sinal(iconeConfianca(e.confianca), rotuloSinal(e.confianca, motivo));
+  }
+  return sinal(
+    iconeSinal('ok'),
+    e.origem === 'lembrada' ? 'Decisão lembrada' : 'Sua escolha',
   );
 }
 
@@ -199,7 +222,7 @@ export function criarCodigoCasa(acoes: AcoesCodigoCasa): CodigoCasaTela {
     if (x) {
       const conv = textoConversao(x);
       tela.append(
-        sinalDoItem(x),
+        sinalDoItem(x, sugestoes?.get(i.nItem) ?? null),
         el(
           'span',
           'codigo-casa__textos',
@@ -215,11 +238,15 @@ export function criarCodigoCasa(acoes: AcoesCodigoCasa): CodigoCasaTela {
           conv && el('span', 'codigo-casa__conversao', conv),
         ),
       );
-    } else if (e.situacao === 'ambiguo') {
-      const n = sugestoes?.get(i.nItem)?.candidatos.length ?? 0;
-      tela.append(
-        el('span', 'codigo-casa__ambiguo', `${n} produtos possíveis`),
-      );
+    } else if (sugestoes !== null) {
+      // Sem sugestão ou ambíguo: o círculo vermelho, além do "Escolher".
+      tela.append(sinal(iconeConfianca('nenhuma'), rotuloSinal('nenhuma')));
+      if (e.situacao === 'ambiguo') {
+        const n = sugestoes.get(i.nItem)?.candidatos.length ?? 0;
+        tela.append(
+          el('span', 'codigo-casa__ambiguo', `${n} produtos possíveis`),
+        );
+      }
     }
     if (interativa) {
       const rotulo = `Escolher o produto da casa do item ${i.nItem}`;
@@ -470,7 +497,7 @@ export function criarCodigoCasa(acoes: AcoesCodigoCasa): CodigoCasaTela {
               ? [
                   MOTIVO_CAMINHO[sug.caminho],
                   sug.codigo === c.codigo && sug.confianca !== 'nenhuma'
-                    ? `${ROTULO_CONFIANCA[sug.confianca]}.`
+                    ? rotuloSinal(sug.confianca)
                     : null,
                 ]
                   .filter(Boolean)

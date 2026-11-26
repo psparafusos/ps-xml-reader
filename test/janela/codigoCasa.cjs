@@ -2,7 +2,8 @@
 // cadastro e as NF-e inventados de test/fixtures/cadastro: a coluna apagada
 // no editor sem cadastro (com o motivo), a pergunta do primeiro cadastro
 // (a coluna entra depois da Descrição), as células (alta, média, sem
-// sugestão), o contador do painel e o clique que leva ao próximo pendente,
+// sugestão), os quatro sinais (alta verde, média e baixa amarelo, escolher
+// vermelho), o contador do painel e o clique que leva ao próximo pendente,
 // o quadro de escolha (busca, fator editado, "nenhum", confirmar a
 // sugestão), o .psxml salvo e reaberto com as escolhas, a escolha lembrada
 // na nota seguinte, as decisões nas Configurações, a folha do PDF só com
@@ -257,7 +258,7 @@ async function casosCodigoCasa(ctx) {
   );
 
   await caso(
-    'Código da casa: células (alta, média, sem sugestão), contador do painel e o próximo pendente',
+    'Código da casa: células (alta, média, sem sugestão), os sinais, contador do painel e o próximo pendente',
     async () => {
       await conferencia(nota1);
       const c1 = await celula(1);
@@ -265,10 +266,33 @@ async function casosCodigoCasa(ctx) {
         c1.includes('100') &&
           c1.includes('PARAFUSO SEXTAVADO') &&
           c1.includes('100 UN por CX') &&
-          c1.includes('Confiança alta'),
+          c1.includes('Confere com o cadastro'),
         `item 1: ${c1}`,
       );
-      confere((await celula(3)).includes('Confiança média'), 'item 3');
+      confere(
+        (await celula(3)).includes(
+          'Conferir a sugestão: o vínculo é de outra filial do fornecedor.',
+        ),
+        'item 3',
+      );
+      // Item 4: o código de barras do produto (e), alta.
+      confere(
+        (await celula(4)).includes('Confere com o cadastro'),
+        'item 4 sem a alta',
+      );
+      confere(
+        (await celula(5)).includes('Escolher o produto'),
+        'item 5 sem o rótulo de escolher',
+      );
+      // A cor diz o que fazer: verde, amarelo, vermelho (sem sugestão).
+      const sinais = await avaliar(
+        `[1, 3, 4, 5].map((n) => { const s = document.querySelector('#nota tbody[data-n-item="' + n + '"] td.col-${ID} svg.codigo-casa__sinal'); return s ? s.dataset.confianca + ':' + [...s.classList].find((c) => c.startsWith('icone-estado--')) : null; }).join(' ')`,
+      );
+      confere(
+        sinais ===
+          'alta:icone-estado--ok media:icone-estado--aviso alta:icone-estado--ok nenhuma:icone-estado--erro',
+        `sinais: ${sinais}`,
+      );
       confere(
         await avaliar(
           `document.querySelector('#nota tbody[data-n-item="5"] td.col-${ID} button')?.textContent.trim() === 'Escolher'`,
@@ -281,8 +305,8 @@ async function casosCodigoCasa(ctx) {
       );
       confere(tamanhos.length === 1, `tamanhos dos ícones: ${tamanhos}`);
       await aguardarPainel(
-        'Código da casa: 2 de 5 itens definidos',
-        '3 precisam de você',
+        'Código da casa: 3 de 5 itens definidos',
+        '2 precisam de você',
       );
       const foco = async () => {
         await avaliar(
@@ -292,8 +316,52 @@ async function casosCodigoCasa(ctx) {
         return avaliar(`document.activeElement?.dataset.codigoCasa ?? null`);
       };
       confere((await foco()) === '3', 'o primeiro clique não foi ao item 3');
-      confere((await foco()) === '4', 'o segundo clique não foi ao item 4');
+      confere((await foco()) === '5', 'o segundo clique não foi ao item 5');
       await capturas('codigo-casa-tabela');
+    },
+  );
+
+  await caso(
+    'Código da casa: os quatro sinais (alta verde, média e baixa amarelo, escolher vermelho)',
+    async () => {
+      // A nota 1 com o item 2 trocado por um cProd com cara de EAN (g),
+      // confiança baixa.
+      const sinais = path.join(notas, 'casa-sinais.xml');
+      fs.writeFileSync(
+        sinais,
+        fs
+          .readFileSync(nota1, 'utf8')
+          .replace('<cProd>psx-16 </cProd>', '<cProd>7890000004039</cProd>'),
+        'utf8',
+      );
+      try {
+        await conferencia(sinais);
+        await aguardar(
+          `!!document.querySelector('#nota tbody[data-n-item="2"] td.col-${ID} svg[data-confianca="baixa"]')`,
+          15000,
+          'o item 2 não ficou com a baixa',
+        );
+        const lidos = await avaliar(
+          `[1, 2, 3, 4, 5].map((n) => { const s = document.querySelector('#nota tbody[data-n-item="' + n + '"] td.col-${ID} svg.codigo-casa__sinal'); return s ? s.dataset.confianca + ':' + [...s.classList].find((c) => c.startsWith('icone-estado--')) : null; }).join(' ')`,
+        );
+        confere(
+          lidos ===
+            'alta:icone-estado--ok baixa:icone-estado--aviso media:icone-estado--aviso alta:icone-estado--ok nenhuma:icone-estado--erro',
+          `sinais: ${lidos}`,
+        );
+        // O motivo vem dos avisos (aqui, o NCM do cadastro diferente).
+        const c2 = await celula(2);
+        confere(
+          c2.includes('Conferir a sugestão: NCM do cadastro'),
+          `item 2: ${c2}`,
+        );
+        await capturas('codigo-casa-sinais');
+      } finally {
+        // De volta à nota 1, para o quadro de escolha (pelo início: com uma
+        // nota aberta, abrir outra vai para uma janela nova).
+        await inicio();
+        await conferencia(nota1);
+      }
     },
   );
 
@@ -337,14 +405,15 @@ async function casosCodigoCasa(ctx) {
       await abrirQuadro(3);
       const motivo = await avaliar(`${quadro}.textContent`);
       confere(
-        motivo.includes('outra filial') && motivo.includes('Confiança média'),
+        motivo.includes('outra filial') &&
+          motivo.includes('Conferir a sugestão.'),
         'sem o motivo do candidato',
       );
       confere(await marcar('Nenhum'), 'sem o Nenhum');
       await usar();
       await aguardar(`!${quadro}`, 5000, 'o quadro não fechou');
       confere((await celula(3)).includes('Nenhum'), 'item 3 sem o Nenhum');
-      // Média: confirmar a sugestão (já marcada).
+      // Alta: confirmar a sugestão (já marcada) vira escolha da pessoa.
       await abrirQuadro(4);
       await usar();
       await aguardar(`!${quadro}`, 5000, 'o quadro não fechou');

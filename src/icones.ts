@@ -102,6 +102,8 @@ export const ICONES = {
     'M12 16v-5',
   ],
   confiancaBaixa: ['M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z', 'M8 16v-2'],
+  /** Sem sugestão ou ambíguo: o círculo sem barras. */
+  confiancaNenhuma: ['M22 12a10 10 0 1 1-20 0a10 10 0 0 1 20 0z'],
   /** Lápis: mudar a decisão de um item (ferramenta ST). */
   editar: ['M4 20h4L19 9l-4-4L4 16v4z', 'M14 6l4 4'],
   /** Marca do item escolhido num menu. */

@@ -21,8 +21,10 @@ import {
   ID_CODIGO_CASA,
   lerDecisoesCodigoCasa,
   lerFator,
+  motivoConferir,
   proximoPendente,
   resumoCodigoCasa,
+  rotuloSinal,
   TEXTO_NENHUM,
   textoCodigoCasa,
   textoConversao,
@@ -136,6 +138,27 @@ describe('código da casa: situação de cada item pelo motor', () => {
     const baixa = estados(notas['nfe-2-alfa-filial'])[3].estado;
     assert.equal(baixa.escolha?.confianca, 'baixa');
     assert.ok(baixa.precisaDeVoce);
+  });
+
+  it('o rótulo do sinal diz o que fazer, com o motivo na média e na baixa', () => {
+    const s = sugestoes(notas['nfe-1-alfa-matriz']);
+    const alta = s.get('1')!;
+    assert.equal(motivoConferir(alta), '');
+    assert.equal(rotuloSinal(alta.confianca), 'Confere com o cadastro.');
+    const media = s.get('3')!;
+    assert.equal(
+      rotuloSinal(media.confianca, motivoConferir(media)),
+      'Conferir a sugestão: o vínculo é de outra filial do fornecedor.',
+    );
+    const baixa = sugestoes(notas['nfe-2-alfa-filial']).get('4')!;
+    assert.equal(baixa.confianca, 'baixa');
+    assert.match(
+      rotuloSinal(baixa.confianca, motivoConferir(baixa)),
+      /^Conferir a sugestão: ./,
+    );
+    const nenhum = s.get('5')!;
+    assert.equal(motivoConferir(nenhum), '');
+    assert.equal(rotuloSinal(nenhum.confianca), 'Escolher o produto.');
   });
 
   it('ambíguo e sem sugestão ficam sem produto', () => {
@@ -360,9 +383,10 @@ describe('código da casa: coluna e painel', () => {
 
   it('contador: N de M definidos e os pendentes na ordem, dando a volta', () => {
     const r = resumoCodigoCasa(estados(notas['nfe-1-alfa-matriz']));
-    assert.deepEqual(r, { definidos: 2, total: 5, pendentes: ['3', '4', '5'] });
+    // O item 4 vem pelo código de barras do produto (e), alta: definido.
+    assert.deepEqual(r, { definidos: 3, total: 5, pendentes: ['3', '5'] });
     assert.equal(proximoPendente(r.pendentes, null), '3');
-    assert.equal(proximoPendente(r.pendentes, '3'), '4');
+    assert.equal(proximoPendente(r.pendentes, '3'), '5');
     assert.equal(proximoPendente(r.pendentes, '5'), '3');
     assert.equal(proximoPendente([], null), null);
     const beta = resumoCodigoCasa(estados(notas['nfe-3-beta']));

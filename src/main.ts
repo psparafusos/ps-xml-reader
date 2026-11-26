@@ -100,6 +100,7 @@ import { problemaNomeArquivo } from './nfe/nome';
 import {
   ESPERA_CAMINHO_MS,
   comLimite,
+  consultarUnidadesDeRede,
   ehCaminhoDeDispositivo,
   escolherCandidato,
   existeOuSemResposta,
@@ -2894,6 +2895,8 @@ app.whenReady().then(async () => {
   // Evento do Squirrel, opção recusada ou segunda instância: o app está
   // saindo, sem janela.
   if (saindo || !instanciaPrincipal) return;
+  // Unidades mapeadas de rede: o prazo de 2 s vale só nelas e no UNC.
+  consultarUnidadesDeRede();
   // Sem menu: o menu padrão do Electron vem em inglês e não é usado.
   Menu.setApplicationMenu(null);
   negarPermissoes();

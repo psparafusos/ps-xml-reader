@@ -124,11 +124,47 @@ function pngOtimizado(bgra, largura, altura) {
 
 // ---------- a nota inventada ----------
 
+// Datas fixas, inventadas (o mês bate com o AAMM da chave): as imagens só
+// mudam quando a tela muda. A emissão é 4 dias antes de HOJE e as parcelas
+// vencem 26 e 56 dias depois; durante as imagens, o "hoje" da janela é HOJE
+// (fixarHoje), para "Emitida há 4 dias" e "Parcelas em dia" não andarem com
+// o calendário.
+const HOJE = '2026-11-14';
 const data = (dias) => {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
+  const d = new Date(`${HOJE}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
   return d.toISOString().slice(0, 10);
 };
+
+/**
+ * Na janela, o relógio passa a começar em HOJE (andando a partir dali, para
+ * os prazos e esperas da tela continuarem certos). Só nas imagens do README;
+ * soltarHoje devolve o relógio de verdade.
+ */
+const FIXAR_HOJE = `(() => {
+  if (window.__dataReal) return true;
+  const Real = Date;
+  const desvio = new Real('${HOJE}T10:00:00-03:00').getTime() - Real.now();
+  class DataFixa extends Real {
+    constructor(...a) {
+      if (a.length === 0) super(Real.now() + desvio);
+      else super(...a);
+    }
+    static now() {
+      return Real.now() + desvio;
+    }
+  }
+  window.__dataReal = Real;
+  window.Date = DataFixa;
+  return true;
+})()`;
+const SOLTAR_HOJE = `(() => {
+  if (window.__dataReal) {
+    window.Date = window.__dataReal;
+    delete window.__dataReal;
+  }
+  return true;
+})()`;
 
 // SP para SE, origem 0: 7% interestadual (Resolução do Senado 22/1989), e a
 // MVA retida é a da coluna de 7% da planilha inventada (56,94%).
@@ -361,6 +397,7 @@ async function casosImagensReadme(ctx) {
 
         // DANFE da nota (abre no XML).
         await tamanho(1366, 768);
+        await avaliar(FIXAR_HOJE);
         await abrirNota(arquivoNota);
         await gravar('danfe.png');
 
@@ -487,6 +524,7 @@ async function casosImagensReadme(ctx) {
           'utf8',
         );
         await tamanho(1920, 1040);
+        await avaliar(FIXAR_HOJE);
         await abrirNota(notaCasa);
         await irParaConferencia();
         await aguardar(
@@ -513,6 +551,7 @@ async function casosImagensReadme(ctx) {
         })()`);
         await gravar('codigo-casa.png');
       } finally {
+        await avaliar(SOLTAR_HOJE).catch(() => null);
         await estadoLimpo();
         await avaliar('window.psApi.removerCadastro()').catch(() => null);
         janela().setContentSize(largura, altura);

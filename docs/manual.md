@@ -213,7 +213,9 @@ Cada janela tem a sua nota. O app continua sendo um processo só (instância
   aberta: janela nova (o XML no **DANFE**, o `.psxml` na **Conferência**), e a
   nota desta janela fica como estava. Arquivo recusado (grande demais, com
   DOCTYPE, pasta de rede que não responde) mostra a mensagem nesta janela e
-  nenhuma janela nova abre.
+  nenhuma janela nova abre. A pasta de rede (caminho `\\servidor\...` ou
+  unidade mapeada de rede) tem 2 segundos para responder; arquivo no disco
+  do computador não tem prazo, mesmo com a máquina carregada.
 
 Janelas novas abrem deslocadas 32 px da anterior; se passarem da área de
 trabalho do monitor, voltam para o canto dele. O tamanho e a posição lembrados
@@ -1072,13 +1074,25 @@ coluna entra no perfil ativo, logo depois da Descrição: **Mostrar a coluna**
 ou **Agora não**. O perfil só muda com o "Mostrar a coluna"; depois, a
 coluna se liga e desliga no Editar colunas, como as outras.
 
-**Ícone de confiança**: ao lado de cada sugestão do app, um círculo com três
-barras (confiança alta), duas (média) ou uma (baixa), em verde, amarelo ou
-vermelho. A confiança diz quanto o caminho que o app usou é seguro: o
-código do fornecedor vinculado ao produto no cadastro é alta; um código
-parecido, de uma filial ou só pelo código de barras é mais baixa (o detalhe
-está em [docs/formato-cadastro.md](formato-cadastro.md)). Escolha da pessoa e
-decisão lembrada levam o check verde.
+**Ícone de confiança**: a cor diz o que fazer, e as barras dizem o quanto
+bateu.
+
+- **Verde, três barras** (confiança alta): nada a conferir. O código do
+  fornecedor está vinculado ao produto no cadastro, ou o código de barras
+  do item é o do produto (o sistema de gestão vincula pelo mesmo código de
+  barras).
+- **Amarelo, duas barras** (média) ou **uma barra** (baixa): conferir a
+  sugestão. Um vínculo de filial, um código parecido, um produto inativo ou
+  um código reaproveitado; e também a sugestão que seria alta mas tem NCM
+  diferente do cadastro, unidade do fator diferente da nota ou custo fora
+  do padrão.
+- **Vermelho, círculo sem barras**: escolher o produto. O app não achou o
+  item ou achou mais de um; a célula traz também o botão **Escolher**.
+
+Para leitor de tela, o ícone diz "Confere com o cadastro", "Conferir a
+sugestão" com o motivo ou "Escolher o produto". O detalhe dos caminhos está
+em [docs/formato-cadastro.md](formato-cadastro.md). Escolha da pessoa e
+decisão lembrada levam o check verde, sem barras.
 
 **Quadro de escolha**: o botão da célula abre o quadro do item, com:
 

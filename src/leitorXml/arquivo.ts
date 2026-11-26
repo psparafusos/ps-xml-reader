@@ -7,7 +7,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  comLimite,
+  comPrazoDeRede,
   ESPERA_CAMINHO_MS,
   mensagemSemResposta,
 } from '../seguranca/arquivo';
@@ -106,7 +106,12 @@ export async function lerParaLeitor(
 
   let tamanho: number | typeof ESGOTOU;
   try {
-    tamanho = await comLimite(disco.tamanho(caminho), prazo, ESGOTOU);
+    tamanho = await comPrazoDeRede(
+      caminho,
+      disco.tamanho(caminho),
+      prazo,
+      ESGOTOU,
+    );
   } catch (erro) {
     const { motivo, mensagem } = erroDeDisco(erro);
     return recusa(motivo, mensagem);

@@ -294,11 +294,61 @@ export function proximoPendente(
 
 // ---------- textos ----------
 
-export const ROTULO_CONFIANCA: Record<ConfiancaCasa, string> = {
-  alta: 'Confiança alta',
-  media: 'Confiança média',
-  baixa: 'Confiança baixa',
+/**
+ * O que o sinal diz à pessoa: alta, nada a conferir; média e baixa, conferir
+ * a sugestão; sem sugestão ou ambíguo ("nenhuma"), escolher o produto.
+ */
+export const ROTULO_CONFIANCA: Record<Confianca, string> = {
+  alta: 'Confere com o cadastro',
+  media: 'Conferir a sugestão',
+  baixa: 'Conferir a sugestão',
+  nenhuma: 'Escolher o produto',
 };
+
+export type CorSinal = 'verde' | 'amarelo' | 'vermelho';
+
+/** A cor do sinal: verde, nada a conferir; amarelo, conferir; vermelho, escolher. */
+export const COR_CONFIANCA: Record<Confianca, CorSinal> = {
+  alta: 'verde',
+  media: 'amarelo',
+  baixa: 'amarelo',
+  nenhuma: 'vermelho',
+};
+
+/** Por que a sugestão de cada caminho de média ou baixa precisa ser conferida. */
+const POR_QUE_CONFERIR: Record<Caminho, string> = {
+  'vinculo-emitente': 'o vínculo é deste fornecedor',
+  'vinculo-raiz': 'o vínculo é de outra filial do fornecedor',
+  'codigo-emitente': 'o código só bate sem espaços e sem zeros à esquerda',
+  'codigo-raiz':
+    'o código só bate sem espaços e sem zeros à esquerda, e em outra filial do fornecedor',
+  'cean-vinculo-emitente': 'o código de barras está vinculado neste fornecedor',
+  cean: 'o código de barras é o do produto',
+  'cean-vinculo-raiz':
+    'o código de barras está vinculado em outra filial do fornecedor',
+  'cprod-ean': 'o código do item tem cara de código de barras',
+};
+
+/**
+ * O motivo de conferir uma sugestão de média ou baixa: os avisos do item
+ * (inativo, reaproveitado, NCM, unidade, custo) e, sem eles, o caminho.
+ * '' na alta, no ambíguo e sem sugestão.
+ */
+export function motivoConferir(s: SugestaoItem): string {
+  if (!s.codigo || s.confianca === 'alta' || s.confianca === 'nenhuma')
+    return '';
+  const avisos = s.avisos
+    .filter((a) => a.tipo !== 'ambiguo-um-ativo')
+    .map((a) => a.texto.replace(/\.$/, ''));
+  if (avisos.length > 0) return avisos.join('; ');
+  return s.caminho ? POR_QUE_CONFERIR[s.caminho] : '';
+}
+
+/** "Conferir a sugestão: o vínculo é de outra filial do fornecedor." */
+export function rotuloSinal(c: Confianca, motivo = ''): string {
+  const base = ROTULO_CONFIANCA[c];
+  return motivo ? `${base}: ${motivo}.` : `${base}.`;
+}
 
 export const ROTULO_ORIGEM: Record<OrigemCodigoCasa, string> = {
   motor: 'sugestão do app',

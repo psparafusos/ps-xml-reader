@@ -15,6 +15,7 @@ import {
   type ItemNota,
   type SugestaoItem,
 } from '../../src/cadastro/casamento.ts';
+import { COR_CONFIANCA } from '../../src/cadastro/codigoCasa.ts';
 import {
   validarCadastro,
   validarTextoCadastro,
@@ -202,12 +203,24 @@ describe('caminho (c): código sem espaços e sem zeros à esquerda', () => {
 });
 
 describe('caminhos (e) e (g): código de barras', () => {
-  it('(e) cEAN contra o código de barras', () => {
+  it('(e) cEAN contra o código de barras, sozinho: confiança alta', () => {
     const s = um(ALFA, { cProd: 'ARP-14', cEAN: '7890000001052' });
     assert.equal(s.caminho, 'cean');
     assert.equal(s.codigo, '105');
-    assert.equal(s.confianca, 'media');
+    assert.deepEqual(s.avisos, []);
+    assert.equal(s.confianca, 'alta');
     assert.equal(s.candidatos[0].fornecedor, null);
+  });
+
+  it('(e) com NCM diferente do cadastro: a alta vira média', () => {
+    const s = um(ALFA, {
+      cProd: 'ARP-14',
+      cEAN: '7890000001052',
+      NCM: '84669200',
+    });
+    assert.equal(s.caminho, 'cean');
+    assert.deepEqual(tipos(s), ['ncm-diferente']);
+    assert.equal(s.confianca, 'media');
   });
 
   it('(e) GTIN-14 com zero na frente casa com o EAN-13', () => {
@@ -245,6 +258,60 @@ describe('caminhos (e) e (g): código de barras', () => {
     const s = um(ALFA, { cProd: 'PSX-14', cEAN: '7890000004039' });
     assert.equal(s.caminho, 'vinculo-emitente');
     assert.equal(s.codigo, '100');
+  });
+});
+
+describe('a cor do sinal diz o que fazer', () => {
+  const cor = (s: SugestaoItem) => COR_CONFIANCA[s.confianca];
+
+  it('(e) sozinho: alta, verde (nada a conferir)', () => {
+    const s = um(ALFA, { cProd: 'ARP-14', cEAN: '7890000001052' });
+    assert.equal(s.confianca, 'alta');
+    assert.equal(cor(s), 'verde');
+  });
+
+  it('(e) com NCM diferente: média, amarelo (conferir)', () => {
+    const s = um(ALFA, {
+      cProd: 'ARP-14',
+      cEAN: '7890000001052',
+      NCM: '84669200',
+    });
+    assert.equal(s.confianca, 'media');
+    assert.equal(cor(s), 'amarelo');
+  });
+
+  it('unidade do fator diferente da nota no vínculo exato: média, amarelo', () => {
+    const s = um(ALFA, { cProd: 'PSX-14', uCom: 'PCT' });
+    assert.equal(s.caminho, 'vinculo-emitente');
+    assert.deepEqual(tipos(s), ['unidade-diferente']);
+    assert.equal(s.confianca, 'media');
+    assert.equal(cor(s), 'amarelo');
+  });
+
+  it('baixa: amarelo (conferir), não vermelho', () => {
+    const s = um(GAMA3, { cProd: '7890000004039' });
+    assert.equal(s.confianca, 'baixa');
+    assert.equal(cor(s), 'amarelo');
+  });
+
+  it('com aviso que limita, a baixa continua baixa', () => {
+    const s = um(ALFA_FILIAL, { cProd: '0PSX-16', NCM: '84669200' });
+    assert.equal(s.caminho, 'codigo-raiz');
+    assert.ok(tipos(s).includes('ncm-diferente'));
+    assert.equal(s.confianca, 'baixa');
+  });
+
+  it('sem candidato: vermelho (escolher)', () => {
+    const s = um(ALFA, { cProd: 'ZZ-99' });
+    assert.equal(s.confianca, 'nenhuma');
+    assert.equal(cor(s), 'vermelho');
+  });
+
+  it('ambíguo: vermelho (escolher)', () => {
+    const s = um(GAMA3, { cProd: 'FI-19', cEAN: '7890000004008' });
+    assert.equal(s.ambiguo, true);
+    assert.equal(s.confianca, 'nenhuma');
+    assert.equal(cor(s), 'vermelho');
   });
 });
 
@@ -465,19 +532,23 @@ describe('avisos', () => {
     assert.equal(s.confianca, 'alta');
   });
 
-  it('NCM diferente do cadastro', () => {
+  it('NCM diferente do cadastro: aviso, e a alta vira média', () => {
     const s = um(DELTA, { cProd: 'D-602', NCM: '84669200' });
     assert.deepEqual(tipos(s), ['ncm-diferente']);
+    assert.equal(s.caminho, 'vinculo-emitente');
+    assert.equal(s.confianca, 'media');
     assert.equal(
       s.avisos[0].texto,
       'NCM do cadastro 96039000, na nota 84669200.',
     );
   });
 
-  it('custo fora do padrão, pela unidade de venda', () => {
+  it('custo fora do padrão, pela unidade de venda: a alta vira média', () => {
     const s = um(ALFA_FILIAL, { cProd: 'F-103', vUnCom: 0.09 });
     assert.deepEqual(tipos(s), ['custo-fora']);
     assert.match(s.avisos[0].texto, /80% acima do cadastro/);
+    assert.equal(s.caminho, 'vinculo-emitente');
+    assert.equal(s.confianca, 'media');
     const dentro = um(ALFA, { cProd: 'PSX-14', uCom: 'CX', vUnCom: 45 });
     assert.deepEqual(
       dentro.avisos,

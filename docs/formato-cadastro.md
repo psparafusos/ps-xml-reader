@@ -180,7 +180,7 @@ primeiro que acha algum produto decide:
 | (c) código normalizado, no emitente | `cProd` e `codigo_fornecedor` sem espaços em nenhuma posição e sem zeros à esquerda                                      | média     |
 | (c) código normalizado, na raiz     | o mesmo, nas filiais                                                                                                     | baixa     |
 | (d) cEAN nos vínculos do emitente   | `cEAN` da nota contra os `codigo_fornecedor` com cara de GTIN dos vínculos do emitente                                   | alta      |
-| (e) cEAN                            | `cEAN` da nota contra `codigo_barras` dos produtos                                                                       | média     |
+| (e) cEAN                            | `cEAN` da nota contra `codigo_barras` dos produtos                                                                       | alta      |
 | (f) cEAN nos vínculos da raiz       | o mesmo do (d), nas filiais                                                                                              | média     |
 | (g) cProd com cara de EAN           | `cProd` só com dígitos e 8, 12, 13 ou 14 posições contra `codigo_barras`                                                 | baixa     |
 
@@ -195,6 +195,12 @@ primeiro que acha algum produto decide:
   diz de que fornecedor é. Nas filiais têm a confiança da filial (média) e
   vêm depois do código de barras, porque um vínculo antigo de filial pode
   apontar para outro produto com o mesmo GTIN.
+- O (e) é alta porque, se ele decidiu, o emitente não tinha vínculo para o
+  item, e o sistema de gestão vincula pelo mesmo código de barras do
+  produto: o que o app sugere é o que o sistema vai achar. Os caminhos (c)
+  ficam em média e baixa porque o sistema de gestão compara o código do
+  fornecedor como texto exato; o código sem espaços e sem zeros à esquerda
+  não é o que ele vai achar.
 - CPF não tem raiz: só os caminhos (a), (c) e (d) no próprio emitente, e os
   de código de barras.
 - **Ambíguo**: mais de um produto no caminho que decidiu. O app mostra a
@@ -208,6 +214,14 @@ primeiro que acha algum produto decide:
   baixa) quando o produto está inativo e quando o código foi reaproveitado
   (`reaproveitado_em`) sem compra do fornecedor depois disso (pela
   `ultima_entrada` do fator).
+- **Limite**: com NCM diferente, unidade do fator diferente da da nota ou
+  custo fora do padrão (os avisos abaixo), a confiança alta vira média; média
+  e baixa ficam como estão. O produto pode estar certo, mas a pessoa precisa
+  olhar.
+- **O que a cor diz**: alta (3 barras, verde), nada a conferir; média (2
+  barras) e baixa (1 barra), em amarelo, conferir a sugestão; sem sugestão
+  ou ambíguo (círculo vermelho sem barras), escolher o produto. As barras
+  dizem o quanto bateu.
 
 **Fator.** Entre os fatores do emitente e das filiais para o produto
 sugerido, vale primeiro o da mesma unidade da nota (`unidade_compra` igual a
@@ -245,7 +259,10 @@ foi preciso):
 Em cada item, a célula mostra o código e a descrição curta do produto, o
 ícone da confiança (alta, média ou baixa; ou o de escolha feita, para a
 decisão lembrada e a escolha da pessoa) e, quando o fator é diferente de 1,
-a conversão ("12 UN por CX"). O botão da célula abre o quadro de escolha:
+a conversão ("12 UN por CX"). Sem sugestão ou ambíguo, a célula mostra o
+círculo vermelho e o botão "Escolher". Para o leitor de tela, o ícone diz
+"Confere com o cadastro" (alta), "Conferir a sugestão" com o motivo (média
+e baixa) ou "Escolher o produto". O botão da célula abre o quadro de escolha:
 o item da nota, os candidatos do motor com o motivo de cada um, a busca no
 cadastro (código, descrição ou código de barras), "Nenhum (vincular no
 sistema de gestão)" e o fator, sugerido pelo cadastro e editável.

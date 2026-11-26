@@ -65,6 +65,15 @@ export type Confianca = 'alta' | 'media' | 'baixa' | 'nenhuma';
  * filial (média). O da filial vem depois do código de barras do produto:
  * nas notas reais medidas, quando os dois discordavam, o código de barras
  * estava certo e o vínculo da filial era de outro produto.
+ *
+ * O (e) é alta: se ele decidiu, o emitente não tinha vínculo para o item, e
+ * o sistema de gestão vincula pelo mesmo código de barras do produto. Os
+ * caminhos (c) continuam abaixo: o sistema de gestão compara o código do
+ * fornecedor como texto exato, e o código sem espaços e sem zeros à
+ * esquerda não é o que ele vai achar.
+ *
+ * A cor diz o que a pessoa precisa fazer: alta, nada a conferir; média e
+ * baixa, conferir a sugestão; sem sugestão ou ambíguo, escolher.
  */
 export const CONFIANCA_CAMINHO: Record<
   Caminho,
@@ -76,7 +85,7 @@ export const CONFIANCA_CAMINHO: Record<
   'codigo-raiz': 'baixa',
   'cean-vinculo-emitente': 'alta',
   'cean-vinculo-raiz': 'media',
-  cean: 'media',
+  cean: 'alta',
   'cprod-ean': 'baixa',
 };
 
@@ -308,6 +317,13 @@ function buscarBarras(ind: IndiceCadastro, codigo: string): Achados {
   );
 }
 
+/** Avisos que não rebaixam, mas tiram a sugestão da alta (a pessoa confere). */
+export const AVISOS_QUE_LIMITAM: readonly TipoAviso[] = [
+  'ncm-diferente',
+  'unidade-diferente',
+  'custo-fora',
+];
+
 const REBAIXA: Record<Confianca, Confianca> = {
   alta: 'media',
   media: 'baixa',
@@ -503,6 +519,15 @@ export function sugerirItem(
         texto: `Custo na nota ${formatarValor(custoNota)} por ${produto.unidade}, ${Math.round(Math.abs(dif) * 100)}% ${dif > 0 ? 'acima' : 'abaixo'} do cadastro (${formatarValor(produto.custo)}).`,
       });
   }
+  // NCM, unidade do fator ou custo diferentes do cadastro: o produto pode
+  // estar certo, mas a pessoa precisa olhar. Limitam a confiança a média.
+  if (
+    confianca === 'alta' &&
+    avisos.some((a) =>
+      (AVISOS_QUE_LIMITAM as readonly string[]).includes(a.tipo),
+    )
+  )
+    confianca = 'media';
   sugestao.confianca = confianca;
   return sugestao;
 }

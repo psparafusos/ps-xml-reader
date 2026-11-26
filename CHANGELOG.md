@@ -8,7 +8,13 @@ de commit (`git log`).
 
 - **Coluna Código da casa** na Conferência: com o cadastro do sistema de
   gestão carregado, cada item mostra o produto da loja, a descrição curta e
-  o fator ("12 UN por CX"), com um ícone de confiança (alta, média, baixa).
+  o fator ("12 UN por CX"), com um ícone de confiança em que a cor diz o
+  que fazer: verde, nada a conferir; amarelo, conferir a sugestão; vermelho
+  (círculo sem barras, sem sugestão ou com mais de um produto), escolher.
+  As barras dizem o quanto bateu.
+- Código da casa pelo código de barras do produto, sem vínculo do
+  fornecedor, passa a ser confiança alta; NCM diferente, unidade do fator
+  diferente da nota ou custo fora do padrão deixam a sugestão em média.
 - Quadro de escolha do Código da casa: o item da nota, as sugestões do app
   com o motivo, a busca no cadastro, "Nenhum (vincular no sistema de
   gestão)" e o fator, que dá para mudar.
@@ -46,6 +52,11 @@ de commit (`git log`).
   trocar a decisão do app, que fica lembrada como "decisão da pessoa".
 - O aviso "Letra reduzida para N pt" da miniatura da folha não quebra mais
   uma palavra por linha.
+- A mensagem "a pasta de rede não respondeu" só aparece para caminho de
+  rede (`\\servidor\...` ou unidade mapeada de rede); arquivo no disco do
+  computador não tem mais o prazo de 2 segundos.
+- As imagens do README usam uma nota com datas fixas e só mudam quando a
+  tela muda.
 - Textos da tela corrigidos: o cartão do cadastro diz que ele alimenta a
   coluna Código da casa, e as contagens de um saem no singular ("Nenhuma
   decisão lembrada", "1 sem CFOP (precisa de você) fica como está").

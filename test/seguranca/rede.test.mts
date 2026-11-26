@@ -4,11 +4,14 @@
 // recente clicada, duplo clique): a mensagem aparece no prazo. Checagem de
 // fundo (lista de recentes): silêncio, e a nota continua clicável.
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import {
+  definirUnidadesDeRede,
+  ehCaminhoDeRede,
   ESPERA_CAMINHO_MS,
   escolherCandidato,
   existeOuSemResposta,
+  lerSaidaNetUse,
   lerXmlSeguro,
   mensagemSemResposta,
   problemaCaminhoSolto,
@@ -151,6 +154,98 @@ describe('pasta de rede que não responde', () => {
       }),
       false,
       'arquivo que não existe de verdade continua como movido',
+    );
+  });
+});
+
+describe('o prazo vale só para caminho de rede', () => {
+  const LOCAL = 'C:\\Notas\\NFe-inventada.xml';
+  const MAPEADA = 'Z:\\Notas\\NFe-inventada.xml';
+  /** Responde depois de `ms`: o disco local de um computador carregado. */
+  const devagar = <T,>(valor: T, ms: number) =>
+    new Promise<T>((r) => setTimeout(() => r(valor), ms));
+
+  before(() => definirUnidadesDeRede(['Z']));
+  after(() => definirUnidadesDeRede(null));
+
+  it('UNC e unidade mapeada de rede são de rede; unidade local não', () => {
+    const z = new Set(['Z']);
+    assert.equal(ehCaminhoDeRede(FORA, z), true);
+    assert.equal(ehCaminhoDeRede('//servidor/notas/a.xml', z), true);
+    assert.equal(
+      ehCaminhoDeRede('\\\\?\\UNC\\servidor\\notas\\a.xml', z),
+      true,
+    );
+    assert.equal(ehCaminhoDeRede(MAPEADA, z), true);
+    assert.equal(ehCaminhoDeRede('z:\\a.xml', z), true);
+    assert.equal(ehCaminhoDeRede(LOCAL, z), false);
+    assert.equal(ehCaminhoDeRede('\\\\?\\C:\\a.xml', z), false);
+    assert.equal(ehCaminhoDeRede('\\\\.\\C:\\a.xml', z), false);
+    assert.equal(ehCaminhoDeRede('nota.xml', z), false);
+    // Sem saber as unidades (antes da consulta ou se ela falhou), toda
+    // unidade com letra conta como de rede, como era antes.
+    assert.equal(ehCaminhoDeRede(LOCAL, null), true);
+  });
+
+  it('as unidades de rede vêm da saída do net use, em qualquer língua', () => {
+    const saida = [
+      'Novas conexões serão lembradas.',
+      '',
+      'Status       Local     Remoto                    Rede',
+      '-------------------------------------------------------------------------------',
+      'OK           Z:        \\\\servidor-inventado\\notas Microsoft Windows Network',
+      'Indisponível Y:        \\\\outro-inventado\\xml     Microsoft Windows Network',
+      '             \\\\servidor-inventado\\IPC$         Microsoft Windows Network',
+      'Comando concluído com êxito.',
+    ].join('\r\n');
+    assert.deepEqual(lerSaidaNetUse(saida), ['Y', 'Z']);
+    assert.deepEqual(
+      lerSaidaNetUse('There are no entries in the list.\r\n'),
+      [],
+    );
+  });
+
+  it('arquivo local que demora mais que o prazo: lê, sem a mensagem da rede', async () => {
+    const texto = '<nfeProc/>';
+    const disco: Disco = {
+      tamanho: () => devagar(texto.length, PRAZO * 4),
+      ler: async () => Buffer.from(texto),
+    };
+    assert.equal(await lerXmlSeguro(LOCAL, disco, PRAZO), texto);
+    assert.equal(
+      await problemaCaminhoSolto(
+        LOCAL,
+        ['.xml'],
+        () => devagar({ isFile: () => true }, PRAZO * 4),
+        PRAZO,
+      ),
+      null,
+    );
+    assert.equal(
+      await situacaoAtePrazo(LOCAL, PRAZO, () =>
+        devagar({ isFile: () => true }, PRAZO * 4),
+      ),
+      'arquivo',
+    );
+  });
+
+  it('unidade mapeada de rede que não responde: mensagem no prazo', async () => {
+    const disco: Disco = {
+      tamanho: () => nunca(),
+      ler: async () => new Uint8Array(),
+    };
+    const { ms } = await cronometro(() =>
+      assert.rejects(
+        lerXmlSeguro(MAPEADA, disco, PRAZO),
+        (e: unknown) =>
+          e instanceof ArquivoRecusadoError &&
+          e.message === mensagemSemResposta(MAPEADA),
+      ),
+    );
+    assert.ok(ms < 1000, `levou ${ms} ms`);
+    assert.equal(
+      await situacaoAtePrazo(MAPEADA, PRAZO, () => nunca()),
+      'sem-resposta',
     );
   });
 });
