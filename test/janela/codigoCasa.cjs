@@ -570,9 +570,13 @@ async function casosCodigoCasa(ctx) {
     const notaImp = path.join(notas, 'imp-nfe-importacao.xml');
     fs.copyFileSync(path.join(FIX_IMP, 'nfe-importacao.xml'), notaImp);
     const bytesAntes = fs.readFileSync(notaImp);
+    // A pasta que a janela usa (a de destino, ou a da sessão se um .psxml
+    // foi aberto por duplo clique nela).
+    const pasta =
+      (await avaliar('window.psApi.pastaDestino()')).caminho ?? destino;
     const copias = () =>
-      fs.readdirSync(destino).filter((n) => n.endsWith(' - importacao.xml'));
-    for (const n of copias()) fs.rmSync(path.join(destino, n));
+      fs.readdirSync(pasta).filter((n) => n.endsWith(' - importacao.xml'));
+    for (const n of copias()) fs.rmSync(path.join(pasta, n));
     const abrirMenu = async () => {
       await avaliar(`document.getElementById('btn-salvar-mais').click()`);
       await aguardar(`!document.getElementById('menu-salvar').hidden`);
@@ -666,12 +670,19 @@ async function casosCodigoCasa(ctx) {
       return true;
     })()`);
     let nomes = [];
-    for (let i = 0; i < 100 && nomes.length === 0; i++) {
+    for (let i = 0; i < 150 && nomes.length === 0; i++) {
       await espera(100);
       nomes = copias();
     }
-    confere(nomes.length === 1, `cópias no destino: ${nomes}`);
-    const caminhoCopia = path.join(destino, nomes[0]);
+    if (nomes.length !== 1)
+      throw new Error(
+        `cópias em ${pasta}: ${nomes}; tela: ${JSON.stringify(
+          await avaliar(
+            `({ mensagem: document.getElementById('mensagem')?.hidden ? '' : document.getElementById('mensagem-texto')?.textContent, aviso: document.getElementById('aviso')?.innerText, dialogos: [...document.querySelectorAll('dialog[open]')].map((d) => d.innerText.slice(0, 300)) })`,
+          ),
+        )}; arquivos: ${fs.readdirSync(pasta).join(', ')}`,
+      );
+    const caminhoCopia = path.join(pasta, nomes[0]);
     const texto = fs.readFileSync(caminhoCopia, 'utf8');
     confere(
       texto.includes('<?ps-reader copia="importacao"') &&
