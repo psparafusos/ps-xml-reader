@@ -520,4 +520,9 @@ async function casosImagensReadme(ctx) {
   );
 }
 
-module.exports = { casosImagensReadme, notaReadme, perfisReadme };
+module.exports = {
+  casosImagensReadme,
+  notaReadme,
+  perfisReadme,
+  pngOtimizado,
+};
