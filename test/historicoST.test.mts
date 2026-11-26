@@ -4,7 +4,7 @@ import type { AnaliseItem } from '../src/fiscal/analise.ts';
 import type { DecisaoLembrada, EscolhaST } from '../src/fiscal/entrada.ts';
 import {
   chaveEscolha,
-  observacaoMvaFornecedor,
+  avisoMvaFornecedor,
   rotuloEscolha,
   sugestaoHistorico,
 } from '../src/historicoST.ts';
@@ -153,27 +153,32 @@ describe('sugestão pelo histórico', () => {
 });
 
 describe('MVA do fornecedor x planilha', () => {
-  it('igual (até 0,01 ponto): nada', () => {
-    assert.equal(observacaoMvaFornecedor('56.94', 0.5694), null);
-    assert.equal(observacaoMvaFornecedor('56.9400', 0.5694), null);
-    assert.equal(observacaoMvaFornecedor('56.95', 0.5694), null);
+  it('igual, com as duas arredondadas para 2 casas: nada', () => {
+    assert.equal(avisoMvaFornecedor('56.94', 0.5694), null);
+    assert.equal(avisoMvaFornecedor('56.9400', 0.5694), null);
+    assert.equal(avisoMvaFornecedor('56.9449', 0.569401), null);
   });
 
-  it('diferente: observação para conferir', () => {
-    assert.equal(
-      observacaoMvaFornecedor('40.00', 0.5694),
-      'MVA do fornecedor 40% difere da planilha 56,94%: conferir',
-    );
-    assert.equal(
-      observacaoMvaFornecedor('56.96', 0.5694),
-      'MVA do fornecedor 56,96% difere da planilha 56,94%: conferir',
-    );
+  it('menor que a planilha: aviso para lançar com a da planilha', () => {
+    assert.deepEqual(avisoMvaFornecedor('40.00', 0.5694), {
+      nivel: 'aviso',
+      texto:
+        'O fornecedor reteve com MVA menor que a da planilha (40% contra 56,94%). Lance com a MVA da planilha; a diferença é complementada na apuração. Avise o fornecedor para acertar as próximas notas.',
+    });
+  });
+
+  it('maior que a planilha: alerta para falar com o contador', () => {
+    assert.deepEqual(avisoMvaFornecedor('56.96', 0.5694), {
+      nivel: 'alerta',
+      texto:
+        'O fornecedor reteve com MVA maior que a da planilha (56,96% contra 56,94%). Fale com o contador antes de lançar: a orientação é recusar ou devolver a mercadoria e pedir uma nota nova.',
+    });
   });
 
   it('sem pMVAST ou sem MVA da planilha: nada', () => {
-    assert.equal(observacaoMvaFornecedor(undefined, 0.5694), null);
-    assert.equal(observacaoMvaFornecedor('', 0.5694), null);
-    assert.equal(observacaoMvaFornecedor('40.00', null), null);
+    assert.equal(avisoMvaFornecedor(undefined, 0.5694), null);
+    assert.equal(avisoMvaFornecedor('', 0.5694), null);
+    assert.equal(avisoMvaFornecedor('40.00', null), null);
   });
 });
 

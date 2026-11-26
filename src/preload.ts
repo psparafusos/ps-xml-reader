@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('psApi', {
   analisarST: (pedido: {
     itens: ItemParaAnalise[];
     uf: string;
+    ufDestino?: string;
     cnpj: string;
   }): Promise<ResultadoAnaliseST> => ipcRenderer.invoke('analisar-st', pedido),
   lembrarDecisao: (d: DecisaoLembrada): Promise<boolean> =>

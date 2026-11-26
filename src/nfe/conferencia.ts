@@ -17,6 +17,10 @@ import {
   type Conferido,
   type SituacaoParcela,
 } from './avisos';
+import {
+  aliquotaInterestadualEsperada,
+  avisoAliquotaIcms,
+} from '../fiscal/aliquotaInterestadual';
 import * as f from './formato';
 import { linhaFrete } from './frete';
 import { vencimentosDoTexto } from './vencimentosTexto';
@@ -29,6 +33,7 @@ export type IdVerificacao =
   | 'totais-itens'
   | 'duplicatas'
   | 'vencimentos'
+  | 'aliquota-icms'
   | 'destinatario'
   | 'conferida';
 
@@ -173,6 +178,9 @@ export function resumoConferencia(d: DadosConferencia): ResumoConferencia {
 
   verificacoes.push(verificacaoVencimentos(nota, d));
 
+  const aliquotas = verificacaoAliquotaIcms(nota);
+  if (aliquotas) verificacoes.push(aliquotas);
+
   if (d.cnpjEmpresa !== null && ehEmitidaPelaLoja(nota, d.cnpjEmpresa)) {
     // Venda, devolução a fornecedor ou ao cliente: não é de outra empresa.
     verificacoes.push({
@@ -299,6 +307,40 @@ function verificacaoDevolucao(refs: readonly string[]): Verificacao {
                 : `chave ${x.chave} (fora do formato de 44 dígitos)`,
             )
             .join('; ')}.`,
+  };
+}
+
+/**
+ * Itens com a alíquota de ICMS diferente da interestadual esperada pela
+ * origem e pelos estados (fiscal/aliquotaInterestadual.ts). Aviso leve: o
+ * app avisa, não decide. Sem nenhum item assim, a linha não aparece.
+ */
+export function verificacaoAliquotaIcms(nota: Nota): Verificacao | null {
+  const itens: { nItem: string; aviso: string }[] = [];
+  for (const i of nota.itens) {
+    const esperada = aliquotaInterestadualEsperada(
+      nota.emitente.endereco.UF,
+      nota.destinatario.endereco.UF,
+      i.orig,
+    );
+    const aviso = avisoAliquotaIcms(i, esperada);
+    if (aviso) itens.push({ nItem: i.nItem, aviso });
+  }
+  if (itens.length === 0) return null;
+  return {
+    id: 'aliquota-icms',
+    ok: false,
+    nivel: 'leve',
+    titulo:
+      itens.length === 1
+        ? `Item ${itens[0].nItem}: alíquota de ICMS diferente da esperada`
+        : `${itens.length} itens com alíquota de ICMS diferente da esperada`,
+    detalhe:
+      'A alíquota esperada vem da origem do item e dos estados do emitente e do destinatário (Resoluções do Senado 22/1989 e 13/2012). Itens sem ICMS destacado ficam de fora. O app só avisa: confira com o contador.',
+    linhas: itens.map((x) => ({
+      texto: `Item ${x.nItem}: ${x.aviso}`,
+      nivel: 'leve' as const,
+    })),
   };
 }
 

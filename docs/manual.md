@@ -726,15 +726,19 @@ apontar. No topo, o resultado: "✓ Tudo certo · 6 verificações" em verde, ou
 "N pontos para olhar" em vermelho. Embaixo:
 
 - **Verificações automáticas**: uma linha por verificação (idade da nota,
-  total dos itens, duplicatas, vencimentos, destinatário, nota já
-  conferida), com o ícone do estado: check verde (certo), i cinza (só
+  total dos itens, duplicatas, vencimentos, alíquota de ICMS, destinatário,
+  nota já conferida), com o ícone do estado: check verde (certo), i cinza (só
   informa), triângulo amarelo (aviso leve) ou x vermelho (alerta forte),
   os mesmos ícones dos documentos de referência (src/icones.ts); clicar
   mostra o detalhe. O título diz o
   resultado, não a pergunta: "Totais conferem" ou "Total dos itens difere em
   R$ 2,10"; "Parcelas em dia" ou "Parcela 001 vencida há 20 dias";
   "Destinatário: Ferragens Exemplo Ltda"; "Primeira conferência desta nota" ou "Já
-  conferida em 28/10". Aviso leve e alerta
+  conferida em 28/10". A linha da alíquota de ICMS só aparece quando algum
+  item destaca ICMS com uma alíquota diferente da interestadual esperada
+  (aviso leve, "Item 3: alíquota de ICMS diferente da esperada" ou "2 itens
+  com alíquota de ICMS diferente da esperada"); o detalhe lista os itens,
+  como na ferramenta ST, MVA e CFOP. Aviso leve e alerta
   forte contam como pontos para olhar. A "já conferida" tem **Abrir em nova
   janela**.
 - **Precisa de você**: com o cadastro carregado, a linha "Código da casa: N
@@ -970,8 +974,32 @@ observação, não como erro.
 - **Autopeças**: vale só a MVA-ST 1, e o motivo diz "MVA-ST 1 (regra geral;
   a loja não tem índice de fidelização)". A MVA-ST 2 é só para fidelização
   com montadora, que a loja não tem.
-- **MVA do fornecedor**: a MVA da nota (`pMVAST`) é comparada com a da
-  planilha; diferença acima de 0,01 ponto entra no motivo como observação.
+- **Alíquota interestadual esperada** (src/fiscal/aliquotaInterestadual.ts):
+  pela UF do emitente, pela UF do destinatário e pela origem do item
+  (`orig`). Mesma UF: operação interna, não se aplica. Origem 1, 2, 3 ou 8:
+  4% (Resolução do Senado 13/2012; as origens 6 e 7 ficam fora dos 4%).
+  Emitente em SP, RJ, MG, PR, SC ou RS e destinatário no Norte, no
+  Nordeste, no Centro-Oeste ou no ES: 7%. Demais casos: 12% (Resolução do
+  Senado 22/1989). Quando o item destaca ICMS (`pICMS`) com outra
+  alíquota, o item mostra o aviso "Alíquota de ICMS diferente da esperada:
+  a nota traz 12%, o esperado para esta origem é 7%." (com 4% numa origem
+  nacional, diz também que os 4% valem só para as origens 1, 2, 3 e 8).
+  Itens sem ICMS destacado (Simples Nacional, isentos, ST já retido) não
+  são comparados. O app avisa, não decide: a ST, a MVA e o CFOP não mudam.
+- **Fornecedor do Simples Nacional** (item com CSOSN, sem `pICMS`) e
+  produto com ST: a coluna de MVA da planilha é a da alíquota esperada, e a
+  coluna MVA mostra de onde ela veio ("coluna de 12%, pela origem e pelo
+  estado do fornecedor").
+- **MVA retida pelo fornecedor**: com a linha da planilha certa (o app
+  decidiu ou a pessoa confirmou) e na revenda, a MVA da nota (`pMVAST`) é
+  comparada com a da planilha na coluna da alíquota esperada, as duas com 2
+  casas. Menor: aviso "O fornecedor reteve com MVA menor que a da planilha
+  (40% contra 55%). Lance com a MVA da planilha; a diferença é complementada
+  na apuração. Avise o fornecedor para acertar as próximas notas." Maior:
+  alerta "O fornecedor reteve com MVA maior que a da planilha (60% contra
+  55%). Fale com o contador antes de lançar: a orientação é recusar ou
+  devolver a mercadoria e pedir uma nota nova." Com o item em "Confirmar",
+  não compara.
 - **Dicas**: cabeçalhos, botões e o selo "lembrado" têm dica no visual do
   app, que abre depois de 400 ms com o mouse ou com o foco do teclado (o
   foco vale mais que o mouse) e fecha com Esc.

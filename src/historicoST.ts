@@ -8,7 +8,6 @@ import {
   decisaoAplicavel,
   finalidadeLembravel,
   ROTULO_LUBRIFICANTE,
-  textoMva,
   type DecisaoLembrada,
   type EscolhaST,
 } from './fiscal/entrada';
@@ -140,27 +139,45 @@ export function sugestaoHistorico(
 
 // ---------- MVA do fornecedor ----------
 
-/** Diferença acima disso (em pontos percentuais) vira observação. */
-const TOLERANCIA_MVA = 0.01;
+/**
+ * Aviso de um item da ferramenta: "aviso" (leve, amarelo) ou "alerta"
+ * (forte, vermelho). Só informa: não muda ST, MVA nem CFOP.
+ */
+export interface AvisoItem {
+  nivel: 'aviso' | 'alerta';
+  texto: string;
+}
+
+const duasCasas = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const pct2 = (n: number) =>
+  `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 
 /**
  * Compara a MVA que o fornecedor usou na retenção (pMVAST, em %) com a da
- * planilha (`mvaPlanilha`, em fração). Devolve a observação quando a
- * diferença passa de 0,01 ponto percentual; igual, sem pMVAST ou sem MVA da
- * planilha: null. Não muda ST nem CFOP.
+ * planilha na coluna da alíquota esperada (`mvaPlanilha`, em fração), as
+ * duas arredondadas para 2 casas. Menor: aviso (lance com a da planilha).
+ * Maior: alerta (fale com o contador antes de lançar). Igual, sem pMVAST
+ * ou sem MVA da planilha: null.
  */
-export function observacaoMvaFornecedor(
+export function avisoMvaFornecedor(
   pMVAST: string | undefined,
   mvaPlanilha: number | null,
-): string | null {
+): AvisoItem | null {
   const t = (pMVAST ?? '').trim().replace(',', '.');
   if (!t || mvaPlanilha === null) return null;
-  const fornecedor = Number(t);
-  if (!Number.isFinite(fornecedor)) return null;
-  const planilha = mvaPlanilha * 100;
-  if (Math.abs(fornecedor - planilha) <= TOLERANCIA_MVA + 1e-9) return null;
-  const texto = fornecedor.toLocaleString('pt-BR', {
-    maximumFractionDigits: 4,
-  });
-  return `MVA do fornecedor ${texto}% difere da planilha ${textoMva(mvaPlanilha)}: conferir`;
+  const lido = Number(t);
+  if (!Number.isFinite(lido)) return null;
+  const fornecedor = duasCasas(lido);
+  const planilha = duasCasas(mvaPlanilha * 100);
+  if (fornecedor === planilha) return null;
+  const contra = `(${pct2(fornecedor)} contra ${pct2(planilha)})`;
+  return fornecedor < planilha
+    ? {
+        nivel: 'aviso',
+        texto: `O fornecedor reteve com MVA menor que a da planilha ${contra}. Lance com a MVA da planilha; a diferença é complementada na apuração. Avise o fornecedor para acertar as próximas notas.`,
+      }
+    : {
+        nivel: 'alerta',
+        texto: `O fornecedor reteve com MVA maior que a da planilha ${contra}. Fale com o contador antes de lançar: a orientação é recusar ou devolver a mercadoria e pedir uma nota nova.`,
+      };
 }

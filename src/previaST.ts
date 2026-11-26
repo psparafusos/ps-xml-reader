@@ -6,7 +6,12 @@
 // resolverItem (src/fiscal/entrada.ts), sem mudar o motor. Lógica pura, sem
 // DOM.
 
-import type { AliquotaInternaItem, AnaliseItem } from './fiscal/analise';
+import type {
+  AliquotaInternaItem,
+  AnaliseItem,
+  CandidatoAnalise,
+} from './fiscal/analise';
+import { avisoMvaFornecedor, type AvisoItem } from './historicoST';
 import {
   decisaoAplicavel,
   FINALIDADE_PADRAO,
@@ -85,14 +90,20 @@ export interface LinhaPrevia extends ItemResolvido {
   observacoes: string[];
   /** "segmento X lido com problemas", mostrado com a cor do "confirmar". */
   segmentoProblema: string | null;
+  /**
+   * Avisos do item (alíquota de ICMS diferente da esperada; a ferramenta
+   * junta o da MVA retida). Só informam: não mudam ST, MVA nem CFOP.
+   */
+  avisos: AvisoItem[];
+  /**
+   * De onde veio a coluna de MVA quando não foi da nota (Simples Nacional):
+   * "coluna de 12%, pela origem e pelo estado do fornecedor". null: da nota.
+   */
+  colunaMvaTexto: string | null;
 }
 
 /** Pendências do motor que só informam (não decidem ST, MVA nem CFOP). */
-const RE_INFORMATIVA = [
-  /^alíquota interna/,
-  /^origem \S+ \(importado\)/,
-  /^fornecedor tratou como ST/,
-];
+const RE_INFORMATIVA = [/^alíquota interna/, /^fornecedor tratou como ST/];
 const RE_ALIQUOTA = /^alíquota interna/;
 const RE_SEGMENTO = /^segmento .+ lido com problemas$/;
 const RE_TIPI = /TIPI/;
@@ -155,6 +166,18 @@ export function previaItem(
 
   const mvaPendente =
     r.st === 'sim' && r.finalidade === 'revenda' && mva === null && !r.manual;
+  const avisos: AvisoItem[] = a.avisoAliquota
+    ? [{ nivel: 'aviso', texto: a.avisoAliquota }]
+    : [];
+  const colunaMvaTexto =
+    r.st === 'sim' &&
+    r.finalidade === 'revenda' &&
+    r.candidato &&
+    !r.candidato.lubrificante &&
+    !r.manual &&
+    mva !== null
+      ? (a.textoColunaMva ?? null)
+      : null;
   return {
     ...r,
     mva,
@@ -171,8 +194,52 @@ export function previaItem(
     aliquotaConfirmar,
     observacoes,
     segmentoProblema,
+    avisos,
+    colunaMvaTexto,
     precisaDeMim: r.st === 'confirmar' || r.cfop === null || mvaPendente,
   };
+}
+
+/**
+ * MVA da planilha na coluna da alíquota esperada, para comparar com a que
+ * o fornecedor reteve. Na linha de Autopeças, a MVA-ST 1; numa linha com um
+ * jogo só, ele; com vários jogos, null (a MVA está em dúvida). Apêndice XIV:
+ * a da coluna do apêndice. Sem coluna esperada: null.
+ */
+export function mvaColunaEsperada(c: CandidatoAnalise): number | null {
+  if (c.lubrificante) return c.mvas[0]?.valor ?? null;
+  const jogos = c.mvasEsperada;
+  if (!jogos || jogos.length === 0) return null;
+  const autopecas = jogosAutopecas({ ...c, mvas: jogos });
+  if (autopecas) return autopecas.padrao.valor;
+  return jogos.length === 1 ? jogos[0].valor : null;
+}
+
+/**
+ * Aviso da MVA retida contra a planilha, só com a linha certa: ST "Sim"
+ * (decidida pelo app ou confirmada pela pessoa), revenda, linha da
+ * planilha (não o CFOP manual). Com o app em "confirmar", nada: o aviso só
+ * vale depois que a pessoa confirmar a linha.
+ */
+export function mvaParaComparar(p: LinhaPrevia): number | null {
+  if (p.st !== 'sim' || p.manual || p.finalidade !== 'revenda') return null;
+  return p.candidato ? mvaColunaEsperada(p.candidato) : null;
+}
+
+/**
+ * A prévia do item com o aviso da MVA retida (pMVAST da nota) contra a da
+ * planilha na coluna esperada, como a ferramenta mostra.
+ */
+export function previaComMvaRetida(
+  a: AnaliseItem,
+  ufEmitente: string,
+  decisao: DecisaoST,
+  lembrado: boolean,
+  pMVAST: string | undefined,
+): LinhaPrevia {
+  const r = previaItem(a, ufEmitente, decisao, lembrado);
+  const aviso = avisoMvaFornecedor(pMVAST, mvaParaComparar(r));
+  return aviso ? { ...r, avisos: [...r.avisos, aviso] } : r;
 }
 
 /**

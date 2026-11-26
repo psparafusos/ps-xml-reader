@@ -12,7 +12,7 @@
 // src/previaST.ts.
 
 import { perguntar } from './dialogos';
-import { botao, botaoFecharPainel, el, icone } from './dom';
+import { botao, botaoFecharPainel, el, icone, iconeSinal } from './dom';
 import { ICONES } from './icones';
 import { criarMenuEscolha, type OpcaoMenu, type Seletor } from './menuEscolha';
 import {
@@ -36,7 +36,7 @@ import {
   decisaoDoApp,
   decisaoInicial,
   pessoaMudouOApp,
-  previaItem,
+  previaComMvaRetida,
   textoDecisaoApp,
   type DecisaoST,
   type LinhaPrevia,
@@ -54,7 +54,7 @@ import {
   textoOutrasLinhas,
   textoSugestaoSemST,
 } from './explicacaoST';
-import { observacaoMvaFornecedor, sugestaoHistorico } from './historicoST';
+import { sugestaoHistorico } from './historicoST';
 import { ligarDica, type Dica } from './tooltip';
 import { planoDoAplicar, type CamposST } from './nfe/ferramentasPerfil';
 import type { ColunaItem } from './nfe/colunas';
@@ -193,18 +193,15 @@ export function abrirFerramentaST(c: ContextoST): void {
   );
 
   const resolver = (l: Linha): LinhaPrevia => {
-    const r = previaItem(
+    // MVA que o fornecedor reteve x a da planilha na coluna da alíquota
+    // esperada: só com a linha certa, e só avisa.
+    return previaComMvaRetida(
       analises.get(l.item.nItem)!,
       uf,
       l.decisao,
       l.lembrada,
+      l.item.pMVAST,
     );
-    // MVA que o fornecedor usou na retenção x a da planilha: só observa.
-    const obs =
-      stRetidoNaNota(l.item) && !r.manual
-        ? observacaoMvaFornecedor(l.item.pMVAST, r.mva)
-        : null;
-    return obs ? { ...r, observacoes: [...r.observacoes, obs] } : r;
   };
 
   // ---------- estrutura da janela ----------
@@ -525,6 +522,8 @@ export function abrirFerramentaST(c: ContextoST): void {
     const td = el('td', `num st__mva${textual ? ' st__mva--texto' : ''}`);
     td.append(r.mvaTexto);
     if (r.mvaRotulo) td.append(el('span', 'st__cest', r.mvaRotulo));
+    if (r.colunaMvaTexto)
+      td.append(el('span', 'st__cest st__coluna-mva', r.colunaMvaTexto));
     return td;
   }
 
@@ -681,6 +680,14 @@ export function abrirFerramentaST(c: ContextoST): void {
       marcaPessoa,
       mudou &&
         el('span', 'st__obs st__app', `Pelo app: ${textoDecisaoApp(app)}`),
+      ...r.avisos.map((x) =>
+        el(
+          'span',
+          `st__aviso-item st__aviso-item--${x.nivel}`,
+          iconeSinal(x.nivel === 'alerta' ? 'erro' : 'aviso'),
+          el('span', '', x.texto),
+        ),
+      ),
       ...r.observacoesTipi.map((o) => el('span', 'st__obs', `TIPI: ${o}`)),
       ...r.observacoes.map((o) => el('span', 'st__obs', o)),
       ...avisosAutomotiva(a).map((f) =>

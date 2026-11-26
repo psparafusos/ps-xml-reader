@@ -365,16 +365,18 @@ describe('analise: outros motivos para confirmar', () => {
 });
 
 describe('analise: pendências informativas', () => {
-  it('importado com alíquota diferente de 4% interestadual', () => {
+  it('importado com alíquota diferente de 4% interestadual: aviso, sem mudar a ST', () => {
     const r = analisarItem(
       { NCM: '73181500', orig: '2', pICMS: '12' },
       'SP',
       base,
     );
     assert.equal(r.stSergipe, 'nao');
-    assert.ok(
-      r.pendencias.some((p) => /origem 2 \(importado\) pede 4%/.test(p)),
+    assert.equal(
+      r.avisoAliquota,
+      'Alíquota de ICMS diferente da esperada: a nota traz 12%, o esperado para esta origem é 4%.',
     );
+    assert.equal(r.cfopSugerido, '2102');
   });
 
   it('fornecedor usou ST mas o NCM está fora da planilha', () => {

@@ -3400,6 +3400,26 @@ ul {
   font-style: italic;
 }
 
+/* Avisos do item (alíquota de ICMS, MVA retida): o sinal do nível e o
+   texto. Só informam: não mudam ST, MVA nem CFOP. */
+.st__aviso-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-1);
+  margin-top: 2px;
+  color: var(--cor-texto);
+}
+
+.st__aviso-item .icone-estado {
+  flex: none;
+  margin-top: calc((1lh - var(--icone-estado)) / 2);
+}
+
+.st__aviso-item--alerta {
+  color: var(--cor-texto-forte);
+  font-weight: var(--peso-medio);
+}
+
 .st__motivo {
   min-width: 200px;
 }
