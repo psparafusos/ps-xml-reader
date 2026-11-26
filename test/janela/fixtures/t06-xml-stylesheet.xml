@@ -10,7 +10,7 @@
       <dest><CNPJ>00000000000000</CNPJ><xNome>Destinatario Inventado</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Cidade Teste</xMun><UF>SE</UF><CEP>00000000</CEP></enderDest><IE>000000000</IE></dest>
       <det nItem="1">
         <prod><cProd>T6</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAFUSO INVENTADO T6</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>1.00</vUnCom><vProd>1.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>1.0000</qTrib><vUnTrib>1.00</vUnTrib><indTot>1</indTot></prod>
-        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>1.00</vBC><pICMS>18.00</pICMS><vICMS>0.18</vICMS></ICMS00></ICMS></imposto>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>1.00</vBC><pICMS>7.00</pICMS><vICMS>0.07</vICMS></ICMS00></ICMS></imposto>
       </det>
       <total><ICMSTot><vBC>1.00</vBC><vICMS>0.00</vICMS><vST>0.00</vST><vProd>1.00</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vIPI>0.00</vIPI><vOutro>0.00</vOutro><vNF>1.00</vNF></ICMSTot></total>
       <transp><modFrete>9</modFrete></transp>

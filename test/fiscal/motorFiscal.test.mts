@@ -547,18 +547,51 @@ describe('NCMs sem ST em SE (fornecedor de outro estado)', () => {
     );
   });
 
-  it(
-    '3919.10.00, fita dupla face comum, sem CEST e com ST retida: nunca "Sim" sozinho',
-    {
-      todo: 'hoje o motor responde "Sim" pela linha de Autopeças (CEST 01.090.00), porque a ST retida conta como evidência; pendente de decisão',
-    },
-    () => {
-      const { a } = analisar('SP', {
-        ncm: '39191000',
-        xProd: 'FITA DUPLA FACE INVENTADA 19MM',
-        icms: icms10('0', '7.0000', '95.0000'),
-      });
-      assert.notEqual(a.stSergipe, 'sim');
-    },
-  );
+  it('3919.10.00, fita dupla face comum, sem CEST e com ST retida: Confirmar, pelo CEST obrigatório', () => {
+    const { a } = analisar('SP', {
+      ncm: '39191000',
+      xProd: 'FITA DUPLA FACE INVENTADA 19MM',
+      icms: icms10('0', '7.0000', '95.0000'),
+    });
+    assert.equal(a.stSergipe, 'confirmar');
+    assert.equal(a.cfopSugerido, null);
+    assert.equal(a.semCestComRetencao, true);
+    assert.equal(a.sugestaoSemST, false);
+    const p = previaComMvaRetida(a, 'SP', AUTOMATICO, false, '95.0000');
+    assert.equal(p.st, 'confirmar');
+    assert.equal(p.precisaDeMim, true);
+    assert.equal(
+      p.motivo,
+      'O fornecedor reteve ST, mas não informou o CEST, que é obrigatório para produto desta lista (Convênio ICMS 142/2018, cláusula vigésima, I). Confirme se o produto é deste segmento.',
+    );
+    // Sem a linha certa, a MVA retida não é comparada.
+    assert.deepEqual(p.avisos, []);
+  });
+
+  it('3919.10.00 com o CEST da linha (01.090.00) e ST retida: Sim', () => {
+    const { a } = analisar('SP', {
+      ncm: '39191000',
+      xProd: 'FITA REFLETIVA INVENTADA 50MM',
+      cest: '0109000',
+      icms: icms10('0', '7.0000', '95.0000'),
+    });
+    assert.equal(a.stSergipe, 'sim');
+    assert.equal(a.cfopSugerido, '2403');
+    assert.equal(a.semCestComRetencao, false);
+  });
+
+  it('3919.10.00 com CEST de outro segmento (tintas): Confirmar, dizendo o segmento do CEST', () => {
+    const { a } = analisar('SP', {
+      ncm: '39191000',
+      xProd: 'FITA INVENTADA',
+      cest: '2400100',
+      icms: icms10('0', '7.0000', '95.0000'),
+    });
+    assert.equal(a.stSergipe, 'confirmar');
+    const p = previaComMvaRetida(a, 'SP', AUTOMATICO, false, '95.0000');
+    assert.equal(
+      p.motivo,
+      'CEST da nota (24.001.00) não bate com a planilha (01.090.00); o CEST da nota indica o segmento Tintas (Tintas, linha 5)',
+    );
+  });
 });

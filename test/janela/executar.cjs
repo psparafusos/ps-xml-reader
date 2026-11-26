@@ -3102,7 +3102,7 @@ async function casosJanelasPorCima() {
           const macaco = await estado(3);
           confere(
             macaco.st === 'Sim' &&
-              macaco.mva.startsWith('48,5%') &&
+              macaco.mva.startsWith('56,94%') &&
               macaco.cfop === '2403' &&
               !macaco.pendente,
             `item 3 (${w}): ${JSON.stringify(macaco)}`,
@@ -3355,7 +3355,7 @@ async function casosJanelasPorCima() {
               `a escolha do item ${n} não foi aplicada`,
             ),
         );
-      const PELO_APP_1 = 'Pelo app: Sim, CFOP 2403, MVA 48,5%';
+      const PELO_APP_1 = 'Pelo app: Sim, CFOP 2403, MVA 56,94%';
       try {
         await carregarPlanilhaST();
         for (const [w, h] of TAMANHOS_PAINEL) {

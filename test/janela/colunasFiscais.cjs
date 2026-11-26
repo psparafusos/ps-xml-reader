@@ -234,6 +234,29 @@ async function casosColunasFiscais(ctx) {
         `seleção (dado, título): ${selecao}`,
       );
       await capturas('colunas-fiscais-tabela');
+      // A nota variada vem de SP para SE com 12% (o esperado é 7%) nos itens
+      // 1, 3, 4 e 9: a Conferência avisa (o item 2, importado a 4%, e o 6, de
+      // origem 2 a 4%, estão certos). É a nota que mantém o aviso coberto.
+      await aguardar(
+        `!!document.querySelector('[aria-controls="conferencia-detalhe-aliquota-icms"]')`,
+        15000,
+        'o painel não mostrou a linha da alíquota de ICMS',
+      );
+      const aliq = await avaliar(`(() => {
+        const b = document.querySelector('[aria-controls="conferencia-detalhe-aliquota-icms"]');
+        return {
+          titulo: b.querySelector('.conferencia__linha-titulo').textContent,
+          nivel: [...b.closest('li').classList].find((c) => c.startsWith('conferencia__verificacao--')),
+          itens: [...document.querySelectorAll('#conferencia-detalhe-aliquota-icms .conferencia__parcela > span')].map((s) => s.textContent.slice(0, 7)),
+        };
+      })()`);
+      confere(
+        aliq.titulo === '4 itens com alíquota de ICMS diferente da esperada' &&
+          aliq.nivel === 'conferencia__verificacao--leve' &&
+          JSON.stringify(aliq.itens) ===
+            JSON.stringify(['Item 1:', 'Item 3:', 'Item 4:', 'Item 9:']),
+        `linha da alíquota de ICMS: ${JSON.stringify(aliq)}`,
+      );
       await inicio();
     },
   );

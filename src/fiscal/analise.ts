@@ -10,11 +10,14 @@
 // - O NCM na planilha não basta para o "Sim" (roteiro da contabilidade, 11/2026):
 //   o NCM bate com a linha, a descrição da linha descreve o produto, o
 //   produto é do segmento da aba e, prova dos nove, o CEST da nota. O "Sim"
-//   automático pede uma linha candidata e uma evidência na nota (o CEST do
-//   item é o da linha, ou o fornecedor reteve ST no item; ver
-//   fiscal/evidencias.ts). Sem evidência: "confirmar", com a sugestão "Sem ST"
-//   quando a nota não tem CEST e veio com tributação sem ST. CEST de outra
-//   linha ou de outro segmento: "confirmar", mostrando os dois.
+//   automático pede uma linha candidata e o CEST do item igual ao da linha
+//   (ver fiscal/evidencias.ts). Sem CEST: "confirmar", com a sugestão
+//   "Sem ST" quando a nota veio com tributação sem ST. Sem CEST e com ST
+//   retida também é "confirmar": o CEST é obrigatório na nota de produto
+//   listado nos anexos, mesmo sem ST (Convênio ICMS 142/2018, cláusula
+//   vigésima, I), então a retenção sem CEST já é nota incompleta, e o
+//   fornecedor pode ter retido errado. CEST de outra linha ou de outro
+//   segmento: "confirmar", dizendo qual segmento o CEST da nota indica.
 // - O NCM da planilha vale pelo prefixo (4 dígitos podem bastar).
 // - A coluna de MVA é a alíquota de ICMS que veio na nota. Fornecedor do
 //   Simples Nacional (CSOSN, sem pICMS): a coluna é a da alíquota
@@ -110,6 +113,13 @@ export interface BaseAnalise {
   /** Apêndice XIV (lubrificantes); ausente ou null = não carregado. */
   combustiveis?: TabelaCombustiveis | null;
 }
+
+/**
+ * Pendência do item com uma linha candidata, sem CEST e com ST retida: a
+ * retenção sozinha não decide o "Sim".
+ */
+export const MOTIVO_SEM_CEST_COM_RETENCAO =
+  'O fornecedor reteve ST, mas não informou o CEST, que é obrigatório para produto desta lista (Convênio ICMS 142/2018, cláusula vigésima, I). Confirme se o produto é deste segmento.';
 
 /** Segmento das opções do Apêndice XIV (vai na escolha e na prévia). */
 export const SEGMENTO_APENDICE_XIV = 'Apêndice XIV';
@@ -263,6 +273,11 @@ export interface AnaliseItem {
    * CEST e tributação sem ST. Ausente = false.
    */
   sugestaoSemST?: boolean;
+  /**
+   * Uma linha candidata, nota sem CEST e ST retida pelo fornecedor:
+   * "confirmar" por isso (MOTIVO_SEM_CEST_COM_RETENCAO). Ausente = false.
+   */
+  semCestComRetencao?: boolean;
 }
 
 const ORIGEM_IMPORTADO = new Set(['1', '2', '3', '8']);
@@ -484,11 +499,12 @@ export function analisarItem(
   // várias, a pessoa já escolhe).
   let semEvidencia = false;
   let sugestaoSemST = false;
+  let semCestComRetencao = false;
   if (cestNota === null) {
     if (candidatos.length === 1 && evidencias.stRetido) {
-      motivos.push(
-        `nota sem CEST; o fornecedor reteve ST (${evidencias.tributacao})`,
-      );
+      duvidaST = true;
+      semCestComRetencao = true;
+      pendencias.push(MOTIVO_SEM_CEST_COM_RETENCAO);
     } else if (candidatos.length === 1) {
       duvidaST = true;
       semEvidencia = true;
@@ -503,8 +519,9 @@ export function analisarItem(
     }
   } else if (!candidatos.some((c) => c.cestConfere)) {
     duvidaST = true;
+    const segs = [...new Set(doCest.map((l) => l.segmento))];
     const onde = doCest.length
-      ? `é de ${doCest.map((l) => `${l.segmento}, linha ${l.linhaPlanilha}`).join('; ')}`
+      ? `indica ${segs.length === 1 ? 'o segmento' : 'os segmentos'} ${segs.join(', ')} (${doCest.map((l) => `${l.segmento}, linha ${l.linhaPlanilha}`).join('; ')})`
       : 'não está na planilha';
     pendencias.push(
       `CEST da nota (${cestNota}) não bate com a planilha (${candidatos.map((c) => c.cest).join(', ')}); o CEST da nota ${onde}`,
@@ -613,6 +630,7 @@ export function analisarItem(
     outrasLinhas,
     semEvidencia,
     sugestaoSemST,
+    semCestComRetencao,
   });
 }
 
