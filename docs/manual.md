@@ -1117,6 +1117,62 @@ antes desta coluna abrem normalmente, sem ela. No PDF e na impressão a
 coluna sai como texto ("1001 · PARAFUSO ... · 100 UN por CX"), sem ícones
 nem botões.
 
+### XML de importação (menu do Salvar)
+
+Com o cadastro do sistema de gestão carregado, a opção **Gerar XML de
+importação**, no menu da seta do Salvar, grava uma **cópia separada** do XML
+da nota para o sistema de gestão importar a entrada já ligada ao produto da
+loja e na unidade de venda. A cópia serve **só para importar**: o arquivo da
+nota continua sendo o XML original, que o app nunca altera. Guarde e use o
+original para tudo o mais (DANFE, arquivo da contabilidade, conferência).
+
+A opção fica apagada, com o motivo embaixo, sem cadastro carregado, quando
+nenhum item tem produto da casa definido e quando o arquivo aberto já é uma
+cópia de importação.
+
+**O que muda na cópia**, só nos itens com produto da casa definido (escolha
+da pessoa, decisão lembrada ou sugestão de confiança alta):
+
+- **Código de barras**: `cEAN` e `cEANTrib` passam a ser o código de barras
+  do produto no cadastro, do jeito que está lá (inclusive código interno e
+  zeros à esquerda). Produto sem código de barras no cadastro: o item fica
+  como veio.
+- **Código do produto** (`cProd`): fica o original. Só quando o cadastro tem,
+  para esse fornecedor, um vínculo desse código com **outro** produto, ele
+  vira `PSR-` mais o código original (até 60 caracteres), para o sistema de
+  gestão não seguir o vínculo antigo.
+- **Unidade**: com fator conhecido para a unidade da nota (sugerido pelo
+  cadastro ou editado no quadro de escolha), a quantidade é levada à unidade
+  de venda: `qCom` vezes o fator, `uCom` com a unidade de venda e `vUnCom`
+  igual a `vProd` dividido pela nova quantidade (o mesmo em `qTrib`, `uTrib`
+  e `vUnTrib` quando a unidade tributável é a mesma). Sem fator e com a
+  unidade da nota diferente da de venda, o item fica todo como veio (sem
+  vincular), para a entrada não parecer pronta com a quantidade errada.
+  Fator 1 ou mesma unidade: não converte.
+
+Todo o resto fica igual: emitente, destinatário, valores dos itens,
+impostos, totais, transporte, cobrança, pagamento, informações adicionais e
+o protocolo. A assinatura digital (`Signature`) sai, porque a cópia não é o
+documento autorizado. No topo vai uma marca do app (uma instrução de
+processamento `<?ps-reader copia="importacao" ...?>`), fora de qualquer
+campo fiscal.
+
+**Antes de gravar**, um resumo mostra quantos itens vão vinculados, quantos
+foram convertidos de unidade e quantos ficam como vieram e por quê (sem
+produto, sem código de barras, sem fator), com a lista dos itens. **Gerar**
+grava; **Cancelar** não grava nada.
+
+**Onde grava**: na pasta de destino, ao lado do `.psxml`, com o nome do
+arquivo da nota mais " - importacao" antes do `.xml`
+(`Fornecedor_NF1234 - importacao.xml`). Se já existe, o app pergunta antes
+de substituir, com o foco em **Cancelar**. Ele nunca grava por cima de um
+XML que não seja uma cópia de importação (a nota original, por exemplo).
+
+**Ao abrir uma cópia de importação**, o app avisa que é uma cópia gerada
+para importar no sistema de gestão, não a nota original, e mostra "Cópia
+para importação, não é a nota original" na barra. Ela abre na Conferência,
+não oferece DANFE (nem imprimir nem salvar o DANFE) e não vira `.psxml`.
+
 ## Configurações
 
 O item **Configurações** do menu do perfil (tela inicial e tela da nota) abre
@@ -1353,6 +1409,7 @@ src/
   cadastro/documento.ts o cadastro como documento: leitura, cadastro-info.json e o selo
   cadastro/codigoCasa.ts coluna Código da casa: escolha de cada item, resumo e texto (puro)
   codigoCasaTela.ts  célula e quadro de escolha da coluna Código da casa
+  importacaoTela.ts  motivo da opção e resumo do Gerar XML de importação
   rolagemArea.ts     rolagem da área do documento: barras próprias e zoom pelo cursor
   fiscal/xlsx.ts     leitor mínimo de .xlsx (com fiscal/zip.ts)
   fiscal/st.ts       planilha de ST de Sergipe (Portal ST do CONFAZ)
@@ -1368,6 +1425,7 @@ src/
   dialogos.ts        caixas de diálogo no visual do app (pergunta, nome da cópia)
   nfe/parser.ts      texto XML ou .psxml -> Nota e anotações (usa DOMParser)
   nfe/copia.ts       monta o .psxml (original + anotações) com DOM e XMLSerializer
+  nfe/importacao.ts  XML de importação: plano item a item e o texto da cópia
   nfe/colunas.ts     colunas da tabela de itens (ordem, rótulo, alinhamento, visível, ordenação)
   nfe/ordem.ts       ordenação dos itens na conferência (critérios, comparação estável)
   nfe/navegacao.ts   Enter e Tab entre as caixas de anotação (destino do foco)

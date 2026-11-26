@@ -33,6 +33,7 @@ import {
   type IndiceCadastro,
   type ItemNota,
   type SugestaoItem,
+  vinculosDoCodigo,
 } from './cadastro/casamento';
 import { buscarProdutos } from './cadastro/codigoCasa';
 import { validarTextoCadastro, type ProdutoCadastro } from './cadastro/formato';
@@ -300,6 +301,45 @@ export async function buscarNoCadastro(
   };
 }
 
+/**
+ * XML de importação: para cada item, o código de barras e a unidade de venda
+ * do produto escolhido e os produtos para os quais o emitente tem vínculo
+ * exato do cProd (só o emitente: o sistema de gestão segue o vínculo do
+ * próprio CNPJ).
+ */
+export async function dadosImportacao(
+  pasta: string,
+  pedido: unknown,
+): Promise<ResultadoDadosImportacao> {
+  const o =
+    typeof pedido === 'object' && pedido !== null
+      ? (pedido as Record<string, unknown>)
+      : {};
+  if (!Array.isArray(o.itens) || o.itens.length > 2000)
+    return { status: 'sem-cadastro' };
+  const c = await cadastroEmMemoria(pasta);
+  if (!c) return { status: 'sem-cadastro' };
+  const emitente = documento(o.emitente) || null;
+  const itens: Extract<ResultadoDadosImportacao, { status: 'ok' }>['itens'] =
+    [];
+  for (const i of o.itens) {
+    if (typeof i !== 'object' || i === null) continue;
+    const x = i as Record<string, unknown>;
+    const nItem = texto(x.nItem);
+    const codigo = texto(x.codigo);
+    if (!nItem || !codigo) continue;
+    const p = c.indice.produtos.get(codigo);
+    itens.push({
+      nItem,
+      existe: p !== undefined,
+      codigoBarras: p?.codigoBarras ?? null,
+      unidade: p?.unidade ?? '',
+      vinculosCProd: vinculosDoCodigo(c.indice, emitente, texto(x.cProd)),
+    });
+  }
+  return { status: 'ok', itens };
+}
+
 export async function removerCadastro(pasta: string): Promise<void> {
   emMemoria = null;
   // A info primeiro: sem ela o cadastro já conta como removido.
@@ -377,6 +417,10 @@ export function registrarCadastro(
 
   tratar('buscar-cadastro', (_event, pedido: unknown) =>
     buscarNoCadastro(pasta(), pedido),
+  );
+
+  tratar('dados-importacao', (_event, pedido: unknown) =>
+    dadosImportacao(pasta(), pedido),
   );
 
   // Aviso de erro fechado: a recusa some e o cartão volta a "Opcional".

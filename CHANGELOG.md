@@ -20,6 +20,14 @@ de commit (`git log`).
   normalmente. No PDF e na impressão a coluna sai como texto.
 - Ao carregar o primeiro cadastro, o app pergunta uma vez se a coluna
   Código da casa entra no perfil ativo.
+- **XML de importação**: no menu do Salvar, "Gerar XML de importação"
+  grava ao lado do `.psxml` uma cópia separada do XML da nota, com o código
+  de barras do produto da casa, o código do fornecedor trocado só quando
+  ele está vinculado a outro produto e a quantidade na unidade de venda
+  pelo fator, sem a assinatura e com uma marca do app. A cópia serve só
+  para importar no sistema de gestão; o arquivo da nota continua sendo o
+  XML original, que não muda. Aberta no app, a cópia avisa que não é a nota
+  original e não oferece DANFE.
 - A gravação das decisões lembradas tenta de novo quando o Windows recusa
   por um instante (arquivo aberto pelo antivírus ou pela indexação).
 - **DANFE em contingência**: a NF-e emitida em FS-IA, FS-DA, EPEC, SCAN,

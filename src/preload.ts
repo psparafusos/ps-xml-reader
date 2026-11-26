@@ -59,6 +59,16 @@ contextBridge.exposeInMainWorld('psApi', {
     pedido: Parameters<PsApi['buscarCadastro']>[0],
   ): Promise<ResultadoBuscaCasa> =>
     ipcRenderer.invoke('buscar-cadastro', pedido),
+  dadosImportacao: (
+    pedido: Parameters<PsApi['dadosImportacao']>[0],
+  ): Promise<ResultadoDadosImportacao> =>
+    ipcRenderer.invoke('dados-importacao', pedido),
+  salvarImportacao: (
+    texto: string,
+    base: string | null,
+    opcoes: OpcoesSalvar = {},
+  ): Promise<ResultadoSalvarImportacao> =>
+    ipcRenderer.invoke('salvar-importacao', texto, base, opcoes),
   lembrarCodigoCasa: (d: DecisaoCodigoCasa): Promise<boolean> =>
     ipcRenderer.invoke('lembrar-codigo-casa', d),
   esquecerCodigoCasa: (chave: string): Promise<boolean> =>

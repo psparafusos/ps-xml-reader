@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e INVENTADA para os testes do XML de importação (dados fictícios, sem valor fiscal). Um item por regra: vínculo que concorda (1), vínculo para outro produto (2), sem vínculo, só código de barras (3), produto sem código de barras (4), fator 12 de CX para UN (5), sem fator com unidade diferente (6), item sem produto (7). -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe>
+    <infNFe Id="NFe28261155555555000191550010000034561000034565" versao="4.00">
+      <ide><cUF>28</cUF><cNF>00003456</cNF><natOp>Venda de mercadoria</natOp><mod>55</mod><serie>1</serie><nNF>3456</nNF><dhEmi>2026-11-20T10:00:00-03:00</dhEmi><tpNF>1</tpNF><tpEmis>1</tpEmis><tpAmb>2</tpAmb><finNFe>1</finNFe></ide>
+      <emit><CNPJ>55555555000191</CNPJ><xNome>Distribuidora Epsilon Inventada Ltda</xNome><xFant>Epsilon</xFant><enderEmit><xLgr>Rua Inventada</xLgr><nro>5</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderEmit><IE>000000000</IE><CRT>3</CRT></emit>
+      <dest><CNPJ>99999999000191</CNPJ><xNome>Loja Exemplo Inventada</xNome><enderDest><xLgr>Rua Destino</xLgr><nro>2</nro><xBairro>Centro</xBairro><xMun>Aracaju</xMun><UF>SE</UF><CEP>49000000</CEP></enderDest><IE>000000000</IE></dest>
+      <det nItem="1">
+        <prod><cProd>PF-320</cProd><cEAN>SEM GTIN</cEAN><xProd>PARAF FENDA 3X20</xProd><NCM>73181500</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>100.0000</qCom><vUnCom>0.1000</vUnCom><vProd>10.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>100.0000</qTrib><vUnTrib>0.1000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>10.00</vBC><pICMS>19.00</pICMS><vICMS>1.90</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="2">
+        <prod><cProd>FT-1</cProd><cEAN>SEM GTIN</cEAN><xProd>FITA ISOL 19MM</xProd><NCM>39191010</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>10.0000</qCom><vUnCom>4.5000</vUnCom><vProd>45.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>10.0000</qTrib><vUnTrib>4.5000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>45.00</vBC><pICMS>19.00</pICMS><vICMS>8.55</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="3">
+        <prod><cProd>PC-14</cProd><cEAN>7890000020023</cEAN><xProd>PORCA SEXT 1/4</xProd><NCM>73181600</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>50.0000</qCom><vUnCom>0.2000</vUnCom><vProd>10.00</vProd><cEANTrib>7890000020023</cEANTrib><uTrib>UN</uTrib><qTrib>50.0000</qTrib><vUnTrib>0.2000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>10.00</vBC><pICMS>19.00</pICMS><vICMS>1.90</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="4">
+        <prod><cProd>AR-14</cProd><cEAN>SEM GTIN</cEAN><xProd>ARRUELA LISA 1/4</xProd><NCM>73182200</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>200.0000</qCom><vUnCom>0.0500</vUnCom><vProd>10.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>200.0000</qTrib><vUnTrib>0.0500</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>10.00</vBC><pICMS>19.00</pICMS><vICMS>1.90</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="5">
+        <prod><cProd>BC-6</cProd><cEAN>SEM GTIN</cEAN><xProd>BUCHA NYLON 6MM CX 12</xProd><NCM>39269090</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>3.0000</qCom><vUnCom>18.0000</vUnCom><vProd>54.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>CX</uTrib><qTrib>3.0000</qTrib><vUnTrib>18.0000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>54.00</vBC><pICMS>19.00</pICMS><vICMS>10.26</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="6">
+        <prod><cProd>RB-410</cProd><cEAN>SEM GTIN</cEAN><xProd>REBITE POP 4X10 CX</xProd><NCM>73182300</NCM><CFOP>5102</CFOP><uCom>CX</uCom><qCom>2.0000</qCom><vUnCom>15.0000</vUnCom><vProd>30.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>CX</uTrib><qTrib>2.0000</qTrib><vUnTrib>15.0000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>30.00</vBC><pICMS>19.00</pICMS><vICMS>5.70</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <det nItem="7">
+        <prod><cProd>XX-77</cProd><cEAN>SEM GTIN</cEAN><xProd>ITEM SEM CADASTRO</xProd><NCM>73269090</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1.0000</qCom><vUnCom>41.0000</vUnCom><vProd>41.00</vProd><cEANTrib>SEM GTIN</cEANTrib><uTrib>UN</uTrib><qTrib>1.0000</qTrib><vUnTrib>41.0000</vUnTrib><indTot>1</indTot></prod>
+        <imposto><ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>41.00</vBC><pICMS>19.00</pICMS><vICMS>7.79</vICMS></ICMS00></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vBC>200.00</vBC><vICMS>38.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>200.00</vProd><vFrete>15.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>215.00</vNF></ICMSTot></total>
+      <transp><modFrete>0</modFrete><transporta><CNPJ>66666666000191</CNPJ><xNome>Transportes Inventados Ltda</xNome></transporta><vol><qVol>2</qVol><esp>VOLUME</esp></vol></transp>
+      <cobr><fat><nFat>3456</nFat><vOrig>215.00</vOrig><vDesc>0.00</vDesc><vLiq>215.00</vLiq></fat><dup><nDup>001</nDup><dVenc>2026-12-20</dVenc><vDup>107.50</vDup></dup><dup><nDup>002</nDup><dVenc>2027-01-19</dVenc><vDup>107.50</vDup></dup></cobr>
+      <pag><detPag><tPag>15</tPag><vPag>215.00</vPag></detPag></pag>
+      <infAdic><infCpl>Nota inventada para testes &amp; exemplos.</infCpl></infAdic>
+    </infNFe>
+    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#NFe28261155555555000191550010000034561000034565"><DigestValue>QVNTSU5BVFVSQUlOVkVOVEFEQQ==</DigestValue></Reference></SignedInfo><SignatureValue>QVNTSU5BVFVSQUlOVkVOVEFEQQ==</SignatureValue><KeyInfo><X509Data><X509Certificate>Q0VSVElGSUNBRE9JTlZFTlRBRE8=</X509Certificate></X509Data></KeyInfo></Signature>
+  </NFe>
+  <protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><verAplic>INVENTADO</verAplic><chNFe>28261155555555000191550010000034561000034565</chNFe><dhRecbto>2026-11-20T10:05:00-03:00</dhRecbto><nProt>999999999999999</nProt><digVal>QVNTSU5BVFVSQUlOVkVOVEFEQQ==</digVal><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe>
+</nfeProc>

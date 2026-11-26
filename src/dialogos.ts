@@ -69,6 +69,8 @@ export function perguntar<T extends string>(opcoes: {
   caminho?: string;
   botoes: BotaoDialogo<T>[];
   cancelar: T;
+  /** Botão que recebe o foco; sem ele, o principal (ou o primeiro). */
+  foco?: T;
 }): Promise<T> {
   return new Promise((resolve) => {
     const { d, corpo, fim } = novaCaixa(
@@ -94,7 +96,10 @@ export function perguntar<T extends string>(opcoes: {
     d.append(el('footer', 'caixa-dialogo__botoes', ...botoes));
     document.body.append(d);
     d.showModal();
-    const i = opcoes.botoes.findIndex((b) => b.principal);
+    const i =
+      opcoes.foco !== undefined
+        ? opcoes.botoes.findIndex((b) => b.valor === opcoes.foco)
+        : opcoes.botoes.findIndex((b) => b.principal);
     botoes[i >= 0 ? i : 0]?.focus();
   });
 }
