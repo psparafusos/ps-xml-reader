@@ -581,8 +581,13 @@ async function principal() {
   await avaliar(preparar);
   const base = await avaliar(SONDA);
   // Com o filtro, o caso que roda primeiro pode não ser o que espera a nota
-  // da linha de comando: ela abre antes, para não abrir no meio dele.
-  if (filtroCasos && !process.env.PS_JANELA_README) {
+  // da linha de comando: ela abre antes, para não abrir no meio dele (no
+  // README e no catálogo o app abre vazio).
+  if (
+    filtroCasos &&
+    !process.env.PS_JANELA_README &&
+    !process.env.PS_JANELA_CATALOGO
+  ) {
     await aguardar(visivel('danfe'), 30000, 'a nota inicial não abriu');
     await fecharAvisosDaNota();
   }
