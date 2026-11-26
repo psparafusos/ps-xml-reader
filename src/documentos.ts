@@ -275,6 +275,7 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
   const p = (typeof pedido === 'object' && pedido !== null ? pedido : {}) as {
     itens?: unknown;
     uf?: unknown;
+    ufDestino?: unknown;
     cnpj?: unknown;
   };
   const base = baseFiscal();
@@ -304,12 +305,17 @@ async function analisar(pedido: unknown): Promise<ResultadoAnaliseST> {
       pIPI: textoDe(i.pIPI),
     };
     return {
-      analise: analisarItem(item, textoDe(p.uf), {
-        st: base.st!,
-        tipi: base.tipi,
-        segmentosIncompletos,
-        combustiveis: base.combustiveis,
-      }),
+      analise: analisarItem(
+        item,
+        textoDe(p.uf),
+        {
+          st: base.st!,
+          tipi: base.tipi,
+          segmentosIncompletos,
+          combustiveis: base.combustiveis,
+        },
+        textoDe(p.ufDestino) || undefined,
+      ),
       lembrada: decisoes[chaveDecisao(cnpj, textoDe(i.cProd))] ?? null,
     };
   });

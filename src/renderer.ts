@@ -4093,6 +4093,7 @@ const ferramentaST: FerramentaJanela = {
     const r = await window.psApi.analisarST({
       itens: itensParaAnalise(nota.itens),
       uf: nota.emitente.endereco.UF,
+      ufDestino: nota.destinatario.endereco.UF,
       cnpj: nota.emitente.CNPJ,
     });
     if (r.status === 'sem-st') {

@@ -462,6 +462,8 @@ interface PsApi {
   analisarST(pedido: {
     itens: ItemParaAnalise[];
     uf: string;
+    /** UF do destinatário (a alíquota interestadual esperada); vazio: SE. */
+    ufDestino?: string;
     cnpj: string;
   }): Promise<ResultadoAnaliseST>;
   /** Guarda (ou troca) a decisão do produto deste fornecedor. */

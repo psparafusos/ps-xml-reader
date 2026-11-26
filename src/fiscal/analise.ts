@@ -16,7 +16,12 @@
 //   quando a nota não tem CEST e veio com tributação sem ST. CEST de outra
 //   linha ou de outro segmento: "confirmar", mostrando os dois.
 // - O NCM da planilha vale pelo prefixo (4 dígitos podem bastar).
-// - A coluna de MVA é a alíquota de ICMS que veio na nota.
+// - A coluna de MVA é a alíquota de ICMS que veio na nota. Fornecedor do
+//   Simples Nacional (CSOSN, sem pICMS): a coluna é a da alíquota
+//   interestadual esperada (fiscal/aliquotaInterestadual.ts), pela origem e
+//   pelo estado do fornecedor.
+// - Alíquota de ICMS da nota diferente da esperada para a origem e os
+//   estados: aviso no item (avisoAliquota); não muda ST, MVA nem CFOP.
 // - Origem (orig): 1, 2, 3 e 8 = importado (4%); 0, 4, 5, 6 e 7 = nacional.
 // - Com ST: CFOP 1403 (fornecedor de SE) ou 2403 (de fora), mesmo sem
 //   retenção pelo fornecedor. Sem ST: 1102 ou 2102.
@@ -58,6 +63,11 @@ import {
   type TabelaST,
 } from './st';
 import { consultarTipi, type AliquotaIpi, type TabelaTipi } from './tipi';
+import {
+  aliquotaInterestadualEsperada,
+  avisoAliquotaIcms,
+  type AliquotaEsperada,
+} from './aliquotaInterestadual';
 import {
   evidenciasDaNota,
   type EvidenciasNota,
@@ -147,6 +157,13 @@ export interface CandidatoAnalise {
   cestConfere: boolean | null;
   /** Todos os jogos de MVA da linha, na coluna da alíquota da nota. */
   mvas: MvaJogo[];
+  /**
+   * Os mesmos jogos na coluna da alíquota interestadual esperada (para
+   * comparar com a MVA que o fornecedor reteve); null quando não há coluna
+   * esperada (operação interna ou origem desconhecida). Ausente nas análises
+   * de antes deste campo.
+   */
+  mvasEsperada?: MvaJogo[] | null;
   linhaPlanilha: number;
   /** Alíquota interna da linha; null quando a linha não tem a coluna. */
   aliquotaInterna: AliquotaInternaItem | null;
@@ -185,8 +202,23 @@ export interface AnaliseItem {
   cest: string | null;
   cestNota: string | null;
   origem: { codigo: string; tipo: TipoOrigem | null };
-  /** Coluna de MVA = alíquota de ICMS da nota, quando é 4, 7 ou 12. */
+  /**
+   * Coluna de MVA = alíquota de ICMS da nota, quando é 4, 7 ou 12. No
+   * fornecedor do Simples Nacional (CSOSN, sem pICMS), a da alíquota
+   * esperada (colunaMvaOrigem "esperada").
+   */
   colunaMva: AliquotaMva | null;
+  /** De onde veio a coluna de MVA; ausente nas análises de antes deste campo. */
+  colunaMvaOrigem?: 'nota' | 'esperada' | null;
+  /**
+   * Texto da origem da coluna quando ela não veio da nota: "coluna de 12%,
+   * pela origem e pelo estado do fornecedor". null: veio da nota (ou não há).
+   */
+  textoColunaMva?: string | null;
+  /** Alíquota interestadual esperada (origem e estados); null: não dá para saber. */
+  aliquotaEsperada?: AliquotaEsperada | null;
+  /** "Alíquota de ICMS diferente da esperada: ..."; null quando bate ou não se aplica. */
+  avisoAliquota?: string | null;
   /** MVA em fração, só quando há uma linha e um jogo de MVA (ou o padrão de Autopeças). */
   mva: number | null;
   /** Rótulo do jogo de onde veio a mva ("MVA-ST", "MVA-ST 1"). */
@@ -267,10 +299,15 @@ const CST_ST_RETIDO = new Set(['10', '30', '70', '201', '202', '203']);
 const RE_RESTRICAO =
   /\b(exceto|exclusivamente|somente|apenas|destinad[oa]s?|pr[óo]prios? para|para uso|de uso|utilizad[oa]s?|do tipo|para ve[íi]culos|automotiv|em embalage|acondicionad|de capacidade|com capacidade|inferior|superior|n[ãa]o superior|at[ée] \d)/i;
 
+/** UF da loja: a planilha de ST é a de Sergipe. */
+export const UF_DESTINO_PADRAO = 'SE';
+
 export function analisarItem(
   item: ItemFiscal,
   ufEmitente: string,
   base: BaseAnalise,
+  /** UF do destinatário da nota; vazio ou ausente: SE. */
+  ufDestino: string = UF_DESTINO_PADRAO,
 ): AnaliseItem {
   const motivos: string[] = [];
   const pendencias: string[] = [];
@@ -281,7 +318,30 @@ export function analisarItem(
   const deSergipe = uf === 'SE';
   const origem = lerOrigem(item.orig, pendencias);
   const aliquota = numero(item.pICMS);
-  const colunaMva = colunaDaAliquota(aliquota);
+  const aliquotaEsperada = aliquotaInterestadualEsperada(
+    uf,
+    ufDestino.trim() || UF_DESTINO_PADRAO,
+    item.orig,
+  );
+  const avisoAliquota = avisoAliquotaIcms(item, aliquotaEsperada);
+  const colunaEsperada: AliquotaMva | null =
+    aliquotaEsperada?.operacao === 'interestadual'
+      ? (String(aliquotaEsperada.aliquota) as AliquotaMva)
+      : null;
+  // Simples Nacional: o item tem CSOSN e não destaca ICMS. A coluna de MVA
+  // vem da alíquota esperada (origem e estado do fornecedor).
+  const simples = !!item.CSOSN?.trim() && aliquota === null;
+  const daNota = colunaDaAliquota(aliquota);
+  const colunaMva = daNota ?? (simples ? colunaEsperada : null);
+  const colunaMvaOrigem: AnaliseItem['colunaMvaOrigem'] = daNota
+    ? 'nota'
+    : colunaMva
+      ? 'esperada'
+      : null;
+  const textoColunaMva =
+    colunaMvaOrigem === 'esperada'
+      ? `coluna de ${colunaMva}%, pela origem e pelo estado do fornecedor`
+      : null;
   const tipi = analisarTipi(ncm, item, base.tipi ?? null);
   const doCest: LinhaDoCest[] =
     cestNota === null
@@ -295,17 +355,6 @@ export function analisarItem(
   const evidencias = evidenciasDaNota(item, cestNota, doCest);
 
   if (!uf) pendencias.push('UF do fornecedor ausente: CFOP não sugerido');
-  if (
-    origem.tipo === 'importado' &&
-    !deSergipe &&
-    uf &&
-    aliquota !== null &&
-    aliquota !== 4
-  ) {
-    pendencias.push(
-      `origem ${origem.codigo} (importado) pede 4% interestadual; a nota veio com ${fmt(aliquota)}%`,
-    );
-  }
   if (tipi.existe === false) pendencias.push('NCM não existe na TIPI');
   if (tipi.aviso) pendencias.push(tipi.aviso);
 
@@ -323,6 +372,10 @@ export function analisarItem(
     cestNota,
     origem,
     colunaMva,
+    colunaMvaOrigem,
+    textoColunaMva,
+    aliquotaEsperada,
+    avisoAliquota,
     mva: null,
     mvaRotulo: null,
     mvaAlternativa: null,
@@ -348,7 +401,7 @@ export function analisarItem(
     (base.segmentosIncompletos ?? []).map(chaveSegmento),
   );
   const candidatos = busca.candidatos.map((c) =>
-    candidato(c, colunaMva, incompletos),
+    candidato(c, colunaMva, colunaEsperada, incompletos),
   );
   const indicioST = indicioDeST(item);
 
@@ -467,6 +520,10 @@ export function analisarItem(
         ? 'nota sem alíquota de ICMS: coluna de MVA não definida'
         : `alíquota de ICMS da nota (${fmt(aliquota)}%) não é 4, 7 ou 12: coluna de MVA não definida`,
     );
+  } else if (textoColunaMva) {
+    motivos.push(
+      `${textoColunaMva} (Simples Nacional: a nota não destaca ICMS)`,
+    );
   } else {
     motivos.push(`coluna de MVA ${colunaMva}% (alíquota de ICMS da nota)`);
   }
@@ -564,8 +621,11 @@ export function analisarNota(
   itens: Item[],
   ufEmitente: string,
   base: BaseAnalise,
+  ufDestino: string = UF_DESTINO_PADRAO,
 ): AnaliseItem[] {
-  return itens.map((i) => analisarItem(itemFiscalDe(i), ufEmitente, base));
+  return itens.map((i) =>
+    analisarItem(itemFiscalDe(i), ufEmitente, base, ufDestino),
+  );
 }
 
 export function itemFiscalDe(i: Item): ItemFiscal {
@@ -591,6 +651,7 @@ export function itemFiscalDe(i: Item): ItemFiscal {
 function candidato(
   c: CandidatoST,
   coluna: AliquotaMva | null,
+  colunaEsperada: AliquotaMva | null,
   incompletos: Set<string>,
 ): CandidatoAnalise {
   const l = c.linha;
@@ -606,6 +667,13 @@ function candidato(
       rotulo: j.rotulo,
       valor: coluna === null ? null : j.porAliquota[coluna],
     })),
+    mvasEsperada:
+      colunaEsperada === null
+        ? null
+        : l.jogosMva.map((j) => ({
+            rotulo: j.rotulo,
+            valor: j.porAliquota[colunaEsperada],
+          })),
     linhaPlanilha: l.linhaPlanilha,
     aliquotaInterna: separarAliquotaInterna(l.aliquotaInterna),
     protocolos: l.protocolos ?? null,
