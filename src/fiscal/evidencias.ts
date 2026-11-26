@@ -1,8 +1,10 @@
 // Evidências na própria nota de que um item é do segmento da linha da
 // planilha de ST (roteiro da contabilidade): o NCM bater com uma linha não
 // basta. O "Sim" automático pede, além da linha candidata, o CEST da nota
-// igual ao da linha ou a ST retida pelo fornecedor no item. Sem nenhuma das
-// duas, a pessoa confirma; sem CEST e com tributação sem ST, a sugestão é
+// igual ao da linha. Sem CEST, a pessoa confirma, mesmo com a ST retida
+// pelo fornecedor (o CEST é obrigatório para produto listado nos anexos,
+// Convênio ICMS 142/2018, cláusula vigésima, I); a ST retida aparece como
+// evidência no quadro. Sem CEST e com tributação sem ST, a sugestão é
 // "Sem ST".
 //
 // Lógica pura e sem dependências: roda no processo principal (fiscal/

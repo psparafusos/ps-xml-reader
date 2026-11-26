@@ -130,12 +130,14 @@ const data = (dias) => {
   return d.toISOString().slice(0, 10);
 };
 
+// SP para SE, origem 0: 7% interestadual (Resolução do Senado 22/1989), e a
+// MVA retida é a da coluna de 7% da planilha inventada (56,94%).
 const ICMS00 = (v) =>
-  `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${v}</vBC><pICMS>12.00</pICMS><vICMS>${(v * 0.12).toFixed(2)}</vICMS></ICMS00></ICMS>`;
+  `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${v}</vBC><pICMS>7.00</pICMS><vICMS>${(v * 0.07).toFixed(2)}</vICMS></ICMS00></ICMS>`;
 const ICMS10 = (v) => {
-  const bcst = (v * 1.485).toFixed(2);
-  const st = (bcst * 0.19 - v * 0.12).toFixed(2);
-  return `<ICMS><ICMS10><orig>0</orig><CST>10</CST><modBC>3</modBC><vBC>${v}</vBC><pICMS>12.00</pICMS><vICMS>${(v * 0.12).toFixed(2)}</vICMS><modBCST>4</modBCST><pMVAST>48.50</pMVAST><vBCST>${bcst}</vBCST><pICMSST>19.00</pICMSST><vICMSST>${st}</vICMSST></ICMS10></ICMS>`;
+  const bcst = (v * 1.5694).toFixed(2);
+  const st = (bcst * 0.19 - v * 0.07).toFixed(2);
+  return `<ICMS><ICMS10><orig>0</orig><CST>10</CST><modBC>3</modBC><vBC>${v}</vBC><pICMS>7.00</pICMS><vICMS>${(v * 0.07).toFixed(2)}</vICMS><modBCST>4</modBCST><pMVAST>56.94</pMVAST><vBCST>${bcst}</vBCST><pICMSST>19.00</pICMSST><vICMSST>${st}</vICMSST></ICMS10></ICMS>`;
 };
 
 /** [código, descrição, NCM, CEST ou '', unidade, quantidade, valor unitário, com ST] */

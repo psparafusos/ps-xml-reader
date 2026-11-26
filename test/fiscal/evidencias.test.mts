@@ -222,9 +222,15 @@ describe('evidências: o caso da nota de material de construção', () => {
     assert.equal(previaItem(a, 'SP', revenda).cfop, '2403');
   });
 
-  it('sem CEST, mas com ST retida antes (CST 60): Sim', () => {
+  it('sem CEST, mas com ST retida antes (CST 60): Confirmar (CEST obrigatório)', () => {
     const a = analise({ CST: '60', vBCSTRet: '80.00', vICMSSTRet: '6.40' });
-    assert.equal(a.stSergipe, 'sim');
+    assert.equal(a.stSergipe, 'confirmar');
+    assert.equal(a.semCestComRetencao, true);
+    assert.equal(a.sugestaoSemST, false);
+    assert.match(
+      previaItem(a, 'SP', revenda).motivo,
+      /^O fornecedor reteve ST, mas não informou o CEST/,
+    );
   });
 
   it('sem CEST, CST 60 sem valor: Confirmar sem sugestão', () => {
@@ -247,7 +253,10 @@ describe('evidências: o caso da nota de material de construção', () => {
     const motivo = previaItem(a, 'SP', revenda).motivo;
     assert.match(motivo, /CEST da nota \(10\.006\.00\) não bate/);
     assert.match(motivo, /\(01\.002\.00\)/);
-    assert.match(motivo, /é de Construcao, linha 5/);
+    assert.match(
+      motivo,
+      /indica o segmento Construcao \(Construcao, linha 5\)/,
+    );
     const ev = linhasEvidencia(a);
     assert.equal(
       ev[3],

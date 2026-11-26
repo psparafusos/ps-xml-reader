@@ -207,7 +207,7 @@ describe('analise: casos da contabilidade', () => {
     );
   });
 
-  it('verniz sem CEST com ST retida pelo fornecedor: decide pelo segmento', () => {
+  it('verniz sem CEST com ST retida pelo fornecedor: confirmar (CEST obrigatório)', () => {
     const r = analisarItem(
       {
         NCM: '3208.10.20',
@@ -221,12 +221,18 @@ describe('analise: casos da contabilidade', () => {
       'SP',
       base,
     );
-    assert.equal(r.stSergipe, 'sim');
+    assert.equal(r.stSergipe, 'confirmar');
     assert.equal(r.cestNota, null);
     assert.equal(r.cest, '24.001.00');
     assert.equal(r.semEvidencia, false);
+    assert.equal(r.semCestComRetencao, true);
+    assert.equal(r.cfopSugerido, null);
     assert.ok(
-      r.motivos.some((m) => /nota sem CEST; o fornecedor reteve ST/.test(m)),
+      r.pendencias.some((p) =>
+        /não informou o CEST, que é obrigatório para produto desta lista \(Convênio ICMS 142\/2018, cláusula vigésima, I\)/.test(
+          p,
+        ),
+      ),
     );
     assert.ok(r.motivos.some((m) => /CFOP 6403/.test(m)));
   });

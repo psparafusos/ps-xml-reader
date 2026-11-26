@@ -343,11 +343,15 @@ export function resolverItem(
         ? `${a.candidatos.length} linhas da planilha servem: escolher uma`
         : a.apendiceXIV
           ? MOTIVO_APENDICE_XIV
-          : a.semEvidencia
-            ? `sem CEST e sem ST retida na nota: confirmar se é de ${a.candidatos[0]?.segmento ?? 'segmento da planilha'}${a.sugestaoSemST ? ' (sugestão: Sem ST)' : ''}`
-            : (pendencias.find((p) => p.startsWith('CEST da nota')) ??
-              pendencias[0] ??
-              'conferir a linha da planilha');
+          : a.semCestComRetencao
+            ? (a.pendencias.find((p) =>
+                p.startsWith('O fornecedor reteve ST'),
+              ) ?? 'sem CEST na nota: confirmar o segmento')
+            : a.semEvidencia
+              ? `sem CEST e sem ST retida na nota: confirmar se é de ${a.candidatos[0]?.segmento ?? 'segmento da planilha'}${a.sugestaoSemST ? ' (sugestão: Sem ST)' : ''}`
+              : (pendencias.find((p) => p.startsWith('CEST da nota')) ??
+                pendencias[0] ??
+                'conferir a linha da planilha');
   }
 
   // MVA: só da linha em uso, e só na revenda.
